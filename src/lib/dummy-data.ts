@@ -69,6 +69,7 @@ export interface Company {
 export interface UserProfile {
   id: string;
   company_id: string;
+  auth_user_id?: string | null;
   name: string;
   email: string;
   role: 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';

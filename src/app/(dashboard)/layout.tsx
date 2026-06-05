@@ -6,7 +6,7 @@ import Header from '@/components/dashboard/header';
 import { useAuth } from '@/context/auth-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { usePathname, useRouter } from 'next/navigation';
-import { Lock, ShieldAlert, ChevronRight } from 'lucide-react';
+import { Lock, ShieldAlert, ChevronRight, Loader2, LogIn, Layers } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -24,7 +24,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const { activeProfile, setActiveProfile } = useAuth();
+  const { activeProfile, setActiveProfile, isAuthenticated, isLoading, authError, signIn, logout } = useAuth();
   const { rolePermissions } = useDatabase();
   const pathname = usePathname();
   const router = useRouter();
@@ -32,6 +32,18 @@ export default function DashboardLayout({
   const currentBaseSegment = '/' + pathname.split('/').filter(Boolean)[0];
   const allowedRoles = rolePermissions[currentBaseSegment] || DEFAULT_ROLE_PERMISSIONS[currentBaseSegment] || [];
   const hasAccess = allowedRoles.includes(activeProfile.role);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#090d16] text-white flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen authError={authError} onSignIn={signIn} />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex text-slate-800 dark:text-slate-100">
@@ -50,6 +62,7 @@ export default function DashboardLayout({
           setSidebarOpen={setSidebarOpen} 
           activeProfile={activeProfile}
           setActiveProfile={setActiveProfile}
+          logout={logout}
         />
 
         {/* Dynamic page contents */}
@@ -102,6 +115,88 @@ export default function DashboardLayout({
           )}
         </main>
       </div>
+    </div>
+  );
+}
+
+function LoginScreen({
+  authError,
+  onSignIn
+}: {
+  authError: string | null;
+  onSignIn: (email: string, password: string) => Promise<void>;
+}) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setLocalError(null);
+
+    try {
+      await onSignIn(email, password);
+    } catch {
+      setLocalError('E-mail ou senha inválidos, ou perfil sem permissão ativa.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#090d16] text-slate-100 flex items-center justify-center px-4">
+      <form onSubmit={submit} className="w-full max-w-sm border border-slate-800 bg-slate-950 p-6 rounded-2xl shadow-2xl space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary text-white flex items-center justify-center">
+            <Layers className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold">PrintFlowPRO</h1>
+            <p className="text-xs text-slate-400">Acesso seguro ao ERP</p>
+          </div>
+        </div>
+
+        {(localError || authError) && (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            {localError || authError}
+          </div>
+        )}
+
+        <label className="block space-y-1.5">
+          <span className="text-xs font-semibold text-slate-300">E-mail</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 text-sm outline-none focus:border-primary"
+            autoComplete="email"
+            required
+          />
+        </label>
+
+        <label className="block space-y-1.5">
+          <span className="text-xs font-semibold text-slate-300">Senha</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 text-sm outline-none focus:border-primary"
+            autoComplete="current-password"
+            required
+          />
+        </label>
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full h-11 rounded-xl bg-primary text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+          Entrar
+        </button>
+      </form>
     </div>
   );
 }

@@ -26,7 +26,6 @@ import {
   DUMMY_COMPANY,
   Company,
   OrderItem,
-  QuoteItem,
   PickupPoint,
   DUMMY_PICKUP_POINTS,
   UserProfile,
@@ -250,50 +249,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [registerTransactions, setRegisterTransactions] = useState<CashRegisterTransaction[]>([]);
   const activeSession = sessions.find(s => s.status === 'aberto') || null;
 
-  const seedSupabase = async () => {
-    try {
-      console.log("Supabase empty, seeding company configuration...");
-      await supabase.from('companies').insert([DUMMY_COMPANY]);
-      await supabase.from('settings').insert([{
-        company_id: DUMMY_COMPANY.id,
-        theme: DUMMY_SETTINGS.theme,
-        pix_key: DUMMY_SETTINGS.pix_key,
-        pix_key_type: DUMMY_SETTINGS.pix_key_type,
-        bank_name: DUMMY_SETTINGS.bank_name,
-        tax_rate: DUMMY_SETTINGS.tax_rate,
-        commission_rate: DUMMY_SETTINGS.commission_rate,
-        top_bar_hours: DUMMY_SETTINGS.top_bar_hours,
-        top_bar_show_pickup: DUMMY_SETTINGS.top_bar_show_pickup,
-        top_bar_phone: DUMMY_SETTINGS.top_bar_phone,
-        footer_show_address: DUMMY_SETTINGS.footer_show_address,
-        footer_hours_message: DUMMY_SETTINGS.footer_hours_message,
-        footer_hours_week: DUMMY_SETTINGS.footer_hours_week,
-        footer_hours_sat: DUMMY_SETTINGS.footer_hours_sat,
-        footer_hours_sat_time: DUMMY_SETTINGS.footer_hours_sat_time,
-        footer_hours_sat_desc: DUMMY_SETTINGS.footer_hours_sat_desc,
-        saas_enabled: DUMMY_SETTINGS.saas_enabled,
-        nfe_enabled: DUMMY_SETTINGS.nfe_enabled,
-        ai_enabled: DUMMY_SETTINGS.ai_enabled,
-        company_address: DUMMY_SETTINGS.company_address,
-        delivery_motoboy_price_km: DUMMY_SETTINGS.delivery_motoboy_price_km,
-        delivery_car_price_km: DUMMY_SETTINGS.delivery_car_price_km,
-        delivery_min_fee: DUMMY_SETTINGS.delivery_min_fee
-      }]);
-      await supabase.from('profiles').insert(DUMMY_PROFILES);
-      
-      const formattedPerms = Object.entries(DEFAULT_ROLE_PERMISSIONS).map(([path, roles]) => ({
-        company_id: DUMMY_COMPANY.id,
-        path,
-        roles
-      }));
-      await supabase.from('role_permissions').insert(formattedPerms);
-      
-      console.log("Supabase base configuration seed complete!");
-    } catch (e) {
-      console.error("Error during Supabase seed:", e);
-    }
-  };
-
   // Load from Supabase on mount, fallback to localStorage
   useEffect(() => {
     const init = async () => {
@@ -302,7 +257,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
 
         if (!companies || companies.length === 0) {
-          await seedSupabase();
+          // Initial production setup must be done through Supabase SQL Editor or a server-side service role.
+          // The browser client must not seed tenant data with the public key.
           
           // Clear operational data in localStorage to prevent loading dummy data locally
           localStorage.setItem('printflow_customers', '[]');
@@ -320,10 +276,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('printflow_sessions', '[]');
           localStorage.setItem('printflow_registerTransactions', '[]');
 
-          // Set configuration data states
-          setCompany(DUMMY_COMPANY);
+          // Keep public configuration empty/default until a real tenant is provisioned.
+          setCompany({ ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
           setSettings(DUMMY_SETTINGS);
-          setProfiles(DUMMY_PROFILES);
+          setProfiles([]);
           setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
           
           // Set operational data states to completely blank arrays
