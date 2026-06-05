@@ -28,7 +28,9 @@ import {
   Tag,
   Star,
   Download,
-  Share
+  Share,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
@@ -63,13 +65,75 @@ const getProductBadge = (name: string): 'favorito' | 'novo' | null => {
   return null;
 };
 
+// Helper to parse HEX to RGB and adjust brightness or opacity for custom themes
+function getThemeColorShade(hex: string, percent: number, opacity?: number) {
+  let num = hex.replace('#', '');
+  if (num.length === 3) {
+    num = num[0] + num[0] + num[1] + num[1] + num[2] + num[2];
+  }
+  
+  if (num.length !== 6 || isNaN(parseInt(num, 16))) {
+    num = '059669'; // Fallback to emerald green
+  }
+
+  const r = parseInt(num.substring(0, 2), 16);
+  const g = parseInt(num.substring(2, 4), 16);
+  const b = parseInt(num.substring(4, 6), 16);
+
+  if (opacity !== undefined) {
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+
+  let newR = Math.min(255, Math.max(0, r + percent));
+  let newG = Math.min(255, Math.max(0, g + percent));
+  let newB = Math.min(255, Math.max(0, b + percent));
+
+  const toHex = (c: number) => {
+    const hexStr = c.toString(16);
+    return hexStr.length === 1 ? '0' + hexStr : hexStr;
+  };
+
+  return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
+}
+
 export default function StorefrontPage() {
   const { products, categories, addQuote, pickupPoints, banners, company, settings } = useDatabase();
-  const { theme } = useTheme();
   const { isInstallable, isIOS, triggerInstall } = usePWA();
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
+
+  // Local store theme state (catalog defaults to light mode!)
+  const [storeTheme, setStoreTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    const stored = localStorage.getItem('printflow_store_theme') as 'light' | 'dark';
+    const initialTheme = stored === 'light' || stored === 'dark' ? stored : 'light';
+    setStoreTheme(initialTheme);
+    
+    // Apply store theme class to document element on mount
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(initialTheme);
+
+    return () => {
+      // Restore dashboard theme when leaving catalog storefront
+      const adminTheme = localStorage.getItem('printflow_theme') as 'light' | 'dark' || 'dark';
+      root.classList.remove('light', 'dark');
+      root.classList.add(adminTheme);
+    };
+  }, []);
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(storeTheme);
+    localStorage.setItem('printflow_store_theme', storeTheme);
+  }, [storeTheme]);
+
+  const toggleStoreTheme = () => {
+    setStoreTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   const [megaMenuCategory, setMegaMenuCategory] = useState<string | null>(null);
   const [openedFromAllProducts, setOpenedFromAllProducts] = useState(false);
@@ -317,37 +381,57 @@ export default function StorefrontPage() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  const themeColor = company.theme_color || 'emerald';
+  let primaryColor = company.theme_color || '#059669';
+  const PRESETS: Record<string, string> = {
+    emerald: '#059669',
+    blue: '#2563eb',
+    violet: '#7c3aed',
+    amber: '#d97706',
+    rose: '#e11d48'
+  };
+  if (PRESETS[primaryColor]) {
+    primaryColor = PRESETS[primaryColor];
+  }
+
+  const primary = primaryColor;
+  const dark = getThemeColorShade(primary, -30);
+  const darker = getThemeColorShade(primary, -50);
+  const light = getThemeColorShade(primary, 30);
+  const ultraLight = getThemeColorShade(primary, 0, 0.05);
+  const opacity5 = getThemeColorShade(primary, 0, 0.05);
+  const opacity10 = getThemeColorShade(primary, 0, 0.1);
+  const opacity20 = getThemeColorShade(primary, 0, 0.2);
+  const opacity40 = getThemeColorShade(primary, 0, 0.4);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans antialiased flex flex-col justify-between">
       <style dangerouslySetInnerHTML={{ __html: `
-        .bg-emerald-600 { background-color: ${themeColor === 'blue' ? '#2563eb' : themeColor === 'violet' ? '#7c3aed' : themeColor === 'amber' ? '#d97706' : themeColor === 'rose' ? '#e11d48' : '#059669'} !important; }
-        .bg-emerald-500 { background-color: ${themeColor === 'blue' ? '#3b82f6' : themeColor === 'violet' ? '#8b5cf6' : themeColor === 'amber' ? '#f59e0b' : themeColor === 'rose' ? '#f43f5e' : '#10b981'} !important; }
-        .bg-emerald-50 { background-color: ${themeColor === 'blue' ? '#eff6ff' : themeColor === 'violet' ? '#f5f3ff' : themeColor === 'amber' ? '#fffbeb' : themeColor === 'rose' ? '#fff1f2' : '#ecfdf5'} !important; }
-        .text-emerald-600 { color: ${themeColor === 'blue' ? '#2563eb' : themeColor === 'violet' ? '#7c3aed' : themeColor === 'amber' ? '#d97706' : themeColor === 'rose' ? '#e11d48' : '#059669'} !important; }
-        .text-emerald-500 { color: ${themeColor === 'blue' ? '#3b82f6' : themeColor === 'violet' ? '#8b5cf6' : themeColor === 'amber' ? '#f59e0b' : themeColor === 'rose' ? '#f43f5e' : '#10b981'} !important; }
-        .text-emerald-400 { color: ${themeColor === 'blue' ? '#60a5fa' : themeColor === 'violet' ? '#a78bfa' : themeColor === 'amber' ? '#fbbf24' : themeColor === 'rose' ? '#fb7185' : '#34d399'} !important; }
-        .hover\\:bg-emerald-600:hover { background-color: ${themeColor === 'blue' ? '#2563eb' : themeColor === 'violet' ? '#7c3aed' : themeColor === 'amber' ? '#d97706' : themeColor === 'rose' ? '#e11d48' : '#059669'} !important; }
-        .hover\\:bg-emerald-500:hover { background-color: ${themeColor === 'blue' ? '#3b82f6' : themeColor === 'violet' ? '#8b5cf6' : themeColor === 'amber' ? '#f59e0b' : themeColor === 'rose' ? '#f43f5e' : '#10b981'} !important; }
-        .hover\\:text-emerald-400:hover { color: ${themeColor === 'blue' ? '#60a5fa' : themeColor === 'violet' ? '#a78bfa' : themeColor === 'amber' ? '#fbbf24' : themeColor === 'rose' ? '#fb7185' : '#34d399'} !important; }
-        .hover\\:text-emerald-600:hover { color: ${themeColor === 'blue' ? '#2563eb' : themeColor === 'violet' ? '#7c3aed' : themeColor === 'amber' ? '#d97706' : themeColor === 'rose' ? '#e11d48' : '#059669'} !important; }
-        .dark .dark\\:text-emerald-400 { color: ${themeColor === 'blue' ? '#60a5fa' : themeColor === 'violet' ? '#a78bfa' : themeColor === 'amber' ? '#fbbf24' : themeColor === 'rose' ? '#fb7185' : '#34d399'} !important; }
-        .dark .dark\\:hover\\:text-emerald-400:hover { color: ${themeColor === 'blue' ? '#60a5fa' : themeColor === 'violet' ? '#a78bfa' : themeColor === 'amber' ? '#fbbf24' : themeColor === 'rose' ? '#fb7185' : '#34d399'} !important; }
-        .border-emerald-500\\/10 { border-color: ${themeColor === 'blue' ? 'rgba(59, 130, 246, 0.1)' : themeColor === 'violet' ? 'rgba(124, 58, 237, 0.1)' : themeColor === 'amber' ? 'rgba(217, 119, 6, 0.1)' : themeColor === 'rose' ? 'rgba(225, 29, 72, 0.1)' : 'rgba(16, 185, 129, 0.1)'} !important; }
-        .border-emerald-500\\/20 { border-color: ${themeColor === 'blue' ? 'rgba(59, 130, 246, 0.2)' : themeColor === 'violet' ? 'rgba(124, 58, 237, 0.2)' : themeColor === 'amber' ? 'rgba(217, 119, 6, 0.2)' : themeColor === 'rose' ? 'rgba(225, 29, 72, 0.2)' : 'rgba(16, 185, 129, 0.2)'} !important; }
-        .hover\\:border-emerald-500\\/40:hover { border-color: ${themeColor === 'blue' ? 'rgba(59, 130, 246, 0.4)' : themeColor === 'violet' ? 'rgba(124, 58, 237, 0.4)' : themeColor === 'amber' ? 'rgba(217, 119, 6, 0.4)' : themeColor === 'rose' ? 'rgba(225, 29, 72, 0.4)' : 'rgba(16, 185, 129, 0.4)'} !important; }
-        .focus\\:border-emerald-500:focus { border-color: ${themeColor === 'blue' ? '#3b82f6' : themeColor === 'violet' ? '#8b5cf6' : themeColor === 'amber' ? '#f59e0b' : themeColor === 'rose' ? '#f43f5e' : '#10b981'} !important; }
-        .group:hover .group-hover\\:text-emerald-600 { color: ${themeColor === 'blue' ? '#2563eb' : themeColor === 'violet' ? '#7c3aed' : themeColor === 'amber' ? '#d97706' : themeColor === 'rose' ? '#e11d48' : '#059669'} !important; }
-        .shadow-emerald-600\\/10 { --tw-shadow-color: ${themeColor === 'blue' ? 'rgba(37, 99, 235, 0.1)' : themeColor === 'violet' ? 'rgba(124, 92, 246, 0.1)' : themeColor === 'amber' ? 'rgba(217, 119, 6, 0.1)' : themeColor === 'rose' ? 'rgba(225, 29, 72, 0.1)' : 'rgba(5, 150, 105, 0.1)'} !important; }
-        .shadow-emerald-600\\/20 { --tw-shadow-color: ${themeColor === 'blue' ? 'rgba(37, 99, 235, 0.2)' : themeColor === 'violet' ? 'rgba(124, 92, 246, 0.2)' : themeColor === 'amber' ? 'rgba(217, 119, 6, 0.2)' : themeColor === 'rose' ? 'rgba(225, 29, 72, 0.2)' : 'rgba(5, 150, 105, 0.2)'} !important; }
-        .shadow-emerald-600\\/5 { --tw-shadow-color: ${themeColor === 'blue' ? 'rgba(37, 99, 235, 0.05)' : themeColor === 'violet' ? 'rgba(124, 92, 246, 0.05)' : themeColor === 'amber' ? 'rgba(217, 119, 6, 0.05)' : themeColor === 'rose' ? 'rgba(225, 29, 72, 0.05)' : 'rgba(5, 150, 105, 0.05)'} !important; }
-        .border-emerald-600 { border-color: ${themeColor === 'blue' ? '#2563eb' : themeColor === 'violet' ? '#7c3aed' : themeColor === 'amber' ? '#d97706' : themeColor === 'rose' ? '#e11d48' : '#059669'} !important; }
-        .text-emerald-700 { color: ${themeColor === 'blue' ? '#1d4ed8' : themeColor === 'violet' ? '#6d28d9' : themeColor === 'amber' ? '#b45309' : themeColor === 'rose' ? '#be123c' : '#047857'} !important; }
-        .text-emerald-800 { color: ${themeColor === 'blue' ? '#1e40af' : themeColor === 'violet' ? '#5b21b6' : themeColor === 'amber' ? '#92400e' : themeColor === 'rose' ? '#9f1239' : '#065f46'} !important; }
-        .ring-emerald-600\\/10 { --tw-ring-color: ${themeColor === 'blue' ? 'rgba(37, 99, 235, 0.1)' : themeColor === 'violet' ? 'rgba(124, 92, 246, 0.1)' : themeColor === 'amber' ? 'rgba(217, 119, 6, 0.1)' : themeColor === 'rose' ? 'rgba(225, 29, 72, 0.1)' : 'rgba(5, 150, 105, 0.1)'} !important; }
-        .bg-emerald-50\\/30 { background-color: ${themeColor === 'blue' ? 'rgba(239, 246, 255, 0.3)' : themeColor === 'violet' ? 'rgba(245, 243, 255, 0.3)' : themeColor === 'amber' ? 'rgba(255, 251, 235, 0.3)' : themeColor === 'rose' ? 'rgba(255, 241, 242, 0.3)' : 'rgba(236, 253, 245, 0.3)'} !important; }
-        .bg-emerald-500\\/10 { background-color: ${themeColor === 'blue' ? 'rgba(59, 130, 246, 0.1)' : themeColor === 'violet' ? 'rgba(139, 92, 246, 0.1)' : themeColor === 'amber' ? 'rgba(245, 158, 11, 0.1)' : themeColor === 'rose' ? 'rgba(244, 63, 94, 0.1)' : 'rgba(16, 185, 129, 0.1)'} !important; }
+        .bg-emerald-600 { background-color: ${primary} !important; }
+        .bg-emerald-500 { background-color: ${light} !important; }
+        .bg-emerald-50 { background-color: ${ultraLight} !important; }
+        .text-emerald-600 { color: ${primary} !important; }
+        .text-emerald-500 { color: ${primary} !important; }
+        .text-emerald-400 { color: ${light} !important; }
+        .hover\\:bg-emerald-600:hover { background-color: ${primary} !important; }
+        .hover\\:bg-emerald-500:hover { background-color: ${light} !important; }
+        .hover\\:text-emerald-400:hover { color: ${light} !important; }
+        .hover\\:text-emerald-600:hover { color: ${primary} !important; }
+        .dark .dark\\:text-emerald-400 { color: ${light} !important; }
+        .dark .dark\\:hover\\:text-emerald-400:hover { color: ${light} !important; }
+        .border-emerald-500\\/10 { border-color: ${opacity10} !important; }
+        .border-emerald-500\\/20 { border-color: ${opacity20} !important; }
+        .hover\\:border-emerald-500\\/40:hover { border-color: ${opacity40} !important; }
+        .focus\\:border-emerald-500:focus { border-color: ${primary} !important; }
+        .group:hover .group-hover\\:text-emerald-600 { color: ${primary} !important; }
+        .shadow-emerald-600\\/10 { --tw-shadow-color: ${opacity10} !important; }
+        .shadow-emerald-600\\/20 { --tw-shadow-color: ${opacity20} !important; }
+        .shadow-emerald-600\\/5 { --tw-shadow-color: ${opacity5} !important; }
+        .border-emerald-600 { border-color: ${primary} !important; }
+        .text-emerald-700 { color: ${dark} !important; }
+        .text-emerald-800 { color: ${darker} !important; }
+        .ring-emerald-600\\/10 { --tw-ring-color: ${opacity10} !important; }
+        .bg-emerald-50\\/30 { background-color: ${opacity5} !important; }
+        .bg-emerald-500\\/10 { background-color: ${opacity10} !important; }
       `}} />
       
       {/* 1. Header Top Info Bar */}
@@ -396,8 +480,9 @@ export default function StorefrontPage() {
       <header className="bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 h-20 sticky top-0 z-30 shadow-sm flex items-center">
         <div className="max-w-7xl mx-auto w-full px-4 md:px-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {/* Header Logo */}
             {(() => {
-              const logoSrc = theme === 'dark' ? (company.logo_dark || company.logo_light) : (company.logo_light || company.logo_dark);
+              const logoSrc = storeTheme === 'dark' ? (company.logo_dark || company.logo_light) : (company.logo_light || company.logo_dark);
               return logoSrc ? (
                 <img 
                   src={logoSrc} 
@@ -461,6 +546,19 @@ export default function StorefrontPage() {
                 <span className="hidden sm:inline">Baixar App</span>
               </button>
             )}
+
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleStoreTheme}
+              className="flex items-center justify-center p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-100 transition-all border border-slate-200 dark:border-zinc-700 font-bold shrink-0 cursor-pointer"
+              title={storeTheme === 'light' ? 'Mudar para Modo Escuro' : 'Mudar para Modo Claro'}
+            >
+              {storeTheme === 'light' ? (
+                <Moon className="h-4.5 w-4.5 text-zinc-600 dark:text-zinc-400" />
+              ) : (
+                <Sun className="h-4.5 w-4.5 text-amber-500" />
+              )}
+            </button>
 
             <button
               onClick={() => setCartOpen(true)}

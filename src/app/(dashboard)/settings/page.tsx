@@ -1234,26 +1234,55 @@ export default function SettingsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end text-xs">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">Selecione a Cor Principal</label>
-                        <select
-                          value={compThemeColor}
-                          onChange={(e) => setCompThemeColor(e.target.value)}
-                          className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                        >
-                          <option value="emerald">Verde Esmeralda (Padrão)</option>
-                          <option value="blue">Azul Real</option>
-                          <option value="violet">Roxo Violeta</option>
-                          <option value="amber">Laranja / Âmbar</option>
-                          <option value="rose">Vermelho / Rosa</option>
-                        </select>
+                        <div className="flex gap-2">
+                          <select
+                            value={['emerald', 'blue', 'violet', 'amber', 'rose'].includes(compThemeColor) ? compThemeColor : 'custom'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === 'custom') {
+                                setCompThemeColor('#059669'); // Default to emerald hex
+                              } else {
+                                setCompThemeColor(val);
+                              }
+                            }}
+                            className="flex-1 px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
+                          >
+                            <option value="emerald">Verde Esmeralda (Padrão)</option>
+                            <option value="blue">Azul Real</option>
+                            <option value="violet">Roxo Violeta</option>
+                            <option value="amber">Laranja / Âmbar</option>
+                            <option value="rose">Vermelho / Rosa</option>
+                            <option value="custom">Personalizado (Seletor de Cor) 🎨</option>
+                          </select>
+
+                          {/* Render color picker next to it if not a standard preset or starts with # */}
+                          {(!['emerald', 'blue', 'violet', 'amber', 'rose'].includes(compThemeColor) || compThemeColor.startsWith('#')) && (
+                            <div className="relative w-10 h-[38px] shrink-0 rounded-lg border border-border overflow-hidden bg-secondary/50">
+                              <input
+                                type="color"
+                                value={compThemeColor.startsWith('#') ? compThemeColor : '#059669'}
+                                onChange={(e) => setCompThemeColor(e.target.value)}
+                                className="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer"
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      
                       <div className="flex items-center gap-3 p-3 bg-secondary/10 border border-border rounded-xl h-[38px]">
                         <span className="font-semibold text-muted-foreground text-[10px] uppercase">Amostra:</span>
-                        <div className={`h-4 w-4 rounded-full border border-border shrink-0 ${
-                          compThemeColor === 'blue' ? 'bg-blue-600' :
-                          compThemeColor === 'violet' ? 'bg-violet-600' :
-                          compThemeColor === 'amber' ? 'bg-amber-600' :
-                          compThemeColor === 'rose' ? 'bg-rose-600' : 'bg-emerald-600'
-                        }`} />
+                        <div 
+                          className="h-4 w-4 rounded-full border border-border shrink-0" 
+                          style={{
+                            backgroundColor: 
+                              compThemeColor === 'blue' ? '#2563eb' :
+                              compThemeColor === 'violet' ? '#7c3aed' :
+                              compThemeColor === 'amber' ? '#d97706' :
+                              compThemeColor === 'rose' ? '#e11d48' :
+                              compThemeColor === 'emerald' ? '#059669' :
+                              compThemeColor
+                          }}
+                        />
                         <span className="font-bold uppercase text-[10px] text-foreground">
                           {compThemeColor === 'emerald' ? 'Esmeralda' :
                            compThemeColor === 'blue' ? 'Azul' :
