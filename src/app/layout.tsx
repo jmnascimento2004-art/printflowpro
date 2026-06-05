@@ -8,7 +8,6 @@ import PWARegister from "@/components/pwa-register";
 export const metadata: Metadata = {
   title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
   description: "O ERP definitivo para controle de custos, precificação m², ordens de produção Kanban e gestão financeira de gráficas, brindes, sublimação e comunicação visual.",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -47,4 +46,3 @@ export default function RootLayout({
     </html>
   );
 }
-

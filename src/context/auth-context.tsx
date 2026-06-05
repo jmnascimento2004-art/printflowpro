@@ -15,7 +15,7 @@ interface AuthContextType {
   setActiveProfile: (profile: UserProfile) => void;
   hasRole: (roles: UserProfile['role'][]) => boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, companyName?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async (email: string, password: string, name: string, companyName?: string) => {
     setIsLoading(true);
     setAuthError(null);
 
@@ -145,7 +145,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: {
         data: {
-          name: name.trim()
+          name: name.trim(),
+          company_name: companyName?.trim() || 'Minha empresa'
         }
       }
     });
