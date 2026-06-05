@@ -869,7 +869,10 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Imagem do Banner *</label>
+                      <div className="flex justify-between items-baseline">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Imagem do Banner *</label>
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Ideal: 1920x480px (4:1)</span>
+                      </div>
                       <div className="flex gap-2 items-center">
                         <div className="relative flex-1">
                           <button type="button" className="w-full py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors border border-dashed border-primary/30">
@@ -892,6 +895,9 @@ export default function SettingsPage() {
                           </button>
                         )}
                       </div>
+                      <span className="text-[9px] text-muted-foreground block leading-tight pt-0.5">
+                        * Dica: Centralize textos e elementos importantes para evitar cortes em smartphones (onde a imagem é reduzida nas laterais).
+                      </span>
                     </div>
                   </div>
 
