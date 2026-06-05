@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setAuthError(null);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
@@ -155,6 +155,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       setAuthError(error.message);
       throw error;
+    }
+
+    if (!data.session) {
+      setIsLoading(false);
     }
   };
 

@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import { 
   Home, 
   Users, 
-  User,
   FileText, 
   Calculator, 
   LayoutGrid, 
@@ -18,8 +17,7 @@ import {
   Settings, 
   ShoppingBag,
   LogOut,
-  Layers,
-  Download
+  Layers
 } from 'lucide-react';
 import { useTheme } from '@/context/theme-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
@@ -27,12 +25,10 @@ import { useAuth } from '@/context/auth-context';
 
 export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (o: boolean) => void }) {
   const pathname = usePathname();
-  const { theme, toggleTheme } = useTheme();
-  const { company, rolePermissions, showToast } = useDatabase();
+  const { theme } = useTheme();
+  const { company, rolePermissions } = useDatabase();
   const { activeProfile } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallBtn, setShowInstallBtn] = useState(false);
 
   // Check window resize
   useEffect(() => {
@@ -49,59 +45,6 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [setIsOpen]);
-
-  // Handle PWA installation state
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallBtn(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // Check if app is already running in standalone mode (installed)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
-      || (window.navigator as any).standalone 
-      || (typeof document !== 'undefined' && document.referrer.includes('android-app://'));
-
-    // iOS users don't trigger beforeinstallprompt, so we force show it as guide if not standalone
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-
-    if (isStandalone) {
-      setShowInstallBtn(false);
-    } else if (isIOS) {
-      setShowInstallBtn(true);
-    }
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      if (isIOS) {
-        showToast("No iOS: toque no botão Compartilhar (seta para cima) e escolha 'Adicionar à Tela de Início'.", "success");
-      } else {
-        showToast("Utilize o ícone de instalação na barra de endereços do seu navegador.", "success");
-      }
-      return;
-    }
-    
-    try {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-        setShowInstallBtn(false);
-        showToast("Obrigado por instalar o PrintFlowPRO!", "success");
-      }
-    } catch (err) {
-      console.warn("Failed to trigger PWA install:", err);
-    }
-  };
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
@@ -216,17 +159,6 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
 
         {/* Bottom Section */}
         <div className="p-2 border-t border-border space-y-1 bg-secondary/30">
-          {showInstallBtn && (
-            <button
-              onClick={handleInstallClick}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-primary hover:bg-primary/10 transition-all border border-primary/20 bg-primary/5 cursor-pointer"
-              title="Instalar Aplicativo (PWA)"
-            >
-              <Download className="h-5 w-5 shrink-0 text-primary animate-pulse" />
-              {isOpen && <span className="truncate text-primary font-semibold">Instalar Aplicativo</span>}
-            </button>
-          )}
-
           <Link
             href="/store"
             target="_blank"
