@@ -252,7 +252,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   const seedSupabase = async () => {
     try {
-      console.log("Supabase empty, seeding initial data...");
+      console.log("Supabase empty, seeding company configuration...");
       await supabase.from('companies').insert([DUMMY_COMPANY]);
       await supabase.from('settings').insert([{
         company_id: DUMMY_COMPANY.id,
@@ -280,40 +280,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         delivery_min_fee: DUMMY_SETTINGS.delivery_min_fee
       }]);
       await supabase.from('profiles').insert(DUMMY_PROFILES);
-      await supabase.from('categories').insert(DUMMY_CATEGORIES);
-      await supabase.from('products').insert(DUMMY_PRODUCTS);
-      await supabase.from('customers').insert(DUMMY_CUSTOMERS);
-      
-      for (const quote of DUMMY_QUOTES) {
-        const { items, ...q } = quote;
-        await supabase.from('quotes').insert([q]);
-        if (items && items.length > 0) {
-          await supabase.from('quote_items').insert(
-            items.map(i => ({ ...i, quote_id: quote.id }))
-          );
-        }
-      }
-      
-      for (const order of DUMMY_ORDERS) {
-        const { items, ...o } = order;
-        await supabase.from('orders').insert([o]);
-        if (items && items.length > 0) {
-          await supabase.from('order_items').insert(
-            items.map(i => ({ ...i, order_id: order.id }))
-          );
-        }
-      }
-      
-      await supabase.from('production_queue').insert(DUMMY_PRODUCTION_QUEUE);
-      await supabase.from('financial_transactions').insert(DUMMY_FINANCIAL);
-      await supabase.from('shipments').insert(DUMMY_SHIPMENTS);
-      await supabase.from('pickup_points').insert(DUMMY_PICKUP_POINTS);
-      
-      const formattedBanners = DEFAULT_BANNERS.map(b => ({
-        ...b,
-        company_id: DUMMY_COMPANY.id
-      }));
-      await supabase.from('store_banners').insert(formattedBanners);
       
       const formattedPerms = Object.entries(DEFAULT_ROLE_PERMISSIONS).map(([path, roles]) => ({
         company_id: DUMMY_COMPANY.id,
@@ -322,7 +288,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       }));
       await supabase.from('role_permissions').insert(formattedPerms);
       
-      console.log("Supabase seeding complete!");
+      console.log("Supabase base configuration seed complete!");
     } catch (e) {
       console.error("Error during Supabase seed:", e);
     }
@@ -337,21 +303,45 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
         if (!companies || companies.length === 0) {
           await seedSupabase();
-          // Set states directly to dummy data instead of reloading, preventing infinite reload loop
+          
+          // Clear operational data in localStorage to prevent loading dummy data locally
+          localStorage.setItem('printflow_customers', '[]');
+          localStorage.setItem('printflow_suppliers', '[]');
+          localStorage.setItem('printflow_categories', '[]');
+          localStorage.setItem('printflow_products', '[]');
+          localStorage.setItem('printflow_quotes', '[]');
+          localStorage.setItem('printflow_orders', '[]');
+          localStorage.setItem('printflow_production', '[]');
+          localStorage.setItem('printflow_financial', '[]');
+          localStorage.setItem('printflow_shipments', '[]');
+          localStorage.setItem('printflow_stockMovements', '[]');
+          localStorage.setItem('printflow_pickupPoints', '[]');
+          localStorage.setItem('printflow_banners', '[]');
+          localStorage.setItem('printflow_sessions', '[]');
+          localStorage.setItem('printflow_registerTransactions', '[]');
+
+          // Set configuration data states
           setCompany(DUMMY_COMPANY);
           setSettings(DUMMY_SETTINGS);
           setProfiles(DUMMY_PROFILES);
-          setCategories(DUMMY_CATEGORIES);
-          setProducts(DUMMY_PRODUCTS);
-          setCustomers(DUMMY_CUSTOMERS);
-          setQuotes(DUMMY_QUOTES);
-          setOrders(DUMMY_ORDERS);
-          setProduction(DUMMY_PRODUCTION_QUEUE);
-          setFinancial(DUMMY_FINANCIAL);
-          setShipments(DUMMY_SHIPMENTS);
-          setPickupPoints(DUMMY_PICKUP_POINTS);
-          setBanners(DEFAULT_BANNERS);
           setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+          
+          // Set operational data states to completely blank arrays
+          setCustomers([]);
+          setSuppliers([]);
+          setCategories([]);
+          setProducts([]);
+          setQuotes([]);
+          setOrders([]);
+          setProduction([]);
+          setFinancial([]);
+          setShipments([]);
+          setStockMovements([]);
+          setPickupPoints([]);
+          setBanners([]);
+          setSessions([]);
+          setRegisterTransactions([]);
+
           setInitialized(true);
           return;
         }
@@ -790,6 +780,17 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !company?.favicon) return;
 
+    // Check if it's a supported browser favicon (not .cdr or other unsupported formats)
+    const isSupported = (url: string) => {
+      const lower = url.toLowerCase();
+      return !lower.endsWith('.cdr') && (lower.startsWith('http') || lower.startsWith('data:image/') || lower.includes('.png') || lower.includes('.ico') || lower.includes('.svg') || lower.includes('.jpg') || lower.includes('.jpeg') || lower.includes('.webp'));
+    };
+
+    if (!isSupported(company.favicon)) {
+      console.warn('Favicon format not supported by browser:', company.favicon);
+      return;
+    }
+
     const updateFavicons = () => {
       try {
         const links = document.querySelectorAll("link[rel*='icon']");
@@ -806,7 +807,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           document.getElementsByTagName('head')[0].appendChild(link);
         }
       } catch (e) {
-        console.error('Failed to update favicon in DOM', e);
+        console.warn('Failed to update favicon in DOM', e);
       }
     };
 
