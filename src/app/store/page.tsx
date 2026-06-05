@@ -6,7 +6,6 @@ import {
   ShoppingCart, 
   Trash2, 
   MapPin, 
-  User, 
   Phone, 
   CheckCircle2, 
   X,
@@ -21,22 +20,17 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
-  Eye,
   Heart,
   Menu,
   Mail,
   Tag,
   Star,
-  Download,
-  Share,
   Sun,
   Moon
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
 import { getProductUnitPrice } from '@/lib/utils';
-import { useTheme } from '@/context/theme-context';
-import { usePWA } from '@/hooks/use-pwa';
 
 interface CartItem {
   product: Product;
@@ -84,9 +78,9 @@ function getThemeColorShade(hex: string, percent: number, opacity?: number) {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
   }
 
-  let newR = Math.min(255, Math.max(0, r + percent));
-  let newG = Math.min(255, Math.max(0, g + percent));
-  let newB = Math.min(255, Math.max(0, b + percent));
+  const newR = Math.min(255, Math.max(0, r + percent));
+  const newG = Math.min(255, Math.max(0, g + percent));
+  const newB = Math.min(255, Math.max(0, b + percent));
 
   const toHex = (c: number) => {
     const hexStr = c.toString(16);
@@ -98,8 +92,6 @@ function getThemeColorShade(hex: string, percent: number, opacity?: number) {
 
 export default function StorefrontPage() {
   const { products, categories, addQuote, pickupPoints, banners, company, settings } = useDatabase();
-  const { isInstallable, isIOS, triggerInstall } = usePWA();
-  const [showIOSModal, setShowIOSModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
 
@@ -523,30 +515,6 @@ export default function StorefrontPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* PWA Install Button */}
-            {isInstallable && (
-              <button
-                onClick={triggerInstall}
-                className="flex items-center gap-2 p-2.5 px-3 md:px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-100 transition-all border border-slate-200 dark:border-zinc-700 font-bold shrink-0 text-xs shadow-sm cursor-pointer animate-pulse"
-                title="Instalar aplicativo do catálogo"
-              >
-                <Download className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden sm:inline">Baixar App</span>
-              </button>
-            )}
-
-            {/* iOS PWA Install Button */}
-            {isIOS && (
-              <button
-                onClick={() => setShowIOSModal(true)}
-                className="flex items-center gap-2 p-2.5 px-3 md:px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-100 transition-all border border-slate-200 dark:border-zinc-700 font-bold shrink-0 text-xs shadow-sm cursor-pointer animate-pulse"
-                title="Como instalar no iPhone/iPad"
-              >
-                <Download className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden sm:inline">Baixar App</span>
-              </button>
-            )}
-
             {/* Theme Toggle Button */}
             <button
               onClick={toggleStoreTheme}
@@ -1944,75 +1912,6 @@ export default function StorefrontPage() {
         </div>
       )}
 
-      {/* iOS Install Guide Modal */}
-      {showIOSModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex justify-center items-end md:items-center py-6 px-4 overflow-y-auto">
-          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-t-3xl md:rounded-2xl w-full max-w-md shadow-2xl p-6 text-slate-850 dark:text-zinc-100 space-y-5 animate-in slide-in-from-bottom md:zoom-in-95 duration-200">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Download className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="font-extrabold text-slate-900 dark:text-white text-sm uppercase tracking-wider">Instalar no iPhone / iPad</h3>
-              </div>
-              <button 
-                onClick={() => setShowIOSModal(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-850 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="text-xs leading-relaxed text-slate-600 dark:text-zinc-350 space-y-4">
-              <p className="text-center font-medium">
-                Adicione o catálogo da nossa loja diretamente na tela de início do seu aparelho para ter acesso instantâneo como um aplicativo nativo:
-              </p>
-
-              <div className="space-y-3 bg-slate-50 dark:bg-zinc-850/50 border border-slate-100 dark:border-zinc-800/80 p-4 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                    1
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-800 dark:text-zinc-100">Use o Safari</span>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">Verifique se você está acessando a página através do navegador Safari oficial da Apple.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                    2
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-1">
-                      Toque em Compartilhar <Share className="h-3.5 w-3.5 inline text-emerald-600 dark:text-emerald-400" />
-                    </span>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">Pressione o botão de compartilhar (o quadrado com uma seta apontando para cima) no menu inferior ou superior do navegador.</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                    3
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-800 dark:text-zinc-100">Adicionar à Tela de Início</span>
-                    <p className="text-[11px] text-slate-500 dark:text-zinc-400">Deslize a gaveta de opções e toque em "Adicionar à Tela de Início" (+).</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex pt-3 border-t border-slate-100 dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setShowIOSModal(false)}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/10"
-              >
-                Entendi, Obrigado!
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

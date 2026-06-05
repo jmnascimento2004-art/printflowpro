@@ -2,11 +2,10 @@
 
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, ChevronLeft, ChevronRight, Download, LogOut, Menu, Moon, Sun } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, LogOut, Menu, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/context/theme-context';
 import { useDatabase } from '@/context/database-context';
 import { UserProfile } from '@/lib/dummy-data';
-import { usePWA } from '@/hooks/use-pwa';
 
 export default function Header({
   sidebarOpen,
@@ -24,7 +23,6 @@ export default function Header({
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { company } = useDatabase();
-  const { isInstallable, isIOS, triggerInstall } = usePWA();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
   const getPageTitle = () => {
@@ -64,8 +62,6 @@ export default function Header({
     return labels[role] || role;
   };
 
-  const installAvailable = isInstallable || isIOS;
-
   return (
     <header className="h-16 border-b border-border bg-card px-4 flex items-center justify-between sticky top-0 z-30 shadow-sm no-print">
       <div className="flex items-center gap-3 min-w-0">
@@ -96,17 +92,6 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-2">
-        {installAvailable && (
-          <button
-            onClick={triggerInstall}
-            className="flex items-center gap-1.5 p-2 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 hover:text-primary transition-all"
-            title="Instalar ERP no dispositivo"
-          >
-            <Download className="h-4.5 w-4.5" />
-            <span className="hidden md:inline text-xs font-bold">Instalar</span>
-          </button>
-        )}
-
         <button
           onClick={toggleTheme}
           className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground border border-border"
