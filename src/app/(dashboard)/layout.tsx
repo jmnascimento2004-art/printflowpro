@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Sidebar from '@/components/dashboard/sidebar';
 import Header from '@/components/dashboard/header';
+import { BrandLogo, BrandMark } from '@/components/brand';
 import { useAuth } from '@/context/auth-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { usePathname, useRouter } from 'next/navigation';
@@ -11,7 +12,6 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
-  Layers,
   Loader2,
   Lock,
   LogIn,
@@ -57,7 +57,7 @@ export default function DashboardLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#090d16] text-white flex items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
@@ -68,7 +68,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex text-slate-800 dark:text-slate-100">
+    <div className="min-h-screen bg-background text-foreground flex text-slate-900 dark:text-slate-100">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
       <div
@@ -181,28 +181,20 @@ function LoginScreen({
   };
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 grid lg:grid-cols-[1.05fr_0.95fr]">
-      <section className="hidden lg:flex flex-col justify-between border-r border-white/10 bg-[#0d1422] px-10 py-9">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
-            <Layers className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-lg font-black leading-none">PrintFlowPRO</p>
-            <p className="text-xs text-slate-400 mt-1">ERP SaaS para graficas e comunicacao visual</p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200/80 text-slate-900 grid lg:grid-cols-[1.05fr_0.95fr]">
+      <section className="hidden lg:flex flex-col justify-between border-r border-slate-200/80 bg-white/45 px-10 py-9 backdrop-blur">
+        <BrandLogo subtitle="ERP SaaS para graficas e comunicacao visual" />
 
         <div className="max-w-xl space-y-7">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
               <ShieldCheck className="h-3.5 w-3.5" />
               Acesso protegido com Supabase Auth
             </div>
-            <h1 className="mt-5 text-4xl font-black leading-tight text-white">
+            <h1 className="mt-5 text-4xl font-black leading-tight text-slate-950">
               Controle producao, vendas e financeiro com uma sessao segura.
             </h1>
-            <p className="mt-4 text-sm leading-6 text-slate-400">
+            <p className="mt-4 text-sm leading-6 text-slate-600">
               O painel administrativo exige autenticacao real. Cada conta fica vinculada a empresa pelo perfil e pelas politicas RLS do Supabase.
             </p>
           </div>
@@ -213,9 +205,9 @@ function LoginScreen({
               ['Auth', 'Login com sessao real'],
               ['ERP', 'Operacao protegida']
             ].map(([title, text]) => (
-              <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-lg font-black text-white">{title}</p>
-                <p className="mt-1 text-[11px] leading-4 text-slate-400">{text}</p>
+              <div key={title} className="pf-card p-4">
+                <p className="text-lg font-black text-primary">{title}</p>
+                <p className="mt-1 text-[11px] leading-4 text-slate-500">{text}</p>
               </div>
             ))}
           </div>
@@ -225,21 +217,19 @@ function LoginScreen({
       </section>
 
       <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-        <form onSubmit={submit} className="w-full max-w-[430px] rounded-[28px] border border-white/10 bg-[#0d1322] p-5 shadow-2xl sm:p-6">
+        <form onSubmit={submit} className="w-full max-w-[430px] rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-300/30 sm:p-6">
           <div className="mb-6 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-xl bg-primary text-white flex items-center justify-center lg:hidden">
-                <Layers className="h-5 w-5" />
-              </div>
+              <div className="lg:hidden"><BrandMark className="h-11 w-11" /></div>
               <div>
-                <h1 className="text-xl font-black text-white">{mode === 'login' ? 'Entrar no ERP' : 'Criar acesso'}</h1>
-                <p className="text-xs text-slate-400">{mode === 'login' ? 'Use seu e-mail e senha cadastrados.' : 'Crie o primeiro acesso da empresa.'}</p>
+                <h1 className="text-xl font-black text-slate-950">{mode === 'login' ? 'Entrar no ERP' : 'Criar acesso'}</h1>
+                <p className="text-xs text-slate-500">{mode === 'login' ? 'Use seu e-mail e senha cadastrados.' : 'Crie o primeiro acesso da empresa.'}</p>
               </div>
             </div>
             <Sparkles className="hidden h-5 w-5 text-primary sm:block" />
           </div>
 
-          <div className="mb-5 grid grid-cols-2 rounded-2xl border border-white/10 bg-slate-950/60 p-1">
+          <div className="mb-5 grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1">
             <button
               type="button"
               onClick={() => {
@@ -247,7 +237,7 @@ function LoginScreen({
                 setLocalError(null);
                 setSuccessMessage(null);
               }}
-              className={`h-10 rounded-xl text-xs font-black transition ${mode === 'login' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white'}`}
+              className={`h-10 rounded-lg text-xs font-black transition ${mode === 'login' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-900'}`}
             >
               Entrar
             </button>
@@ -258,20 +248,20 @@ function LoginScreen({
                 setLocalError(null);
                 setSuccessMessage(null);
               }}
-              className={`h-10 rounded-xl text-xs font-black transition ${mode === 'signup' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white'}`}
+              className={`h-10 rounded-lg text-xs font-black transition ${mode === 'signup' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-900'}`}
             >
               Criar conta
             </button>
           </div>
 
           {(localError || authError) && (
-            <div className="mb-4 rounded-2xl border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-xs leading-5 text-rose-100">
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
               {localError || authError}
             </div>
           )}
 
           {successMessage && (
-            <div className="mb-4 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-xs leading-5 text-emerald-100">
+            <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-xs leading-5 text-teal-700">
               {successMessage}
             </div>
           )}
@@ -280,24 +270,24 @@ function LoginScreen({
             {mode === 'signup' && (
               <>
                 <label className="block space-y-1.5">
-                  <span className="text-xs font-bold text-slate-300">Seu nome</span>
+                  <span className="text-xs font-bold text-slate-600">Seu nome</span>
                   <input
                     type="text"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none transition focus:border-primary"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:bg-white"
                     autoComplete="name"
                     required
                   />
                 </label>
 
                 <label className="block space-y-1.5">
-                  <span className="text-xs font-bold text-slate-300">Nome da empresa</span>
+                  <span className="text-xs font-bold text-slate-600">Nome da empresa</span>
                   <input
                     type="text"
                     value={companyName}
                     onChange={(event) => setCompanyName(event.target.value)}
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none transition focus:border-primary"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:bg-white"
                     autoComplete="organization"
                     required
                   />
@@ -306,32 +296,32 @@ function LoginScreen({
             )}
 
             <label className="block space-y-1.5">
-              <span className="text-xs font-bold text-slate-300">E-mail</span>
+              <span className="text-xs font-bold text-slate-600">E-mail</span>
               <input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white outline-none transition focus:border-primary"
+                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:bg-white"
                 autoComplete="email"
                 required
               />
             </label>
 
             <label className="block space-y-1.5">
-              <span className="text-xs font-bold text-slate-300">Senha</span>
+              <span className="text-xs font-bold text-slate-600">Senha</span>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 pr-12 text-sm text-white outline-none transition focus:border-primary"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 pr-12 text-sm text-slate-900 outline-none transition focus:border-primary focus:bg-white"
                   autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:text-slate-900"
                   title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -343,7 +333,7 @@ function LoginScreen({
           <button
             type="submit"
             disabled={submitting}
-            className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-black text-white shadow-lg shadow-primary/20 transition hover:bg-primary/95 disabled:opacity-60"
+            className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-black text-white shadow-lg shadow-primary/20 transition hover:bg-primary/95 disabled:opacity-60"
           >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />

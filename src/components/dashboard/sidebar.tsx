@@ -22,6 +22,7 @@ import {
 import { useTheme } from '@/context/theme-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
+import { BrandLogo, BrandMark } from '@/components/brand';
 
 export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (o: boolean) => void }) {
   const pathname = usePathname();
@@ -103,11 +104,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
                     className="h-8 w-8 object-contain rounded-lg shrink-0"
                   />
                 ) : (
-                  <img 
-                    src="/logo-default.png" 
-                    alt="PrintFlowPRO" 
-                    className="h-8 w-8 object-contain rounded-lg shrink-0 shadow-md shadow-primary/5"
-                  />
+                  <BrandMark className="h-8 w-8" />
                 );
               }
 
@@ -119,14 +116,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
                 />
               ) : (
                 <>
-                  <img 
-                    src="/logo-default.png" 
-                    alt="PrintFlowPRO Logo" 
-                    className="h-8 w-8 object-contain rounded-lg shrink-0 shadow-md shadow-primary/5"
-                  />
-                  <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-primary to-indigo-500 bg-clip-text text-transparent truncate">
-                    PrintFlowPRO
-                  </span>
+                  <BrandLogo className="[&>img]:h-8 [&>img]:w-8" />
                 </>
               );
             })()}
@@ -162,7 +152,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
           <Link
             href="/store"
             target="_blank"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:bg-secondary transition-all"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-primary hover:bg-secondary transition-all"
             title="Abrir Loja de Demonstração"
           >
             <ShoppingBag className="h-5 w-5 shrink-0" />

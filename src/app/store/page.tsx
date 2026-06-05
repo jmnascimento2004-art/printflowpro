@@ -9,7 +9,6 @@ import {
   Phone, 
   CheckCircle2, 
   X,
-  Layers,
   ArrowRight,
   TrendingUp,
   Search,
@@ -32,6 +31,7 @@ import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
 import { getProductUnitPrice } from '@/lib/utils';
 import { safeHref } from '@/lib/safe-url';
+import { BrandLogo, BrandMark } from '@/components/brand';
 
 interface CartItem {
   product: Product;
@@ -374,11 +374,11 @@ export default function StorefrontPage() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  let primaryColor = company.theme_color || '#059669';
+  let primaryColor = company.theme_color || '#5b3df4';
   const PRESETS: Record<string, string> = {
-    emerald: '#059669',
+    emerald: '#5b3df4',
     blue: '#2563eb',
-    violet: '#7c3aed',
+    violet: '#5b3df4',
     amber: '#d97706',
     rose: '#e11d48'
   };
@@ -397,7 +397,7 @@ export default function StorefrontPage() {
   const opacity40 = getThemeColorShade(primary, 0, 0.4);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans antialiased flex flex-col justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200/70 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans antialiased flex flex-col justify-between">
       <style dangerouslySetInnerHTML={{ __html: `
         .bg-emerald-600 { background-color: ${primary} !important; }
         .bg-emerald-500 { background-color: ${light} !important; }
@@ -428,7 +428,7 @@ export default function StorefrontPage() {
       `}} />
       
       {/* 1. Header Top Info Bar */}
-      <div className="bg-slate-900 text-slate-300 text-xs py-2 border-b border-slate-800">
+      <div className="bg-white/75 dark:bg-zinc-950 text-slate-600 dark:text-zinc-300 text-xs py-2 border-b border-slate-200 dark:border-zinc-800 backdrop-blur">
         <div className="max-w-7xl mx-auto w-full px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-2">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
@@ -470,7 +470,7 @@ export default function StorefrontPage() {
       </div>
 
       {/* 2. Main Navigation Header */}
-      <header className="bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 h-20 sticky top-0 z-30 shadow-sm flex items-center">
+      <header className="bg-white/90 dark:bg-zinc-900/95 border-b border-slate-200 dark:border-zinc-800 h-20 sticky top-0 z-30 shadow-sm backdrop-blur flex items-center">
         <div className="max-w-7xl mx-auto w-full px-4 md:px-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {/* Header Logo */}
@@ -483,17 +483,7 @@ export default function StorefrontPage() {
                   className="h-9 w-auto object-contain max-w-[200px]"
                 />
               ) : (
-                <div className="flex items-center gap-2">
-                  <img 
-                    src="/logo-default.png" 
-                    alt="PrintFlowPRO" 
-                    className="h-9 w-9 object-contain rounded-lg shrink-0 shadow-md shadow-emerald-600/10"
-                  />
-                  <div className="flex flex-col">
-                    <span className="font-bold text-base text-slate-900 dark:text-white leading-tight">PrintFlowPRO</span>
-                    <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Catálogo Online</span>
-                  </div>
-                </div>
+                <BrandLogo subtitle="Catalogo Online" className="[&>img]:h-9 [&>img]:w-9" />
               );
             })()}
           </div>
@@ -1805,7 +1795,7 @@ export default function StorefrontPage() {
           
           <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-600 bg-slate-950/40 px-3 py-1.5 rounded-full border border-slate-800/60 select-none">
             <span>Desenvolvido e Hospedado por</span>
-            <Layers className="h-3.5 w-3.5 text-emerald-500" />
+            <BrandMark className="h-4 w-4 rounded-md" />
             <span className="font-extrabold uppercase tracking-widest text-emerald-400">PrintFlowPRO</span>
             <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold">SaaS v1.0</span>
           </div>

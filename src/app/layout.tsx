@@ -10,12 +10,12 @@ export const metadata: Metadata = {
   title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
   description: "O ERP definitivo para controle de custos, precificação m², ordens de produção Kanban e gestão financeira de gráficas, brindes, sublimação e comunicação visual.",
   icons: {
-    icon: "/icon.png",
+    icon: "/printflowpro-mark.svg",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0f19",
+  themeColor: "#5b3df4",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="dark" suppressHydrationWarning>
+    <html lang="pt-BR" className="light" suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
         <PWARegister />
         <BrowserProtocolGuard />

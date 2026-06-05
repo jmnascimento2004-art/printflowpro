@@ -6,8 +6,8 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 224 71.4% 4.1%;
+    --background: 214 32% 96%;
+    --foreground: 224 54% 13%;
 
     --card: 0 0% 100%;
     --card-foreground: 224 71.4% 4.1%;
@@ -15,33 +15,36 @@
     --popover: 0 0% 100%;
     --popover-foreground: 224 71.4% 4.1%;
 
-    --primary: 250 84% 54%;
+    --primary: 251 89% 60%;
     --primary-foreground: 210 20% 98%;
 
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
+    --secondary: 220 27% 94%;
+    --secondary-foreground: 224 54% 13%;
 
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
+    --muted: 220 27% 94%;
+    --muted-foreground: 218 18% 42%;
 
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
+    --accent: 252 100% 95%;
+    --accent-foreground: 251 89% 40%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 20% 98%;
 
-    --success: 142.1 76.2% 36.3%;
+    --success: 166 84% 34%;
     --success-foreground: 355.7 100% 97.3%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 250 84% 54%;
+    --border: 217 26% 88%;
+    --input: 217 26% 88%;
+    --ring: 251 89% 60%;
 
-    --radius: 10px;
+    --brand-indigo: #5b3df4;
+    --brand-violet: #7c3aed;
+    --brand-teal: #119b87;
+    --radius: 8px;
   }
 
   .dark {
-    --background: 224 71% 4%;
+    --background: 225 46% 7%;
     --foreground: 210 40% 98%;
 
     --card: 224 71% 6%;
@@ -50,7 +53,7 @@
     --popover: 224 71% 4%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 250 84% 60%;
+    --primary: 251 89% 64%;
     --primary-foreground: 224 71% 4%;
 
     --secondary: 215 27.9% 12.9%;
@@ -85,6 +88,24 @@
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Outfit', 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .pf-card {
+    @apply rounded-lg border border-border bg-card shadow-sm shadow-slate-200/40 dark:shadow-black/20;
+  }
+
+  .pf-button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-extrabold text-white shadow-md shadow-primary/20 transition hover:bg-primary/95;
+  }
+
+  .pf-button-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-extrabold text-slate-900 shadow-sm transition hover:border-primary/30 hover:text-primary dark:bg-card dark:text-foreground;
+  }
+
+  .pf-brand-gradient {
+    @apply bg-gradient-to-r from-primary via-violet-600 to-teal-600 bg-clip-text text-transparent;
   }
 }
 

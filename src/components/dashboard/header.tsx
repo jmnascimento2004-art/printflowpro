@@ -63,11 +63,11 @@ export default function Header({
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card px-4 flex items-center justify-between sticky top-0 z-30 shadow-sm no-print">
+    <header className="h-16 border-b border-border bg-white/85 dark:bg-card/90 px-4 flex items-center justify-between sticky top-0 z-30 shadow-sm backdrop-blur no-print">
       <div className="flex items-center gap-3 min-w-0">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="hidden md:flex items-center justify-center p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground border border-border mr-1 transition-all"
+          className="hidden md:flex items-center justify-center p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-primary border border-border mr-1 transition-all"
           title={sidebarOpen ? 'Recolher Menu' : 'Expandir Menu'}
         >
           {sidebarOpen ? <ChevronLeft className="h-4.5 w-4.5" /> : <ChevronRight className="h-4.5 w-4.5" />}
@@ -75,7 +75,7 @@ export default function Header({
 
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground md:hidden"
+          className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-primary md:hidden"
           title="Abrir menu"
         >
           <Menu className="h-5 w-5" />

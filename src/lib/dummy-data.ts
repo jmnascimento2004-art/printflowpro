@@ -337,7 +337,7 @@ export const DUMMY_COMPANY: Company = {
   neighborhood: 'Bela Vista',
   city: 'São Paulo',
   state: 'SP',
-  theme_color: 'emerald',
+  theme_color: 'violet',
   instagram_url: 'https://instagram.com/printflowpro',
   facebook_url: 'https://facebook.com/printflowpro',
   youtube_url: 'https://youtube.com/printflowpro',

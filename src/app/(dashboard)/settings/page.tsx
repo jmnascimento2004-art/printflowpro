@@ -9,7 +9,6 @@ import {
   Coins, 
   Building2, 
   FileText, 
-  RefreshCw, 
   Check, 
   Layers,
   MapPin,
@@ -34,7 +33,10 @@ import {
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
 import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
-import { DUMMY_COMPANY, UserProfile } from '@/lib/dummy-data';
+import { DUMMY_COMPANY, PickupPoint, UserProfile } from '@/lib/dummy-data';
+
+type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
+type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'sistema';
 
 const SYSTEM_MODULES = [
   { path: '/dashboard', label: 'Dashboard', desc: 'Resumo geral, estatísticas de vendas, status de produção e fluxo financeiro simplificado.' },
@@ -95,7 +97,7 @@ export default function SettingsPage() {
     updateRolePermissions
   } = useDatabase();
 
-  const [activeTab, setActiveTab] = useState<'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'sistema'>('empresa');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('empresa');
 
   const [pixKey, setPixKey] = useState(settings.pix_key || 'financeiro@printflowpro.com.br');
   const [pixKeyType, setPixKeyType] = useState(settings.pix_key_type || 'email');
@@ -107,7 +109,7 @@ export default function SettingsPage() {
   const [compLogoLight, setCompLogoLight] = useState(company.logo_light || '');
   const [compLogoDark, setCompLogoDark] = useState(company.logo_dark || '');
   const [compFavicon, setCompFavicon] = useState(company.favicon || '');
-  const [compThemeColor, setCompThemeColor] = useState(company.theme_color || 'emerald');
+  const [compThemeColor, setCompThemeColor] = useState(company.theme_color || 'violet');
   const [compPhone, setCompPhone] = useState(company.phone || '');
   const [compEmail, setCompEmail] = useState(company.email || '');
   const [compCEP, setCompCEP] = useState(company.cep || '');
@@ -360,7 +362,7 @@ export default function SettingsPage() {
 
   // CRUD Local State for Pickup Points
   const [isAdding, setIsAdding] = useState(false);
-  const [editingPoint, setEditingPoint] = useState<any | null>(null);
+  const [editingPoint, setEditingPoint] = useState<PickupPoint | null>(null);
 
   const [pointName, setPointName] = useState('');
   const [pointStreet, setPointStreet] = useState('');
@@ -421,7 +423,7 @@ export default function SettingsPage() {
   const [empFormName, setEmpFormName] = useState('');
   const [empFormEmail, setEmpFormEmail] = useState('');
   const [empFormPhone, setEmpFormPhone] = useState('');
-  const [empFormRole, setEmpFormRole] = useState<'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista'>('vendas');
+  const [empFormRole, setEmpFormRole] = useState<EmployeeRole>('vendas');
   const [empFormActive, setEmpFormActive] = useState(true);
   const [activePermissionsTab, setActivePermissionsTab] = useState<'employees' | 'permissions'>('employees');
   const [tempPermissions, setTempPermissions] = useState<Record<string, string[]>>({});
@@ -470,7 +472,7 @@ export default function SettingsPage() {
     setEmpFormName(profile.name);
     setEmpFormEmail(profile.email);
     setEmpFormPhone(profile.phone || '');
-    setEmpFormRole(profile.role as any);
+    setEmpFormRole(profile.role as EmployeeRole);
     setEmpFormActive(profile.active);
     setEmpIsModalOpen(true);
   };
@@ -584,7 +586,7 @@ export default function SettingsPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const startEditing = (point: any) => {
+  const startEditing = (point: PickupPoint) => {
     setEditingPoint(point);
     setPointName(point.name);
     setPointStreet(point.street || '');
@@ -779,7 +781,7 @@ export default function SettingsPage() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as SettingsTab)}
                 className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 md:w-full ${
                   isActive 
                     ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/10' 
@@ -1240,7 +1242,7 @@ export default function SettingsPage() {
                             onChange={(e) => {
                               const val = e.target.value;
                               if (val === 'custom') {
-                                setCompThemeColor('#059669'); // Default to emerald hex
+                                setCompThemeColor('#5b3df4');
                               } else {
                                 setCompThemeColor(val);
                               }
@@ -1260,7 +1262,7 @@ export default function SettingsPage() {
                             <div className="relative w-10 h-[38px] shrink-0 rounded-lg border border-border overflow-hidden bg-secondary/50">
                               <input
                                 type="color"
-                                value={compThemeColor.startsWith('#') ? compThemeColor : '#059669'}
+                                value={compThemeColor.startsWith('#') ? compThemeColor : '#5b3df4'}
                                 onChange={(e) => setCompThemeColor(e.target.value)}
                                 className="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer"
                               />
@@ -1276,7 +1278,7 @@ export default function SettingsPage() {
                           style={{
                             backgroundColor: 
                               compThemeColor === 'blue' ? '#2563eb' :
-                              compThemeColor === 'violet' ? '#7c3aed' :
+                              compThemeColor === 'violet' ? '#5b3df4' :
                               compThemeColor === 'amber' ? '#d97706' :
                               compThemeColor === 'rose' ? '#e11d48' :
                               compThemeColor === 'emerald' ? '#059669' :
@@ -1313,7 +1315,7 @@ export default function SettingsPage() {
                         placeholder="Preencha o endereço da empresa acima..."
                         className="w-full px-3 py-1.5 bg-secondary/30 text-muted-foreground cursor-not-allowed border border-border rounded-lg text-xs font-semibold focus:outline-none"
                       />
-                      <p className="text-[9px] text-muted-foreground">Este endereço é gerado automaticamente a partir dos "Dados de Cadastro da Empresa" acima e é usado como ponto de partida (Origem).</p>
+                      <p className="text-[9px] text-muted-foreground">Este endereço é gerado automaticamente a partir dos &quot;Dados de Cadastro da Empresa&quot; acima e é usado como ponto de partida (Origem).</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1397,7 +1399,7 @@ export default function SettingsPage() {
                       <div>
                         <span className="font-bold text-xs text-foreground block">Alerta de Retirada Grátis</span>
                         <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                          Exibir "Retire grátis em nossos balcões autorizados" na barra superior do catálogo.
+                          Exibir &quot;Retire grátis em nossos balcões autorizados&quot; na barra superior do catálogo.
                         </span>
                       </div>
                       <button
@@ -2557,7 +2559,7 @@ export default function SettingsPage() {
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">Nível de Acesso (Cargo) *</label>
                         <select
                           value={empFormRole}
-                          onChange={(e) => setEmpFormRole(e.target.value as any)}
+                          onChange={(e) => setEmpFormRole(e.target.value as EmployeeRole)}
                           className="w-full px-3.5 py-2 bg-secondary/50 border border-border rounded-xl font-bold text-foreground focus:outline-none focus:border-primary"
                         >
                           <option value="admin">Administrador (Acesso Geral)</option>
@@ -2639,3 +2641,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
