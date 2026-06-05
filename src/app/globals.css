@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 224 71.4% 4.1%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+
+    --primary: 250 84% 54%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 220 14.3% 95.9%;
+    --secondary-foreground: 220.9 39.3% 11%;
+
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220.9 39.3% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
+
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 355.7 100% 97.3%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 250 84% 54%;
+
+    --radius: 10px;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 224 71% 6%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 224 71% 4%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 250 84% 60%;
+    --primary-foreground: 224 71% 4%;
+
+    --secondary: 215 27.9% 12.9%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 215 27.9% 12.9%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+
+    --accent: 215 27.9% 12.9%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142.1 70.6% 45.3%;
+    --success-foreground: 144 61% 94%;
+
+    --border: 215 27.9% 16%;
+    --input: 215 27.9% 16%;
+    --ring: 250 84% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Inter', sans-serif;
+  }
+}
+
+/* Custom styling utilities */
+.glassmorphism {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glassmorphism-light {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(220, 220, 220, 0.5);
+}
+
+/* Styled Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(155, 155, 155, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(155, 155, 155, 0.4);
+}
+
+/* Hide print buttons and layout when printing */
+@media print {
+  .no-print, aside, header, nav, button, select, form,
+  #nextjs-portal, [data-nextjs-portal], next-route-announcer, #next-dev-portal, #__next-build-indicator {
+    display: none !important;
+  }
+  
+  @page {
+    margin: 0 !important;
+  }
+
+  body, html, main, .flex-1 {
+    background: white !important;
+    color: black !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Remove layout sidebar offsets */
+  div[class*="pl-"], div[class*="pl-64"], div[class*="pl-16"] {
+    padding-left: 0 !important;
+  }
+
+  /* Format printable area like a real document: flat, black text, clean margins */
+  #printable-order-area, 
+  #printable-quote-area {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 20mm !important;
+    margin: 0 auto !important;
+    background-color: white !important;
+    color: black !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Enforce black text and grey borders for print clarity */
+  #printable-order-area *, 
+  #printable-quote-area * {
+    color: black !important;
+    border-color: #94a3b8 !important; /* border-slate-400 */
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    -webkit-print-color-adjust: economy !important;
+    print-color-adjust: economy !important;
+  }
+
+  /* 80mm POS thermal ticket format styling */
+  #printable-pos-receipt {
+    display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 6mm !important;
+    margin: 0 auto !important;
+    background-color: white !important;
+    color: black !important;
+  }
+
+  #printable-pos-receipt * {
+    color: black !important;
+    border-color: black !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    -webkit-print-color-adjust: economy !important;
+    print-color-adjust: economy !important;
+  }
+}
