@@ -525,7 +525,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_customers', JSON.stringify(customers));
       supabase.from('customers').upsert(customers).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar clientes no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar clientes no Supabase:', error);
       });
       if (canShowToast) showToast('Clientes atualizados com sucesso!', 'success');
     } catch (e) {
@@ -538,7 +538,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_suppliers', JSON.stringify(suppliers));
       supabase.from('suppliers').upsert(suppliers).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar fornecedores no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar fornecedores no Supabase:', error);
       });
       if (canShowToast) showToast('Fornecedores atualizados com sucesso!', 'success');
     } catch (e) {
@@ -551,7 +551,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_categories', JSON.stringify(categories));
       supabase.from('categories').upsert(categories).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar categorias no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar categorias no Supabase:', error);
       });
       if (canShowToast) showToast('Categorias atualizadas com sucesso!', 'success');
     } catch (e) {
@@ -564,7 +564,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_products', JSON.stringify(products));
       supabase.from('products').upsert(products).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar produtos no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar produtos no Supabase:', error);
       });
       if (canShowToast) showToast('Produtos atualizados com sucesso!', 'success');
     } catch (e) {
@@ -579,7 +579,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       
       const parentQuotes = quotes.map(({ items, ...q }) => q);
       supabase.from('quotes').upsert(parentQuotes).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar orçamentos no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar orçamentos no Supabase:', error);
       });
       
       const allItems = quotes.flatMap(q => 
@@ -587,7 +587,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       );
       if (allItems.length > 0) {
         supabase.from('quote_items').upsert(allItems).then(({ error }) => {
-          if (error) console.error('Erro ao sincronizar itens do orçamento no Supabase:', error);
+          if (error) console.warn('Erro ao sincronizar itens do orçamento no Supabase:', error);
         });
       }
       
@@ -604,7 +604,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       
       const parentOrders = orders.map(({ items, ...o }) => o);
       supabase.from('orders').upsert(parentOrders).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar pedidos no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar pedidos no Supabase:', error);
       });
       
       const allItems = orders.flatMap(o => 
@@ -612,7 +612,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       );
       if (allItems.length > 0) {
         supabase.from('order_items').upsert(allItems).then(({ error }) => {
-          if (error) console.error('Erro ao sincronizar itens do pedido no Supabase:', error);
+          if (error) console.warn('Erro ao sincronizar itens do pedido no Supabase:', error);
         });
       }
       
@@ -627,7 +627,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_production', JSON.stringify(production));
       supabase.from('production_queue').upsert(production).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar fila de produção no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar fila de produção no Supabase:', error);
       });
       if (canShowToast) showToast('Fila de produção atualizada!', 'success');
     } catch (e) {
@@ -640,7 +640,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_financial', JSON.stringify(financial));
       supabase.from('financial_transactions').upsert(financial).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar financeiro no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar financeiro no Supabase:', error);
       });
       if (canShowToast) showToast('Transações financeiras atualizadas!', 'success');
     } catch (e) {
@@ -653,7 +653,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_shipments', JSON.stringify(shipments));
       supabase.from('shipments').upsert(shipments).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar expedição no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar expedição no Supabase:', error);
       });
       if (canShowToast) showToast('Envios e entregas atualizados!', 'success');
     } catch (e) {
@@ -666,7 +666,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_stockMovements', JSON.stringify(stockMovements));
       supabase.from('stock_movements').upsert(stockMovements).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar estoque no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar estoque no Supabase:', error);
       });
       if (canShowToast) showToast('Estoque movimentado com sucesso!', 'success');
     } catch (e) {
@@ -679,7 +679,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_settings', JSON.stringify(settings));
       supabase.from('settings').upsert({ company_id: company.id, ...settings }).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar configurações no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar configurações no Supabase:', error);
       });
       if (canShowToast) showToast('Configurações salvas com sucesso!', 'success');
     } catch (e) {
@@ -692,7 +692,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_pickupPoints', JSON.stringify(pickupPoints));
       supabase.from('pickup_points').upsert(pickupPoints).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar pontos de coleta no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar pontos de coleta no Supabase:', error);
       });
       if (canShowToast) showToast('Pontos de retirada salvos!', 'success');
     } catch (e) {
@@ -705,7 +705,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_company', JSON.stringify(company));
       supabase.from('companies').upsert([company]).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar empresa no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar empresa no Supabase:', error);
       });
       if (canShowToast) showToast('Configurações da empresa salvas com sucesso!', 'success');
     } catch (e) {
@@ -719,7 +719,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('printflow_banners', JSON.stringify(banners));
       const formatted = banners.map(b => ({ company_id: company.id, ...b }));
       supabase.from('store_banners').upsert(formatted).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar banners no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar banners no Supabase:', error);
       });
       if (canShowToast) showToast('Banners salvos com sucesso!', 'success');
     } catch (e) {
@@ -732,7 +732,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_profiles', JSON.stringify(profiles));
       supabase.from('profiles').upsert(profiles).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar funcionários no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar funcionários no Supabase:', error);
       });
       if (canShowToast) showToast('Funcionários atualizados com sucesso!', 'success');
     } catch (e) {
@@ -751,7 +751,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       }));
       if (formatted.length > 0) {
         supabase.from('role_permissions').upsert(formatted).then(({ error }) => {
-          if (error) console.error('Erro ao sincronizar permissões no Supabase:', error);
+          if (error) console.warn('Erro ao sincronizar permissões no Supabase:', error);
         });
       }
       if (canShowToast) showToast('Permissões de acesso atualizadas!', 'success');
@@ -765,7 +765,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_sessions', JSON.stringify(sessions));
       supabase.from('cash_register_sessions').upsert(sessions).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar sessões de caixa no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar sessões de caixa no Supabase:', error);
       });
       if (canShowToast) showToast('Status de caixa atualizado!', 'success');
     } catch (e) {
@@ -778,7 +778,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('printflow_registerTransactions', JSON.stringify(registerTransactions));
       supabase.from('cash_register_transactions').upsert(registerTransactions).then(({ error }) => {
-        if (error) console.error('Erro ao sincronizar transações de caixa no Supabase:', error);
+        if (error) console.warn('Erro ao sincronizar transações de caixa no Supabase:', error);
       });
       if (canShowToast) showToast('Transação do caixa salva!', 'success');
     } catch (e) {
@@ -857,7 +857,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     ]).then(() => {
       window.location.reload();
     }).catch(err => {
-      console.error('Error resetting Supabase data:', err);
+      console.warn('Error resetting Supabase data:', err);
       window.location.reload();
     });
   };
@@ -883,7 +883,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteCustomer = (id: string) => {
     setCustomers(prev => prev.filter(c => c.id !== id));
     supabase.from('customers').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('Erro ao excluir cliente no Supabase:', error);
+      if (error) console.warn('Erro ao excluir cliente no Supabase:', error);
     });
   };
 
@@ -920,7 +920,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteCategory = (id: string) => {
     setCategories(prev => prev.filter(c => c.id !== id));
     supabase.from('categories').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('Erro ao excluir categoria no Supabase:', error);
+      if (error) console.warn('Erro ao excluir categoria no Supabase:', error);
     });
   };
 
@@ -946,7 +946,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
     supabase.from('products').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('Erro ao excluir produto no Supabase:', error);
+      if (error) console.warn('Erro ao excluir produto no Supabase:', error);
     });
   };
 
@@ -1000,7 +1000,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteQuote = (id: string) => {
     setQuotes(prev => prev.filter(q => q.id !== id));
     supabase.from('quotes').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('Erro ao excluir orçamento no Supabase:', error);
+      if (error) console.warn('Erro ao excluir orçamento no Supabase:', error);
     });
   };
 
@@ -1451,7 +1451,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deletePickupPoint = (id: string) => {
     setPickupPoints(prev => prev.filter(p => p.id !== id));
     supabase.from('pickup_points').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('Erro ao excluir ponto de coleta no Supabase:', error);
+      if (error) console.warn('Erro ao excluir ponto de coleta no Supabase:', error);
     });
   };
 
@@ -1722,7 +1722,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteBanner = (id: string) => {
     setBanners(prev => prev.filter(b => b.id !== id));
     supabase.from('store_banners').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('Erro ao excluir banner no Supabase:', error);
+      if (error) console.warn('Erro ao excluir banner no Supabase:', error);
     });
   };
 
@@ -1746,7 +1746,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteProfile = (id: string) => {
     setProfiles(prev => prev.filter(p => p.id !== id));
     supabase.from('profiles').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('Erro ao excluir funcionário no Supabase:', error);
+      if (error) console.warn('Erro ao excluir funcionário no Supabase:', error);
     });
   };
 
