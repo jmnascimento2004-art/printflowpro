@@ -337,7 +337,22 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
         if (!companies || companies.length === 0) {
           await seedSupabase();
-          window.location.reload();
+          // Set states directly to dummy data instead of reloading, preventing infinite reload loop
+          setCompany(DUMMY_COMPANY);
+          setSettings(DUMMY_SETTINGS);
+          setProfiles(DUMMY_PROFILES);
+          setCategories(DUMMY_CATEGORIES);
+          setProducts(DUMMY_PRODUCTS);
+          setCustomers(DUMMY_CUSTOMERS);
+          setQuotes(DUMMY_QUOTES);
+          setOrders(DUMMY_ORDERS);
+          setProduction(DUMMY_PRODUCTION_QUEUE);
+          setFinancial(DUMMY_FINANCIAL);
+          setShipments(DUMMY_SHIPMENTS);
+          setPickupPoints(DUMMY_PICKUP_POINTS);
+          setBanners(DEFAULT_BANNERS);
+          setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+          setInitialized(true);
           return;
         }
 
@@ -796,21 +811,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     };
 
     updateFavicons();
-
-    const observer = new MutationObserver(() => {
-      updateFavicons();
-    });
-
-    observer.observe(document.head, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['href', 'rel']
-    });
-
-    return () => {
-      observer.disconnect();
-    };
   }, [company?.favicon, initialized]);
  
   const resetDatabase = () => {
