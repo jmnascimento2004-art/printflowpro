@@ -13,7 +13,6 @@ export default function PWARegister() {
             registration.unregister().then((success) => {
               if (success) {
                 console.log('Service Worker de desenvolvimento desinstalado com sucesso.');
-                window.location.reload(); // Recarrega para limpar estado cacheado e restaurar a página
               }
             });
           }

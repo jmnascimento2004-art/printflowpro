@@ -794,16 +794,19 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     const updateFavicons = () => {
       try {
         const links = document.querySelectorAll("link[rel*='icon']");
+        // Resolve absolute URL for correct comparison in browser
+        const absoluteFavicon = new URL(company.favicon!, window.location.href).href;
+        
         if (links.length > 0) {
           links.forEach(link => {
-            if ((link as HTMLLinkElement).href !== company.favicon) {
-              (link as HTMLLinkElement).href = company.favicon!;
+            if ((link as HTMLLinkElement).href !== absoluteFavicon) {
+              (link as HTMLLinkElement).href = absoluteFavicon;
             }
           });
         } else {
           const link = document.createElement('link');
           link.rel = 'icon';
-          link.href = company.favicon!;
+          link.href = absoluteFavicon;
           document.getElementsByTagName('head')[0].appendChild(link);
         }
       } catch (e) {
