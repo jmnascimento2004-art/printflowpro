@@ -44,11 +44,14 @@ export default function ProductsCRUDPage() {
   // Category management States
   const [catName, setCatName] = useState('');
   const [catDescription, setCatDescription] = useState('');
+  const [catParentId, setCatParentId] = useState('');
   const [isCategoryEditing, setIsCategoryEditing] = useState(false);
   const [selectedCatId, setSelectedCatId] = useState('');
 
   const getProductCount = (catId: string) => {
-    return products.filter(p => p.category_id === catId).length;
+    // Show count of products in this category, plus products in its subcategories if it is a parent category
+    const subcategoryIds = categories.filter(c => c.parent_id === catId).map(c => c.id);
+    return products.filter(p => p.category_id === catId || subcategoryIds.includes(p.category_id)).length;
   };
 
   const handleCategorySubmit = (e: React.FormEvent) => {
@@ -56,14 +59,15 @@ export default function ProductsCRUDPage() {
     if (!catName.trim()) return;
 
     if (isCategoryEditing) {
-      updateCategory(selectedCatId, catName, catDescription);
+      updateCategory(selectedCatId, catName, catDescription, catParentId || null);
       setIsCategoryEditing(false);
     } else {
-      addCategory(catName, catDescription);
+      addCategory(catName, catDescription, catParentId || null);
     }
 
     setCatName('');
     setCatDescription('');
+    setCatParentId('');
     setSelectedCatId('');
   };
 
@@ -183,7 +187,11 @@ export default function ProductsCRUDPage() {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.sku.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesCategory = selectedCategory === 'todos' ? true : p.category_id === selectedCategory;
+    const selectedCategoryIds = selectedCategory === 'todos'
+      ? []
+      : [selectedCategory, ...categories.filter(c => c.parent_id === selectedCategory).map(c => c.id)];
+    
+    const matchesCategory = selectedCategory === 'todos' ? true : selectedCategoryIds.includes(p.category_id);
 
     return matchesSearch && matchesCategory;
   });
@@ -420,9 +428,38 @@ export default function ProductsCRUDPage() {
                     className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
                   >
                     <option value="todos">Todas as Categorias</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    {(() => {
+                      const parents = categories.filter(c => !c.parent_id);
+                      const options: React.ReactNode[] = [];
+                      
+                      parents.forEach(p => {
+                        options.push(
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        );
+                        
+                        const children = categories.filter(c => c.parent_id === p.id);
+                        children.forEach(c => {
+                          options.push(
+                            <option key={c.id} value={c.id}>
+                              &nbsp;&nbsp;└─ {c.name}
+                            </option>
+                          );
+                        });
+                      });
+                      
+                      const orphans = categories.filter(c => c.parent_id && !categories.some(p => p.id === c.parent_id));
+                      orphans.forEach(c => {
+                        options.push(
+                          <option key={c.id} value={c.id}>
+                            &nbsp;&nbsp;└─ {c.name}
+                          </option>
+                        );
+                      });
+                      
+                      return options;
+                    })()}
                   </select>
                 </div>
 
@@ -623,6 +660,20 @@ export default function ProductsCRUDPage() {
                   </div>
 
                   <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Categoria Pai (Opcional)</label>
+                    <select
+                      value={catParentId}
+                      onChange={(e) => setCatParentId(e.target.value)}
+                      className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none font-medium"
+                    >
+                      <option value="">Nenhuma (Esta será uma categoria pai)</option>
+                      {categories.filter(c => (!selectedCatId || c.id !== selectedCatId) && !c.parent_id).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground">Descrição (Opcional)</label>
                     <textarea
                       value={catDescription}
@@ -677,16 +728,24 @@ export default function ProductsCRUDPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {categories.length > 0 ? (
-                        categories.map((cat) => {
-                          const productCount = getProductCount(cat.id);
-                          return (
-                            <tr key={cat.id} className="hover:bg-secondary/15 transition-colors">
-                              <td className="px-5 py-3.5 font-semibold text-foreground">{cat.name}</td>
-                              <td className="px-5 py-3.5 text-muted-foreground max-w-xs truncate">{cat.description || '-'}</td>
+                      {(() => {
+                        const parents = categories.filter(c => !c.parent_id);
+                        const renderedRows: React.ReactNode[] = [];
+                        
+                        parents.forEach(parent => {
+                          const parentCount = getProductCount(parent.id);
+                          
+                          // Render Parent Category row
+                          renderedRows.push(
+                            <tr key={parent.id} className="bg-secondary/10 hover:bg-secondary/20 transition-colors font-bold border-l-2 border-primary">
+                              <td className="px-5 py-3.5 font-bold text-foreground flex items-center gap-1.5">
+                                <span className="px-1.5 py-0.2 text-[8px] bg-primary/20 text-primary border border-primary/20 rounded font-black uppercase">PAI</span>
+                                <span>{parent.name}</span>
+                              </td>
+                              <td className="px-5 py-3.5 text-muted-foreground max-w-xs truncate font-medium">{parent.description || '-'}</td>
                               <td className="px-5 py-3.5 text-center font-bold text-foreground">
                                 <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] text-muted-foreground border border-border">
-                                  {productCount} {productCount === 1 ? 'produto' : 'produtos'}
+                                  {parentCount} {parentCount === 1 ? 'produto' : 'produtos'}
                                 </span>
                               </td>
                               <td className="px-5 py-3.5 text-center">
@@ -694,9 +753,10 @@ export default function ProductsCRUDPage() {
                                   <button
                                     onClick={() => {
                                       setIsCategoryEditing(true);
-                                      setSelectedCatId(cat.id);
-                                      setCatName(cat.name);
-                                      setCatDescription(cat.description || '');
+                                      setSelectedCatId(parent.id);
+                                      setCatName(parent.name);
+                                      setCatDescription(parent.description || '');
+                                      setCatParentId(parent.parent_id || '');
                                     }}
                                     className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                                     title="Editar Categoria"
@@ -706,17 +766,18 @@ export default function ProductsCRUDPage() {
                                   
                                   <button
                                     onClick={() => {
-                                      const count = getProductCount(cat.id);
+                                      const count = getProductCount(parent.id);
                                       if (count > 0) {
-                                        alert(`Não é possível excluir a categoria "${cat.name}" porque ela possui ${count} produto(s) associado(s).`);
+                                        alert(`Não é possível excluir a categoria "${parent.name}" porque ela possui ${count} produto(s) associado(s).`);
                                         return;
                                       }
-                                      if (confirm(`Deseja realmente excluir a categoria "${cat.name}"?`)) {
-                                        deleteCategory(cat.id);
-                                        if (selectedCatId === cat.id) {
+                                      if (confirm(`Deseja realmente excluir a categoria "${parent.name}"?`)) {
+                                        deleteCategory(parent.id);
+                                        if (selectedCatId === parent.id) {
                                           setIsCategoryEditing(false);
                                           setCatName('');
                                           setCatDescription('');
+                                          setCatParentId('');
                                           setSelectedCatId('');
                                         }
                                       }
@@ -730,14 +791,140 @@ export default function ProductsCRUDPage() {
                               </td>
                             </tr>
                           );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan={4} className="px-5 py-8 text-center text-muted-foreground italic">
-                            Nenhuma categoria cadastrada.
-                          </td>
-                        </tr>
-                      )}
+                          
+                          // Render Child Categories rows
+                          const children = categories.filter(c => c.parent_id === parent.id);
+                          children.forEach(child => {
+                            const childCount = products.filter(p => p.category_id === child.id).length;
+                            renderedRows.push(
+                              <tr key={child.id} className="hover:bg-secondary/15 transition-colors">
+                                <td className="px-5 py-3.5 font-medium text-foreground pl-10">
+                                  <span className="text-muted-foreground mr-1">└─</span>
+                                  <span>{child.name}</span>
+                                </td>
+                                <td className="px-5 py-3.5 text-muted-foreground max-w-xs truncate">{child.description || '-'}</td>
+                                <td className="px-5 py-3.5 text-center font-bold text-foreground">
+                                  <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] text-muted-foreground border border-border">
+                                    {childCount} {childCount === 1 ? 'produto' : 'produtos'}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3.5 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setIsCategoryEditing(true);
+                                        setSelectedCatId(child.id);
+                                        setCatName(child.name);
+                                        setCatDescription(child.description || '');
+                                        setCatParentId(child.parent_id || '');
+                                      }}
+                                      className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
+                                      title="Editar Categoria"
+                                    >
+                                      <Edit3 className="h-3.5 w-3.5" />
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => {
+                                        const count = products.filter(p => p.category_id === child.id).length;
+                                        if (count > 0) {
+                                          alert(`Não é possível excluir a categoria "${child.name}" porque ela possui ${count} produto(s) associado(s).`);
+                                          return;
+                                        }
+                                        if (confirm(`Deseja realmente excluir a categoria "${child.name}"?`)) {
+                                          deleteCategory(child.id);
+                                          if (selectedCatId === child.id) {
+                                            setIsCategoryEditing(false);
+                                            setCatName('');
+                                            setCatDescription('');
+                                            setCatParentId('');
+                                            setSelectedCatId('');
+                                          }
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/25 border border-rose-500/20"
+                                      title="Excluir Categoria"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          });
+                        });
+                        
+                        // Handle orphans
+                        const orphans = categories.filter(c => c.parent_id && !categories.some(p => p.id === c.parent_id));
+                        orphans.forEach(child => {
+                          const childCount = products.filter(p => p.category_id === child.id).length;
+                          renderedRows.push(
+                            <tr key={child.id} className="hover:bg-secondary/15 transition-colors">
+                              <td className="px-5 py-3.5 font-medium text-foreground pl-10">
+                                <span className="text-muted-foreground mr-1">└─</span>
+                                <span>{child.name}</span>
+                              </td>
+                              <td className="px-5 py-3.5 text-muted-foreground max-w-xs truncate">{child.description || '-'}</td>
+                              <td className="px-5 py-3.5 text-center font-bold text-foreground">
+                                <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] text-muted-foreground border border-border">
+                                  {childCount} {childCount === 1 ? 'produto' : 'produtos'}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3.5 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setIsCategoryEditing(true);
+                                      setSelectedCatId(child.id);
+                                      setCatName(child.name);
+                                      setCatDescription(child.description || '');
+                                      setCatParentId(child.parent_id || '');
+                                    }}
+                                    className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
+                                    title="Editar Categoria"
+                                  >
+                                    <Edit3 className="h-3.5 w-3.5" />
+                                  </button>
+                                  
+                                  <button
+                                    onClick={() => {
+                                      const count = products.filter(p => p.category_id === child.id).length;
+                                      if (count > 0) {
+                                        alert(`Não é possível excluir a categoria "${child.name}" porque ela possui ${count} produto(s) associado(s).`);
+                                        return;
+                                      }
+                                      if (confirm(`Deseja realmente excluir a categoria "${child.name}"?`)) {
+                                        deleteCategory(child.id);
+                                        if (selectedCatId === child.id) {
+                                          setIsCategoryEditing(false);
+                                          setCatName('');
+                                          setCatDescription('');
+                                          setCatParentId('');
+                                          setSelectedCatId('');
+                                        }
+                                      }
+                                    }}
+                                    className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/25 border border-rose-500/20"
+                                    title="Excluir Categoria"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                        
+                        if (renderedRows.length > 0) return renderedRows;
+                        
+                        return (
+                          <tr>
+                            <td colSpan={4} className="px-5 py-8 text-center text-muted-foreground italic">
+                              Nenhuma categoria cadastrada.
+                            </td>
+                          </tr>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -806,9 +993,38 @@ export default function ProductsCRUDPage() {
                   required
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 >
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  {(() => {
+                    const parents = categories.filter(c => !c.parent_id);
+                    const options: React.ReactNode[] = [];
+                    
+                    parents.forEach(p => {
+                      options.push(
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      );
+                      
+                      const children = categories.filter(c => c.parent_id === p.id);
+                      children.forEach(c => {
+                        options.push(
+                          <option key={c.id} value={c.id}>
+                            &nbsp;&nbsp;└─ {c.name}
+                          </option>
+                        );
+                      });
+                    });
+                    
+                    const orphans = categories.filter(c => c.parent_id && !categories.some(p => p.id === c.parent_id));
+                    orphans.forEach(c => {
+                      options.push(
+                        <option key={c.id} value={c.id}>
+                          &nbsp;&nbsp;└─ {c.name}
+                        </option>
+                      );
+                    });
+                    
+                    return options;
+                  })()}
                 </select>
               </div>
 

@@ -286,8 +286,12 @@ export default function StorefrontPage() {
       )
     : activeProducts;
 
+  const selectedCategoryIds = selectedCategory
+    ? [selectedCategory, ...categories.filter(c => c.parent_id === selectedCategory).map(c => c.id)]
+    : [];
+
   const filteredProducts = selectedCategory 
-    ? searchedProducts.filter(p => p.category_id === selectedCategory)
+    ? searchedProducts.filter(p => selectedCategoryIds.includes(p.category_id))
     : searchedProducts;
 
   // 3. Pricing details for configured item
@@ -574,7 +578,7 @@ export default function StorefrontPage() {
 
               {/* Other Categories */}
               <div className="flex items-center gap-6 md:gap-8 h-full">
-                {(categories || []).map(cat => (
+                {(categories || []).filter(c => !c.parent_id).map(cat => (
                   <button
                     key={cat.id}
                     onClick={(e) => handleTopCategoryClick(cat.id, e)}
@@ -623,27 +627,58 @@ export default function StorefrontPage() {
                     </button>
 
                     {/* Other category options in sidebar */}
-                    {(categories || []).map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => handleMenuCategoryClick(cat.id)}
-                        className={`w-full text-left px-3.5 py-2.5 rounded-xl transition-all flex items-center justify-between group text-xs font-bold uppercase tracking-wide ${
-                          megaMenuCategory === cat.id
-                            ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white font-extrabold'
-                            : 'hover:bg-slate-100/70 dark:hover:bg-zinc-850/70 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
-                      >
-                        <span className="truncate">{cat.name}</span>
-                        {megaMenuCategory === cat.id && <ChevronRight className="h-3.5 w-3.5 text-slate-700 dark:text-zinc-300 shrink-0 ml-2" />}
-                      </button>
-                    ))}
+                    {(() => {
+                      const rootCategories = (categories || []).filter(c => !c.parent_id);
+                      const childCategories = (categories || []).filter(c => c.parent_id);
+                      
+                      const items: { id: string; name: string; isChild: boolean }[] = [];
+                      rootCategories.forEach(parent => {
+                        items.push({ id: parent.id, name: parent.name, isChild: false });
+                        childCategories
+                          .filter(child => child.parent_id === parent.id)
+                          .forEach(child => {
+                            items.push({ id: child.id, name: child.name, isChild: true });
+                          });
+                      });
+                      
+                      // Fallback: add child categories whose parents aren't found in root
+                      childCategories.forEach(child => {
+                        if (!rootCategories.some(r => r.id === child.parent_id) && !items.some(item => item.id === child.id)) {
+                          items.push({ id: child.id, name: child.name, isChild: true });
+                        }
+                      });
+
+                      return items.map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={() => handleMenuCategoryClick(cat.id)}
+                          className={`w-full text-left py-2.5 rounded-xl transition-all flex items-center justify-between group uppercase tracking-wide ${
+                            cat.isChild 
+                              ? 'pl-7 pr-3.5 text-[11px] font-medium normal-case' 
+                              : 'px-3.5 text-xs font-bold'
+                          } ${
+                            megaMenuCategory === cat.id
+                              ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white font-extrabold'
+                              : 'hover:bg-slate-100/70 dark:hover:bg-zinc-850/70 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          <span className="truncate">
+                            {cat.isChild ? `└─ ${cat.name}` : cat.name}
+                          </span>
+                          {megaMenuCategory === cat.id && <ChevronRight className="h-3.5 w-3.5 text-slate-700 dark:text-zinc-300 shrink-0 ml-2" />}
+                        </button>
+                      ));
+                    })()}
                   </div>
                 )}
 
                 {/* Right Area: Sublists (Mais Vendidos, Destaques, Veja Também) */}
                 {(() => {
+                  const selectedCategoryIds = megaMenuCategory
+                    ? [megaMenuCategory, ...categories.filter(c => c.parent_id === megaMenuCategory).map(c => c.id)]
+                    : [];
                   const menuProducts = megaMenuCategory
-                    ? activeProducts.filter(p => p.category_id === megaMenuCategory)
+                    ? activeProducts.filter(p => selectedCategoryIds.includes(p.category_id))
                     : activeProducts;
 
                   const column1 = menuProducts.filter((_, idx) => idx % 3 === 0);

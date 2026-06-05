@@ -126,6 +126,7 @@ export interface Category {
   company_id: string;
   name: string;
   description: string;
+  parent_id?: string | null;
   created_at: string;
 }
 
@@ -476,10 +477,68 @@ export const DUMMY_CATEGORIES: Category[] = [
   { id: 'cat-5', company_id: 'c1', name: 'Brindes, Presentes e Decoração', description: 'Canecas, camisas sublimadas, azulejos e decoração.', created_at: '2026-05-01T08:20:00Z' },
   { id: 'cat-6', company_id: 'c1', name: 'Catálogos, Livros e Revistas', description: 'Impressão editorial de catálogos e livretos.', created_at: '2026-05-01T08:25:00Z' },
   { id: 'cat-7', company_id: 'c1', name: 'Rótulos e Etiquetas', description: 'Rótulos adesivos e etiquetas de identificação comercial.', created_at: '2026-05-01T08:30:00Z' },
-  { id: 'cat-8', company_id: 'c1', name: 'Linhas Especiais', description: 'Impressos com acabamentos especiais como verniz localizado ou hot stamping.', created_at: '2026-05-01T08:35:00Z' }
+  { id: 'cat-8', company_id: 'c1', name: 'Linhas Especiais', description: 'Impressos com acabamentos especiais como verniz localizado ou hot stamping.', created_at: '2026-05-01T08:35:00Z' },
+  { id: 'cat-9', company_id: 'c1', name: 'Banners, Faixas e Lonas', description: 'Comunicação visual de grandes formatos, mídias flexíveis.', parent_id: null, created_at: '2026-06-05T08:00:00Z' },
+  { id: 'cat-9-1', company_id: 'c1', name: 'Banners', description: 'Banners promocionais com bastão e cordão.', parent_id: 'cat-9', created_at: '2026-06-05T08:05:00Z' },
+  { id: 'cat-9-2', company_id: 'c1', name: 'Faixas', description: 'Faixas informativas de lona com madeira nas laterais.', parent_id: 'cat-9', created_at: '2026-06-05T08:10:00Z' },
+  { id: 'cat-9-3', company_id: 'c1', name: 'Lonas', description: 'Lonas brutas ou com acabamento em ilhós.', parent_id: 'cat-9', created_at: '2026-06-05T08:15:00Z' }
 ];
 
 export const DUMMY_PRODUCTS: Product[] = [
+  {
+    id: 'prod-901',
+    company_id: 'c1',
+    category_id: 'cat-9-1',
+    name: 'Front Light 440g',
+    description: 'Lona front light 440g brilhosa, ideal para banners e painéis.',
+    sku: 'PP-LON-901',
+    pricing_type: 'm2',
+    base_cost: 18.00,
+    sales_price: 45.00,
+    stock_controlled: true,
+    min_stock: 50,
+    current_stock: 120,
+    active: true,
+    is_highlight: true,
+    pricing_details: {
+      raw_material_cost: 12.00,
+      operating_cost: 3.00,
+      production_time: 15,
+      markup: 150,
+      commission: 5,
+      taxes: 6,
+      waste_percent: 5,
+      calculated_price: 45.00
+    },
+    created_at: '2026-06-05T09:00:00Z'
+  },
+  {
+    id: 'prod-902',
+    company_id: 'c1',
+    category_id: 'cat-9-1',
+    name: 'Banner Dupla Face 4x4',
+    description: 'Banner em lona fosca com impressão dupla face de alta definição.',
+    sku: 'PP-BAN-902',
+    pricing_type: 'm2',
+    base_cost: 35.00,
+    sales_price: 85.00,
+    stock_controlled: false,
+    min_stock: 0,
+    current_stock: 0,
+    active: true,
+    is_promo: true,
+    pricing_details: {
+      raw_material_cost: 25.00,
+      operating_cost: 5.00,
+      production_time: 25,
+      markup: 140,
+      commission: 5,
+      taxes: 6,
+      waste_percent: 4,
+      calculated_price: 85.00
+    },
+    created_at: '2026-06-05T09:10:00Z'
+  },
   // Category 1: Cartão de Visitas e Papelaria
   {
     id: 'prod-4',

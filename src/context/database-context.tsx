@@ -97,8 +97,8 @@ interface DatabaseContextType {
 
   // Suppliers & Categories
   addSupplier: (sup: Omit<Supplier, 'id' | 'company_id' | 'created_at'>) => Supplier;
-  addCategory: (name: string, description: string) => Category;
-  updateCategory: (id: string, name: string, description: string) => void;
+  addCategory: (name: string, description: string, parent_id?: string | null) => Category;
+  updateCategory: (id: string, name: string, description: string, parent_id?: string | null) => void;
   deleteCategory: (id: string) => void;
 
   // Products
@@ -855,20 +855,21 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return newSup;
   };
 
-  const addCategory = (name: string, description: string) => {
+  const addCategory = (name: string, description: string, parent_id?: string | null) => {
     const newCat: Category = {
       id: `cat-${Date.now()}`,
       company_id: DUMMY_COMPANY.id,
       name,
       description,
+      parent_id: parent_id || null,
       created_at: new Date().toISOString()
     };
     setCategories(prev => [...prev, newCat]);
     return newCat;
   };
 
-  const updateCategory = (id: string, name: string, description: string) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, name, description } : c));
+  const updateCategory = (id: string, name: string, description: string, parent_id?: string | null) => {
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, name, description, parent_id: parent_id || null } : c));
   };
 
   const deleteCategory = (id: string) => {

@@ -132,10 +132,26 @@ export default function POSPage() {
     return Math.max(0, getSubtotal() - discountAmount);
   };
 
-  // Categories extraction
+  // Categories extraction sorted hierarchically
+  const getSortedCategories = () => {
+    const sorted: typeof categories = [];
+    const parents = categories.filter(c => !c.parent_id);
+    parents.forEach(p => {
+      sorted.push(p);
+      const children = categories.filter(c => c.parent_id === p.id);
+      sorted.push(...children);
+    });
+    categories.forEach(c => {
+      if (!sorted.some(sc => sc.id === c.id)) {
+        sorted.push(c);
+      }
+    });
+    return sorted;
+  };
+
   const categoriesList = [
     'todos',
-    ...categories.map(c => c.id),
+    ...getSortedCategories().map(c => c.id),
     ...Array.from(new Set(products.map(p => p.category_id)))
       .filter(id => id && !categories.some(c => c.id === id))
   ];
@@ -143,13 +159,25 @@ export default function POSPage() {
   const getCategoryName = (catId: string) => {
     if (catId === 'todos') return 'Todos';
     const match = categories.find(c => c.id === catId);
-    return match ? match.name : catId.replace('cat-', 'Categoria ');
+    if (match) {
+      if (match.parent_id) {
+        const parent = categories.find(p => p.id === match.parent_id);
+        return parent ? `${parent.name} > ${match.name}` : match.name;
+      }
+      return match.name;
+    }
+    return catId.replace('cat-', 'Categoria ');
   };
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'todos' || p.category_id === selectedCategory;
+    
+    const selectedCategoryIds = selectedCategory === 'todos'
+      ? []
+      : [selectedCategory, ...categories.filter(c => c.parent_id === selectedCategory).map(c => c.id)];
+
+    const matchesCategory = selectedCategory === 'todos' || selectedCategoryIds.includes(p.category_id);
     return matchesSearch && matchesCategory && p.active;
   });
 
