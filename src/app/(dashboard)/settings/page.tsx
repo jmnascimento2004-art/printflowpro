@@ -2583,19 +2583,18 @@ export default function SettingsPage() {
                 <h3 className="font-bold text-sm uppercase tracking-wide">Área de Perigo</h3>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                A restauração de fábrica apagará todo o banco de dados temporário salvo localmente (como clientes, orçamentos, pedidos criados, novos produtos cadastrados) e reiniciará a aplicação com os dados originais padrão da demonstração. Esta ação é definitiva e não poderá ser desfeita.
+                A limpeza de dados apagará permanentemente todos os registros operacionais do sistema (como clientes, produtos, categorias, orçamentos, pedidos, produção e financeiro), deixando a plataforma limpa e pronta para uso real. As configurações da empresa e colaboradores serão mantidos. Esta ação é definitiva.
               </p>
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm('Deseja realmente restaurar os dados originais do catálogo (categorias e produtos padrão)? Isso irá redefinir as categorias, produtos e configurações padrão.')) {
-                    localStorage.clear();
-                    window.location.reload();
+                  if (confirm('Deseja realmente apagar todos os registros do sistema (clientes, produtos, categorias, orçamentos, pedidos, etc.)? Isso deixará a sua plataforma vazia para uso real. Esta ação não poderá ser desfeita.')) {
+                    resetDatabase();
                   }
                 }}
                 className="px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-600 dark:text-rose-400 text-xs font-semibold transition-all shadow-md shadow-rose-500/5"
               >
-                Restaurar Banco de Dados Padrão
+                Limpar Todos os Dados
               </button>
             </div>
           )}

@@ -814,29 +814,24 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [company?.favicon, initialized]);
  
   const resetDatabase = () => {
-    localStorage.removeItem('printflow_customers');
-    localStorage.removeItem('printflow_suppliers');
-    localStorage.removeItem('printflow_categories');
-    localStorage.removeItem('printflow_products');
-    localStorage.removeItem('printflow_quotes');
-    localStorage.removeItem('printflow_orders');
-    localStorage.removeItem('printflow_production');
-    localStorage.removeItem('printflow_financial');
-    localStorage.removeItem('printflow_shipments');
-    localStorage.removeItem('printflow_stockMovements');
-    localStorage.removeItem('printflow_settings');
-    localStorage.removeItem('printflow_pickupPoints');
-    localStorage.removeItem('printflow_banners');
-    localStorage.removeItem('printflow_profiles');
-    localStorage.removeItem('printflow_role_permissions');
-    localStorage.removeItem('printflow_sessions');
-    localStorage.removeItem('printflow_registerTransactions');
+    // Set operational data in localStorage to empty arrays to prevent falling back to dummy data on offline reload
+    localStorage.setItem('printflow_customers', '[]');
+    localStorage.setItem('printflow_suppliers', '[]');
+    localStorage.setItem('printflow_categories', '[]');
+    localStorage.setItem('printflow_products', '[]');
+    localStorage.setItem('printflow_quotes', '[]');
+    localStorage.setItem('printflow_orders', '[]');
+    localStorage.setItem('printflow_production', '[]');
+    localStorage.setItem('printflow_financial', '[]');
+    localStorage.setItem('printflow_shipments', '[]');
+    localStorage.setItem('printflow_stockMovements', '[]');
+    localStorage.setItem('printflow_pickupPoints', '[]');
+    localStorage.setItem('printflow_banners', '[]');
+    localStorage.setItem('printflow_sessions', '[]');
+    localStorage.setItem('printflow_registerTransactions', '[]');
     
-    // Clear Supabase tables too if connected
+    // Clear Supabase operational tables but KEEP companies, settings, profiles, and role_permissions
     Promise.all([
-      supabase.from('companies').delete().neq('id', ''),
-      supabase.from('settings').delete().neq('company_id', ''),
-      supabase.from('profiles').delete().neq('id', ''),
       supabase.from('customers').delete().neq('id', ''),
       supabase.from('suppliers').delete().neq('id', ''),
       supabase.from('categories').delete().neq('id', ''),
@@ -851,7 +846,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       supabase.from('stock_movements').delete().neq('id', ''),
       supabase.from('pickup_points').delete().neq('id', ''),
       supabase.from('store_banners').delete().neq('id', ''),
-      supabase.from('role_permissions').delete().neq('id', ''),
       supabase.from('cash_register_sessions').delete().neq('id', ''),
       supabase.from('cash_register_transactions').delete().neq('id', '')
     ]).then(() => {
