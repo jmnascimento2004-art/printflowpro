@@ -832,22 +832,22 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     
     // Clear Supabase operational tables but KEEP companies, settings, profiles, and role_permissions
     Promise.all([
-      supabase.from('customers').delete().neq('id', ''),
-      supabase.from('suppliers').delete().neq('id', ''),
-      supabase.from('categories').delete().neq('id', ''),
-      supabase.from('products').delete().neq('id', ''),
-      supabase.from('quotes').delete().neq('id', ''),
-      supabase.from('quote_items').delete().neq('id', ''),
-      supabase.from('orders').delete().neq('id', ''),
-      supabase.from('order_items').delete().neq('id', ''),
-      supabase.from('production_queue').delete().neq('id', ''),
-      supabase.from('financial_transactions').delete().neq('id', ''),
-      supabase.from('shipments').delete().neq('id', ''),
-      supabase.from('stock_movements').delete().neq('id', ''),
-      supabase.from('pickup_points').delete().neq('id', ''),
-      supabase.from('store_banners').delete().neq('id', ''),
-      supabase.from('cash_register_sessions').delete().neq('id', ''),
-      supabase.from('cash_register_transactions').delete().neq('id', '')
+      supabase.from('customers').delete().not('id', 'is', null),
+      supabase.from('suppliers').delete().not('id', 'is', null),
+      supabase.from('categories').delete().not('id', 'is', null),
+      supabase.from('products').delete().not('id', 'is', null),
+      supabase.from('quotes').delete().not('id', 'is', null),
+      supabase.from('quote_items').delete().not('id', 'is', null),
+      supabase.from('orders').delete().not('id', 'is', null),
+      supabase.from('order_items').delete().not('id', 'is', null),
+      supabase.from('production_queue').delete().not('id', 'is', null),
+      supabase.from('financial_transactions').delete().not('id', 'is', null),
+      supabase.from('shipments').delete().not('id', 'is', null),
+      supabase.from('stock_movements').delete().not('id', 'is', null),
+      supabase.from('pickup_points').delete().not('id', 'is', null),
+      supabase.from('store_banners').delete().not('id', 'is', null),
+      supabase.from('cash_register_sessions').delete().not('id', 'is', null),
+      supabase.from('cash_register_transactions').delete().not('id', 'is', null)
     ]).then(() => {
       window.location.reload();
     }).catch(err => {
