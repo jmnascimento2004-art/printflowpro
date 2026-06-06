@@ -201,6 +201,31 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 };
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
+const FINANCIAL_SETTING_KEYS = ['pix_key', 'pix_key_type', 'bank_name', 'tax_rate', 'commission_rate'] as const;
+
+const hasSettingValue = (value: unknown) => value !== undefined && value !== null && value !== '';
+
+const mergeSettingsWithDefaults = (
+  remoteSettings?: Partial<typeof DUMMY_SETTINGS> | null,
+  storedSettings?: Partial<typeof DUMMY_SETTINGS> | null,
+  preferStored = false
+) => {
+  const merged: typeof DUMMY_SETTINGS = { ...DUMMY_SETTINGS, ...(remoteSettings || {}) };
+
+  if (!storedSettings) return merged;
+  if (preferStored) return { ...merged, ...storedSettings };
+
+  FINANCIAL_SETTING_KEYS.forEach(key => {
+    const storedValue = storedSettings[key];
+    const remoteValue = remoteSettings?.[key];
+
+    if (hasSettingValue(storedValue) && !hasSettingValue(remoteValue)) {
+      (merged as Record<string, unknown>)[key] = storedValue;
+    }
+  });
+
+  return merged;
+};
 
 export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [initialized, setInitialized] = useState(false);
@@ -345,7 +370,15 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         ]);
 
         if (companies && companies.length > 0) setCompany(companies[0]);
-        if (settingsData && settingsData.length > 0) setSettings(settingsData[0] as any);
+        if (settingsData && settingsData.length > 0) {
+          let storedSettings: Partial<typeof DUMMY_SETTINGS> | null = null;
+          try {
+            storedSettings = JSON.parse(localStorage.getItem('printflow_settings') || 'null');
+          } catch {
+            storedSettings = null;
+          }
+          setSettings(mergeSettingsWithDefaults(settingsData[0] as Partial<typeof DUMMY_SETTINGS>, storedSettings));
+        }
         if (profilesData) setProfiles(profilesData as any);
         if (customersData) setCustomers(customersData as any);
         if (suppliersData) setSuppliers(suppliersData as any);
@@ -428,7 +461,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         setShipments(rawShips.map(s => ({ ...s, order_number: s.order_number.replace(/ORD-\d{4}-/, 'ORD-') })));
         
         setStockMovements(getOrSet('stockMovements', []));
-        setSettings(getOrSet('settings', DUMMY_SETTINGS));
+        setSettings(mergeSettingsWithDefaults(null, getOrSet('settings', DUMMY_SETTINGS), true));
         setPickupPoints(getOrSet('pickupPoints', DUMMY_PICKUP_POINTS));
         
         const loadedCompany = getOrSet('company', DUMMY_COMPANY);
@@ -463,6 +496,26 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     };
 
     init();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleQuoteStorageSync = (event: StorageEvent) => {
+      if (event.key !== 'printflow_quotes' || !event.newValue) return;
+
+      try {
+        const nextQuotes = JSON.parse(event.newValue);
+        if (Array.isArray(nextQuotes)) {
+          setQuotes(nextQuotes);
+        }
+      } catch (error) {
+        console.warn('Erro ao sincronizar orçamentos entre telas:', error);
+      }
+    };
+
+    window.addEventListener('storage', handleQuoteStorageSync);
+    return () => window.removeEventListener('storage', handleQuoteStorageSync);
   }, []);
 
   // Save triggers mapped to both localStorage and Supabase
@@ -935,6 +988,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   // ----------------------------------------------------
   // QUOTES API
   // ----------------------------------------------------
+  const persistQuotesSnapshot = (nextQuotes: Quote[]) => {
+    if (typeof window === 'undefined') return;
+
+    localStorage.setItem('printflow_quotes', JSON.stringify(nextQuotes));
+  };
+
   const addQuote = (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => {
     const nextNum = quotes.length > 0 ? Math.max(...quotes.map(q => q.number)) + 1 : 1001;
     const newQuote: Quote = {
@@ -944,7 +1003,24 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       number: nextNum,
       created_at: new Date().toISOString()
     };
-    setQuotes(prev => [newQuote, ...prev]);
+    setQuotes(prev => {
+      const nextQuotes = [newQuote, ...prev];
+      persistQuotesSnapshot(nextQuotes);
+      return nextQuotes;
+    });
+
+    const { items, ...parentQuote } = newQuote;
+    supabase.from('quotes').upsert(parentQuote).then(({ error }) => {
+      if (error) console.warn('Erro ao sincronizar orçamento criado no catálogo:', error);
+    });
+
+    if (items.length > 0) {
+      const quoteItems = items.map(item => ({ ...item, quote_id: newQuote.id }));
+      supabase.from('quote_items').upsert(quoteItems).then(({ error }) => {
+        if (error) console.warn('Erro ao sincronizar itens do orçamento criado no catálogo:', error);
+      });
+    }
+
     return newQuote;
   };
 
@@ -1379,7 +1455,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   // SETTINGS API
   // ----------------------------------------------------
   const updateSettings = (newSettings: Partial<typeof DUMMY_SETTINGS>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
+    setSettings(prev => mergeSettingsWithDefaults(prev, newSettings, true));
   };
 
   const updateCompany = (comp: Company) => {

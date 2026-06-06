@@ -17,7 +17,7 @@ import { useDatabase } from '@/context/database-context';
 import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
 
 export default function PricingPage() {
-  const { addProduct, categories } = useDatabase();
+  const { addProduct, categories, settings } = useDatabase();
 
   // Pricing Parameters
   const [name, setName] = useState('');
@@ -35,8 +35,9 @@ export default function PricingPage() {
   const [marginType, setMarginType] = useState<'percent' | 'markup'>('percent');
   const [profitMargin, setProfitMargin] = useState(40); // 40% margin
   const [markupMultiplier, setMarkupMultiplier] = useState(2.2); // 2.2x multiplier
-  const [commissionPercent, setCommissionPercent] = useState(5);
-  const [taxPercent, setTaxPercent] = useState(6);
+  const [pricingDefaultsTouched, setPricingDefaultsTouched] = useState(false);
+  const [commissionPercent, setCommissionPercent] = useState(settings.commission_rate ?? 5);
+  const [taxPercent, setTaxPercent] = useState(settings.tax_rate ?? 6);
 
   // Simulation variables
   const [simWidth, setSimWidth] = useState(1.0);
@@ -54,6 +55,23 @@ export default function PricingPage() {
   const [commissionAmount, setCommissionAmount] = useState(0);
 
   const [notification, setNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pricingDefaultsTouched) return;
+
+    setCommissionPercent(settings.commission_rate ?? 5);
+    setTaxPercent(settings.tax_rate ?? 6);
+  }, [settings.commission_rate, settings.tax_rate, pricingDefaultsTouched]);
+
+  const handleCommissionPercentChange = (value: number) => {
+    setPricingDefaultsTouched(true);
+    setCommissionPercent(value);
+  };
+
+  const handleTaxPercentChange = (value: number) => {
+    setPricingDefaultsTouched(true);
+    setTaxPercent(value);
+  };
 
   // Auto calculate when inputs change
   useEffect(() => {
@@ -386,7 +404,7 @@ export default function PricingPage() {
                   min="0"
                   max="20"
                   value={commissionPercent}
-                  onChange={(e) => setCommissionPercent(parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleCommissionPercentChange(parseInt(e.target.value) || 0)}
                   className="w-full accent-amber-500 bg-secondary h-1.5 rounded-lg appearance-none cursor-pointer"
                 />
               </div>
@@ -402,7 +420,7 @@ export default function PricingPage() {
                   min="0"
                   max="25"
                   value={taxPercent}
-                  onChange={(e) => setTaxPercent(parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleTaxPercentChange(parseInt(e.target.value) || 0)}
                   className="w-full accent-rose-500 bg-secondary h-1.5 rounded-lg appearance-none cursor-pointer"
                 />
               </div>

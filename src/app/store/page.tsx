@@ -253,7 +253,7 @@ export default function StorefrontPage() {
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientNotes, setClientNotes] = useState('');
-  const [deliveryMethod, setDeliveryMethod] = useState<'retirada' | 'envio'>('retirada');
+  const [deliveryMethod, setDeliveryMethod] = useState<'retirada' | 'motoboy'>('retirada');
   const [selectedPickupPoint, setSelectedPickupPoint] = useState('');
   const [orderCompleted, setOrderCompleted] = useState<string | null>(null);
 
@@ -361,7 +361,10 @@ export default function StorefrontPage() {
       total_amount: getCartTotal(),
       discount: 0,
       valid_until: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no Balcão — ${selectedPickupPoint}` : 'Envio por transportadora'}. Obs cliente: ${clientNotes}`,
+      customer_phone: clientPhone,
+      delivery_type: deliveryMethod,
+      delivery_fee: 0,
+      notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no Balcão - ${selectedPickupPoint}` : 'Envio por motoboy'}. Obs cliente: ${clientNotes}`,
       items: qItems
     });
 
@@ -1439,14 +1442,14 @@ export default function StorefrontPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDeliveryMethod('envio')}
+                        onClick={() => setDeliveryMethod('motoboy')}
                         className={`py-2 rounded-lg text-xs font-bold border transition-colors ${
-                          deliveryMethod === 'envio' 
+                          deliveryMethod === 'motoboy' 
                             ? 'bg-slate-900 border-slate-900 text-white' 
                             : 'bg-slate-50 border-slate-200 text-slate-500'
                         }`}
                       >
-                        Enviar por Transportadora
+                        Enviar por Motoboy
                       </button>
                     </div>
                   </div>

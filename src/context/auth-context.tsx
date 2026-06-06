@@ -32,6 +32,17 @@ const EMPTY_PROFILE: UserProfile = {
   active: false
 };
 
+const provisionCurrentAuthUser = async (): Promise<UserProfile | null> => {
+  const { data, error } = await supabase.rpc('provision_current_auth_user');
+
+  if (error || !data) {
+    console.warn('Nao foi possivel provisionar perfil auth automaticamente:', error);
+    return null;
+  }
+
+  return data as UserProfile;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [activeProfile, setActiveProfileState] = useState<UserProfile>(EMPTY_PROFILE);
@@ -63,12 +74,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!data) {
+      const provisionedProfile = await provisionCurrentAuthUser();
+
+      if (provisionedProfile?.active) {
+        setActiveProfileState(provisionedProfile);
+        setAuthError(null);
+        return;
+      }
+
       setActiveProfileState({
         ...EMPTY_PROFILE,
         auth_user_id: userId,
         email: userEmail || ''
       });
-      setAuthError('Sua conta existe, mas ainda não possui um perfil ativo no ERP.');
+      setAuthError('Sua conta existe, mas ainda nao possui um perfil ativo no ERP. Execute a migration de reparo de perfil no Supabase e tente novamente.');
       return;
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/brand';
 import { 
@@ -14,6 +14,11 @@ import {
 } from 'lucide-react';
 
 export default function LandingPortalPage() {
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    document.documentElement.classList.add('light');
+  }, []);
+
   const features = [
     { title: 'Precificação por m² / Linear', description: 'Calculadora integrada considerando matéria-prima, comissão, desperdício, impostos e tempo operacional.', icon: Calculator },
     { title: 'Controle de Pedidos Kanban', description: 'Arraste os cartões de pedido em 10 status automatizados integrados com produção e estoque.', icon: LayoutGrid },
@@ -64,7 +69,7 @@ export default function LandingPortalPage() {
             
             <Link
               href="/store"
-              className="pf-button-secondary px-6 py-3"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-6 py-3 text-sm font-extrabold text-slate-900 shadow-sm transition hover:border-primary/30 hover:text-primary"
             >
               Ver Catálogo Online (Cliente) <ShoppingBag className="h-4.5 w-4.5 text-emerald-500" />
             </Link>
@@ -78,7 +83,7 @@ export default function LandingPortalPage() {
             return (
               <div 
                 key={idx}
-                className="pf-card p-3.5 flex flex-col justify-between hover:border-primary/40 hover:shadow-md transition-all group duration-300"
+                className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm shadow-slate-200/40 flex flex-col justify-between hover:border-primary/40 hover:shadow-md transition-all group duration-300"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0 transition-colors group-hover:bg-primary group-hover:text-white duration-300">

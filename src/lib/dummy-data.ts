@@ -48,6 +48,15 @@ export interface Company {
   card_benefits_4_title?: string;
   card_benefits_4_subtitle?: string;
   card_benefits_4_active?: boolean;
+  card_benefits_5_title?: string;
+  card_benefits_5_subtitle?: string;
+  card_benefits_5_active?: boolean;
+  card_benefits_6_title?: string;
+  card_benefits_6_subtitle?: string;
+  card_benefits_6_active?: boolean;
+  card_benefits_7_title?: string;
+  card_benefits_7_subtitle?: string;
+  card_benefits_7_active?: boolean;
   img_payments_visa?: string;
   img_payments_mastercard?: string;
   img_payments_elo?: string;
@@ -187,6 +196,7 @@ export interface Quote {
   company_id: string;
   customer_id: string;
   customer_name: string;
+  customer_phone?: string;
   number: number;
   status: 'rascunho' | 'pendente' | 'aprovado' | 'reprovado';
   total_amount: number;
@@ -196,6 +206,7 @@ export interface Quote {
   items: QuoteItem[];
   created_at: string;
   delivery_type?: 'retirada' | 'motoboy' | 'carro' | 'correios';
+  delivery_origin_address?: string;
   delivery_address?: string;
   delivery_distance_km?: number;
   delivery_fee?: number;
@@ -235,6 +246,7 @@ export interface Order {
   items: OrderItem[];
   created_at: string;
   delivery_type?: 'retirada' | 'motoboy' | 'carro' | 'correios';
+  delivery_origin_address?: string;
   delivery_address?: string;
   delivery_distance_km?: number;
 }
@@ -339,9 +351,9 @@ export const DUMMY_COMPANY: Company = {
   city: 'São Paulo',
   state: 'SP',
   theme_color: 'violet',
-  instagram_url: 'https://instagram.com/printflowpro',
-  facebook_url: 'https://facebook.com/printflowpro',
-  youtube_url: 'https://youtube.com/printflowpro',
+  instagram_url: '/printflowpro',
+  facebook_url: '/printflowpro',
+  youtube_url: '/@printflowpro',
   refund_policy: 'Nossa política de devolução garante o reembolso integral em caso de defeitos de fabricação ou erros de impressão em até 7 dias após o recebimento. Para produtos personalizados, não realizamos trocas por insatisfação com a arte aprovada previamente pelo cliente. Entre em contato com nosso suporte para abrir uma solicitação de análise.',
   show_payments_visa: true,
   show_payments_mastercard: true,
@@ -372,6 +384,15 @@ export const DUMMY_COMPANY: Company = {
   card_benefits_4_title: '100% Seguro',
   card_benefits_4_subtitle: 'Seus dados e gabarito protegidos por SSL corporativo.',
   card_benefits_4_active: true,
+  card_benefits_5_title: 'Entrega Garantida',
+  card_benefits_5_subtitle: 'Pedidos acompanhados até a entrega no endereço informado.',
+  card_benefits_5_active: false,
+  card_benefits_6_title: 'Melhor Custo Benefício',
+  card_benefits_6_subtitle: 'Preços competitivos com qualidade profissional em cada pedido.',
+  card_benefits_6_active: false,
+  card_benefits_7_title: 'Qualidade Garantida',
+  card_benefits_7_subtitle: 'Produção revisada para entregar acabamento e impressão de alto padrão.',
+  card_benefits_7_active: false,
   img_payments_visa: "",
   img_payments_mastercard: "",
   img_payments_elo: "",

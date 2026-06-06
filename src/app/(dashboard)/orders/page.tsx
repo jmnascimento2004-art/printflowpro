@@ -43,6 +43,7 @@ export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [activePrintOrder, setActivePrintOrder] = useState<Order | null>(null);
+  const [activePrintMode, setActivePrintMode] = useState<'order' | 'receipt'>('receipt');
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado'>('pix');
@@ -73,6 +74,20 @@ export default function OrdersPage() {
   const [editDeliveryCity, setEditDeliveryCity] = useState('');
   const [editDeliveryState, setEditDeliveryState] = useState('');
   const [editDeliveryZipCode, setEditDeliveryZipCode] = useState('');
+
+  const buildOrderOriginAddress = () => {
+    const hasRegisteredAddress = Boolean(
+      company?.street?.trim() &&
+      company?.number?.trim() &&
+      company?.neighborhood?.trim() &&
+      company?.city?.trim() &&
+      company?.state?.trim()
+    );
+
+    return hasRegisteredAddress
+      ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}${company.cep ? `, CEP ${company.cep}` : ''}`
+      : settings.company_address;
+  };
 
   // Helper para decodificar o endereço concatenado salvo no pedido
   const parseDeliveryAddress = (addrStr: string) => {
@@ -146,9 +161,7 @@ export default function OrdersPage() {
     setIsCalculatingRoute(true);
     setRouteError(null);
     try {
-      const companyOrigin = company 
-        ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}, CEP ${company.cep}`
-        : settings.company_address;
+      const companyOrigin = buildOrderOriginAddress();
 
       const dist = await calculateRouteDistance(companyOrigin, editDeliveryAddress);
       setEditDeliveryDistanceKm(dist);
@@ -187,9 +200,7 @@ export default function OrdersPage() {
       setIsCalculatingRoute(true);
       setRouteError(null);
       try {
-        const companyOrigin = company 
-          ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}, CEP ${company.cep}`
-          : settings.company_address;
+        const companyOrigin = buildOrderOriginAddress();
 
         const dist = await calculateRouteDistance(companyOrigin, editDeliveryAddress);
         setEditDeliveryDistanceKm(dist);
@@ -285,6 +296,32 @@ export default function OrdersPage() {
     setEditDeliveryZipCode(parsed.zip);
     
     setRouteError(null);
+
+    if (['motoboy', 'carro'].includes(order.delivery_type || '') && order.delivery_address) {
+      const addressToCalculate = order.delivery_address;
+      setIsCalculatingRoute(true);
+
+      calculateRouteDistance(buildOrderOriginAddress(), addressToCalculate)
+        .then((dist) => {
+          const pricePerKm = order.delivery_type === 'motoboy'
+            ? (settings.delivery_motoboy_price_km || 2.50)
+            : (settings.delivery_car_price_km || 4.50);
+          const rawFee = dist * pricePerKm;
+          const minFee = settings.delivery_min_fee || 10.00;
+          const newShipping = Math.round(Math.max(rawFee, minFee) * 100) / 100;
+          const baseTotal = order.total_amount - (order.shipping_cost || 0);
+
+          setEditDeliveryDistanceKm(dist);
+          setEditShipping(newShipping);
+          setEditTotal(Math.max(0, baseTotal + newShipping));
+          setLastCalculatedAddress(addressToCalculate);
+        })
+        .catch((err: any) => {
+          console.error(err);
+          setRouteError(err.message || 'Erro ao calcular a distância da rota.');
+        })
+        .finally(() => setIsCalculatingRoute(false));
+    }
   };
 
   const handleSaveEditOrder = (e: React.FormEvent) => {
@@ -310,6 +347,16 @@ export default function OrdersPage() {
     });
 
     setEditingOrder(null);
+  };
+
+  const handlePrintOrderPdf = (order: Order) => {
+    setActivePrintMode('order');
+    setActivePrintOrder(order);
+  };
+
+  const handlePrintReceipt = (order: Order) => {
+    setActivePrintMode('receipt');
+    setActivePrintOrder(order);
   };
 
   // React Effect to handle direct A4 printing
@@ -370,13 +417,21 @@ export default function OrdersPage() {
       }
     }
 
+    const newPaid = paymentMethod === 'faturado'
+      ? selectedOrder.paid_amount
+      : Math.min(selectedOrder.total_amount, selectedOrder.paid_amount + paymentAmount);
+    const updatedSelectedOrder: Order = {
+      ...selectedOrder,
+      paid_amount: newPaid,
+      payment_status: paymentMethod === 'faturado'
+        ? 'parcial'
+        : newPaid >= selectedOrder.total_amount
+          ? 'pago'
+          : 'parcial'
+    };
+
     payOrder(selectedOrder.id, paymentAmount, paymentMethod);
-    
-    // Update local selected state to sync changes
-    setTimeout(() => {
-      const sync = orders.find(o => o.id === selectedOrder.id);
-      if (sync) setSelectedOrder(sync);
-    }, 20);
+    setSelectedOrder(updatedSelectedOrder);
 
     setPaymentAmount(0);
     setIsAddingPayment(false);
@@ -494,7 +549,34 @@ export default function OrdersPage() {
   
   const companyName = company?.name || 'PrintFlowPRO - ERP SAAS';
   const companyDocument = company?.document || '12.345.678/0001-90';
+  const companyLogo = company?.logo_light || company?.logo_url || company?.logo_dark || '';
+  const companyAddressLine = [
+    company?.street && company?.number ? `${company.street}, ${company.number}` : '',
+    company?.neighborhood,
+    company?.city && company?.state ? `${company.city} - ${company.state}` : '',
+    company?.cep ? `CEP ${company.cep}` : ''
+  ].filter(Boolean).join(' - ');
+  const companyContactLine = [
+    company?.phone ? `Contato: ${company.phone}` : '',
+    company?.email ? `E-mail: ${company.email}` : ''
+  ].filter(Boolean).join(' | ');
+  const printDocumentTitle = activePrintMode === 'receipt' ? 'RECIBO DE PAGAMENTO' : 'PEDIDO COMERCIAL';
+  const printDocumentNumber = activePrintMode === 'receipt' ? receiptNumber : activePrintOrder?.number;
   const issueDate = new Date().toLocaleString('pt-BR');
+  const getPrintItemDescription = (item: Order['items'][number]) => {
+    const registeredProduct = products.find((product) => product.id === item.product_id);
+    return item.product_name?.trim() || registeredProduct?.name || item.details?.notes || 'Produto / servico';
+  };
+  const getPrintItemSize = (item: Order['items'][number]) => {
+    const width = item.details?.width;
+    const height = item.details?.height;
+
+    if (width && height) return `${width}m x ${height}m`;
+    if (width) return `${width}m linear`;
+    if (height) return `${height}m`;
+
+    return '-';
+  };
 
   return (
     <div className="space-y-6">
@@ -940,9 +1022,9 @@ export default function OrdersPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setActivePrintOrder(order)}
+                                onClick={() => handlePrintOrderPdf(order)}
                                 className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
-                                title="Imprimir PDF"
+                                title="Gerar PDF do Pedido"
                               >
                                 <Printer className="h-3.5 w-3.5" />
                               </button>
@@ -1000,9 +1082,16 @@ export default function OrdersPage() {
                 </button>
               )}
               <button
-                onClick={() => setActivePrintOrder(selectedOrder)}
+                onClick={() => handlePrintOrderPdf(selectedOrder)}
+                className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-1.5 border border-border"
+                title="Gerar PDF do Pedido"
+              >
+                <Printer className="h-4 w-4" /> Gerar PDF do Pedido
+              </button>
+              <button
+                onClick={() => handlePrintReceipt(selectedOrder)}
                 className="px-3.5 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 shadow shadow-primary/25"
-                title="Imprimir PDF"
+                title="Imprimir Recibo"
               >
                 <Printer className="h-4 w-4" /> Imprimir Recibo
               </button>
@@ -1281,45 +1370,69 @@ export default function OrdersPage() {
       {activePrintOrder && (
         <div className="hidden print:block p-8 text-black bg-white max-w-xl mx-auto border border-zinc-200 rounded-lg text-xs leading-relaxed" id="printable-order-area">
           {/* Company Header */}
-          <div className="border-b border-zinc-300 pb-4 mb-4 flex justify-between items-start">
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-wider">{companyName}</h2>
-              <p className="text-[10px] text-zinc-600">CNPJ: {companyDocument}</p>
+          <div className="border-b border-zinc-300 pb-4 mb-4 flex justify-between items-start gap-6">
+            <div className="flex flex-col items-start gap-1.5 max-w-[70%]">
+              {companyLogo && (
+                <img
+                  src={companyLogo}
+                  alt={companyName}
+                  className="h-14 w-40 object-contain object-left"
+                />
+              )}
+              {!companyLogo && (
+                <h2 className="text-sm font-bold uppercase tracking-wider leading-tight">{companyName}</h2>
+              )}
+              <div className="space-y-0.5">
+                <p className="text-[10px] text-zinc-600">CNPJ: {companyDocument}</p>
+                {companyAddressLine && <p className="text-[9px] text-zinc-600 max-w-xs">{companyAddressLine}</p>}
+                {companyContactLine && <p className="text-[9px] text-zinc-600 max-w-xs">{companyContactLine}</p>}
+              </div>
             </div>
             <div className="text-right">
               <h1 className="text-xs font-extrabold uppercase bg-zinc-950 text-white px-2.5 py-1 rounded">
-                RECIBO DE PAGAMENTO
+                {printDocumentTitle}
               </h1>
-              <p className="text-[10px] text-zinc-500 mt-1 font-mono">Recibo Nº: {receiptNumber}</p>
+              <p className="text-[10px] text-zinc-500 mt-1 font-mono">N.: {printDocumentNumber}</p>
             </div>
           </div>
           
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2 text-[10px] bg-zinc-50 p-2 border border-zinc-200 rounded-md">
-              <p><strong>Nº do Pedido:</strong> {activePrintOrder.number}</p>
-              <p><strong>Data de Emissão:</strong> {new Date(activePrintOrder.created_at).toLocaleDateString('pt-BR')}</p>
+              <p><strong>N. do Pedido:</strong> {activePrintOrder.number}</p>
+              <p><strong>Data de Emissao:</strong> {new Date(activePrintOrder.created_at).toLocaleDateString('pt-BR')}</p>
             </div>
             
-            <p>
-              Recebemos de <strong>{activePrintOrder.customer_name}</strong>, CPF/CNPJ <strong>{customerDoc}</strong>, o valor de <strong>{formatCurrency(activePrintOrder.paid_amount)}</strong>, referente ao Pedido Nº <strong>{activePrintOrder.number}</strong>.
-            </p>
+            {activePrintMode === 'receipt' ? (
+              <p>
+                Recebemos de <strong>{activePrintOrder.customer_name}</strong>, CPF/CNPJ <strong>{customerDoc}</strong>, o valor de <strong>{formatCurrency(activePrintOrder.paid_amount)}</strong>, referente ao Pedido <strong>{activePrintOrder.number}</strong>.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <p><strong>Cliente:</strong> {activePrintOrder.customer_name}</p>
+                <p><strong>CPF/CNPJ:</strong> {customerDoc}</p>
+                <p><strong>Status do Pedido:</strong> {activePrintOrder.status.replaceAll('_', ' ').toUpperCase()}</p>
+                <p><strong>Status do Pagamento:</strong> {activePrintOrder.payment_status.toUpperCase()}</p>
+              </div>
+            )}
+            
+            {activePrintMode === 'receipt' && (
+              <div className="space-y-1">
+                <strong>Tipo de Pagamento:</strong>
+                <p className="pl-4">{paymentType}</p>
+                <p className="text-[10px] text-zinc-500 pl-4">(Parcial / Entrada / Total)</p>
+              </div>
+            )}
             
             <div className="space-y-1">
-              <strong>Tipo de Pagamento:</strong>
-              <p className="pl-4">{paymentType}</p>
-              <p className="text-[10px] text-zinc-500 pl-4">(Parcial / Entrada / Total)</p>
-            </div>
-            
-            <div className="space-y-1">
-              <strong>Descrição dos Produtos e/ou Serviços:</strong>
+              <strong>Descricao dos Produtos e/ou Servicos:</strong>
               <div className="mt-2 overflow-x-auto">
                 <table className="w-full text-left border-collapse text-[10px] border border-zinc-300">
                   <thead>
                     <tr className="bg-zinc-100 border-b border-zinc-300 font-bold text-[9px] uppercase text-zinc-700">
                       <th className="px-2 py-1.5 text-center border-r border-zinc-300 w-10">QTD</th>
-                      <th className="px-2 py-1.5 border-r border-zinc-300">DESCRIÇÃO</th>
+                      <th className="px-2 py-1.5 border-r border-zinc-300">DESCRICAO</th>
                       <th className="px-2 py-1.5 text-center border-r border-zinc-300 w-20">TAMANHO</th>
-                      <th className="px-2 py-1.5 text-right border-r border-zinc-300 w-24">VALOR UNITÁRIO</th>
+                      <th className="px-2 py-1.5 text-right border-r border-zinc-300 w-24">VALOR UNITARIO</th>
                       <th className="px-2 py-1.5 text-right w-24">VALOR TOTAL</th>
                     </tr>
                   </thead>
@@ -1328,7 +1441,7 @@ export default function OrdersPage() {
                       <tr key={item.id} className="border-b border-zinc-200">
                         <td className="px-2 py-1.5 text-center border-r border-zinc-200 font-mono">{item.quantity}</td>
                         <td className="px-2 py-1.5 border-r border-zinc-200">
-                          <span className="font-semibold">{item.product_name}</span>
+                          <span className="font-semibold">{getPrintItemDescription(item)}</span>
                           {item.details?.notes && (
                             <span className="block text-[8px] text-zinc-500 font-normal italic mt-0.5">
                               Obs: {item.details.notes}
@@ -1336,13 +1449,7 @@ export default function OrdersPage() {
                           )}
                         </td>
                         <td className="px-2 py-1.5 text-center border-r border-zinc-200 font-mono">
-                          {item.details?.width || item.details?.height ? (
-                            <span>
-                              {item.details.width || 0}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
-                            </span>
-                          ) : (
-                            '-'
-                          )}
+                          {getPrintItemSize(item)}
                         </td>
                         <td className="px-2 py-1.5 text-right border-r border-zinc-200 font-mono">
                           {formatCurrency(item.unit_price)}
@@ -1363,7 +1470,7 @@ export default function OrdersPage() {
                 <span className="font-bold">{formatCurrency(activePrintOrder.total_amount)}</span>
               </div>
               <div className="flex justify-between text-emerald-600 font-semibold">
-                <span>Valor Pago nesta Transação:</span>
+                <span>{activePrintMode === 'receipt' ? 'Valor Pago nesta Transacao:' : 'Valor Pago:'}</span>
                 <span className="font-bold">{formatCurrency(activePrintOrder.paid_amount)}</span>
               </div>
               <div className="flex justify-between text-rose-500 font-semibold border-t border-zinc-200 pt-1 mt-1">
@@ -1372,39 +1479,42 @@ export default function OrdersPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 pt-1">
-              <div className="space-y-1">
-                <strong>Forma de Pagamento:</strong>
-                <p className="pl-2">{paymentMethodName}</p>
+            {activePrintMode === 'receipt' && (
+              <div className="grid grid-cols-2 gap-4 pt-1">
+                <div className="space-y-1">
+                  <strong>Forma de Pagamento:</strong>
+                  <p className="pl-2">{paymentMethodName}</p>
+                </div>
+                <div className="space-y-1">
+                  <strong>Data do Pagamento:</strong>
+                  <p className="pl-2">{paymentDate}</p>
+                </div>
               </div>
-              
-              <div className="space-y-1">
-                <strong>Data do Pagamento:</strong>
-                <p className="pl-2">{paymentDate}</p>
-              </div>
-            </div>
+            )}
 
             {activePrintOrder.delivery_type && activePrintOrder.delivery_type !== 'retirada' && (
               <div className="space-y-1 border-t border-zinc-200 pt-2 text-[10px]">
-                <strong>Informações de Entrega:</strong>
+                <strong>Informacoes de Entrega:</strong>
                 <div className="pl-2 grid grid-cols-2 gap-2 text-zinc-700">
                   <p><strong>Tipo:</strong> {activePrintOrder.delivery_type === 'motoboy' ? 'Motoboy' : activePrintOrder.delivery_type === 'carro' ? 'Carro' : 'Correios / Transportadora'}</p>
                   <p><strong>Valor do Frete:</strong> {formatCurrency(activePrintOrder.shipping_cost || 0)}</p>
                   {activePrintOrder.delivery_address && (
-                    <p className="col-span-2"><strong>Endereço:</strong> {activePrintOrder.delivery_address} {activePrintOrder.delivery_distance_km ? `(${activePrintOrder.delivery_distance_km.toFixed(2)} km)` : ''}</p>
+                    <p className="col-span-2"><strong>Endereco:</strong> {activePrintOrder.delivery_address} {activePrintOrder.delivery_distance_km ? <span>({activePrintOrder.delivery_distance_km.toFixed(2)} km)</span> : ''}</p>
                   )}
                 </div>
               </div>
             )}
             
             <div className="space-y-1 border-t border-zinc-200 pt-2">
-              <strong>Observações:</strong>
+              <strong>Observacoes:</strong>
               <p className="pl-2 italic">"{paymentNotes}"</p>
             </div>
             
-            <p className="text-center font-semibold pt-4">
-              Declaramos para os devidos fins que o valor acima foi recebido e registrado em nosso sistema.
-            </p>
+            {activePrintMode === 'receipt' && (
+              <p className="text-center font-semibold pt-4">
+                Declaramos para os devidos fins que o valor acima foi recebido e registrado em nosso sistema.
+              </p>
+            )}
 
             {/* Space to prevent text overlap with the fixed footer */}
             <div className="h-16 print:block hidden" />
