@@ -1,5 +1,6 @@
 'use client';
 
+import { supabase } from "@/lib/supabaseClient";
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShoppingBag, 

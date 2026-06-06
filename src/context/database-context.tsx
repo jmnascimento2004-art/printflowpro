@@ -936,20 +936,84 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   // PRODUCTS & INVENTORY API
   // ----------------------------------------------------
   const addProduct = (prod: Omit<Product, 'id' | 'company_id' | 'created_at' | 'current_stock'>) => {
-    const newProd: Product = {
-      ...prod,
-      id: `prod-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
-      current_stock: 0,
-      created_at: new Date().toISOString()
-    };
-    setProducts(prev => [newProd, ...prev]);
-    return newProd;
+  const newProd: Product = {
+    ...prod,
+    id: `prod-${Date.now()}`,
+    company_id: company.id || DUMMY_COMPANY.id,
+    current_stock: 0,
+    created_at: new Date().toISOString()
   };
 
+  setProducts(prev => [newProd, ...prev]);
+
+  supabase
+    .from('products')
+    .insert({
+      id: newProd.id,
+      company_id: newProd.company_id,
+      category_id: newProd.category_id,
+      name: newProd.name,
+      description: newProd.description,
+      sku: newProd.sku,
+      pricing_type: newProd.pricing_type,
+      base_cost: newProd.base_cost,
+      sales_price: newProd.sales_price,
+      stock_controlled: newProd.stock_controlled,
+      min_stock: newProd.min_stock,
+      current_stock: newProd.current_stock,
+      active: newProd.active,
+      image_url: newProd.image_url || null,
+      volume_pricing: newProd.volume_pricing || null,
+      is_promo: newProd.is_promo || false,
+      is_highlight: newProd.is_highlight || false,
+      pricing_details: newProd.pricing_details || null,
+      created_at: newProd.created_at
+    })
+    .then(({ error }) => {
+      if (error) {
+        console.warn('Erro ao salvar produto no Supabase:', error);
+        showToast('Erro ao salvar produto no Supabase.', 'error');
+      } else {
+        showToast('Produto salvo com sucesso.', 'success');
+      }
+    });
+
+  return newProd;
+};
+
   const updateProduct = (prod: Product) => {
-    setProducts(prev => prev.map(p => (p.id === prod.id ? prod : p)));
-  };
+  setProducts(prev => prev.map(p => (p.id === prod.id ? prod : p)));
+
+  supabase
+    .from('products')
+    .update({
+      category_id: prod.category_id,
+      name: prod.name,
+      description: prod.description,
+      sku: prod.sku,
+      pricing_type: prod.pricing_type,
+      base_cost: prod.base_cost,
+      sales_price: prod.sales_price,
+      stock_controlled: prod.stock_controlled,
+      min_stock: prod.min_stock,
+      current_stock: prod.current_stock,
+      active: prod.active,
+      image_url: prod.image_url || null,
+      volume_pricing: prod.volume_pricing || null,
+      is_promo: prod.is_promo || false,
+      is_highlight: prod.is_highlight || false,
+      pricing_details: prod.pricing_details || null
+    })
+    .eq('id', prod.id)
+    .then(({ error }) => {
+      if (error) {
+        console.warn('Erro ao atualizar produto no Supabase:', error);
+        showToast('Erro ao atualizar produto no Supabase.', 'error');
+      } else {
+        showToast('Produto atualizado com sucesso.', 'success');
+      }
+    });
+};
 
   const deleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
