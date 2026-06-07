@@ -81,78 +81,80 @@ export default function CRMPage() {
     return orders.filter(o => o.customer_name === customerName);
   };
 
-  const handleCreateCustomer = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const handleUpdateCustomer = (e: React.FormEvent) => {
+  e.preventDefault();
 
-    // CNPJ & CEP Validation checks
-    const rawDoc = document.replace(/\D/g, '');
-    if (rawDoc.length > 11 && !validateCNPJ(rawDoc)) {
-      alert('Documento CNPJ inválido! Verifique os dígitos e tente novamente.');
-      return;
-    }
+  if (!selectedCustomer) return;
 
-    const rawCEP = zipCode.replace(/\D/g, '');
-    if (rawCEP && !validateCEP(rawCEP)) {
-      alert('CEP inválido! O CEP deve conter exatamente 8 dígitos.');
-      return;
-    }
+  const rawDoc = document.replace(/\D/g, '');
+  if (rawDoc.length > 11 && !validateCNPJ(rawDoc)) {
+    alert('Documento CNPJ inválido! Verifique os dígitos e tente novamente.');
+    return;
+  }
 
-    const tagsArr = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+  const rawCEP = zipCode.replace(/\D/g, '');
+  if (rawCEP && !validateCEP(rawCEP)) {
+    alert('CEP inválido! O CEP deve conter exatamente 8 dígitos.');
+    return;
+  }
 
-    addCustomer({
-      name,
-      document,
-      phone,
-      email,
-      address: {
-        street,
-        number,
-        neighborhood,
-        city,
-        state,
-        zip_code: zipCode
-      },
-      tags: tagsArr.length > 0 ? tagsArr : ['Cliente'],
-      notes,
-      billing_type: billingType,
-      credit_limit: billingType === 'faturado' ? creditLimit : 0,
-      credit_used: 0,
-      payment_terms_days: billingType === 'faturado' ? paymentTermsDays : 0,
-      credit_status: billingType === 'faturado' ? creditStatus : 'aprovado',
-      corporate_additional_info: billingType === 'faturado' ? {
-        inscricao_estadual: inscricaoEstadual,
-        nome_fantasia: nomeFantasia,
-        responsavel_financeiro_nome: finName,
-        responsavel_financeiro_phone: finPhone,
-        responsavel_financeiro_email: finEmail
-      } : undefined
-    });
+  const tagsArr = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
 
-    // Reset Form
-    setName('');
-    setDocument('');
-    setPhone('');
-    setEmail('');
-    setStreet('');
-    setNumber('');
-    setNeighborhood('');
-    setCity('');
-    setState('');
-    setZipCode('');
-    setTagsInput('');
-    setNotes('');
-    setBillingType('imediato');
-    setCreditLimit(0);
-    setPaymentTermsDays(30);
-    setCreditStatus('aprovado');
-    setInscricaoEstadual('');
-    setNomeFantasia('');
-    setFinName('');
-    setFinPhone('');
-    setFinEmail('');
-    setIsAddingCustomer(false);
-  };
+  updateCustomer({
+    ...selectedCustomer,
+    name,
+    document,
+    phone,
+    email,
+    address: {
+      street,
+      number,
+      neighborhood,
+      city,
+      state,
+      zip_code: zipCode,
+    },
+    tags: tagsArr.length > 0 ? tagsArr : selectedCustomer.tags || ['Cliente'],
+    notes,
+    billing_type: billingType,
+    credit_limit: billingType === 'faturado' ? creditLimit : 0,
+    credit_used: selectedCustomer.credit_used || 0,
+    payment_terms_days: billingType === 'faturado' ? paymentTermsDays : 0,
+    credit_status: billingType === 'faturado' ? creditStatus : 'aprovado',
+    corporate_additional_info: billingType === 'faturado' ? {
+      inscricao_estadual: inscricaoEstadual,
+      nome_fantasia: nomeFantasia,
+      responsavel_financeiro_nome: finName,
+      responsavel_financeiro_phone: finPhone,
+      responsavel_financeiro_email: finEmail
+    } : undefined
+  });
+
+  setIsAddingCustomer(false);
+  setSelectedCustomer(null);
+
+  setName('');
+  setDocument('');
+  setPhone('');
+  setEmail('');
+  setStreet('');
+  setNumber('');
+  setNeighborhood('');
+  setCity('');
+  setState('');
+  setZipCode('');
+  setTagsInput('');
+  setNotes('');
+  setBillingType('imediato');
+  setCreditLimit(0);
+  setPaymentTermsDays(30);
+  setCreditStatus('aprovado');
+  setInscricaoEstadual('');
+  setNomeFantasia('');
+  setFinName('');
+  setFinPhone('');
+  setFinEmail('');
+};
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -273,11 +275,11 @@ export default function CRMPage() {
         <div className={`flex flex-col ${isAddingCustomer ? 'col-span-full h-auto' : 'lg:col-span-2 h-[600px]'}`}>
           {isAddingCustomer ? (
             /* Add Customer Panel */
-            <form onSubmit={handleCreateCustomer} className="bg-card border border-border rounded-2xl shadow-md p-6 flex flex-col justify-between gap-4 h-auto animate-in slide-in-from-bottom duration-300">
+            <form onSubmit={selectedCustomer ? handleUpdateCustomer : handleCreateCustomer} className="bg-card border border-border rounded-2xl shadow-md p-6 flex flex-col justify-between gap-4 h-auto animate-in slide-in-from-bottom duration-300">
               <div className="space-y-4">
                 <div className="flex justify-between items-center border-b border-border pb-3">
                   <h3 className="font-bold text-foreground text-sm uppercase tracking-wider flex items-center gap-1.5">
-                    <UserPlus className="h-4.5 w-4.5 text-primary" /> Cadastrar Novo Cliente
+                    <UserPlus className="h-4.5 w-4.5 text-primary" /> {selectedCustomer ? 'Editar Cliente' : 'Cadastrar Novo Cliente'}
                   </h3>
                   <button 
                     type="button" 
@@ -527,6 +529,24 @@ export default function CRMPage() {
                           onChange={(e) => {
                             const clean = e.target.value.replace(/\D/g, '');
                             setZipCode(formatCEP(clean));
+
+                            if (clean.length === 8) {
+                              fetch(`https://viacep.com.br/ws/${clean}/json/`)
+                                .then((res) => res.json())
+                                .then((data) => {
+                                  if (!data.erro) {
+                                    setStreet(data.logradouro || '');
+                                    setNeighborhood(data.bairro || '');
+                                    setCity(data.localidade || '');
+                                    setState(data.uf || '');
+                                  } else {
+                                    alert('CEP não encontrado.');
+                                  }
+                                })
+                                .catch(() => {
+                                  alert('Erro ao consultar CEP. Verifique sua conexão.');
+                                });
+                            }
                           }}
                           placeholder="01000-000"
                           className="w-2/3 px-2 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
@@ -766,6 +786,30 @@ export default function CRMPage() {
               </div>
 
               <div className="flex justify-end gap-2 border-t border-border pt-4 mt-4">
+                <button
+                  onClick={() => {
+                    if (!selectedCustomer) return;
+
+                    setName(selectedCustomer.name || '');
+                    setDocument(selectedCustomer.document || '');
+                    setPhone(selectedCustomer.phone || '');
+                    setEmail(selectedCustomer.email || '');
+
+                    setStreet(selectedCustomer.address?.street || '');
+                    setNumber(selectedCustomer.address?.number || '');
+                    setNeighborhood(selectedCustomer.address?.neighborhood || '');
+                    setCity(selectedCustomer.address?.city || '');
+                    setState(selectedCustomer.address?.state || '');
+                    setZipCode(selectedCustomer.address?.zip_code || '');
+
+                    setNotes(selectedCustomer.notes || '');
+
+                    setIsAddingCustomer(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 text-xs font-semibold"
+                >
+                  Editar Cliente
+                </button>
                 <button
                   onClick={() => {
                     if (confirm(`Excluir o cliente ${selectedCustomer.name}?`)) {
