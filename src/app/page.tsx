@@ -15,8 +15,10 @@ import {
 
 export default function LandingPortalPage() {
   useEffect(() => {
-    document.documentElement.classList.remove('dark');
-    document.documentElement.classList.add('light');
+    if (typeof window === 'undefined') return;
+
+    window.document.documentElement.classList.remove('dark');
+    window.document.documentElement.classList.add('light');
   }, []);
 
   const features = [

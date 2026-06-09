@@ -25,6 +25,7 @@ import { useDatabase } from '@/context/database-context';
 import { Order } from '@/lib/dummy-data';
 import { formatCurrencyInput, parseCurrencyInputToNumber, generatePixPayload, formatCEP } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
+import { warnCaught } from '@/lib/safe-log';
 
 export default function OrdersPage() {
   const { 
@@ -119,7 +120,7 @@ export default function OrdersPage() {
         };
       }
     } catch (e) {
-      console.error(e);
+      warnCaught('Erro capturado:', e);
     }
     
     return { ...defaultVals, street: addrStr };
@@ -141,7 +142,7 @@ export default function OrdersPage() {
           if (data.uf) setEditDeliveryState(data.uf);
         }
       } catch (error) {
-        console.error(error);
+        warnCaught('Erro capturado:', error);
       }
     }
   };
@@ -179,7 +180,7 @@ export default function OrdersPage() {
       setEditTotal(prev => Math.max(0, prev + diff));
       setLastCalculatedAddress(editDeliveryAddress);
     } catch (err: any) {
-      console.error(err);
+      warnCaught('Erro capturado:', err);
       setRouteError(err.message || 'Erro ao calcular a distância da rota.');
     } finally {
       setIsCalculatingRoute(false);
@@ -218,7 +219,7 @@ export default function OrdersPage() {
         setEditTotal(prev => Math.max(0, prev + diff));
         setLastCalculatedAddress(editDeliveryAddress);
       } catch (err: any) {
-        console.error(err);
+        warnCaught('Erro capturado:', err);
         setRouteError(err.message || 'Erro ao calcular a distância da rota automaticamente.');
       } finally {
         setIsCalculatingRoute(false);
@@ -317,7 +318,7 @@ export default function OrdersPage() {
           setLastCalculatedAddress(addressToCalculate);
         })
         .catch((err: any) => {
-          console.error(err);
+          warnCaught('Erro capturado:', err);
           setRouteError(err.message || 'Erro ao calcular a distância da rota.');
         })
         .finally(() => setIsCalculatingRoute(false));
@@ -361,6 +362,8 @@ export default function OrdersPage() {
 
   // React Effect to handle direct A4 printing
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     if (activePrintOrder) {
       window.print();
       setActivePrintOrder(null);
@@ -525,6 +528,7 @@ export default function OrdersPage() {
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;
+    if (typeof window === 'undefined') return;
     window.open(url, '_blank');
   };
 

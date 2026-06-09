@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { UserProfile, DUMMY_PROFILES } from '@/lib/dummy-data';
+import { warnCaught } from '@/lib/safe-log';
 
 interface AuthContextType {
   activeProfile: UserProfile;
@@ -36,7 +37,7 @@ const provisionCurrentAuthUser = async (): Promise<UserProfile | null> => {
   const { data, error } = await supabase.rpc('provision_current_auth_user');
 
   if (error || !data) {
-    console.warn('Nao foi possivel provisionar perfil auth automaticamente:', error);
+    warnCaught('Erro capturado:', error);
     return null;
   }
 

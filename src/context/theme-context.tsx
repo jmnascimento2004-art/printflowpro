@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { warnCaught } from '@/lib/safe-log';
 
 type Theme = 'light' | 'dark';
 
@@ -18,50 +19,61 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('printflow_theme') as Theme;
+      const stored = window.localStorage.getItem('printflow_theme');
+
       if (stored === 'light' || stored === 'dark') {
         setThemeState(stored);
+        window.document.documentElement.classList.remove('light', 'dark');
+        window.document.documentElement.classList.add(stored);
       } else {
-        localStorage.setItem('printflow_theme', 'light');
+        window.localStorage.setItem('printflow_theme', 'light');
+        window.document.documentElement.classList.remove('light', 'dark');
+        window.document.documentElement.classList.add('light');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      warnCaught('Erro capturado:', error);
+    } finally {
+      setMounted(true);
     }
-    setMounted(true);
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
-    const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme);
+
     try {
-      localStorage.setItem('printflow_theme', theme);
-    } catch (e) {
-      console.error(e);
+      window.document.documentElement.classList.remove('light', 'dark');
+      window.document.documentElement.classList.add(theme);
+      window.localStorage.setItem('printflow_theme', theme);
+    } catch (error) {
+      warnCaught('Erro capturado:', error);
     }
   }, [theme, mounted]);
 
   const toggleTheme = () => {
-    setThemeState(prev => (prev === 'light' ? 'dark' : 'light'));
+    setThemeState((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  const setTheme = (t: Theme) => {
-    setThemeState(t);
+  const setTheme = (newTheme: Theme) => {
+    setThemeState(newTheme);
   };
 
-  // Prevent flash by waiting to mount
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
-      <div style={{ visibility: mounted ? 'visible' : 'hidden' }}>{children}</div>
+      {children}
     </ThemeContext.Provider>
   );
 }
 
 export function useTheme() {
   const context = useContext(ThemeContext);
+
   if (context === undefined) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
+
   return context;
 }

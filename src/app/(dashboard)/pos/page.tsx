@@ -110,6 +110,8 @@ export default function POSPage() {
 
   // 1. Auto-trigger print ticket when order completed
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     if (justCompletedOrder) {
       window.print();
       setJustCompletedOrder(null);

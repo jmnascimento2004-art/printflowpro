@@ -34,6 +34,7 @@ import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-contex
 import { useAuth } from '@/context/auth-context';
 import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
 import { DUMMY_COMPANY, PickupPoint, UserProfile } from '@/lib/dummy-data';
+import { warnCaught } from '@/lib/safe-log';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
 type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'sistema';
@@ -322,7 +323,7 @@ export default function SettingsPage() {
             }
           }
         } catch (e) {
-          console.error('Failed to lookup CNPJ from BrasilAPI', e);
+          warnCaught('Erro capturado:', e);
         }
       }
     } else {
@@ -352,7 +353,7 @@ export default function SettingsPage() {
             setCepError(true);
           }
         } catch (e) {
-          console.error(e);
+          warnCaught('Erro capturado:', e);
         }
       }
     } else {
@@ -644,6 +645,19 @@ export default function SettingsPage() {
     }
   };
 
+  const normalizeSocialHandle = (value: string) => {
+  const clean = value
+    .trim()
+    .replace(/^https?:\/\/(www\.)?/i, '')
+    .replace(/^instagram\.com\//i, '')
+    .replace(/^facebook\.com\//i, '')
+    .replace(/^youtube\.com\//i, '')
+    .replace(/^@/, '')
+    .replace(/^\/+/, '');
+
+  return clean ? `/${clean}` : '';
+};
+
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -702,9 +716,9 @@ export default function SettingsPage() {
       neighborhood: compNeighborhood,
       city: compCity,
       state: compState,
-      instagram_url: compInstagram,
-      facebook_url: compFacebook,
-      youtube_url: compYoutube,
+      instagram_url: normalizeSocialHandle(compInstagram),
+      facebook_url: normalizeSocialHandle(compFacebook),
+      youtube_url: normalizeSocialHandle(compYoutube),
       refund_policy: compRefundPolicy,
       show_payments_visa: payVisa,
       show_payments_mastercard: payMastercard,
@@ -1508,32 +1522,32 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Instagram URL</label>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Página Instagram</label>
                       <input
-                        type="url"
+                        type="text"
                         value={compInstagram}
                         onChange={(e) => setCompInstagram(e.target.value)}
-                        placeholder="https://instagram.com/suapagina"
+                        placeholder="/suapagina"
                         className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Facebook URL</label>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Página Facebook</label>
                       <input
-                        type="url"
+                        type="text"
                         value={compFacebook}
                         onChange={(e) => setCompFacebook(e.target.value)}
-                        placeholder="https://facebook.com/suapagina"
+                        placeholder="/suapagina"
                         className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">YouTube URL</label>
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Canal YouTube</label>
                       <input
-                        type="url"
+                        type="text"
                         value={compYoutube}
                         onChange={(e) => setCompYoutube(e.target.value)}
-                        placeholder="https://youtube.com/suacanal"
+                        placeholder="/seucanal"
                         className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
                       />
                     </div>
@@ -1568,7 +1582,7 @@ export default function SettingsPage() {
                     {/* Benefício 1 */}
                     <div className="p-4 bg-secondary/10 border border-border rounded-xl space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-primary uppercase">Card 1 (Ex: 4x Sem Juros)</span>
+                        <span className="text-[10px] font-extrabold text-primary uppercase">Card 1 (Ex: 3x Sem Juros)</span>
                         <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold select-none text-foreground">
                           <input 
                             type="checkbox" 

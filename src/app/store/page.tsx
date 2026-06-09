@@ -101,7 +101,9 @@ export default function StorefrontPage() {
   const [storeTheme, setStoreTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    const stored = localStorage.getItem('printflow_store_theme') as 'light' | 'dark';
+    if (typeof window === 'undefined') return;
+
+    const stored = window.localStorage.getItem('printflow_store_theme') as 'light' | 'dark';
     const initialTheme = stored === 'light' || stored === 'dark' ? stored : 'light';
     setStoreTheme(initialTheme);
     
@@ -112,17 +114,19 @@ export default function StorefrontPage() {
 
     return () => {
       // Restore dashboard theme when leaving catalog storefront
-      const adminTheme = localStorage.getItem('printflow_theme') as 'light' | 'dark' || 'dark';
+      const adminTheme = window.localStorage.getItem('printflow_theme') as 'light' | 'dark' || 'dark';
       root.classList.remove('light', 'dark');
       root.classList.add(adminTheme);
     };
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const root = window.document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(storeTheme);
-    localStorage.setItem('printflow_store_theme', storeTheme);
+    window.localStorage.setItem('printflow_store_theme', storeTheme);
   }, [storeTheme]);
 
   const toggleStoreTheme = () => {
@@ -188,6 +192,7 @@ export default function StorefrontPage() {
   };
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (!megaMenuOpen || !activeButton) return;
 
     const handleResize = () => {
@@ -228,7 +233,9 @@ export default function StorefrontPage() {
   const handleCategorySelect = (categoryId: string | null) => {
     setSelectedCategory(categoryId);
     setTimeout(() => {
-      const element = document.getElementById('products-showcase');
+      if (typeof window === 'undefined') return;
+
+      const element = window.document.getElementById('products-showcase');
       if (element) {
         const yOffset = -135; // offset for sticky header (80px) and category bar (48px)
         const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
@@ -404,6 +411,37 @@ export default function StorefrontPage() {
   const opacity20 = getThemeColorShade(primary, 0, 0.2);
   const opacity40 = getThemeColorShade(primary, 0, 0.4);
 
+  const socialUrl = (
+  platform: 'instagram' | 'facebook' | 'youtube',
+  value?: string
+) => {
+  if (!value) return '#';
+
+  const username = value
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/^instagram\.com\//, '')
+    .replace(/^facebook\.com\//, '')
+    .replace(/^youtube\.com\//, '')
+    .replace(/^@/, '')
+    .replace(/^\/+/, '')
+    .trim();
+
+  switch (platform) {
+    case 'instagram':
+      return `https://instagram.com/${username}`;
+
+    case 'facebook':
+      return `https://facebook.com/${username}`;
+
+    case 'youtube':
+      return `https://youtube.com/${username}`;
+
+    default:
+      return '#';
+  }
+};
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200/70 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans antialiased flex flex-col justify-between">
       <style dangerouslySetInnerHTML={{ __html: `
@@ -450,7 +488,7 @@ export default function StorefrontPage() {
           </div>
           <div className="flex items-center gap-4">
             {company.instagram_url && (
-              <a href={safeHref(company.instagram_url)} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-emerald-400 transition-colors flex items-center hover:scale-110" title="Instagram">
+              <a href={socialUrl('instagram', company.instagram_url)} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-emerald-400 transition-colors flex items-center hover:scale-110" title="Instagram">
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
                   <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
@@ -459,14 +497,14 @@ export default function StorefrontPage() {
               </a>
             )}
             {company.facebook_url && (
-              <a href={safeHref(company.facebook_url)} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-emerald-400 transition-colors flex items-center hover:scale-110" title="Facebook">
+              <a href={socialUrl('facebook', company.facebook_url)} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-emerald-400 transition-colors flex items-center hover:scale-110" title="Facebook">
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
                 </svg>
               </a>
             )}
             {company.youtube_url && (
-              <a href={safeHref(company.youtube_url)} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-emerald-400 transition-colors flex items-center hover:scale-110" title="YouTube">
+              <a href={socialUrl('youtube', company.youtube_url)} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-emerald-400 transition-colors flex items-center hover:scale-110" title="YouTube">
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
                   <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
@@ -1566,7 +1604,7 @@ export default function StorefrontPage() {
               {(company.instagram_url || company.facebook_url || company.youtube_url) && (
                 <div className="pt-2 flex items-center gap-3">
                   {company.instagram_url && (
-                    <a href={safeHref(company.instagram_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="Instagram">
+                    <a href={socialUrl('instagram', company.instagram_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="Instagram">
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
                         <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
@@ -1575,14 +1613,14 @@ export default function StorefrontPage() {
                     </a>
                   )}
                   {company.facebook_url && (
-                    <a href={safeHref(company.facebook_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="Facebook">
+                    <a href={socialUrl('facebook', company.facebook_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="Facebook">
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
                       </svg>
                     </a>
                   )}
                   {company.youtube_url && (
-                    <a href={safeHref(company.youtube_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="YouTube">
+                    <a href={socialUrl('youtube', company.youtube_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="YouTube">
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
                         <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>

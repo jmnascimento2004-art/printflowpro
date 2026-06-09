@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { warnCaught } from '@/lib/safe-log';
 import {
   Customer,
   Supplier,
@@ -202,6 +203,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
 const FINANCIAL_SETTING_KEYS = ['pix_key', 'pix_key_type', 'bank_name', 'tax_rate', 'commission_rate'] as const;
+const isBrowser = () => typeof window !== 'undefined';
 
 const hasSettingValue = (value: unknown) => value !== undefined && value !== null && value !== '';
 
@@ -276,9 +278,17 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   // Load from Supabase on mount, fallback to localStorage
   useEffect(() => {
+    if (!isBrowser()) return;
+
     const init = async () => {
       try {
-        const { data: companies, error } = await supabase.from('companies').select('*');
+    const { data: companies, error } = await supabase.from('companies').select('*');
+
+        if (error) {  warnCaught('Erro companies:', error);
+          loadFromLocalStorage();
+          return;
+      }
+      
         if (error) throw error;
 
         if (!companies || companies.length === 0) {
@@ -286,20 +296,20 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           // The browser client must not seed tenant data with the public key.
           
           // Clear operational data in localStorage to prevent loading dummy data locally
-          localStorage.setItem('printflow_customers', '[]');
-          localStorage.setItem('printflow_suppliers', '[]');
-          localStorage.setItem('printflow_categories', '[]');
-          localStorage.setItem('printflow_products', '[]');
-          localStorage.setItem('printflow_quotes', '[]');
-          localStorage.setItem('printflow_orders', '[]');
-          localStorage.setItem('printflow_production', '[]');
-          localStorage.setItem('printflow_financial', '[]');
-          localStorage.setItem('printflow_shipments', '[]');
-          localStorage.setItem('printflow_stockMovements', '[]');
-          localStorage.setItem('printflow_pickupPoints', '[]');
-          localStorage.setItem('printflow_banners', '[]');
-          localStorage.setItem('printflow_sessions', '[]');
-          localStorage.setItem('printflow_registerTransactions', '[]');
+          window.localStorage.setItem('printflow_customers', '[]');
+          window.localStorage.setItem('printflow_suppliers', '[]');
+          window.localStorage.setItem('printflow_categories', '[]');
+          window.localStorage.setItem('printflow_products', '[]');
+          window.localStorage.setItem('printflow_quotes', '[]');
+          window.localStorage.setItem('printflow_orders', '[]');
+          window.localStorage.setItem('printflow_production', '[]');
+          window.localStorage.setItem('printflow_financial', '[]');
+          window.localStorage.setItem('printflow_shipments', '[]');
+          window.localStorage.setItem('printflow_stockMovements', '[]');
+          window.localStorage.setItem('printflow_pickupPoints', '[]');
+          window.localStorage.setItem('printflow_banners', '[]');
+          window.localStorage.setItem('printflow_sessions', '[]');
+          window.localStorage.setItem('printflow_registerTransactions', '[]');
 
           // Keep public configuration empty/default until a real tenant is provisioned.
           setCompany({ ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
@@ -373,7 +383,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         if (settingsData && settingsData.length > 0) {
           let storedSettings: Partial<typeof DUMMY_SETTINGS> | null = null;
           try {
-            storedSettings = JSON.parse(localStorage.getItem('printflow_settings') || 'null');
+            storedSettings = JSON.parse(window.localStorage.getItem('printflow_settings') || 'null');
           } catch {
             storedSettings = null;
           }
@@ -421,7 +431,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
         setInitialized(true);
       } catch (err) {
-        console.warn("Failed to load from Supabase. Falling back to LocalStorage:", err);
+        warnCaught('Erro capturado:', err);
         loadFromLocalStorage();
       }
     };
@@ -429,12 +439,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     const loadFromLocalStorage = () => {
       try {
         const getOrSet = <T,>(key: string, defaultValue: T): T => {
-          const stored = localStorage.getItem(`printflow_${key}`);
+          const stored = window.localStorage.getItem(`printflow_${key}`);
           if (stored) {
             const parsed = JSON.parse(stored);
             if (parsed !== null && parsed !== undefined) return parsed as T;
           }
-          localStorage.setItem(`printflow_${key}`, JSON.stringify(defaultValue));
+          window.localStorage.setItem(`printflow_${key}`, JSON.stringify(defaultValue));
           return defaultValue;
         };
 
@@ -475,7 +485,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         
         setInitialized(true);
       } catch (e) {
-        console.error("Local storage initialization failed:", e);
+        warnCaught('Erro capturado:', e);
         setCustomers(DUMMY_CUSTOMERS);
         setSuppliers(DUMMY_SUPPLIERS);
         setCategories(DUMMY_CATEGORIES);
@@ -499,7 +509,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!isBrowser()) return;
 
     const handleQuoteStorageSync = (event: StorageEvent) => {
       if (event.key !== 'printflow_quotes' || !event.newValue) return;
@@ -510,7 +520,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           setQuotes(nextQuotes);
         }
       } catch (error) {
-        console.warn('Erro ao sincronizar orçamentos entre telas:', error);
+        warnCaught('Erro capturado:', error);
       }
     };
 
@@ -520,65 +530,65 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   // Save triggers mapped to both localStorage and Supabase
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_customers', JSON.stringify(customers));
+      window.localStorage.setItem('printflow_customers', JSON.stringify(customers));
       supabase.from('customers').upsert(customers).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar clientes no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar clientes no Supabase:', error);
       });
       if (canShowToast) showToast('Clientes atualizados com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar dados de clientes!', 'error');
     }
   }, [customers, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_suppliers', JSON.stringify(suppliers));
+      window.localStorage.setItem('printflow_suppliers', JSON.stringify(suppliers));
       supabase.from('suppliers').upsert(suppliers).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar fornecedores no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar fornecedores no Supabase:', error);
       });
       if (canShowToast) showToast('Fornecedores atualizados com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar fornecedores!', 'error');
     }
   }, [suppliers, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_categories', JSON.stringify(categories));
+      window.localStorage.setItem('printflow_categories', JSON.stringify(categories));
       supabase.from('categories').upsert(categories).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar categorias no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar categorias no Supabase:', error);
       });
       if (canShowToast) showToast('Categorias atualizadas com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar categorias!', 'error');
     }
   }, [categories, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_products', JSON.stringify(products));
+      window.localStorage.setItem('printflow_products', JSON.stringify(products));
       supabase.from('products').upsert(products).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar produtos no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar produtos no Supabase:', error);
       });
       if (canShowToast) showToast('Produtos atualizados com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar produtos!', 'error');
     }
   }, [products, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_quotes', JSON.stringify(quotes));
+      window.localStorage.setItem('printflow_quotes', JSON.stringify(quotes));
       
       const parentQuotes = quotes.map(({ items, ...q }) => q);
       supabase.from('quotes').upsert(parentQuotes).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar orçamentos no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar orçamentos no Supabase:', error);
       });
       
       const allItems = quotes.flatMap(q => 
@@ -586,24 +596,24 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       );
       if (allItems.length > 0) {
         supabase.from('quote_items').upsert(allItems).then(({ error }) => {
-          if (error) console.warn('Erro ao sincronizar itens do orçamento no Supabase:', error);
+          if (error) warnCaught('Erro ao sincronizar itens do orçamento no Supabase:', error);
         });
       }
       
       if (canShowToast) showToast('Orçamentos atualizados com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar orçamentos!', 'error');
     }
   }, [quotes, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_orders', JSON.stringify(orders));
+      window.localStorage.setItem('printflow_orders', JSON.stringify(orders));
       
       const parentOrders = orders.map(({ items, ...o }) => o);
       supabase.from('orders').upsert(parentOrders).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar pedidos no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar pedidos no Supabase:', error);
       });
       
       const allItems = orders.flatMap(o => 
@@ -611,183 +621,237 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       );
       if (allItems.length > 0) {
         supabase.from('order_items').upsert(allItems).then(({ error }) => {
-          if (error) console.warn('Erro ao sincronizar itens do pedido no Supabase:', error);
+          if (error) warnCaught('Erro ao sincronizar itens do pedido no Supabase:', error);
         });
       }
       
       if (canShowToast) showToast('Pedidos atualizados com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar pedidos!', 'error');
     }
   }, [orders, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_production', JSON.stringify(production));
+      window.localStorage.setItem('printflow_production', JSON.stringify(production));
       supabase.from('production_queue').upsert(production).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar fila de produção no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar fila de produção no Supabase:', error);
       });
       if (canShowToast) showToast('Fila de produção atualizada!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao atualizar produção!', 'error');
     }
   }, [production, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_financial', JSON.stringify(financial));
+      window.localStorage.setItem('printflow_financial', JSON.stringify(financial));
       supabase.from('financial_transactions').upsert(financial).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar financeiro no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar financeiro no Supabase:', error);
       });
       if (canShowToast) showToast('Transações financeiras atualizadas!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar finanças!', 'error');
     }
   }, [financial, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_shipments', JSON.stringify(shipments));
+      window.localStorage.setItem('printflow_shipments', JSON.stringify(shipments));
       supabase.from('shipments').upsert(shipments).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar expedição no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar expedição no Supabase:', error);
       });
       if (canShowToast) showToast('Envios e entregas atualizados!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar entregas!', 'error');
     }
   }, [shipments, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_stockMovements', JSON.stringify(stockMovements));
+      window.localStorage.setItem('printflow_stockMovements', JSON.stringify(stockMovements));
       supabase.from('stock_movements').upsert(stockMovements).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar estoque no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar estoque no Supabase:', error);
       });
       if (canShowToast) showToast('Estoque movimentado com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar estoque!', 'error');
     }
   }, [stockMovements, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser() || !company?.id) return;
     try {
-      localStorage.setItem('printflow_settings', JSON.stringify(settings));
-      supabase.from('settings').upsert({ company_id: company.id, ...settings }).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar configurações no Supabase:', error);
+      window.localStorage.setItem('printflow_settings', JSON.stringify(settings));
+      supabase.from('settings').upsert({
+        company_id: company.id,
+        pix_key: settings.pix_key || null,
+        pix_key_type: settings.pix_key_type || null,
+        bank_name: settings.bank_name || null,
+        tax_rate: settings.tax_rate || 0,
+        commission_rate: settings.commission_rate || 0,
+        catalog_header_message: settings.catalog_header_message || null,
+        catalog_whatsapp: settings.catalog_whatsapp || null,
+        free_pickup_alert: settings.free_pickup_alert ?? true,
+        catalog_footer_text: settings.catalog_footer_text || null,
+        updated_at: new Date().toISOString(),
+      })
+      .then(({ error }) => {
+        if (error) warnCaught('Erro ao sincronizar configurações no Supabase:', error);
       });
-      if (canShowToast) showToast('Configurações salvas com sucesso!', 'success');
-    } catch (e) {
-      if (canShowToast) showToast('Erro ao salvar configurações!', 'error');
-    }
-  }, [settings, initialized, canShowToast]);
+
+    if (canShowToast) showToast('Configurações salvas com sucesso!', 'success');
+  } catch (error) {
+    warnCaught('Erro capturado:', error);
+    if (canShowToast) showToast('Erro ao salvar configurações!', 'error');
+  }
+}, [settings, company?.id, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_pickupPoints', JSON.stringify(pickupPoints));
+      window.localStorage.setItem('printflow_pickupPoints', JSON.stringify(pickupPoints));
       supabase.from('pickup_points').upsert(pickupPoints).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar pontos de coleta no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar pontos de coleta no Supabase:', error);
       });
       if (canShowToast) showToast('Pontos de retirada salvos!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar pontos de retirada!', 'error');
     }
   }, [pickupPoints, initialized, canShowToast]);
 
-  useEffect(() => {
-    if (!initialized) return;
-    try {
-      localStorage.setItem('printflow_company', JSON.stringify(company));
-      supabase.from('companies').upsert([company]).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar empresa no Supabase:', error);
+useEffect(() => {
+  if (!initialized || !isBrowser()) return;
+
+  try {
+    window.localStorage.setItem('printflow_company', JSON.stringify(company));
+
+    if (!company?.id) return;
+
+    supabase
+      .from('companies')
+      .update({
+        name: company.name,
+        trading_name: company.trading_name,
+        document: company.document,
+        phone: company.phone,
+        email: company.email,
+        address: company.address,
+        logo_url: company.logo_url,
+        favicon: company.favicon,
+        theme_color: company.theme_color,
+        instagram_url: company.instagram_url,
+        facebook_url: company.facebook_url,
+        youtube_url: company.youtube_url,
+        refund_policy: company.refund_policy,
+        card_benefits_1_title: company.card_benefits_1_title,
+        card_benefits_1_subtitle: company.card_benefits_1_subtitle,
+        card_benefits_1_active: company.card_benefits_1_active,
+        card_benefits_2_title: company.card_benefits_2_title,
+        card_benefits_2_subtitle: company.card_benefits_2_subtitle,
+        card_benefits_2_active: company.card_benefits_2_active,
+        card_benefits_3_title: company.card_benefits_3_title,
+        card_benefits_3_subtitle: company.card_benefits_3_subtitle,
+        card_benefits_3_active: company.card_benefits_3_active,
+        card_benefits_4_title: company.card_benefits_4_title,
+        card_benefits_4_subtitle: company.card_benefits_4_subtitle,
+        card_benefits_4_active: company.card_benefits_4_active,
+      })
+      .eq('id', company.id)
+      .then(({ error }) => {
+        if (error) warnCaught('Erro ao sincronizar empresa no Supabase:', error);
       });
-      if (canShowToast) showToast('Configurações da empresa salvas com sucesso!', 'success');
-    } catch (e) {
-      if (canShowToast) showToast('Erro ao salvar empresa!', 'error');
-    }
-  }, [company, initialized, canShowToast]);
+
+    if (canShowToast) showToast('Configurações da empresa salvas com sucesso!', 'success');
+  } catch (error) {
+    warnCaught('Erro capturado:', error);
+    if (canShowToast) showToast('Erro ao salvar empresa!', 'error');
+  }
+}, [company, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_banners', JSON.stringify(banners));
+      window.localStorage.setItem('printflow_banners', JSON.stringify(banners));
       const formatted = banners.map(b => ({ company_id: company.id, ...b }));
       supabase.from('store_banners').upsert(formatted).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar banners no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar banners no Supabase:', error);
       });
       if (canShowToast) showToast('Banners salvos com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar banners!', 'error');
     }
   }, [banners, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_profiles', JSON.stringify(profiles));
+      window.localStorage.setItem('printflow_profiles', JSON.stringify(profiles));
       supabase.from('profiles').upsert(profiles).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar funcionários no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar funcionários no Supabase:', error);
       });
       if (canShowToast) showToast('Funcionários atualizados com sucesso!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar funcionários!', 'error');
     }
   }, [profiles, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_role_permissions', JSON.stringify(rolePermissions));
+      window.localStorage.setItem('printflow_role_permissions', JSON.stringify(rolePermissions));
       const formatted = Object.entries(rolePermissions).map(([path, roles]) => ({
         company_id: company.id,
         path,
         roles
       }));
       if (formatted.length > 0) {
-        supabase.from('role_permissions').upsert(formatted).then(({ error }) => {
-          if (error) console.warn('Erro ao sincronizar permissões no Supabase:', error);
-        });
+      supabase
+        .from('role_permissions')
+        .upsert(formatted, { onConflict: 'company_id,path' })
+        .then(({ error }) => {
+        if (error) warnCaught('Erro ao sincronizar permissões no Supabase:', error);
+      });
       }
       if (canShowToast) showToast('Permissões de acesso atualizadas!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar permissões de acesso!', 'error');
     }
   }, [rolePermissions, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_sessions', JSON.stringify(sessions));
+      window.localStorage.setItem('printflow_sessions', JSON.stringify(sessions));
       supabase.from('cash_register_sessions').upsert(sessions).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar sessões de caixa no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar sessões de caixa no Supabase:', error);
       });
       if (canShowToast) showToast('Status de caixa atualizado!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar sessões de caixa!', 'error');
     }
   }, [sessions, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !isBrowser()) return;
     try {
-      localStorage.setItem('printflow_registerTransactions', JSON.stringify(registerTransactions));
+      window.localStorage.setItem('printflow_registerTransactions', JSON.stringify(registerTransactions));
       supabase.from('cash_register_transactions').upsert(registerTransactions).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar transações de caixa no Supabase:', error);
+        if (error) warnCaught('Erro ao sincronizar transações de caixa no Supabase:', error);
       });
       if (canShowToast) showToast('Transação do caixa salva!', 'success');
-    } catch (e) {
+    } catch {
       if (canShowToast) showToast('Erro ao salvar transações!', 'error');
     }
   }, [registerTransactions, initialized, canShowToast]);
 
   // Dynamically update DOM favicon when configured
   useEffect(() => {
-    if (!initialized || !company?.favicon) return;
+    if (!initialized || !isBrowser() || !company?.favicon) return;
 
     // Check if it's a supported browser favicon (not .cdr or other unsupported formats)
     const isSupported = (url: string) => {
@@ -802,7 +866,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
     const updateFavicons = () => {
       try {
-        const links = document.querySelectorAll("link[rel*='icon']");
+        const links = window.document.querySelectorAll("link[rel*='icon']");
         // Resolve absolute URL for correct comparison in browser
         const absoluteFavicon = new URL(company.favicon!, window.location.href).href;
         
@@ -813,13 +877,13 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             }
           });
         } else {
-          const link = document.createElement('link');
+          const link = window.document.createElement('link');
           link.rel = 'icon';
           link.href = absoluteFavicon;
-          document.getElementsByTagName('head')[0].appendChild(link);
+          window.document.getElementsByTagName('head')[0].appendChild(link);
         }
       } catch (e) {
-        console.warn('Failed to update favicon in DOM', e);
+        warnCaught('Erro capturado:', e);
       }
     };
 
@@ -827,21 +891,23 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [company?.favicon, initialized]);
  
   const resetDatabase = () => {
+    if (!isBrowser()) return;
+
     // Set operational data in localStorage to empty arrays to prevent falling back to dummy data on offline reload
-    localStorage.setItem('printflow_customers', '[]');
-    localStorage.setItem('printflow_suppliers', '[]');
-    localStorage.setItem('printflow_categories', '[]');
-    localStorage.setItem('printflow_products', '[]');
-    localStorage.setItem('printflow_quotes', '[]');
-    localStorage.setItem('printflow_orders', '[]');
-    localStorage.setItem('printflow_production', '[]');
-    localStorage.setItem('printflow_financial', '[]');
-    localStorage.setItem('printflow_shipments', '[]');
-    localStorage.setItem('printflow_stockMovements', '[]');
-    localStorage.setItem('printflow_pickupPoints', '[]');
-    localStorage.setItem('printflow_banners', '[]');
-    localStorage.setItem('printflow_sessions', '[]');
-    localStorage.setItem('printflow_registerTransactions', '[]');
+    window.localStorage.setItem('printflow_customers', '[]');
+    window.localStorage.setItem('printflow_suppliers', '[]');
+    window.localStorage.setItem('printflow_categories', '[]');
+    window.localStorage.setItem('printflow_products', '[]');
+    window.localStorage.setItem('printflow_quotes', '[]');
+    window.localStorage.setItem('printflow_orders', '[]');
+    window.localStorage.setItem('printflow_production', '[]');
+    window.localStorage.setItem('printflow_financial', '[]');
+    window.localStorage.setItem('printflow_shipments', '[]');
+    window.localStorage.setItem('printflow_stockMovements', '[]');
+    window.localStorage.setItem('printflow_pickupPoints', '[]');
+    window.localStorage.setItem('printflow_banners', '[]');
+    window.localStorage.setItem('printflow_sessions', '[]');
+    window.localStorage.setItem('printflow_registerTransactions', '[]');
     
     // Clear Supabase operational tables but KEEP companies, settings, profiles, and role_permissions
     Promise.all([
@@ -864,7 +930,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     ]).then(() => {
       window.location.reload();
     }).catch(err => {
-      console.warn('Error resetting Supabase data:', err);
+      warnCaught('Erro capturado:', err);
       window.location.reload();
     });
   };
@@ -890,7 +956,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteCustomer = (id: string) => {
     setCustomers(prev => prev.filter(c => c.id !== id));
     supabase.from('customers').delete().eq('id', id).then(({ error }) => {
-      if (error) console.warn('Erro ao excluir cliente no Supabase:', error);
+      if (error) warnCaught('Erro ao excluir cliente no Supabase:', error);
     });
   };
 
@@ -928,7 +994,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteCategory = (id: string) => {
     setCategories(prev => prev.filter(c => c.id !== id));
     supabase.from('categories').delete().eq('id', id).then(({ error }) => {
-      if (error) console.warn('Erro ao excluir categoria no Supabase:', error);
+      if (error) warnCaught('Erro ao excluir categoria no Supabase:', error);
     });
   };
 
@@ -971,7 +1037,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     })
     .then(({ error }) => {
       if (error) {
-        console.warn('Erro ao salvar produto no Supabase:', error);
+        warnCaught('Erro ao salvar produto no Supabase:', error);
         showToast('Erro ao salvar produto no Supabase.', 'error');
       } else {
         showToast('Produto salvo com sucesso.', 'success');
@@ -1007,7 +1073,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     .eq('id', prod.id)
     .then(({ error }) => {
       if (error) {
-        console.warn('Erro ao atualizar produto no Supabase:', error);
+        warnCaught('Erro ao atualizar produto no Supabase:', error);
         showToast('Erro ao atualizar produto no Supabase.', 'error');
       } else {
         showToast('Produto atualizado com sucesso.', 'success');
@@ -1018,7 +1084,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
     supabase.from('products').delete().eq('id', id).then(({ error }) => {
-      if (error) console.warn('Erro ao excluir produto no Supabase:', error);
+      if (error) warnCaught('Erro ao excluir produto no Supabase:', error);
     });
   };
 
@@ -1055,7 +1121,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const persistQuotesSnapshot = (nextQuotes: Quote[]) => {
     if (typeof window === 'undefined') return;
 
-    localStorage.setItem('printflow_quotes', JSON.stringify(nextQuotes));
+    window.localStorage.setItem('printflow_quotes', JSON.stringify(nextQuotes));
   };
 
   const addQuote = (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => {
@@ -1075,13 +1141,13 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
     const { items, ...parentQuote } = newQuote;
     supabase.from('quotes').upsert(parentQuote).then(({ error }) => {
-      if (error) console.warn('Erro ao sincronizar orçamento criado no catálogo:', error);
+      if (error) warnCaught('Erro ao sincronizar orçamento criado no catálogo:', error);
     });
 
     if (items.length > 0) {
       const quoteItems = items.map(item => ({ ...item, quote_id: newQuote.id }));
       supabase.from('quote_items').upsert(quoteItems).then(({ error }) => {
-        if (error) console.warn('Erro ao sincronizar itens do orçamento criado no catálogo:', error);
+        if (error) warnCaught('Erro ao sincronizar itens do orçamento criado no catálogo:', error);
       });
     }
 
@@ -1095,7 +1161,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteQuote = (id: string) => {
     setQuotes(prev => prev.filter(q => q.id !== id));
     supabase.from('quotes').delete().eq('id', id).then(({ error }) => {
-      if (error) console.warn('Erro ao excluir orçamento no Supabase:', error);
+      if (error) warnCaught('Erro ao excluir orçamento no Supabase:', error);
     });
   };
 
@@ -1546,7 +1612,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deletePickupPoint = (id: string) => {
     setPickupPoints(prev => prev.filter(p => p.id !== id));
     supabase.from('pickup_points').delete().eq('id', id).then(({ error }) => {
-      if (error) console.warn('Erro ao excluir ponto de coleta no Supabase:', error);
+      if (error) warnCaught('Erro ao excluir ponto de coleta no Supabase:', error);
     });
   };
 
@@ -1817,7 +1883,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteBanner = (id: string) => {
     setBanners(prev => prev.filter(b => b.id !== id));
     supabase.from('store_banners').delete().eq('id', id).then(({ error }) => {
-      if (error) console.warn('Erro ao excluir banner no Supabase:', error);
+      if (error) warnCaught('Erro ao excluir banner no Supabase:', error);
     });
   };
 
@@ -1841,7 +1907,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const deleteProfile = (id: string) => {
     setProfiles(prev => prev.filter(p => p.id !== id));
     supabase.from('profiles').delete().eq('id', id).then(({ error }) => {
-      if (error) console.warn('Erro ao excluir funcionário no Supabase:', error);
+      if (error) warnCaught('Erro ao excluir funcionário no Supabase:', error);
     });
   };
 
@@ -1849,6 +1915,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     setRolePermissions(permissions);
   };
 
+  if (!initialized) {
+  return null;
+  }
+  
   return (
     <DatabaseContext.Provider
       value={{

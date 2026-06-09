@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="light" suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
-        <PWARegister />
+        {/* <PWARegister /> */}
         <BrowserProtocolGuard />
         <ThemeProvider>
           <AuthProvider>

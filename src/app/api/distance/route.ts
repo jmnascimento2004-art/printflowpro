@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { warnCaught } from '@/lib/safe-log';
 
 type OrsGeocodeResponse = {
   features?: Array<{
@@ -422,7 +423,7 @@ export async function POST(request: Request) {
       destination_label: route.destinationLabel
     });
   } catch (error) {
-    console.warn('Distance API error:', error);
+    warnCaught('Erro capturado:', error);
     return jsonError(error instanceof Error ? error.message : 'Erro ao calcular distancia.', 500);
   }
 }

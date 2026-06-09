@@ -33,6 +33,8 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
 
   // Check window resize
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const handleResize = () => {
       if (window.innerWidth < 768) {
         setIsMobile(true);

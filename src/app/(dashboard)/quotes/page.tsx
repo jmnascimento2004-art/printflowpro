@@ -23,6 +23,7 @@ import { useDatabase } from '@/context/database-context';
 import { Quote, QuoteItem } from '@/lib/dummy-data';
 import { formatCurrencyInput, parseCurrencyInputToNumber, generatePixPayload, formatCEP } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
+import { warnCaught } from '@/lib/safe-log';
 
 export default function QuotesPage() {
   const { 
@@ -97,6 +98,7 @@ export default function QuotesPage() {
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;
+    if (typeof window === 'undefined') return;
     window.open(url, '_blank');
   };
 
@@ -154,7 +156,7 @@ export default function QuotesPage() {
         };
       }
     } catch (e) {
-      console.error(e);
+      warnCaught('Erro capturado:', e);
     }
     
     return { ...defaultVals, street: addrStr };
@@ -176,7 +178,7 @@ export default function QuotesPage() {
           if (data.uf) setDeliveryState(data.uf);
         }
       } catch (error) {
-        console.error(error);
+        warnCaught('Erro capturado:', error);
       }
     }
   };
@@ -241,7 +243,7 @@ export default function QuotesPage() {
       setDeliveryFee(Math.round(Math.max(rawFee, minFee) * 100) / 100);
       setLastCalculatedAddress(deliveryAddress);
     } catch (err: any) {
-      console.error(err);
+      warnCaught('Erro capturado:', err);
       setRouteError(err.message || 'Erro ao calcular a distância da rota.');
     } finally {
       setIsCalculatingRoute(false);
@@ -278,7 +280,7 @@ export default function QuotesPage() {
         setDeliveryFee(Math.round(Math.max(rawFee, minFee) * 100) / 100);
         setLastCalculatedAddress(deliveryAddress);
       } catch (err: any) {
-        console.error(err);
+        warnCaught('Erro capturado:', err);
         setRouteError(err.message || 'Erro ao calcular a distância da rota automaticamente.');
       } finally {
         setIsCalculatingRoute(false);
@@ -451,6 +453,8 @@ export default function QuotesPage() {
   };
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     if (activePrintQuote) {
       window.print();
       setActivePrintQuote(null);

@@ -81,6 +81,62 @@ export default function CRMPage() {
     return orders.filter(o => o.customer_name === customerName);
   };
 
+  const handleCreateCustomer = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const rawDoc = document.replace(/\D/g, '');
+    if (rawDoc.length > 11 && !validateCNPJ(rawDoc)) {
+      alert('Documento CNPJ invÃ¡lido! Verifique os dÃ­gitos e tente novamente.');
+      return;
+    }
+
+    const duplicateDoc = rawDoc && customers.some(customer => customer.document.replace(/\D/g, '') === rawDoc);
+    if (duplicateDoc) {
+      alert('JÃ¡ existe um cliente cadastrado com este CPF/CNPJ.');
+      return;
+    }
+
+    const rawCEP = zipCode.replace(/\D/g, '');
+    if (rawCEP && !validateCEP(rawCEP)) {
+      alert('CEP invÃ¡lido! O CEP deve conter exatamente 8 dÃ­gitos.');
+      return;
+    }
+
+    const tagsArr = tagsInput.split(',').map(t => t.trim()).filter(Boolean);
+
+    addCustomer({
+      name,
+      document,
+      phone,
+      email,
+      address: {
+        street,
+        number,
+        neighborhood,
+        city,
+        state,
+        zip_code: zipCode,
+      },
+      tags: tagsArr.length > 0 ? tagsArr : ['Cliente'],
+      notes,
+      billing_type: billingType,
+      credit_limit: billingType === 'faturado' ? creditLimit : 0,
+      credit_used: 0,
+      payment_terms_days: billingType === 'faturado' ? paymentTermsDays : 0,
+      credit_status: billingType === 'faturado' ? creditStatus : 'aprovado',
+      corporate_additional_info: billingType === 'faturado' ? {
+        inscricao_estadual: inscricaoEstadual,
+        nome_fantasia: nomeFantasia,
+        responsavel_financeiro_nome: finName,
+        responsavel_financeiro_phone: finPhone,
+        responsavel_financeiro_email: finEmail
+      } : undefined
+    });
+
+    setIsAddingCustomer(false);
+    setSelectedCustomer(null);
+  };
+
   const handleUpdateCustomer = (e: React.FormEvent) => {
   e.preventDefault();
 

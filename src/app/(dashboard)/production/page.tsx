@@ -65,6 +65,7 @@ export default function ProductionPage() {
     
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;
+    if (typeof window === 'undefined') return;
     window.open(url, '_blank');
   };
 
