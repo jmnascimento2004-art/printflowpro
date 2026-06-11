@@ -33,6 +33,7 @@ import {
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
 import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
+import { lookupCNPJ } from '@/lib/cnpj-lookup';
 import { DUMMY_COMPANY, PickupPoint, UserProfile } from '@/lib/dummy-data';
 import { warnCaught } from '@/lib/safe-log';
 
@@ -186,6 +187,7 @@ export default function SettingsPage() {
   const [imgGoogle, setImgGoogle] = useState(company.img_security_google || '');
 
   const [cnpjError, setCnpjError] = useState(false);
+  const [cnpjLookupStatus, setCnpjLookupStatus] = useState('');
   const [cepError, setCepError] = useState(false);
 
   // Configurações de Frete Local por Quilometragem
@@ -285,6 +287,7 @@ export default function SettingsPage() {
   const handleCNPJChange = async (val: string) => {
     const formatted = formatCNPJ(val);
     setCompDocument(formatted);
+    setCnpjLookupStatus('');
     const clean = formatted.replace(/\D/g, '');
 
     if (clean.length === 14) {
@@ -292,38 +295,22 @@ export default function SettingsPage() {
       setCnpjError(!isValid);
 
       if (isValid) {
+        setCnpjLookupStatus('Consultando CNPJ...');
         try {
-          const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
-          if (res.ok) {
-            const data = await res.json();
-            setCompName(data.razao_social || data.nome_fantasia || '');
-            if (data.telefone) {
-              setCompPhone(data.telefone);
-            }
-            if (data.email) {
-              setCompEmail(data.email);
-            }
-            if (data.cep) {
-              setCompCEP(formatCEP(data.cep));
-            }
-            if (data.logradouro) {
-              setCompStreet(data.logradouro);
-            }
-            if (data.numero) {
-              setCompNumber(data.numero);
-            }
-            if (data.bairro) {
-              setCompNeighborhood(data.bairro);
-            }
-            if (data.municipio) {
-              setCompCity(data.municipio);
-            }
-            if (data.uf) {
-              setCompState(data.uf);
-            }
-          }
+          const data = await lookupCNPJ(clean);
+          setCompName(data.razaoSocial || data.nomeFantasia || compName);
+          setCompPhone(data.telefone || compPhone);
+          setCompEmail(data.email || compEmail);
+          setCompCEP(data.cep || compCEP);
+          setCompStreet(data.logradouro || compStreet);
+          setCompNumber(data.numero || compNumber);
+          setCompNeighborhood(data.bairro || compNeighborhood);
+          setCompCity(data.municipio || compCity);
+          setCompState(data.uf || compState);
+          setCnpjLookupStatus('Dados da empresa preenchidos automaticamente.');
         } catch (e) {
-          warnCaught('Erro capturado:', e);
+          warnCaught('Erro ao consultar CNPJ da empresa:', e);
+          setCnpjLookupStatus(e instanceof Error ? e.message : 'Nao foi possivel consultar o CNPJ.');
         }
       }
     } else {
@@ -1015,6 +1002,11 @@ export default function SettingsPage() {
                         }`}
                       />
                       {cnpjError && <p className="text-[9px] text-rose-500 font-bold">CNPJ inválido ou incompleto</p>}
+                      {cnpjLookupStatus && (
+                        <p className={`text-[9px] font-bold ${cnpjLookupStatus.includes('preenchidos') ? 'text-emerald-500' : cnpjLookupStatus.includes('Consultando') ? 'text-primary' : 'text-rose-500'}`}>
+                          {cnpjLookupStatus}
+                        </p>
+                      )}
                     </div>
 
                     <div className="md:col-span-2 space-y-1">

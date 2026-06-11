@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Customer } from '@/lib/dummy-data';
+import { lookupCNPJ } from '@/lib/cnpj-lookup';
+import { warnCaught } from '@/lib/safe-log';
 import { 
   formatCurrencyInput, 
   parseCurrencyInputToNumber, 
@@ -39,6 +41,7 @@ export default function CRMPage() {
   // Form States
   const [name, setName] = useState('');
   const [document, setDocument] = useState('');
+  const [cnpjLookupStatus, setCnpjLookupStatus] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [street, setStreet] = useState('');
@@ -60,6 +63,44 @@ export default function CRMPage() {
   const [finName, setFinName] = useState('');
   const [finPhone, setFinPhone] = useState('');
   const [finEmail, setFinEmail] = useState('');
+
+  const handleDocumentChange = async (value: string) => {
+    const clean = value.replace(/\D/g, '').slice(0, 14);
+    const formatted = clean.length <= 11 ? formatCPF(clean) : formatCNPJ(clean);
+    setDocument(formatted);
+    setCnpjLookupStatus('');
+
+    if (clean.length !== 14) return;
+
+    if (!validateCNPJ(clean)) {
+      setCnpjLookupStatus('CNPJ invalido.');
+      return;
+    }
+
+    setCnpjLookupStatus('Consultando CNPJ...');
+
+    try {
+      const data = await lookupCNPJ(clean);
+      setName(data.razaoSocial || data.nomeFantasia || name);
+      setNomeFantasia(data.nomeFantasia || data.razaoSocial || nomeFantasia);
+      setPhone(data.telefone || phone);
+      setEmail(data.email || email);
+      setZipCode(data.cep || zipCode);
+      setStreet(data.logradouro || street);
+      setNumber(data.numero || number);
+      setNeighborhood(data.bairro || neighborhood);
+      setCity(data.municipio || city);
+      setState(data.uf || state);
+      if (data.inscricaoEstadual) {
+        setInscricaoEstadual(data.inscricaoEstadual);
+      }
+      setBillingType('faturado');
+      setCnpjLookupStatus('Dados da empresa preenchidos automaticamente.');
+    } catch (error) {
+      warnCaught('Erro ao consultar CNPJ do cliente:', error);
+      setCnpjLookupStatus(error instanceof Error ? error.message : 'Nao foi possivel consultar o CNPJ.');
+    }
+  };
 
   // 1. Get all unique tags for filter list
   const allTags = Array.from(new Set(customers.flatMap(c => c.tags || [])));
@@ -374,17 +415,15 @@ export default function CRMPage() {
                     <input
                       type="text"
                       value={document}
-                      onChange={(e) => {
-                        const clean = e.target.value.replace(/\D/g, '');
-                        if (clean.length <= 11) {
-                          setDocument(formatCPF(clean));
-                        } else {
-                          setDocument(formatCNPJ(clean));
-                        }
-                      }}
+                      onChange={(e) => handleDocumentChange(e.target.value)}
                       placeholder="Ex: 000.000.000-00 ou 00.000.000/0001-00"
                       className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
                     />
+                    {cnpjLookupStatus && (
+                      <p className={`text-[9px] font-bold ${cnpjLookupStatus.includes('preenchidos') ? 'text-emerald-500' : cnpjLookupStatus.includes('Consultando') ? 'text-primary' : 'text-rose-500'}`}>
+                        {cnpjLookupStatus}
+                      </p>
+                    )}
                   </div>
 
                   {/* WhatsApp */}

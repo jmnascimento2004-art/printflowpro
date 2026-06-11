@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { OrderItem } from '@/lib/dummy-data';
+import { lookupCNPJ } from '@/lib/cnpj-lookup';
+import { warnCaught } from '@/lib/safe-log';
 import { 
   formatCurrencyInput, 
   parseCurrencyInputToNumber, 
@@ -108,6 +110,15 @@ export default function POSPage() {
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustEmail, setNewCustEmail] = useState('');
   const [newCustDoc, setNewCustDoc] = useState('');
+  const [newCustCnpjStatus, setNewCustCnpjStatus] = useState('');
+  const [newCustAddress, setNewCustAddress] = useState({
+    street: '',
+    number: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+    zip_code: ''
+  });
 
   // 1. Auto-trigger print ticket when order completed
   useEffect(() => {
@@ -322,7 +333,7 @@ export default function POSPage() {
       phone: newCustPhone,
       email: newCustEmail,
       document: newCustDoc || '000.000.000-00',
-      address: { street: '', number: '', neighborhood: '', city: '', state: '', zip_code: '' },
+      address: newCustAddress,
       tags: ['PDV-Balcão'],
       notes: 'Cadastrado diretamente pelo Caixa/PDV.'
     });
@@ -333,6 +344,43 @@ export default function POSPage() {
     setNewCustPhone('');
     setNewCustEmail('');
     setNewCustDoc('');
+    setNewCustCnpjStatus('');
+    setNewCustAddress({ street: '', number: '', neighborhood: '', city: '', state: '', zip_code: '' });
+  };
+
+  const handleNewCustomerDocumentChange = async (value: string) => {
+    const clean = value.replace(/\D/g, '').slice(0, 14);
+    const formatted = clean.length <= 11 ? formatCPF(clean) : formatCNPJ(clean);
+    setNewCustDoc(formatted);
+    setNewCustCnpjStatus('');
+
+    if (clean.length !== 14) return;
+
+    if (!validateCNPJ(clean)) {
+      setNewCustCnpjStatus('CNPJ invalido.');
+      return;
+    }
+
+    setNewCustCnpjStatus('Consultando CNPJ...');
+
+    try {
+      const data = await lookupCNPJ(clean);
+      setNewCustName(data.razaoSocial || data.nomeFantasia || newCustName);
+      setNewCustPhone(data.telefone || newCustPhone);
+      setNewCustEmail(data.email || newCustEmail);
+      setNewCustAddress({
+        street: data.logradouro,
+        number: data.numero,
+        neighborhood: data.bairro,
+        city: data.municipio,
+        state: data.uf,
+        zip_code: data.cep,
+      });
+      setNewCustCnpjStatus('Dados da empresa preenchidos automaticamente.');
+    } catch (error) {
+      warnCaught('Erro ao consultar CNPJ no PDV:', error);
+      setNewCustCnpjStatus(error instanceof Error ? error.message : 'Nao foi possivel consultar o CNPJ.');
+    }
   };
 
   const formatCurrency = (val: number) => {
@@ -1467,17 +1515,15 @@ export default function POSPage() {
                 <input
                   type="text"
                   value={newCustDoc}
-                  onChange={(e) => {
-                    const clean = e.target.value.replace(/\D/g, '');
-                    if (clean.length <= 11) {
-                      setNewCustDoc(formatCPF(clean));
-                    } else {
-                      setNewCustDoc(formatCNPJ(clean));
-                    }
-                  }}
+                  onChange={(e) => handleNewCustomerDocumentChange(e.target.value)}
                   placeholder="000.000.000-00"
                   className="w-full px-2.5 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
+                {newCustCnpjStatus && (
+                  <p className={`text-[9px] font-bold ${newCustCnpjStatus.includes('preenchidos') ? 'text-emerald-500' : newCustCnpjStatus.includes('Consultando') ? 'text-primary' : 'text-rose-500'}`}>
+                    {newCustCnpjStatus}
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-2 pt-2">
