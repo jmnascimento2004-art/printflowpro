@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
-import { getProductUnitPrice } from '@/lib/utils';
+import { formatCEP, getProductUnitPrice, sanitizeRichTextHtml } from '@/lib/utils';
 import { safeHref } from '@/lib/safe-url';
 import { BrandLogo, BrandMark } from '@/components/brand';
 
@@ -93,8 +93,9 @@ function getThemeColorShade(hex: string, percent: number, opacity?: number) {
 }
 
 export default function StorefrontPage() {
-  const { products, categories, addQuote, pickupPoints, banners, company, settings } = useDatabase();
+  const { products, categories, addQuote, addCustomer, pickupPoints, banners, company, settings } = useDatabase();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedTagFilter, setSelectedTagFilter] = useState<'all' | 'promo' | 'highlight'>('all');
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
 
   // Local store theme state (catalog defaults to light mode!)
@@ -243,6 +244,19 @@ export default function StorefrontPage() {
       }
     }, 100);
   };
+
+  const handleTagFilterSelect = (tag: 'all' | 'promo' | 'highlight') => {
+    setSelectedTagFilter(tag);
+    setTimeout(() => {
+      if (typeof window === 'undefined') return;
+      const element = window.document.getElementById('products-showcase');
+      if (element) {
+        const yOffset = -135;
+        const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }, 100);
+  };
   
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -263,6 +277,12 @@ export default function StorefrontPage() {
   const [clientNotes, setClientNotes] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState<'retirada' | 'motoboy'>('retirada');
   const [selectedPickupPoint, setSelectedPickupPoint] = useState('');
+  const [deliveryZipCode, setDeliveryZipCode] = useState('');
+  const [deliveryStreet, setDeliveryStreet] = useState('');
+  const [deliveryNumber, setDeliveryNumber] = useState('');
+  const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
+  const [deliveryCity, setDeliveryCity] = useState('');
+  const [deliveryState, setDeliveryState] = useState('');
   const [orderCompleted, setOrderCompleted] = useState<string | null>(null);
 
   // 1. Filter active points and auto-select first active point
@@ -301,6 +321,12 @@ export default function StorefrontPage() {
   const filteredProducts = selectedCategory 
     ? searchedProducts.filter(p => selectedCategoryIds.includes(p.category_id))
     : searchedProducts;
+
+  const taggedProducts = filteredProducts.filter((product) => {
+    if (selectedTagFilter === 'promo') return product.is_promo;
+    if (selectedTagFilter === 'highlight') return product.is_highlight;
+    return true;
+  });
 
   // 3. Pricing details for configured item
   const getProductConfigPrice = (prod: Product, qty: number = 1) => {
@@ -346,6 +372,23 @@ export default function StorefrontPage() {
   const handleCheckout = (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0 || !clientName.trim() || !clientPhone.trim()) return;
+    const isMotoboyDelivery = deliveryMethod === 'motoboy';
+    if (
+      isMotoboyDelivery &&
+      (!deliveryZipCode.trim() ||
+        !deliveryStreet.trim() ||
+        !deliveryNumber.trim() ||
+        !deliveryNeighborhood.trim() ||
+        !deliveryCity.trim() ||
+        !deliveryState.trim())
+    ) {
+      alert('Preencha o endereço completo para entrega por motoboy.');
+      return;
+    }
+
+    const deliveryFullAddress = isMotoboyDelivery
+      ? `${deliveryStreet}, ${deliveryNumber} - ${deliveryNeighborhood}, ${deliveryCity} - ${deliveryState}${deliveryZipCode ? `, CEP ${deliveryZipCode}` : ''}`
+      : '';
 
     // Trigger ERP Quote injection
     const qItems = cart.map((c, i) => ({
@@ -362,8 +405,43 @@ export default function StorefrontPage() {
       }
     }));
 
+    const purchaseInterest = cart
+      .map((item, index) => {
+        const dimensions = [
+          item.width ? `largura ${item.width}m` : '',
+          item.height ? `altura ${item.height}m` : ''
+        ].filter(Boolean).join(', ');
+        const config = dimensions ? ` (${dimensions})` : '';
+        return `${index + 1}. ${item.product.name} - qtd ${item.quantity}${config} - total ${formatCurrency(item.quantity * item.calculatedPrice)}`;
+      })
+      .join('\n');
+
+    const checkoutNotes = clientNotes.trim() || 'Sem observacoes.';
+
+    const webCustomer = addCustomer({
+      name: clientName.trim(),
+      document: '',
+      phone: clientPhone.trim(),
+      email: '',
+      address: {
+        street: isMotoboyDelivery ? deliveryStreet : '',
+        number: isMotoboyDelivery ? deliveryNumber : '',
+        neighborhood: isMotoboyDelivery ? deliveryNeighborhood : '',
+        city: isMotoboyDelivery ? deliveryCity : '',
+        state: isMotoboyDelivery ? deliveryState : '',
+        zip_code: isMotoboyDelivery ? deliveryZipCode : ''
+      },
+      tags: ['Catalogo Online'],
+      notes: `Cliente criado pelo catalogo online.\nInteresse de compra:\n${purchaseInterest}\nObs cliente: ${checkoutNotes}`,
+      billing_type: 'imediato',
+      credit_limit: 0,
+      credit_used: 0,
+      payment_terms_days: 0,
+      credit_status: 'aprovado'
+    });
+
     const nextQuote = addQuote({
-      customer_id: 'cust-store-temp', // Store default mock client or create
+      customer_id: webCustomer.id,
       customer_name: `${clientName} (Web)`,
       status: 'pendente',
       total_amount: getCartTotal(),
@@ -371,8 +449,9 @@ export default function StorefrontPage() {
       valid_until: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       customer_phone: clientPhone,
       delivery_type: deliveryMethod,
+      delivery_address: isMotoboyDelivery ? deliveryFullAddress : undefined,
       delivery_fee: 0,
-      notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no Balcão - ${selectedPickupPoint}` : 'Envio por motoboy'}. Obs cliente: ${clientNotes}`,
+      notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no Balcão - ${selectedPickupPoint}` : `Envio por motoboy - ${deliveryFullAddress}`}. Interesse de compra: ${purchaseInterest.replace(/\n/g, ' | ')}. Obs cliente: ${checkoutNotes}`,
       items: qItems
     });
 
@@ -381,6 +460,12 @@ export default function StorefrontPage() {
     setClientName('');
     setClientPhone('');
     setClientNotes('');
+    setDeliveryZipCode('');
+    setDeliveryStreet('');
+    setDeliveryNumber('');
+    setDeliveryNeighborhood('');
+    setDeliveryCity('');
+    setDeliveryState('');
     setCartOpen(false);
     setOrderCompleted(nextQuote.number.toString());
   };
@@ -633,6 +718,29 @@ export default function StorefrontPage() {
                     {cat.name}
                   </button>
                 ))}
+                <div className="h-6 w-px bg-slate-200 dark:bg-zinc-800" />
+                <button
+                  onClick={() => handleTagFilterSelect(selectedTagFilter === 'highlight' ? 'all' : 'highlight')}
+                  className={`text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors shrink-0 h-full relative flex items-center gap-1.5 ${
+                    selectedTagFilter === 'highlight'
+                      ? 'text-emerald-600 dark:text-emerald-400 font-extrabold'
+                      : 'text-slate-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400'
+                  }`}
+                >
+                  <Star className="h-3.5 w-3.5" />
+                  Destaques
+                </button>
+                <button
+                  onClick={() => handleTagFilterSelect(selectedTagFilter === 'promo' ? 'all' : 'promo')}
+                  className={`text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors shrink-0 h-full relative flex items-center gap-1.5 ${
+                    selectedTagFilter === 'promo'
+                      ? 'text-emerald-600 dark:text-emerald-400 font-extrabold'
+                      : 'text-slate-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400'
+                  }`}
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  Promocoes
+                </button>
               </div>
             </div>
           </div>
@@ -667,6 +775,42 @@ export default function StorefrontPage() {
                       <span>Todos os Produtos</span>
                       {megaMenuCategory === null && <ChevronRight className="h-3.5 w-3.5 text-slate-700 dark:text-zinc-300 shrink-0 ml-2" />}
                     </button>
+
+                    <div className="my-3 border-t border-slate-200 dark:border-zinc-800 pt-3 space-y-1.5">
+                      <button
+                        onClick={() => handleTagFilterSelect('all')}
+                        className={`w-full text-left px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide ${
+                          selectedTagFilter === 'all'
+                            ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white'
+                            : 'hover:bg-slate-100 dark:hover:bg-zinc-850 text-slate-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        <ShoppingBag className="h-3.5 w-3.5" />
+                        Todas as tags
+                      </button>
+                      <button
+                        onClick={() => handleTagFilterSelect('highlight')}
+                        className={`w-full text-left px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide ${
+                          selectedTagFilter === 'highlight'
+                            ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white'
+                            : 'hover:bg-slate-100 dark:hover:bg-zinc-850 text-slate-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        <Star className="h-3.5 w-3.5" />
+                        Destaques
+                      </button>
+                      <button
+                        onClick={() => handleTagFilterSelect('promo')}
+                        className={`w-full text-left px-3.5 py-2 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide ${
+                          selectedTagFilter === 'promo'
+                            ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white'
+                            : 'hover:bg-slate-100 dark:hover:bg-zinc-850 text-slate-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        <Tag className="h-3.5 w-3.5" />
+                        Promocoes
+                      </button>
+                    </div>
 
                     {/* Other category options in sidebar */}
                     {(() => {
@@ -723,9 +867,15 @@ export default function StorefrontPage() {
                     ? activeProducts.filter(p => selectedCategoryIds.includes(p.category_id))
                     : activeProducts;
 
-                  const column1 = menuProducts.filter((_, idx) => idx % 3 === 0);
-                  const column2 = menuProducts.filter((_, idx) => idx % 3 === 1);
-                  const column3 = menuProducts.filter((_, idx) => idx % 3 === 2);
+                  const tagFilteredMenuProducts = menuProducts.filter((product) => {
+                    if (selectedTagFilter === 'promo') return product.is_promo;
+                    if (selectedTagFilter === 'highlight') return product.is_highlight;
+                    return true;
+                  });
+
+                  const column1 = tagFilteredMenuProducts;
+                  const column2 = menuProducts.filter((product) => product.is_highlight);
+                  const column3 = menuProducts.filter((product) => product.is_promo);
 
                   return (
                     <div className={`grid grid-cols-3 p-6 gap-6 overflow-y-auto ${
@@ -735,7 +885,7 @@ export default function StorefrontPage() {
                       <div className="space-y-4">
                         <div>
                           <span className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider border-b border-slate-100 dark:border-zinc-850 pb-2 mb-3 block">
-                            Mais Vendidos
+                            {selectedTagFilter === 'promo' ? 'Promocoes' : selectedTagFilter === 'highlight' ? 'Destaques' : 'Todos'}
                           </span>
                         </div>
                         <div className="space-y-2">
@@ -809,7 +959,7 @@ export default function StorefrontPage() {
                       <div className="space-y-4">
                         <div>
                           <span className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider border-b border-slate-100 dark:border-zinc-850 pb-2 mb-3 block">
-                            Veja Também
+                            Promocoes
                           </span>
                         </div>
                         <div className="space-y-2">
@@ -850,11 +1000,11 @@ export default function StorefrontPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col gap-[15px] py-[15px]">
         {/* Banner Slider Section */}
         {banners && banners.length > 0 && (
-          <section className="w-full">
-            <div className="relative h-[240px] sm:h-[360px] md:h-[460px] w-full overflow-hidden bg-slate-900 group">
+          <section className="w-full px-4 md:px-8">
+            <div className="relative h-[180px] sm:h-[240px] md:h-[300px] w-full max-w-[1220px] mx-auto overflow-hidden bg-slate-900 group rounded-xl">
               {/* Slides wrapper */}
               <div className="relative h-full w-full">
                 {banners.map((banner, index) => {
@@ -945,7 +1095,7 @@ export default function StorefrontPage() {
           </section>
         )}
         {/* 4. Trust signals grid (Benefit cards) */}
-        <section className="max-w-7xl w-full mx-auto px-4 md:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-8">
+        <section className="max-w-7xl w-full mx-auto px-4 md:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {company.card_benefits_1_active !== false && (
             <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-start gap-3 shadow-sm hover:shadow-md transition-shadow">
               <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
@@ -1012,11 +1162,11 @@ export default function StorefrontPage() {
         </section>
 
         {/* 5. Products Showcase */}
-        <main id="products-showcase" className="max-w-7xl w-full mx-auto px-4 md:px-8 space-y-6 pb-16">
+        <main id="products-showcase" className="max-w-7xl w-full mx-auto px-4 md:px-8 space-y-6">
           {/* Dynamic products list grid */}
-          {filteredProducts.length > 0 ? (
+          {taggedProducts.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {filteredProducts.map(p => {
+              {taggedProducts.map(p => {
                 const hasVolumeTiers = p.volume_pricing && p.volume_pricing.length > 0;
                 const displayPrice = p.volume_pricing && p.volume_pricing.length > 0
                   ? Math.min(...p.volume_pricing.map(v => v.price))
@@ -1055,16 +1205,32 @@ export default function StorefrontPage() {
                         {/* Floating Promo / Highlight tags (Top-right) */}
                         <div className="absolute top-2.5 right-2.5 flex flex-col gap-1 items-end z-10">
                           {p.is_promo && (
-                            <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[8px] md:text-[9px] uppercase tracking-wider shadow-md">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTagFilter('promo');
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[8px] md:text-[9px] uppercase tracking-wider shadow-md hover:bg-emerald-500 transition-colors"
+                              title="Filtrar promocoes"
+                            >
                               <Tag className="h-2.5 w-2.5 stroke-[2.5]" />
-                              Promoção
-                            </span>
+                              Promocao
+                            </button>
                           )}
                           {p.is_highlight && (
-                            <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[8px] md:text-[9px] uppercase tracking-wider shadow-md">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTagFilter('highlight');
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[8px] md:text-[9px] uppercase tracking-wider shadow-md hover:bg-emerald-500 transition-colors"
+                              title="Filtrar destaques"
+                            >
                               <Star className="h-2.5 w-2.5 fill-white stroke-none" />
                               Destaque
-                            </span>
+                            </button>
                           )}
                         </div>
                       </div>
@@ -1129,7 +1295,7 @@ export default function StorefrontPage() {
               <HelpCircle className="h-10 w-10 text-slate-400 mx-auto" />
               <p className="text-slate-500 text-sm font-medium">Nenhum serviço gráfico encontrado nesta busca.</p>
               <button 
-                onClick={() => { setSelectedCategory(null); setSearchQuery(''); }}
+                onClick={() => { setSelectedCategory(null); setSearchQuery(''); setSelectedTagFilter('all'); }}
                 className="text-xs text-emerald-600 font-bold hover:underline"
               >
                 Limpar filtros de pesquisa
@@ -1140,7 +1306,7 @@ export default function StorefrontPage() {
       </div>
 
       {/* 6. Hero Copy Section (above footer) */}
-      <section className="relative py-16 text-center bg-gradient-to-b from-white to-slate-50 px-4 border-t border-b border-slate-200">
+      <section className="relative py-[15px] text-center bg-gradient-to-b from-white to-slate-50 px-4 border-t border-b border-slate-200">
         <div className="max-w-3xl mx-auto space-y-4">
           <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
             Calcule as Medidas e <br />
@@ -1156,14 +1322,14 @@ export default function StorefrontPage() {
 
       {/* 7. Product custom configurations details sheet (modal overlay) */}
       {activeConfigProduct && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex justify-center items-center py-6 px-4 overflow-y-auto">
-          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-4xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-slate-800 flex flex-col md:flex-row my-auto">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex justify-center items-center p-2 md:p-4 overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-5xl max-h-[calc(100dvh-1rem)] md:max-h-[calc(100dvh-2rem)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-slate-800 flex flex-col md:flex-row">
             
             {/* Left Column: Product Image & Badges */}
-            <div className="w-full md:w-1/2 bg-slate-50 p-6 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between">
+            <div className="w-full md:w-[42%] bg-slate-50 p-4 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between overflow-y-auto max-h-[38dvh] md:max-h-none">
               <div>
                 {/* Large Product Image */}
-                <div className="aspect-square w-full rounded-none bg-white overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center relative">
+                <div className="aspect-[4/3] md:aspect-square w-full max-h-[260px] md:max-h-[44dvh] rounded-none bg-white overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center relative">
                   {activeConfigProduct.image_url ? (
                     <img 
                       src={activeConfigProduct.image_url} 
@@ -1179,7 +1345,7 @@ export default function StorefrontPage() {
                 </div>
 
                 {/* Additional specifications/details badges */}
-                <div className="mt-6 grid grid-cols-2 gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
                   <div className="bg-white border border-slate-200 p-2.5 rounded-lg flex items-center gap-2 shadow-sm">
                     <Truck className="h-4 w-4 text-emerald-600" />
                     <span>Entrega Rápida</span>
@@ -1192,7 +1358,7 @@ export default function StorefrontPage() {
               </div>
 
               {/* WhatsApp Support Link */}
-              <div className="mt-6 border-t border-slate-200 pt-4">
+              <div className="mt-4 border-t border-slate-200 pt-3">
                 <a 
                   href={`https://wa.me/5551987654321?text=Olá, tenho dúvidas sobre o produto: ${activeConfigProduct.name}`} 
                   target="_blank" 
@@ -1204,8 +1370,8 @@ export default function StorefrontPage() {
             </div>
 
             {/* Right Column: Product title, description, selectors, pricing & add button */}
-            <div className="w-full md:w-1/2 p-6 flex flex-col justify-between space-y-5">
-              <div className="space-y-4">
+            <div className="w-full md:w-[58%] p-4 md:p-5 flex flex-col justify-between space-y-4 overflow-y-auto max-h-[62dvh] md:max-h-[calc(100dvh-2rem)]">
+              <div className="space-y-3">
                 {/* Header */}
                 <div className="flex justify-between items-start border-b border-slate-100 pb-3">
                   <div>
@@ -1226,9 +1392,12 @@ export default function StorefrontPage() {
 
                 {/* Description */}
                 {activeConfigProduct.description && (
-                  <div className="bg-slate-50 border border-slate-200/50 p-3.5 rounded-xl text-xs text-slate-600 leading-relaxed font-medium">
+                  <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl text-xs text-slate-600 leading-relaxed font-medium max-h-[30dvh] overflow-y-auto">
                     <strong className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Descrição:</strong>
-                    {activeConfigProduct.description}
+                    <div
+                      className="rich-text-content"
+                      dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(activeConfigProduct.description) }}
+                    />
                   </div>
                 )}
 
@@ -1267,7 +1436,7 @@ export default function StorefrontPage() {
                 {/* Quantity Selection */}
                 {activeConfigProduct.volume_pricing && activeConfigProduct.volume_pricing.length > 0 ? (
                   /* Predefined volume tiers selection (no custom input) */
-                  <div className="bg-slate-50 border border-slate-200/50 p-3.5 rounded-xl space-y-2">
+                  <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl space-y-2">
                     <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
                       Selecione a Quantidade Desejada:
                     </span>
@@ -1328,8 +1497,8 @@ export default function StorefrontPage() {
               </div>
 
               {/* Pricing breakdown & Add Button */}
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                <div className="p-4 bg-emerald-50/30 border border-emerald-500/10 rounded-xl flex justify-between items-center text-xs shadow-sm">
+              <div className="space-y-3 pt-3 border-t border-slate-100">
+                <div className="p-3 bg-emerald-50/30 border border-emerald-500/10 rounded-xl flex justify-between items-center text-xs shadow-sm">
                   <div>
                     <span className="text-slate-500 block font-medium">Preço Unitário:</span>
                     <span className="font-extrabold text-slate-800 text-sm mt-1 block">
@@ -1510,6 +1679,109 @@ export default function StorefrontPage() {
                     </div>
                   )}
 
+                  {deliveryMethod === 'motoboy' && (
+                    <div className="space-y-2 animate-in slide-in-from-top duration-150">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Endereco completo para entrega *</label>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="col-span-1 space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">CEP *</label>
+                          <input
+                            type="text"
+                            required={deliveryMethod === 'motoboy'}
+                            value={deliveryZipCode}
+                            onChange={(e) => {
+                              const formatted = formatCEP(e.target.value);
+                              setDeliveryZipCode(formatted);
+                              const clean = formatted.replace(/\D/g, '');
+
+                              if (clean.length === 8) {
+                                fetch(`https://viacep.com.br/ws/${clean}/json/`)
+                                  .then((res) => res.json())
+                                  .then((data) => {
+                                    if (!data.erro) {
+                                      setDeliveryStreet(data.logradouro || '');
+                                      setDeliveryNeighborhood(data.bairro || '');
+                                      setDeliveryCity(data.localidade || '');
+                                      setDeliveryState(data.uf || '');
+                                    }
+                                  })
+                                  .catch(() => undefined);
+                              }
+                            }}
+                            placeholder="00000-000"
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:bg-white"
+                          />
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Rua / Logradouro *</label>
+                          <input
+                            type="text"
+                            required={deliveryMethod === 'motoboy'}
+                            value={deliveryStreet}
+                            onChange={(e) => setDeliveryStreet(e.target.value)}
+                            placeholder="Rua, avenida, travessa..."
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Numero *</label>
+                          <input
+                            type="text"
+                            required={deliveryMethod === 'motoboy'}
+                            value={deliveryNumber}
+                            onChange={(e) => setDeliveryNumber(e.target.value)}
+                            placeholder="80"
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:bg-white"
+                          />
+                        </div>
+                        <div className="col-span-3 space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Bairro *</label>
+                          <input
+                            type="text"
+                            required={deliveryMethod === 'motoboy'}
+                            value={deliveryNeighborhood}
+                            onChange={(e) => setDeliveryNeighborhood(e.target.value)}
+                            placeholder="Bairro"
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="col-span-3 space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Cidade *</label>
+                          <input
+                            type="text"
+                            required={deliveryMethod === 'motoboy'}
+                            value={deliveryCity}
+                            onChange={(e) => setDeliveryCity(e.target.value)}
+                            placeholder="Cidade"
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:bg-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">UF *</label>
+                          <input
+                            type="text"
+                            required={deliveryMethod === 'motoboy'}
+                            maxLength={2}
+                            value={deliveryState}
+                            onChange={(e) => setDeliveryState(e.target.value.toUpperCase())}
+                            placeholder="PE"
+                            className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold uppercase text-center focus:outline-none focus:border-emerald-500 focus:bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-1">
                     <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Observações do Orçamento</label>
                     <textarea
@@ -1567,7 +1839,7 @@ export default function StorefrontPage() {
       )}
 
       {/* 10. Footer */}
-      <footer className="bg-slate-900 text-slate-400 pt-16 pb-8 border-t border-slate-800 text-xs select-none">
+      <footer className="bg-slate-900 text-slate-400 py-[15px] border-t border-slate-800 text-xs select-none">
         <div className="max-w-7xl mx-auto px-4 md:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-16">
           
           {/* Contatos */}
@@ -1728,7 +2000,7 @@ export default function StorefrontPage() {
         </div>
 
         {/* Dynamic Badges: Payment, Delivery, Security */}
-        <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-10 mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-16">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-[15px] mt-[15px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-16">
           {/* FORMAS DE PAGAMENTO */}
           <div className="space-y-3.5 lg:col-span-2">
             <h4 className="font-extrabold text-emerald-500 text-xs uppercase tracking-wider">Formas de Pagamento</h4>
@@ -1864,7 +2136,7 @@ export default function StorefrontPage() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-6 mt-10 text-center text-[10px] md:text-xs text-slate-500 font-medium flex flex-col items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-[15px] mt-[15px] text-center text-[10px] md:text-xs text-slate-500 font-medium flex flex-col items-center gap-4">
           <p>
             {new Date().getFullYear()} — Copyright © — {company.name || 'PrintFlowPRO'} 
             {company.document ? ` — CNPJ: ${company.document}` : ''} | Desenvolvido para Alta Lucratividade de Gráficas e Comunicação Visual.

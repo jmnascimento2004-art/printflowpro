@@ -43,27 +43,53 @@ export default function QuotesPage() {
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [activePrintQuote, setActivePrintQuote] = useState<Quote | null>(null);
 
+  const resolveQuoteCustomer = (quote: Quote) => {
+    const webName = quote.customer_name.replace(/\s+\(Web\)$/i, '').trim();
+    return customers.find(c =>
+      c.id === quote.customer_id ||
+      c.name === quote.customer_name ||
+      c.name === webName
+    );
+  };
+
+  const getQuoteCustomerName = (quote: Quote) => {
+    return resolveQuoteCustomer(quote)?.name || quote.customer_name.replace(/\s+\(Web\)$/i, '').trim() || quote.customer_name;
+  };
+
+  const withResolvedCustomer = (quote: Quote): Quote => {
+    const customer = resolveQuoteCustomer(quote);
+    if (!customer) return quote;
+
+    return {
+      ...quote,
+      customer_id: customer.id,
+      customer_name: customer.name,
+      customer_phone: quote.customer_phone || customer.phone
+    };
+  };
+
   const handleStartEdit = (quote: Quote) => {
-    setEditingQuoteId(quote.id);
-    setCustomerId(quote.customer_id);
-    setDiscount(quote.discount);
-    setValidUntil(quote.valid_until);
-    setNotes(quote.notes || '');
-    setItems(quote.items.map(it => ({
+    const resolvedQuote = withResolvedCustomer(quote);
+    setEditingQuoteId(resolvedQuote.id);
+    setCustomerId(resolvedQuote.customer_id);
+    setDiscount(resolvedQuote.discount);
+    setValidUntil(resolvedQuote.valid_until);
+    setNotes(resolvedQuote.notes || '');
+    setItems(resolvedQuote.items.map(it => ({
       product_id: it.product_id,
       product_name: it.product_name,
       quantity: it.quantity,
       unit_price: it.unit_price,
       details: it.details
     })));
-    setDeliveryType(quote.delivery_type || 'retirada');
-    setDeliveryAddress(quote.delivery_address || '');
-    setDeliveryDistanceKm(quote.delivery_distance_km || 0);
-    setDeliveryFee(quote.delivery_fee || 0);
-    setLastCalculatedAddress(quote.delivery_address || '');
+    setDeliveryType(resolvedQuote.delivery_type || 'retirada');
+    setDeliveryAddress(resolvedQuote.delivery_address || '');
+    setDeliveryDistanceKm(resolvedQuote.delivery_distance_km || 0);
+    setDeliveryFee(resolvedQuote.delivery_fee || 0);
+    setLastCalculatedAddress(resolvedQuote.delivery_address || '');
     
     // Preenche campos estruturados a partir da string salva
-    const parsed = parseDeliveryAddress(quote.delivery_address || '');
+    const parsed = parseDeliveryAddress(resolvedQuote.delivery_address || '');
     setDeliveryStreet(parsed.street);
     setDeliveryNumber(parsed.number);
     setDeliveryNeighborhood(parsed.neighborhood);
@@ -75,7 +101,7 @@ export default function QuotesPage() {
   };
 
   const sendPixWhatsApp = (quote: Quote) => {
-    const customer = customers.find(c => c.id === quote.customer_id);
+    const customer = resolveQuoteCustomer(quote);
     const phone = customer?.phone;
     if (!phone) {
       alert("Telefone do cliente não encontrado!");
@@ -94,7 +120,7 @@ export default function QuotesPage() {
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(pixPayload)}`;
 
-    const message = `Olá, *${quote.customer_name}*!\n\nAqui estão os dados para pagamento do seu orçamento *#${quote.number}* no valor total de *${formatCurrency(amount)}*:\n\n*Chave Copia e Cola PIX:*\n\`\`\`${pixPayload}\`\`\`\n\n*QR Code de Pagamento:*\n${qrCodeUrl}\n\nApós realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = `Olá, *${customer?.name || getQuoteCustomerName(quote)}*!\n\nAqui estão os dados para pagamento do seu orçamento *#${quote.number}* no valor total de *${formatCurrency(amount)}*:\n\n*Chave Copia e Cola PIX:*\n\`\`\`${pixPayload}\`\`\`\n\n*QR Code de Pagamento:*\n${qrCodeUrl}\n\nApós realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;
@@ -125,6 +151,20 @@ export default function QuotesPage() {
   const [deliveryCity, setDeliveryCity] = useState('');
   const [deliveryState, setDeliveryState] = useState('');
   const [deliveryZipCode, setDeliveryZipCode] = useState('');
+
+  const buildQuoteOriginAddress = () => {
+    const hasRegisteredAddress = Boolean(
+      company?.street?.trim() &&
+      company?.number?.trim() &&
+      company?.neighborhood?.trim() &&
+      company?.city?.trim() &&
+      company?.state?.trim()
+    );
+
+    return hasRegisteredAddress
+      ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}${company.cep ? `, CEP ${company.cep}` : ''}`
+      : settings.company_address;
+  };
 
   // Helper para decodificar o endereço concatenado salvo
   const parseDeliveryAddress = (addrStr: string) => {
@@ -227,9 +267,7 @@ export default function QuotesPage() {
     setIsCalculatingRoute(true);
     setRouteError(null);
     try {
-      const companyOrigin = company 
-        ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}, CEP ${company.cep}`
-        : settings.company_address;
+      const companyOrigin = buildQuoteOriginAddress();
         
       const dist = await calculateRouteDistance(companyOrigin, deliveryAddress);
       setDeliveryDistanceKm(dist);
@@ -264,9 +302,7 @@ export default function QuotesPage() {
       setIsCalculatingRoute(true);
       setRouteError(null);
       try {
-        const companyOrigin = company 
-          ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}, CEP ${company.cep}`
-          : settings.company_address;
+        const companyOrigin = buildQuoteOriginAddress();
 
         const dist = await calculateRouteDistance(companyOrigin, deliveryAddress);
         setDeliveryDistanceKm(dist);
@@ -499,7 +535,7 @@ export default function QuotesPage() {
           <div className="grid grid-cols-2 gap-6 bg-secondary/25 p-4 rounded-xl border border-border">
             <div>
               <h4 className="text-[10px] font-bold text-muted-foreground uppercase">Destinatário (Cliente)</h4>
-              <p className="text-sm font-bold mt-1">{activePrintQuote.customer_name}</p>
+              <p className="text-sm font-bold mt-1">{getQuoteCustomerName(activePrintQuote)}</p>
               <p className="text-xs text-muted-foreground mt-0.5">Contato do Cliente cadastrado no CRM</p>
             </div>
             <div className="text-right">
@@ -632,7 +668,7 @@ export default function QuotesPage() {
                   filteredQuotes.map((quote) => (
                     <tr key={quote.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="px-3 py-2.5 font-bold text-foreground text-left whitespace-nowrap">#{quote.number}</td>
-                      <td className="px-3 py-2.5 font-semibold text-muted-foreground text-left">{quote.customer_name}</td>
+                      <td className="px-3 py-2.5 font-semibold text-muted-foreground text-left">{getQuoteCustomerName(quote)}</td>
                       <td className="px-3 py-2.5 text-left whitespace-nowrap">{getStatusBadge(quote.status)}</td>
                       <td className="px-3 py-2.5 text-muted-foreground text-left whitespace-nowrap">
                         {new Date(quote.valid_until).toLocaleDateString('pt-BR')}
@@ -642,7 +678,7 @@ export default function QuotesPage() {
                         <div className="flex items-center justify-start gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setActivePrintQuote(quote)}
+                            onClick={() => setActivePrintQuote(withResolvedCustomer(quote))}
                             className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                             title="Imprimir PDF"
                           >

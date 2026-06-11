@@ -887,7 +887,7 @@ export default function SettingsPage() {
                     <div className="space-y-1">
                       <div className="flex justify-between items-baseline">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">Imagem do Banner *</label>
-                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Ideal: 1920x480px (4:1)</span>
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Ideal: 1220x300px</span>
                       </div>
                       <div className="flex gap-2 items-center">
                         <div className="relative flex-1">

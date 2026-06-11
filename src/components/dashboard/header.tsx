@@ -1,11 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, ChevronLeft, ChevronRight, LogOut, Menu, Moon, Sun } from 'lucide-react';
+import Link from 'next/link';
+import { Bell, ChevronDown, ChevronLeft, ChevronRight, FileText, LogOut, Menu, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/context/theme-context';
 import { useDatabase } from '@/context/database-context';
 import { UserProfile } from '@/lib/dummy-data';
+
+const CATALOG_INTERESTS_READ_KEY = 'printflow_catalog_interests_read_ids';
+const CATALOG_INTERESTS_READ_EVENT = 'printflow_catalog_interests_read_change';
 
 export default function Header({
   sidebarOpen,
@@ -22,8 +26,88 @@ export default function Header({
 }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
-  const { company } = useDatabase();
+  const { company, customers, quotes } = useDatabase();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [readCatalogInterestIds, setReadCatalogInterestIds] = useState<string[]>([]);
+
+  const loadReadCatalogInterestIds = () => {
+    try {
+      const stored = window.localStorage.getItem(CATALOG_INTERESTS_READ_KEY);
+      setReadCatalogInterestIds(stored ? JSON.parse(stored) : []);
+    } catch {
+      setReadCatalogInterestIds([]);
+    }
+  };
+
+  useEffect(() => {
+    loadReadCatalogInterestIds();
+    window.addEventListener(CATALOG_INTERESTS_READ_EVENT, loadReadCatalogInterestIds);
+    return () => window.removeEventListener(CATALOG_INTERESTS_READ_EVENT, loadReadCatalogInterestIds);
+  }, []);
+
+  const markCatalogInterestAsRead = (id: string) => {
+    setReadCatalogInterestIds((current) => {
+      const next = Array.from(new Set([...current, id]));
+      try {
+        window.localStorage.setItem(CATALOG_INTERESTS_READ_KEY, JSON.stringify(next));
+        window.dispatchEvent(new Event(CATALOG_INTERESTS_READ_EVENT));
+      } catch {
+        // localStorage unavailable; keep the in-memory read state for this session.
+      }
+      return next;
+    });
+  };
+
+  const catalogQuoteLeads = [...quotes]
+    .filter((quote) => {
+      const customer = customers.find((item) => item.id === quote.customer_id);
+      return (
+        quote.status === 'pendente' &&
+        (
+          quote.customer_id.startsWith('cust-web-') ||
+          quote.customer_name.includes('(Web)') ||
+          customer?.tags?.includes('Catalogo Online')
+        )
+      );
+    })
+    .map((quote) => ({
+      id: quote.id,
+      customerName: quote.customer_name,
+      createdAt: quote.created_at,
+      code: `#${quote.number}`,
+      href: '/quotes',
+      description: 'Novo orçamento do catalogo aguardando atendimento.'
+    }));
+
+  const quotedCatalogCustomerIds = new Set(catalogQuoteLeads.map((lead) => {
+    const quote = quotes.find((item) => item.id === lead.id);
+    return quote?.customer_id;
+  }));
+
+  const catalogCustomerLeads = customers
+    .filter((customer) => {
+      const isCatalogCustomer =
+        customer.id.startsWith('cust-web-') ||
+        customer.tags?.includes('Catalogo Online') ||
+        customer.tags?.includes('Catalogo');
+
+      return isCatalogCustomer && !quotedCatalogCustomerIds.has(customer.id);
+    })
+    .map((customer) => ({
+      id: customer.id,
+      customerName: customer.name,
+      createdAt: customer.created_at,
+      code: 'CRM',
+      href: '/crm',
+      description: 'Cliente do catalogo aguardando atendimento.'
+    }));
+
+  const catalogLeads = [...catalogQuoteLeads, ...catalogCustomerLeads]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const unreadCatalogLeads = catalogLeads.filter((lead) => !readCatalogInterestIds.includes(lead.id));
+  const recentCatalogLeads = unreadCatalogLeads.slice(0, 5);
 
   const getPageTitle = () => {
     const segments = pathname.split('/').filter(Boolean);
@@ -99,6 +183,85 @@ export default function Header({
         >
           {theme === 'dark' ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
         </button>
+
+        <div className="relative">
+          <button
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            className={`relative p-2 rounded-lg border transition-all ${
+              unreadCatalogLeads.length > 0
+                ? 'bg-amber-500/10 text-amber-600 border-amber-500/30 hover:bg-amber-500/15'
+                : 'hover:bg-secondary text-muted-foreground hover:text-foreground border-border'
+            }`}
+            title="Interesses do catalogo"
+          >
+            <Bell className="h-4.5 w-4.5" />
+            {unreadCatalogLeads.length > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">
+                {unreadCatalogLeads.length > 9 ? '9+' : unreadCatalogLeads.length}
+              </span>
+            )}
+          </button>
+
+          {notificationsOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setNotificationsOpen(false)}
+              />
+              <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-card border border-border shadow-lg z-50 animate-in fade-in slide-in-from-top-2 duration-150 overflow-hidden">
+                <div className="px-4 py-3 border-b border-border">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black uppercase tracking-wide text-foreground">Interesses do catalogo</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 text-[10px] font-black">
+                      {unreadCatalogLeads.length}
+                    </span>
+                  </div>
+                </div>
+
+                {recentCatalogLeads.length > 0 ? (
+                  <div className="max-h-80 overflow-auto p-1">
+                    {recentCatalogLeads.map((lead) => (
+                      <Link
+                        key={lead.id}
+                        href={lead.href}
+                        onClick={() => {
+                          markCatalogInterestAsRead(lead.id);
+                          setNotificationsOpen(false);
+                        }}
+                        className="flex gap-3 px-3 py-3 rounded-lg hover:bg-secondary transition-all"
+                      >
+                        <div className="h-9 w-9 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                          <FileText className="h-4.5 w-4.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-foreground truncate">{lead.customerName}</span>
+                            <span className="text-[10px] font-black text-primary">{lead.code}</span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                            {lead.description}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                    Nenhum interesse novo no momento.
+                  </div>
+                )}
+
+                <Link
+                  href={catalogQuoteLeads.length > 0 ? '/quotes' : '/crm'}
+                  onClick={() => setNotificationsOpen(false)}
+                  className="flex items-center justify-center gap-1.5 px-4 py-3 border-t border-border text-xs font-bold text-primary hover:bg-secondary transition-all"
+                >
+                  Abrir orçamentos <ChevronRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="relative">
           <button

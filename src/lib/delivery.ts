@@ -44,7 +44,7 @@ export async function calculateRouteDistance(origin: string, destination: string
   }
 
   if (typeof data.distance_km !== 'number' || data.distance_km <= 0) {
-    throw new Error('A OpenRouteService nao retornou uma distancia valida.');
+    throw new Error('Nao foi possivel obter uma distancia valida para a rota.');
   }
 
   return normalizeDistanceKm(data.distance_km);

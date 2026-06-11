@@ -1,25 +1,126 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Plus, 
-  Search, 
-  Trash2, 
-  Edit3, 
-  Package, 
-  Check, 
-  X, 
-  Filter, 
-  FileText, 
-  Coins, 
+  Plus,
+  Search,
+  Trash2,
+  Edit3,
+  Copy,
+  Package,
+  Check,
+  X,
+  Filter,
+  FileText,
+  Coins,
   Layers,
+  LayoutGrid,
+  List as ListIcon,
   ArrowRight,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  ListOrdered,
+  Eraser
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
-import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
+import { formatCurrencyInput, parseCurrencyInputToNumber, sanitizeRichTextHtml, stripRichTextHtml } from '@/lib/utils';
+
+function ProductDescriptionEditor({
+  value,
+  onChange
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value || '';
+    }
+  }, [value]);
+
+  const syncValue = () => {
+    onChange(editorRef.current?.innerHTML || '');
+  };
+
+  const runCommand = (command: string) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false);
+    syncValue();
+  };
+
+  const clearFormatting = () => {
+    editorRef.current?.focus();
+    document.execCommand('removeFormat', false);
+    syncValue();
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const text = event.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
+    syncValue();
+  };
+
+  const toolbarItems = [
+    { label: 'Negrito', icon: Bold, command: 'bold' },
+    { label: 'Itálico', icon: Italic, command: 'italic' },
+    { label: 'Sublinhado', icon: Underline, command: 'underline' },
+    { label: 'Lista', icon: List, command: 'insertUnorderedList' },
+    { label: 'Lista numerada', icon: ListOrdered, command: 'insertOrderedList' }
+  ];
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-secondary/50 focus-within:border-primary/50">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-background/80 px-2 py-1.5">
+        {toolbarItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.command}
+              type="button"
+              onClick={() => runCommand(item.command)}
+              title={item.label}
+              className="h-7 w-7 rounded-md border border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors flex items-center justify-center"
+            >
+              <Icon className="h-3.5 w-3.5" />
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={clearFormatting}
+          title="Limpar formatação"
+          className="h-7 w-7 rounded-md border border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors flex items-center justify-center"
+        >
+          <Eraser className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="relative">
+        {!stripRichTextHtml(value) && (
+          <span className="pointer-events-none absolute left-3 top-2 text-xs text-muted-foreground/70">
+            Ex: Caneca para prensagem térmica. Estampa A4 inclusa.
+          </span>
+        )}
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={syncValue}
+          onBlur={() => onChange(sanitizeRichTextHtml(editorRef.current?.innerHTML || ''))}
+          onPaste={handlePaste}
+          className="min-h-[82px] w-full px-3 py-2 text-xs text-foreground outline-none rich-text-description"
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function ProductsCRUDPage() {
   const { 
@@ -35,6 +136,7 @@ export default function ProductsCRUDPage() {
   } = useDatabase();
 
   const [viewMode, setViewMode] = useState<'products' | 'categories'>('products');
+  const [productViewMode, setProductViewMode] = useState<'list' | 'cards'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -254,9 +356,32 @@ export default function ProductsCRUDPage() {
     setIsFormOpen(true);
   };
 
+  const handleDuplicateProduct = (prod: Product) => {
+    const duplicated = addProduct({
+      name: `${prod.name} (Copia)`,
+      sku: `${prod.sku}-COPIA-${Math.floor(100 + Math.random() * 900)}`,
+      description: prod.description,
+      category_id: prod.category_id,
+      pricing_type: prod.pricing_type,
+      base_cost: prod.base_cost,
+      sales_price: prod.sales_price,
+      stock_controlled: prod.stock_controlled,
+      min_stock: prod.min_stock,
+      active: prod.active,
+      is_promo: prod.is_promo || false,
+      is_highlight: prod.is_highlight || false,
+      image_url: prod.image_url,
+      volume_pricing: prod.volume_pricing ? [...prod.volume_pricing] : undefined,
+      pricing_details: prod.pricing_details ? { ...prod.pricing_details } : undefined
+    });
+
+    handleOpenEdit(duplicated);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    const cleanDescription = sanitizeRichTextHtml(description);
 
     if (isEditing && selectedProduct) {
       // Edit Product
@@ -264,7 +389,7 @@ export default function ProductsCRUDPage() {
         ...selectedProduct,
         name,
         sku: sku.trim() || `SKU-${pricingType.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        description,
+        description: cleanDescription,
         category_id: categoryId,
         pricing_type: pricingType,
         base_cost: baseCost,
@@ -292,7 +417,7 @@ export default function ProductsCRUDPage() {
       const newProd = addProduct({
         name,
         sku: sku.trim() || `SKU-${pricingType.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        description,
+        description: cleanDescription,
         category_id: categoryId,
         pricing_type: pricingType,
         base_cost: baseCost,
@@ -473,24 +598,60 @@ export default function ProductsCRUDPage() {
 
               {/* 3. Products List Table */}
               <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-border bg-secondary/10 flex justify-between items-center">
-                  <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Catálogo Geral de Produtos</h3>
-                  <span className="text-[11px] text-muted-foreground font-semibold">Exibindo {filteredProducts.length} registros</span>
+                <div className="px-5 py-4 border-b border-border bg-secondary/10 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
+                  <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Catalogo Geral de Produtos</h3>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center rounded-lg border border-border bg-background p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setProductViewMode('list')}
+                        title="Visualizar em lista"
+                        className={`h-7 w-8 rounded-md flex items-center justify-center transition-colors ${
+                          productViewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <ListIcon className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProductViewMode('cards')}
+                        title="Visualizar em cards"
+                        className={`h-7 w-8 rounded-md flex items-center justify-center transition-colors ${
+                          productViewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <LayoutGrid className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground font-semibold whitespace-nowrap">Exibindo {filteredProducts.length} registros</span>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
+                {productViewMode === 'list' ? (
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full table-fixed text-left border-collapse text-xs">
+                    <colgroup>
+                      <col className="w-[8%]" />
+                      <col className="w-[28%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[13%]" />
+                    </colgroup>
                     <thead>
                       <tr className="bg-secondary/40 text-[9px] uppercase font-bold text-muted-foreground border-b border-border">
-                        <th className="px-5 py-3">SKU / Código</th>
-                        <th className="px-5 py-3">Produto / Serviço</th>
-                        <th className="px-5 py-3">Categoria</th>
-                        <th className="px-5 py-3">Cálculo</th>
-                        <th className="px-5 py-3 text-right">Custo Base</th>
-                        <th className="px-5 py-3 text-right">Preço de Venda</th>
-                        <th className="px-5 py-3 text-center">Estoque</th>
-                        <th className="px-5 py-3 text-center">Status</th>
-                        <th className="px-5 py-3 text-center">Ações</th>
+                        <th className="px-3 py-3 truncate">SKU / Codigo</th>
+                        <th className="px-3 py-3">Produto / Servico</th>
+                        <th className="px-3 py-3">Categoria</th>
+                        <th className="px-3 py-3">Calculo</th>
+                        <th className="px-3 py-3 text-right">Custo Base</th>
+                        <th className="px-3 py-3 text-right">Preco de Venda</th>
+                        <th className="px-3 py-3 text-center">Estoque</th>
+                        <th className="px-3 py-3 text-center">Status</th>
+                        <th className="px-2 py-3 text-center">Acoes</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -502,11 +663,11 @@ export default function ProductsCRUDPage() {
                           return (
                             <tr key={prod.id} className="hover:bg-secondary/15 transition-colors">
                               {/* SKU */}
-                              <td className="px-5 py-3.5 font-bold text-foreground">{prod.sku}</td>
+                              <td className="px-3 py-3.5 font-bold text-foreground truncate" title={prod.sku}>{prod.sku}</td>
 
                               {/* Name & Description */}
-                              <td className="px-5 py-3.5">
-                                <div className="flex items-center gap-3">
+                              <td className="px-3 py-3.5 min-w-0">
+                                <div className="flex items-center gap-3 min-w-0">
                                   {prod.image_url ? (
                                     <img 
                                       src={prod.image_url} 
@@ -518,9 +679,9 @@ export default function ProductsCRUDPage() {
                                       <Package className="h-4 w-4" />
                                     </div>
                                   )}
-                                  <div>
+                                  <div className="min-w-0 flex-1">
                                     <div className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
-                                      <span>{prod.name}</span>
+                                      <span className="truncate">{prod.name}</span>
                                       {prod.volume_pricing && prod.volume_pricing.length > 0 && (
                                         <span className="px-1.5 py-0.2 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 text-[8px] font-bold rounded" title="Preço por volume ativo">
                                           ATACADO
@@ -537,33 +698,35 @@ export default function ProductsCRUDPage() {
                                         </span>
                                       )}
                                     </div>
-                                    <div className="text-[10px] text-muted-foreground max-w-xs truncate" title={prod.description}>{prod.description || '-'}</div>
+                                    <div className="text-[10px] text-muted-foreground truncate" title={stripRichTextHtml(prod.description)}>
+                                      {stripRichTextHtml(prod.description) || '-'}
+                                    </div>
                                   </div>
                                 </div>
                               </td>
 
                               {/* Category Badge */}
-                              <td className="px-5 py-3.5">
-                                <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">
+                              <td className="px-3 py-3.5">
+                                <span className="inline-block max-w-full truncate px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold" title={catName}>
                                   {catName}
                                 </span>
                               </td>
 
                               {/* Pricing Type */}
-                              <td className="px-5 py-3.5 text-muted-foreground font-semibold uppercase">{prod.pricing_type}</td>
+                              <td className="px-3 py-3.5 text-muted-foreground font-semibold uppercase truncate">{prod.pricing_type}</td>
 
                               {/* Cost */}
-                              <td className="px-5 py-3.5 text-right text-muted-foreground font-semibold">
+                              <td className="px-3 py-3.5 text-right text-muted-foreground font-semibold whitespace-nowrap">
                                 {formatCurrency(prod.base_cost)}
                               </td>
 
                               {/* Sale Price */}
-                              <td className="px-5 py-3.5 text-right font-black text-foreground">
+                              <td className="px-3 py-3.5 text-right font-black text-foreground whitespace-nowrap">
                                 {formatCurrency(prod.sales_price)}
                               </td>
 
                               {/* Stock Level */}
-                              <td className="px-5 py-3.5 text-center">
+                              <td className="px-3 py-3.5 text-center">
                                 {!prod.stock_controlled ? (
                                   <span className="text-[10px] text-zinc-400 font-semibold bg-zinc-500/5 px-2 py-0.5 rounded border border-zinc-500/10">
                                     Sem Controle
@@ -583,7 +746,7 @@ export default function ProductsCRUDPage() {
                               </td>
 
                               {/* Active Status */}
-                              <td className="px-5 py-3.5 text-center">
+                              <td className="px-3 py-3.5 text-center">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                   prod.active 
                                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
@@ -594,8 +757,16 @@ export default function ProductsCRUDPage() {
                               </td>
 
                               {/* Actions */}
-                              <td className="px-5 py-3.5 text-center">
+                              <td className="px-2 py-3.5 text-center">
                                 <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => handleDuplicateProduct(prod)}
+                                    className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/20"
+                                    title="Duplicar Produto"
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </button>
+
                                   <button
                                     onClick={() => handleOpenEdit(prod)}
                                     className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
@@ -630,6 +801,112 @@ export default function ProductsCRUDPage() {
                     </tbody>
                   </table>
                 </div>
+                ) : (
+                  <div className="p-3">
+                    {filteredProducts.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+                        {filteredProducts.map((prod) => {
+                          const belowMin = prod.stock_controlled && prod.current_stock < prod.min_stock;
+                          const catName = categories.find(c => c.id === prod.category_id)?.name || 'Outros';
+
+                          return (
+                            <div key={prod.id} className="rounded-xl border border-border bg-background p-3 shadow-sm hover:border-primary/30 transition-colors">
+                              <div className="flex items-start gap-3">
+                                {prod.image_url ? (
+                                  <img
+                                    src={prod.image_url}
+                                    alt={prod.name}
+                                    className="h-12 w-12 rounded-lg object-cover border border-border bg-card shrink-0"
+                                  />
+                                ) : (
+                                  <div className="h-12 w-12 rounded-lg bg-secondary/50 flex items-center justify-center border border-border text-muted-foreground shrink-0">
+                                    <Package className="h-5 w-5" />
+                                  </div>
+                                )}
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <h4 className="text-xs font-black text-foreground truncate" title={prod.name}>{prod.name}</h4>
+                                      <p className="text-[10px] text-muted-foreground truncate mt-0.5" title={stripRichTextHtml(prod.description)}>
+                                        {stripRichTextHtml(prod.description) || '-'}
+                                      </p>
+                                    </div>
+                                    <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[8px] font-black border ${
+                                      prod.active
+                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                        : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                                    }`}>
+                                      {prod.active ? 'ATIVO' : 'INATIVO'}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                    <span className="max-w-[120px] truncate px-2 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold" title={catName}>
+                                      {catName}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground text-[9px] font-bold uppercase">
+                                      {prod.pricing_type}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
+                                <div>
+                                  <span className="block text-muted-foreground font-bold uppercase">Custo</span>
+                                  <strong className="text-foreground">{formatCurrency(prod.base_cost)}</strong>
+                                </div>
+                                <div>
+                                  <span className="block text-muted-foreground font-bold uppercase">Venda</span>
+                                  <strong className="text-foreground">{formatCurrency(prod.sales_price)}</strong>
+                                </div>
+                                <div>
+                                  <span className="block text-muted-foreground font-bold uppercase">Estoque</span>
+                                  <strong className={belowMin ? 'text-rose-500' : 'text-foreground'}>
+                                    {prod.stock_controlled ? prod.current_stock : 'Sem'}
+                                  </strong>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => handleDuplicateProduct(prod)}
+                                  className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/20"
+                                  title="Duplicar Produto"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenEdit(prod)}
+                                  className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
+                                  title="Editar Produto"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Excluir o produto "${prod.name}" do catalogo do ERP?`)) {
+                                      deleteProduct(prod.id);
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/25 border border-rose-500/20"
+                                  title="Excluir Produto"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="px-5 py-8 text-center text-muted-foreground italic text-xs">
+                        Nenhum produto encontrado.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           ) : (
@@ -1201,12 +1478,9 @@ export default function ProductsCRUDPage() {
               {/* Description */}
               <div className="md:col-span-2 space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Descrição / Detalhes de Produção</label>
-                <textarea
+                <ProductDescriptionEditor
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ex: Caneca para prensagem térmica. Estampa A4 inclusa."
-                  rows={2}
-                  className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none resize-none"
+                  onChange={setDescription}
                 />
               </div>
 
@@ -1368,3 +1642,4 @@ export default function ProductsCRUDPage() {
     </div>
   );
 }
+

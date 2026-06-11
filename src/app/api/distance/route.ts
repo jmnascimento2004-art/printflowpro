@@ -45,6 +45,17 @@ type OrsDirectionsResponse = {
 };
 
 type Coordinates = [number, number];
+type RouteResult = {
+  distanceKm: number;
+  durationMinutes: number | null;
+  originCoordinates: Coordinates;
+  destinationCoordinates: Coordinates;
+  originPrecision: GeocodeCandidate['precision'];
+  destinationPrecision: GeocodeCandidate['precision'];
+  originLabel: string;
+  destinationLabel: string;
+  provider: string;
+};
 
 type GeocodeCandidate = {
   coordinates: Coordinates;
@@ -159,7 +170,14 @@ function candidateMatchesParsedAddress(candidate: GeocodeCandidate, parsed: Retu
 }
 
 async function fetchOrsGeocode(url: URL, parsed: ReturnType<typeof parseBrazilianAddress>) {
-  const response = await fetch(url, { cache: 'no-store' });
+  let response: Response;
+  try {
+    response = await fetch(url, { cache: 'no-store' });
+  } catch (error) {
+    warnCaught('Falha ao consultar geocode da OpenRouteService:', error);
+    return [];
+  }
+
   if (!response.ok) return [];
 
   const data = (await response.json()) as OrsGeocodeResponse;
@@ -210,12 +228,18 @@ async function fetchNominatimCandidates(parsed: ReturnType<typeof parseBrazilian
     url.searchParams.set('limit', '5');
     url.searchParams.set('q', query);
 
-    const response = await fetch(url, {
-      cache: 'no-store',
-      headers: {
-        'User-Agent': 'PrintFlowPRO distance validation'
-      }
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        cache: 'no-store',
+        headers: {
+          'User-Agent': 'PrintFlowPRO distance validation'
+        }
+      });
+    } catch (error) {
+      warnCaught('Falha ao consultar geocode do Nominatim:', error);
+      continue;
+    }
 
     if (!response.ok) continue;
 
@@ -250,7 +274,7 @@ async function geocodeAddressCandidates(address: string, apiKey: string): Promis
   const parsed = parseBrazilianAddress(address);
   const candidates: GeocodeCandidate[] = [];
 
-  if (parsed.street && parsed.city) {
+  if (apiKey && parsed.street && parsed.city) {
     const structuredUrl = new URL('/geocode/search/structured', ORS_BASE_URL);
     structuredUrl.searchParams.set('api_key', apiKey);
     structuredUrl.searchParams.set('address', `${parsed.street}${parsed.number ? `, ${parsed.number}` : ''}`);
@@ -263,14 +287,16 @@ async function geocodeAddressCandidates(address: string, apiKey: string): Promis
     candidates.push(...await fetchOrsGeocode(structuredUrl, parsed));
   }
 
-  const url = new URL('/geocode/search', ORS_BASE_URL);
-  url.searchParams.set('api_key', apiKey);
-  url.searchParams.set('text', address);
-  url.searchParams.set('boundary.country', 'BR');
-  url.searchParams.set('size', '5');
-  candidates.push(...await fetchOrsGeocode(url, parsed));
+  if (apiKey) {
+    const url = new URL('/geocode/search', ORS_BASE_URL);
+    url.searchParams.set('api_key', apiKey);
+    url.searchParams.set('text', address);
+    url.searchParams.set('boundary.country', 'BR');
+    url.searchParams.set('size', '5');
+    candidates.push(...await fetchOrsGeocode(url, parsed));
+  }
 
-  if (parsed.cep) {
+  if (apiKey && parsed.cep) {
     const cepUrl = new URL('/geocode/search', ORS_BASE_URL);
     cepUrl.searchParams.set('api_key', apiKey);
     cepUrl.searchParams.set('text', `${parsed.cep}, ${parsed.city}, ${parsed.state}, Brasil`);
@@ -318,20 +344,26 @@ async function calculateOpenRouteServiceRoute(
 ) {
   const originCoordinates = originCandidate.coordinates;
   const destinationCoordinates = destinationCandidate.coordinates;
-  const response = await fetch(`${ORS_BASE_URL}/v2/directions/${profile}`, {
-    method: 'POST',
-    cache: 'no-store',
-    headers: {
-      Authorization: apiKey,
-      'Content-Type': 'application/json',
-      Accept: 'application/json'
-    },
-    body: JSON.stringify({
-      coordinates: [originCoordinates, destinationCoordinates],
-      instructions: false,
-      units: 'km'
-    })
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${ORS_BASE_URL}/v2/directions/${profile}`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        Authorization: apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify({
+        coordinates: [originCoordinates, destinationCoordinates],
+        instructions: false,
+        units: 'km'
+      })
+    });
+  } catch (error) {
+    warnCaught('Falha ao consultar rota da OpenRouteService:', error);
+    return null;
+  }
 
   if (!response.ok) return null;
 
@@ -348,7 +380,74 @@ async function calculateOpenRouteServiceRoute(
     originPrecision: originCandidate.precision,
     destinationPrecision: destinationCandidate.precision,
     originLabel: originCandidate.label,
-    destinationLabel: destinationCandidate.label
+    destinationLabel: destinationCandidate.label,
+    provider: 'openrouteservice-route'
+  };
+}
+
+async function calculateOsrmRoute(
+  originCandidate: GeocodeCandidate,
+  destinationCandidate: GeocodeCandidate
+): Promise<RouteResult | null> {
+  const originCoordinates = originCandidate.coordinates;
+  const destinationCoordinates = destinationCandidate.coordinates;
+  const url = new URL(`https://router.project-osrm.org/route/v1/driving/${originCoordinates[0]},${originCoordinates[1]};${destinationCoordinates[0]},${destinationCoordinates[1]}`);
+  url.searchParams.set('overview', 'false');
+  url.searchParams.set('alternatives', 'false');
+
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as { routes?: Array<{ distance?: number; duration?: number }> };
+    const route = data.routes?.[0];
+    if (!route?.distance || route.distance <= 0) return null;
+
+    return {
+      distanceKm: Math.round((route.distance / 1000) * 100) / 100,
+      durationMinutes: route.duration ? Math.round((route.duration / 60) * 100) / 100 : null,
+      originCoordinates,
+      destinationCoordinates,
+      originPrecision: originCandidate.precision,
+      destinationPrecision: destinationCandidate.precision,
+      originLabel: originCandidate.label,
+      destinationLabel: destinationCandidate.label,
+      provider: 'osrm-route'
+    };
+  } catch (error) {
+    warnCaught('Falha ao consultar rota do OSRM:', error);
+    return null;
+  }
+}
+
+function calculateEstimatedRoadDistance(
+  originCandidate: GeocodeCandidate,
+  destinationCandidate: GeocodeCandidate
+): RouteResult {
+  const [originLon, originLat] = originCandidate.coordinates;
+  const [destinationLon, destinationLat] = destinationCandidate.coordinates;
+  const earthRadiusKm = 6371;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const deltaLat = toRadians(destinationLat - originLat);
+  const deltaLon = toRadians(destinationLon - originLon);
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(toRadians(originLat)) *
+      Math.cos(toRadians(destinationLat)) *
+      Math.sin(deltaLon / 2) ** 2;
+  const straightLineKm = 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const estimatedRoadKm = Math.max(straightLineKm * 1.35, straightLineKm + 1);
+
+  return {
+    distanceKm: Math.round(estimatedRoadKm * 100) / 100,
+    durationMinutes: null,
+    originCoordinates: originCandidate.coordinates,
+    destinationCoordinates: destinationCandidate.coordinates,
+    originPrecision: originCandidate.precision,
+    destinationPrecision: destinationCandidate.precision,
+    originLabel: originCandidate.label,
+    destinationLabel: destinationCandidate.label,
+    provider: 'estimated-geocoded-distance'
   };
 }
 
@@ -358,34 +457,48 @@ async function chooseBestRoutedPair(
   originCandidates: GeocodeCandidate[],
   destinationCandidates: GeocodeCandidate[]
 ) {
-  const routeResults = [];
+  const routeResults: RouteResult[] = [];
 
   for (const originCandidate of originCandidates.slice(0, 5)) {
     for (const destinationCandidate of destinationCandidates.slice(0, 5)) {
       if (isSameCoordinates(originCandidate.coordinates, destinationCandidate.coordinates)) continue;
 
-      const route = await calculateOpenRouteServiceRoute(
-        apiKey,
-        profile,
-        originCandidate,
-        destinationCandidate
-      );
+      const route = apiKey
+        ? await calculateOpenRouteServiceRoute(apiKey, profile, originCandidate, destinationCandidate)
+        : await calculateOsrmRoute(originCandidate, destinationCandidate);
 
       if (route) routeResults.push(route);
     }
   }
 
-  if (routeResults.length === 0) return null;
+  if (routeResults.length > 0) {
+    return routeResults.sort((a, b) => a.distanceKm - b.distanceKm)[0];
+  }
 
-  return routeResults.sort((a, b) => a.distanceKm - b.distanceKm)[0];
+  for (const originCandidate of originCandidates.slice(0, 5)) {
+    for (const destinationCandidate of destinationCandidates.slice(0, 5)) {
+      if (isSameCoordinates(originCandidate.coordinates, destinationCandidate.coordinates)) continue;
+      const osrmRoute = await calculateOsrmRoute(originCandidate, destinationCandidate);
+      if (osrmRoute) routeResults.push(osrmRoute);
+    }
+  }
+
+  if (routeResults.length > 0) {
+    return routeResults.sort((a, b) => a.distanceKm - b.distanceKm)[0];
+  }
+
+  const originCandidate = originCandidates[0];
+  const destinationCandidate = destinationCandidates[0];
+  if (originCandidate && destinationCandidate && !isSameCoordinates(originCandidate.coordinates, destinationCandidate.coordinates)) {
+    return calculateEstimatedRoadDistance(originCandidate, destinationCandidate);
+  }
+
+  return null;
 }
 
 export async function POST(request: Request) {
   try {
     const apiKey = getOpenRouteServiceKey();
-    if (!apiKey) {
-      return jsonError('OPENROUTESERVICE_API_KEY nao configurada no servidor.', 500);
-    }
 
     const body = (await request.json()) as {
       origin?: string;
@@ -408,13 +521,13 @@ export async function POST(request: Request) {
     const route = await chooseBestRoutedPair(apiKey, profile, originCandidates, destinationCandidates);
 
     if (!route) {
-      return jsonError('A OpenRouteService nao retornou uma rota de percurso valida. Confira numero, CEP e bairro.', 502);
+      return jsonError('Nao foi possivel calcular a rota. Confira numero, CEP, bairro e cidade dos enderecos.', 502);
     }
 
     return NextResponse.json({
       distance_km: route.distanceKm,
       duration_minutes: route.durationMinutes,
-      provider: 'openrouteservice-route',
+      provider: route.provider,
       origin_coordinates: route.originCoordinates,
       destination_coordinates: route.destinationCoordinates,
       origin_precision: route.originPrecision,

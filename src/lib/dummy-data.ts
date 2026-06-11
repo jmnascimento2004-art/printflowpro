@@ -75,6 +75,35 @@ export interface Company {
   img_security_google?: string;
 }
 
+export interface Settings {
+  theme: string;
+  pix_key: string;
+  pix_key_type: string;
+  bank_name: string;
+  tax_rate: number;
+  commission_rate: number;
+  top_bar_hours: string;
+  top_bar_show_pickup: boolean;
+  top_bar_phone: string;
+  footer_show_address: boolean;
+  footer_hours_message: string;
+  footer_hours_week: string;
+  footer_hours_sat: string;
+  footer_hours_sat_time: string;
+  footer_hours_sat_desc: string;
+  saas_enabled: boolean;
+  nfe_enabled: boolean;
+  ai_enabled: boolean;
+  company_address: string;
+  delivery_motoboy_price_km: number;
+  delivery_car_price_km: number;
+  delivery_min_fee: number;
+  catalog_header_message: string;
+  catalog_whatsapp: string;
+  free_pickup_alert: boolean;
+  catalog_footer_text: string;
+}
+
 export interface UserProfile {
   id: string;
   company_id: string;
@@ -1347,7 +1376,7 @@ export const DUMMY_PICKUP_POINTS: PickupPoint[] = [
   }
 ];
 
-export const DUMMY_SETTINGS = {
+export const DUMMY_SETTINGS: Settings = {
   theme: 'dark',
   pix_key: 'financeiro@printflowpro.com.br',
   pix_key_type: 'email',
@@ -1369,5 +1398,9 @@ export const DUMMY_SETTINGS = {
   company_address: 'Av. Paulista, 1000 - Bela Vista, São Paulo - SP, 01310-100',
   delivery_motoboy_price_km: 2.50,
   delivery_car_price_km: 4.50,
-  delivery_min_fee: 10.00
+  delivery_min_fee: 10.00,
+  catalog_header_message: 'Atendimento online para pedidos personalizados',
+  catalog_whatsapp: '(51) 98765-4321',
+  free_pickup_alert: true,
+  catalog_footer_text: 'PrintFlowPRO - solucoes graficas sob medida.'
 };

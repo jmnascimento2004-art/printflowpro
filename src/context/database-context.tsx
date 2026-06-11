@@ -204,6 +204,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
 const FINANCIAL_SETTING_KEYS = ['pix_key', 'pix_key_type', 'bank_name', 'tax_rate', 'commission_rate'] as const;
 const isBrowser = () => typeof window !== 'undefined';
+const isDemoFallbackAllowed = () => {
+  if (!isBrowser()) return false;
+  return process.env.NODE_ENV !== 'production' || window.localStorage.getItem('printflow_demo_mode') === 'true';
+};
 
 const hasSettingValue = (value: unknown) => value !== undefined && value !== null && value !== '';
 
@@ -222,7 +226,7 @@ const mergeSettingsWithDefaults = (
     const remoteValue = remoteSettings?.[key];
 
     if (hasSettingValue(storedValue) && !hasSettingValue(remoteValue)) {
-      (merged as Record<string, unknown>)[key] = storedValue;
+      (merged as unknown as Record<string, unknown>)[key] = storedValue;
     }
   });
 
@@ -275,6 +279,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<CashRegisterSession[]>([]);
   const [registerTransactions, setRegisterTransactions] = useState<CashRegisterTransaction[]>([]);
   const activeSession = sessions.find(s => s.status === 'aberto') || null;
+  const currentCompanyId = company.id || DUMMY_COMPANY.id;
 
   // Load from Supabase on mount, fallback to localStorage
   useEffect(() => {
@@ -438,6 +443,29 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
     const loadFromLocalStorage = () => {
       try {
+        if (!isDemoFallbackAllowed()) {
+          setCustomers([]);
+          setSuppliers([]);
+          setCategories([]);
+          setProducts([]);
+          setQuotes([]);
+          setOrders([]);
+          setProduction([]);
+          setFinancial([]);
+          setShipments([]);
+          setStockMovements([]);
+          setSettings(DUMMY_SETTINGS);
+          setPickupPoints([]);
+          setCompany({ ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
+          setBanners([]);
+          setProfiles([]);
+          setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+          setSessions([]);
+          setRegisterTransactions([]);
+          setInitialized(true);
+          return;
+        }
+
         const getOrSet = <T,>(key: string, defaultValue: T): T => {
           const stored = window.localStorage.getItem(`printflow_${key}`);
           if (stored) {
@@ -486,6 +514,28 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         setInitialized(true);
       } catch (e) {
         warnCaught('Erro capturado:', e);
+        if (!isDemoFallbackAllowed()) {
+          setCustomers([]);
+          setSuppliers([]);
+          setCategories([]);
+          setProducts([]);
+          setQuotes([]);
+          setOrders([]);
+          setProduction([]);
+          setFinancial([]);
+          setShipments([]);
+          setStockMovements([]);
+          setSettings(DUMMY_SETTINGS);
+          setPickupPoints([]);
+          setCompany({ ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
+          setBanners([]);
+          setProfiles([]);
+          setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+          setSessions([]);
+          setRegisterTransactions([]);
+          setInitialized(true);
+          return;
+        }
         setCustomers(DUMMY_CUSTOMERS);
         setSuppliers(DUMMY_SUPPLIERS);
         setCategories(DUMMY_CATEGORIES);
@@ -736,12 +786,18 @@ useEffect(() => {
       .from('companies')
       .update({
         name: company.name,
-        trading_name: company.trading_name,
         document: company.document,
         phone: company.phone,
         email: company.email,
-        address: company.address,
+        cep: company.cep,
+        street: company.street,
+        number: company.number,
+        neighborhood: company.neighborhood,
+        city: company.city,
+        state: company.state,
         logo_url: company.logo_url,
+        logo_light: company.logo_light,
+        logo_dark: company.logo_dark,
         favicon: company.favicon,
         theme_color: company.theme_color,
         instagram_url: company.instagram_url,
@@ -939,13 +995,17 @@ useEffect(() => {
   // CRM API
   // ----------------------------------------------------
   const addCustomer = (cust: Omit<Customer, 'id' | 'company_id' | 'created_at'>) => {
+    const customerIdPrefix = cust.tags?.includes('Catalogo Online') ? 'cust-web' : 'cust';
     const newCust: Customer = {
       ...cust,
-      id: `cust-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      id: `${customerIdPrefix}-${Date.now()}`,
+      company_id: currentCompanyId,
       created_at: new Date().toISOString()
     };
     setCustomers(prev => [newCust, ...prev]);
+    supabase.from('customers').insert(newCust).then(({ error }) => {
+      if (error) warnCaught('Erro ao sincronizar cliente criado no catÃ¡logo:', error);
+    });
     return newCust;
   };
 
@@ -967,7 +1027,7 @@ useEffect(() => {
     const newSup: Supplier = {
       ...sup,
       id: `sup-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       created_at: new Date().toISOString()
     };
     setSuppliers(prev => [newSup, ...prev]);
@@ -977,7 +1037,7 @@ useEffect(() => {
   const addCategory = (name: string, description: string, parent_id?: string | null) => {
     const newCat: Category = {
       id: `cat-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       name,
       description,
       parent_id: parent_id || null,
@@ -1005,7 +1065,7 @@ useEffect(() => {
   const newProd: Product = {
     ...prod,
     id: `prod-${Date.now()}`,
-    company_id: company.id || DUMMY_COMPANY.id,
+    company_id: currentCompanyId,
     current_stock: 0,
     created_at: new Date().toISOString()
   };
@@ -1103,7 +1163,7 @@ useEffect(() => {
     const match = products.find(p => p.id === productId);
     const newMovement: StockMovement = {
       id: `sm-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       product_id: productId,
       product_name: match ? match.name : 'Produto Desconhecido',
       type,
@@ -1129,7 +1189,7 @@ useEffect(() => {
     const newQuote: Quote = {
       ...quote,
       id: `quote-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       number: nextNum,
       created_at: new Date().toISOString()
     };
@@ -1140,13 +1200,13 @@ useEffect(() => {
     });
 
     const { items, ...parentQuote } = newQuote;
-    supabase.from('quotes').upsert(parentQuote).then(({ error }) => {
+    supabase.from('quotes').insert(parentQuote).then(({ error }) => {
       if (error) warnCaught('Erro ao sincronizar orçamento criado no catálogo:', error);
     });
 
     if (items.length > 0) {
       const quoteItems = items.map(item => ({ ...item, quote_id: newQuote.id }));
-      supabase.from('quote_items').upsert(quoteItems).then(({ error }) => {
+      supabase.from('quote_items').insert(quoteItems).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar itens do orçamento criado no catálogo:', error);
       });
     }
@@ -1193,7 +1253,7 @@ useEffect(() => {
     const orderNumber = getNextOrderNumber(orders);
     const newOrder: Order = {
       id: `order-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       customer_id: match.customer_id,
       customer_name: match.customer_name,
       number: orderNumber,
@@ -1231,7 +1291,7 @@ useEffect(() => {
     const newOrder: Order = {
       ...order,
       id: `order-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       number: orderNumber,
       created_at: new Date().toISOString()
     };
@@ -1254,7 +1314,7 @@ useEffect(() => {
     // Helper to queue items
     const newQueueItems: ProductionItem[] = order.items.map(item => ({
       id: `prod-q-${Math.random().toString(36).substr(2, 9)}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       order_id: order.id,
       order_number: order.number,
       order_item_id: item.id,
@@ -1312,7 +1372,7 @@ useEffect(() => {
         const defaultCust = customers.find(c => c.name === orderMatch?.customer_name);
         const newShip: Shipment = {
           id: `ship-${Date.now()}`,
-          company_id: DUMMY_COMPANY.id,
+          company_id: currentCompanyId,
           order_id: id,
           order_number: orderMatch.number,
           customer_name: orderMatch.customer_name,
@@ -1364,7 +1424,7 @@ useEffect(() => {
           // Log Financial income transaction
           const trans: FinancialTransaction = {
             id: `fin-${Date.now()}`,
-            company_id: DUMMY_COMPANY.id,
+            company_id: currentCompanyId,
             order_id: o.id,
             order_number: o.number,
             type: 'receita',
@@ -1498,7 +1558,7 @@ useEffect(() => {
     const newTrans: FinancialTransaction = {
       ...trans,
       id: `fin-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       created_at: new Date().toISOString()
     };
     setFinancial(prev => [newTrans, ...prev]);
@@ -1599,7 +1659,7 @@ useEffect(() => {
     const newPoint: PickupPoint = {
       ...point,
       id: `pick-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id
+      company_id: currentCompanyId
     };
     setPickupPoints(prev => [...prev, newPoint]);
     return newPoint;
@@ -1626,7 +1686,7 @@ useEffect(() => {
     const sessionId = `session-${Date.now()}`;
     const newSession: CashRegisterSession = {
       id: sessionId,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       opened_by: 'Operador Balcão',
       opened_at: new Date().toISOString(),
       opening_balance: openingBalance,
@@ -1686,7 +1746,7 @@ useEffect(() => {
     if (difference !== 0) {
       const summaryTrans: FinancialTransaction = {
         id: `fin-closing-${Date.now()}`,
-        company_id: DUMMY_COMPANY.id,
+        company_id: currentCompanyId,
         type: difference >= 0 ? 'receita' : 'despesa',
         category: 'Ajuste de Caixa',
         amount: Math.abs(difference),
@@ -1732,7 +1792,7 @@ useEffect(() => {
 
     const trans: FinancialTransaction = {
       id: `fin-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       type: type === 'suprimento' ? 'receita' : 'despesa',
       category: 'Operações de Caixa',
       amount,
@@ -1765,7 +1825,7 @@ useEffect(() => {
 
     const newOrder: Order = {
       id: orderId,
-      company_id: DUMMY_COMPANY.id,
+      company_id: currentCompanyId,
       customer_id: posOrder.customer_id,
       customer_name: posOrder.customer_name,
       number: orderNumber,
@@ -1812,7 +1872,7 @@ useEffect(() => {
 
       const trans: FinancialTransaction = {
         id: `fin-pos-${Date.now()}`,
-        company_id: DUMMY_COMPANY.id,
+        company_id: currentCompanyId,
         order_id: orderId,
         order_number: orderNumber,
         type: 'receita',
@@ -1828,7 +1888,7 @@ useEffect(() => {
     } else if (posOrder.paid_amount > 0) {
       const trans: FinancialTransaction = {
         id: `fin-pos-${Date.now()}`,
-        company_id: DUMMY_COMPANY.id,
+        company_id: currentCompanyId,
         order_id: orderId,
         order_number: orderNumber,
         type: 'receita',
@@ -1894,7 +1954,7 @@ useEffect(() => {
     const newProfile: UserProfile = {
       ...profile,
       id: `u-${Date.now()}`,
-      company_id: DUMMY_COMPANY.id
+      company_id: currentCompanyId
     };
     setProfiles(prev => [...prev, newProfile]);
     return newProfile;

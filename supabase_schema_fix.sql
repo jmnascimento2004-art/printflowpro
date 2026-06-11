@@ -160,6 +160,10 @@ CREATE TABLE settings (
   delivery_motoboy_price_km NUMERIC(10,2) DEFAULT 2.50,
   delivery_car_price_km NUMERIC(10,2) DEFAULT 4.50,
   delivery_min_fee NUMERIC(10,2) DEFAULT 10.00,
+  catalog_header_message TEXT,
+  catalog_whatsapp TEXT,
+  free_pickup_alert BOOLEAN DEFAULT TRUE,
+  catalog_footer_text TEXT,
   
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

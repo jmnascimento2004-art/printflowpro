@@ -35,7 +35,8 @@ import {
   formatCEP, 
   formatCPF, 
   generatePixPayload,
-  getProductUnitPrice
+  getProductUnitPrice,
+  stripRichTextHtml
 } from '@/lib/utils';
 
 export default function POSPage() {
@@ -495,7 +496,7 @@ export default function POSPage() {
                           <h4 className="font-bold text-xs text-foreground mt-2 line-clamp-2 group-hover:text-primary transition-colors">
                             {prod.name}
                           </h4>
-                          <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{prod.description}</p>
+                          <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{stripRichTextHtml(prod.description)}</p>
                         </div>
                         <div className="flex justify-between items-baseline mt-2">
                           <span className="text-xs font-extrabold text-foreground">

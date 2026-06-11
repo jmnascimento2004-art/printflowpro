@@ -15,7 +15,7 @@ import {
   History
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
-import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
+import { formatCurrencyInput, parseCurrencyInputToNumber, stripRichTextHtml } from '@/lib/utils';
 
 export default function StockPage() {
   const { products, stockMovements, adjustStock } = useDatabase();
@@ -249,7 +249,7 @@ export default function StockPage() {
                       <td className="px-5 py-3.5">
                         <div>
                           <div className="font-semibold text-foreground">{p.name}</div>
-                          <div className="text-[10px] text-muted-foreground max-w-sm truncate">{p.description}</div>
+                          <div className="text-[10px] text-muted-foreground max-w-sm truncate">{stripRichTextHtml(p.description)}</div>
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-muted-foreground font-medium uppercase">{p.pricing_type}</td>

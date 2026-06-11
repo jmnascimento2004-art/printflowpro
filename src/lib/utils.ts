@@ -183,6 +183,47 @@ export function formatCEP(cep: string): string {
   return `${clean.substring(0, 5)}-${clean.substring(5, 8)}`;
 }
 
+export function stripRichTextHtml(value: string = ''): string {
+  return value
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function sanitizeRichTextHtml(value: string = ''): string {
+  const allowedTags = ['b', 'strong', 'i', 'em', 'u', 'br', 'p', 'div', 'ul', 'ol', 'li'];
+  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(value);
+  const escapeHtml = (text: string) =>
+    text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  if (!hasHtml) {
+    return escapeHtml(value).replace(/\n/g, '<br />');
+  }
+
+  return value
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/<\/?([a-z0-9]+)(?:\s[^>]*)?>/gi, (match, tag) => {
+      const cleanTag = String(tag).toLowerCase();
+      if (!allowedTags.includes(cleanTag)) return '';
+      return match.startsWith('</') ? `</${cleanTag}>` : `<${cleanTag}>`;
+    })
+    .trim();
+}
+
 /**
  * Formats CPF as xxx.xxx.xxx-xx
  */

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
   TrendingUp, 
@@ -17,8 +17,40 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 
+const CATALOG_INTERESTS_READ_KEY = 'printflow_catalog_interests_read_ids';
+const CATALOG_INTERESTS_READ_EVENT = 'printflow_catalog_interests_read_change';
+
 export default function DashboardPage() {
-  const { orders, financial, products, customers } = useDatabase();
+  const { orders, financial, products, customers, quotes } = useDatabase();
+  const [readCatalogInterestIds, setReadCatalogInterestIds] = useState<string[]>([]);
+
+  const loadReadCatalogInterestIds = () => {
+    try {
+      const stored = window.localStorage.getItem(CATALOG_INTERESTS_READ_KEY);
+      setReadCatalogInterestIds(stored ? JSON.parse(stored) : []);
+    } catch {
+      setReadCatalogInterestIds([]);
+    }
+  };
+
+  useEffect(() => {
+    loadReadCatalogInterestIds();
+    window.addEventListener(CATALOG_INTERESTS_READ_EVENT, loadReadCatalogInterestIds);
+    return () => window.removeEventListener(CATALOG_INTERESTS_READ_EVENT, loadReadCatalogInterestIds);
+  }, []);
+
+  const markCatalogInterestAsRead = (id: string) => {
+    setReadCatalogInterestIds((current) => {
+      const next = Array.from(new Set([...current, id]));
+      try {
+        window.localStorage.setItem(CATALOG_INTERESTS_READ_KEY, JSON.stringify(next));
+        window.dispatchEvent(new Event(CATALOG_INTERESTS_READ_EVENT));
+      } catch {
+        // localStorage unavailable; keep the in-memory read state for this session.
+      }
+      return next;
+    });
+  };
 
   // 1. Calculations based on database state
   const todayStr = new Date().toISOString().split('T')[0];
@@ -69,6 +101,58 @@ export default function DashboardPage() {
   const recentOrders = [...orders]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5);
+
+  const catalogQuoteLeads = [...quotes]
+    .filter((quote) => {
+      const customer = customers.find((item) => item.id === quote.customer_id);
+      return (
+        quote.status === 'pendente' &&
+        (
+          quote.customer_id.startsWith('cust-web-') ||
+          quote.customer_name.includes('(Web)') ||
+          customer?.tags?.includes('Catalogo Online')
+        )
+      );
+    })
+    .map((quote) => ({
+      id: quote.id,
+      customerName: quote.customer_name,
+      createdAt: quote.created_at,
+      amount: quote.total_amount,
+      code: `#${quote.number}`,
+      href: '/quotes',
+      description: 'Orçamento do catalogo aguardando atendimento'
+    }));
+
+  const quotedCatalogCustomerIds = new Set(catalogQuoteLeads.map((lead) => {
+    const quote = quotes.find((item) => item.id === lead.id);
+    return quote?.customer_id;
+  }));
+
+  const catalogCustomerLeads = customers
+    .filter((customer) => {
+      const isCatalogCustomer =
+        customer.id.startsWith('cust-web-') ||
+        customer.tags?.includes('Catalogo Online') ||
+        customer.tags?.includes('Catalogo');
+
+      return isCatalogCustomer && !quotedCatalogCustomerIds.has(customer.id);
+    })
+    .map((customer) => ({
+      id: customer.id,
+      customerName: customer.name,
+      createdAt: customer.created_at,
+      amount: null,
+      code: 'CRM',
+      href: '/crm',
+      description: 'Cliente do catalogo aguardando atendimento'
+    }));
+
+  const catalogLeads = [...catalogQuoteLeads, ...catalogCustomerLeads]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const unreadCatalogLeads = catalogLeads.filter((lead) => !readCatalogInterestIds.includes(lead.id));
+  const recentCatalogLeads = unreadCatalogLeads.slice(0, 4);
 
   // 3. Bestselling products (simulated based on orders data or static if empty, computed dynamically)
   const getBestsellers = () => {
@@ -158,6 +242,59 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {unreadCatalogLeads.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="h-11 w-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm shrink-0">
+                <ShoppingBag className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-black text-foreground uppercase tracking-wide">
+                    Interesse de compra no catalogo
+                  </h3>
+                  <span className="px-2.5 py-1 rounded-full bg-amber-500 text-white text-[11px] font-black">
+                    {unreadCatalogLeads.length} novo{unreadCatalogLeads.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Orçamentos enviados pela loja online aguardando atendimento comercial.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href={catalogQuoteLeads.length > 0 ? '/quotes' : '/crm'}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 text-sm font-bold shadow-sm transition-all"
+            >
+              Ver interesses <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
+            {recentCatalogLeads.map((lead) => (
+              <Link
+                key={lead.id}
+                href={lead.href}
+                onClick={() => markCatalogInterestAsRead(lead.id)}
+                className="block rounded-xl bg-card border border-amber-500/20 p-3 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-foreground truncate">{lead.customerName}</span>
+                  <span className="text-[10px] font-black text-amber-600">{lead.code}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{new Date(lead.createdAt).toLocaleDateString('pt-BR')}</span>
+                  <span className="font-bold text-foreground">{lead.amount !== null ? formatCurrency(lead.amount) : 'CRM'}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2 truncate">{lead.description}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 2. Key Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

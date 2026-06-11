@@ -30,7 +30,7 @@ import {
 } from '@/lib/utils';
 
 export default function CRMPage() {
-  const { customers, addCustomer, updateCustomer, deleteCustomer, orders } = useDatabase();
+  const { customers, addCustomer, updateCustomer, deleteCustomer, orders, quotes } = useDatabase();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -79,6 +79,14 @@ export default function CRMPage() {
   // 3. Get customer order history
   const getCustomerOrders = (customerName: string) => {
     return orders.filter(o => o.customer_name === customerName);
+  };
+
+  const getCustomerQuotes = (customer: Customer) => {
+    return quotes.filter(q =>
+      q.customer_id === customer.id ||
+      q.customer_name === customer.name ||
+      q.customer_name === `${customer.name} (Web)`
+    );
   };
 
   const handleCreateCustomer = (e: React.FormEvent) => {
@@ -786,7 +794,56 @@ export default function CRMPage() {
                 {selectedCustomer.notes && (
                   <div className="p-3.5 rounded-xl bg-secondary/30 border border-border space-y-1">
                     <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Observações do Vendedor</h5>
-                    <p className="text-xs text-foreground font-medium leading-relaxed italic">"{selectedCustomer.notes}"</p>
+                    <p className="text-xs text-foreground font-medium leading-relaxed italic whitespace-pre-line">"{selectedCustomer.notes}"</p>
+                  </div>
+                )}
+
+                {getCustomerQuotes(selectedCustomer).length > 0 && (
+                  <div className="space-y-2 border-t border-border pt-4">
+                    <h4 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <FileQuestion className="h-4.5 w-4.5 text-primary" /> Interesse de Compra ({getCustomerQuotes(selectedCustomer).length})
+                    </h4>
+
+                    <div className="space-y-2">
+                      {getCustomerQuotes(selectedCustomer).map((quote) => (
+                        <div key={quote.id} className="rounded-xl border border-primary/20 bg-primary/5 p-3.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <div className="text-xs font-black text-foreground">Orcamento #{quote.number}</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {new Date(quote.created_at).toLocaleDateString('pt-BR')} - Status: {quote.status}
+                              </div>
+                            </div>
+                            <div className="text-sm font-black text-primary">{formatCurrency(quote.total_amount)}</div>
+                          </div>
+
+                          <div className="mt-3 space-y-1.5">
+                            {quote.items.map((item) => (
+                              <div key={item.id} className="flex items-start justify-between gap-3 text-xs">
+                                <div className="min-w-0">
+                                  <div className="font-bold text-foreground truncate">{item.product_name}</div>
+                                  {(item.details?.width || item.details?.height) && (
+                                    <div className="text-[11px] text-muted-foreground">
+                                      {item.details.width ? `Largura: ${item.details.width}m` : ''}
+                                      {item.details.width && item.details.height ? ' - ' : ''}
+                                      {item.details.height ? `Altura: ${item.details.height}m` : ''}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="font-bold text-foreground">Qtd {item.quantity}</div>
+                                  <div className="text-[11px] text-muted-foreground">{formatCurrency(item.total_price)}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {quote.notes && (
+                            <p className="mt-3 text-[11px] text-muted-foreground italic leading-relaxed">{quote.notes}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
