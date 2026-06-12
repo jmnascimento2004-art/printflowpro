@@ -118,9 +118,7 @@ export default function QuotesPage() {
     const amount = quote.total_amount;
     const pixPayload = generatePixPayload(pixKey, amount, company?.name || "PrintFlowPRO");
 
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(pixPayload)}`;
-
-    const message = `Olá, *${customer?.name || getQuoteCustomerName(quote)}*!\n\nAqui estão os dados para pagamento do seu orçamento *#${quote.number}* no valor total de *${formatCurrency(amount)}*:\n\n*Chave Copia e Cola PIX:*\n\`\`\`${pixPayload}\`\`\`\n\n*QR Code de Pagamento:*\n${qrCodeUrl}\n\nApós realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = `Olá, *${customer?.name || getQuoteCustomerName(quote)}*!\n\nAqui estão os dados para pagamento do seu orçamento *#${quote.number}* no valor total de *${formatCurrency(amount)}*:\n\n*Chave Copia e Cola PIX:*\n\`\`\`${pixPayload}\`\`\`\n\nApós realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;

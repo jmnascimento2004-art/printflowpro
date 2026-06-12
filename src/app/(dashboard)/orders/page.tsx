@@ -522,9 +522,7 @@ export default function OrdersPage() {
     const pixKey = settings.pix_key || "financeiro@printflowpro.com.br";
     const pixPayload = generatePixPayload(pixKey, balance, company?.name || "PrintFlowPRO");
 
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(pixPayload)}`;
-
-    const message = `Olá, *${order.customer_name}*!\n\nAqui estão os dados para pagamento do seu pedido *${order.number}*:\n\n*Valor a Pagar:* *${formatCurrency(balance)}*\n\n*Chave Copia e Cola PIX:*\n\`\`\`${pixPayload}\`\`\`\n\n*QR Code de Pagamento:*\n${qrCodeUrl}\n\nApós realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = `Olá, *${order.customer_name}*!\n\nAqui estão os dados para pagamento do seu pedido *${order.number}*:\n\n*Valor a Pagar:* *${formatCurrency(balance)}*\n\n*Chave Copia e Cola PIX:*\n\`\`\`${pixPayload}\`\`\`\n\nApós realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;
@@ -541,7 +539,22 @@ export default function OrdersPage() {
 
   // Compute variables for the printed receipt template
   const receiptNumber = activePrintOrder ? `REC-${activePrintOrder.number.replace('ORD-', '')}-${Date.now().toString().slice(-4)}` : '';
-  const customerDoc = activePrintOrder ? (customers.find(c => c.name === activePrintOrder.customer_name)?.document || '000.000.000-00') : '';
+  const activePrintCustomer = activePrintOrder
+    ? customers.find(c => c.id === activePrintOrder.customer_id || c.name === activePrintOrder.customer_name)
+    : null;
+  const customerDoc = activePrintCustomer?.document || '000.000.000-00';
+  const customerContactLine = [
+    activePrintCustomer?.phone ? `Telefone: ${activePrintCustomer.phone}` : '',
+    activePrintCustomer?.email ? `E-mail: ${activePrintCustomer.email}` : ''
+  ].filter(Boolean).join(' | ');
+  const customerAddressLine = activePrintCustomer?.address
+    ? [
+        activePrintCustomer.address.street && activePrintCustomer.address.number ? `${activePrintCustomer.address.street}, ${activePrintCustomer.address.number}` : activePrintCustomer.address.street,
+        activePrintCustomer.address.neighborhood,
+        activePrintCustomer.address.city && activePrintCustomer.address.state ? `${activePrintCustomer.address.city} - ${activePrintCustomer.address.state}` : activePrintCustomer.address.city,
+        activePrintCustomer.address.zip_code ? `CEP ${activePrintCustomer.address.zip_code}` : ''
+      ].filter(Boolean).join(' - ')
+    : '';
   const paymentType = activePrintOrder ? (activePrintOrder.paid_amount >= activePrintOrder.total_amount ? 'Total' : activePrintOrder.paid_amount > 0 ? 'Parcial / Entrada' : 'Pendente') : '';
   const itemsDescription = activePrintOrder ? activePrintOrder.items.map(i => `${i.quantity}x ${i.product_name}`).join('\n') : '';
   
@@ -560,6 +573,7 @@ export default function OrdersPage() {
     company?.city && company?.state ? `${company.city} - ${company.state}` : '',
     company?.cep ? `CEP ${company.cep}` : ''
   ].filter(Boolean).join(' - ');
+  const showCompanyAddressOnPrint = settings.footer_show_address !== false;
   const companyContactLine = [
     company?.phone ? `Contato: ${company.phone}` : '',
     company?.email ? `E-mail: ${company.email}` : ''
@@ -1388,7 +1402,7 @@ export default function OrdersPage() {
               )}
               <div className="space-y-0.5">
                 <p className="text-[10px] text-zinc-600">CNPJ: {companyDocument}</p>
-                {companyAddressLine && <p className="text-[9px] text-zinc-600 max-w-xs">{companyAddressLine}</p>}
+                {showCompanyAddressOnPrint && companyAddressLine && <p className="text-[9px] text-zinc-600 max-w-xs">{companyAddressLine}</p>}
                 {companyContactLine && <p className="text-[9px] text-zinc-600 max-w-xs">{companyContactLine}</p>}
               </div>
             </div>
@@ -1405,6 +1419,16 @@ export default function OrdersPage() {
               <p><strong>N. do Pedido:</strong> {activePrintOrder.number}</p>
               <p><strong>Data de Emissao:</strong> {new Date(activePrintOrder.created_at).toLocaleDateString('pt-BR')}</p>
             </div>
+
+            <div className="space-y-1 text-[10px] border border-zinc-200 rounded-md p-2">
+              <strong>Dados do Cliente Final:</strong>
+              <div className="grid grid-cols-2 gap-2 text-zinc-700">
+                <p><strong>Cliente:</strong> {activePrintOrder.customer_name}</p>
+                <p><strong>CPF/CNPJ:</strong> {customerDoc}</p>
+                {customerContactLine && <p className="col-span-2"><strong>Contato:</strong> {customerContactLine}</p>}
+                {customerAddressLine && <p className="col-span-2"><strong>Endereco:</strong> {customerAddressLine}</p>}
+              </div>
+            </div>
             
             {activePrintMode === 'receipt' ? (
               <p>
@@ -1412,8 +1436,6 @@ export default function OrdersPage() {
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2 text-[10px]">
-                <p><strong>Cliente:</strong> {activePrintOrder.customer_name}</p>
-                <p><strong>CPF/CNPJ:</strong> {customerDoc}</p>
                 <p><strong>Status do Pedido:</strong> {activePrintOrder.status.replaceAll('_', ' ').toUpperCase()}</p>
                 <p><strong>Status do Pagamento:</strong> {activePrintOrder.payment_status.toUpperCase()}</p>
               </div>
