@@ -192,7 +192,7 @@ export default function POSPage() {
       : [selectedCategory, ...categories.filter(c => c.parent_id === selectedCategory).map(c => c.id)];
 
     const matchesCategory = selectedCategory === 'todos' || selectedCategoryIds.includes(p.category_id);
-    return matchesSearch && matchesCategory && p.active;
+    return matchesSearch && matchesCategory;
   });
 
   const getSelectedCustomer = () => {

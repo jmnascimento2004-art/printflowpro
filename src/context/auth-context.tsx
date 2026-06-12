@@ -27,17 +27,17 @@ const EMPTY_PROFILE: UserProfile = {
   id: 'auth-pending',
   company_id: '',
   auth_user_id: null,
-  name: 'Usuário sem perfil',
+  name: 'Usuario sem perfil',
   email: '',
   role: 'vendas',
-  active: false
+  active: false,
 };
 
 const provisionCurrentAuthUser = async (): Promise<UserProfile | null> => {
   const { data, error } = await supabase.rpc('provision_current_auth_user');
 
   if (error || !data) {
-    warnCaught('Erro capturado:', error);
+    warnCaught('Erro ao provisionar perfil do usuario autenticado:', error);
     return null;
   }
 
@@ -50,6 +50,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  const applyProvisionedProfile = async () => {
+    const provisionedProfile = await provisionCurrentAuthUser();
+
+    if (provisionedProfile?.active) {
+      setActiveProfileState(provisionedProfile);
+      setAuthError(null);
+      return true;
+    }
+
+    return false;
+  };
+
   const loadProfile = async (currentSession: Session | null) => {
     if (!currentSession?.user) {
       setActiveProfileState(EMPTY_PROFILE);
@@ -58,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const userId = currentSession.user.id;
-    const userEmail = currentSession.user.email;
+    const userEmail = currentSession.user.email || '';
 
     const { data, error } = await supabase
       .from('profiles')
@@ -69,33 +81,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .maybeSingle();
 
     if (error) {
+      const repaired = await applyProvisionedProfile();
+      if (repaired) return;
+
       setActiveProfileState(EMPTY_PROFILE);
-      setAuthError('Não foi possível carregar o perfil vinculado a esta sessão.');
+      setAuthError('Nao foi possivel carregar ou reparar o perfil vinculado a esta sessao. Execute o SQL de reparo de Auth/Profiles no Supabase e tente novamente.');
       return;
     }
 
     if (!data) {
-      const provisionedProfile = await provisionCurrentAuthUser();
-
-      if (provisionedProfile?.active) {
-        setActiveProfileState(provisionedProfile);
-        setAuthError(null);
-        return;
-      }
+      const repaired = await applyProvisionedProfile();
+      if (repaired) return;
 
       setActiveProfileState({
         ...EMPTY_PROFILE,
         auth_user_id: userId,
-        email: userEmail || ''
+        email: userEmail,
       });
-      setAuthError('Sua conta existe, mas ainda nao possui um perfil ativo no ERP. Execute a migration de reparo de perfil no Supabase e tente novamente.');
+      setAuthError('Sua conta existe, mas ainda nao possui um perfil ativo no ERP. Execute o SQL de reparo de Auth/Profiles no Supabase e tente novamente.');
       return;
     }
 
     if (!data.auth_user_id) {
       const { data: claimedProfile, error: claimError } = await supabase
         .from('profiles')
-        .update({ auth_user_id: userId })
+        .update({ auth_user_id: userId, active: true })
         .eq('id', data.id)
         .select('*')
         .maybeSingle();
@@ -105,6 +115,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthError(null);
         return;
       }
+
+      const repaired = await applyProvisionedProfile();
+      if (repaired) return;
     }
 
     setActiveProfileState(data as UserProfile);
@@ -119,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
 
       if (error) {
-        setAuthError('Não foi possível restaurar a sessão.');
+        setAuthError('Nao foi possivel restaurar a sessao.');
       }
 
       setSession(data.session);
@@ -146,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
-      password
+      password,
     });
 
     if (error) {
@@ -166,9 +179,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       options: {
         data: {
           name: name.trim(),
-          company_name: companyName?.trim() || 'Minha empresa'
-        }
-      }
+          company_name: companyName?.trim() || 'Minha empresa',
+        },
+      },
     });
 
     if (error) {
@@ -213,7 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         hasRole,
         signIn,
         signUp,
-        logout
+        logout,
       }}
     >
       {children}

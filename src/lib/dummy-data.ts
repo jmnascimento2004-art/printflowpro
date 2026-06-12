@@ -80,6 +80,7 @@ export interface Settings {
   pix_key: string;
   pix_key_type: string;
   bank_name: string;
+  profit_margin: number;
   tax_rate: number;
   commission_rate: number;
   top_bar_hours: string;
@@ -184,6 +185,15 @@ export interface VolumePriceTier {
   price: number;
 }
 
+export interface ProductOption {
+  name: string;
+}
+
+export interface ProductColorOption {
+  name: string;
+  hex?: string;
+}
+
 export interface Product {
   id: string;
   company_id: string;
@@ -198,10 +208,13 @@ export interface Product {
   min_stock: number;
   current_stock: number;
   active: boolean;
+  catalog_active?: boolean;
   pricing_details?: PricingDetails;
   created_at: string;
   image_url?: string;
   volume_pricing?: VolumePriceTier[];
+  variant_options?: ProductOption[];
+  color_options?: ProductColorOption[];
   is_promo?: boolean;
   is_highlight?: boolean;
 }
@@ -216,6 +229,8 @@ export interface QuoteItem {
   details?: {
     width?: number;
     height?: number;
+    variant?: string;
+    color?: string;
     notes?: string;
   };
 }
@@ -251,6 +266,8 @@ export interface OrderItem {
   details?: {
     width?: number;
     height?: number;
+    variant?: string;
+    color?: string;
     notes?: string;
   };
   outsourced: boolean;
@@ -388,14 +405,14 @@ export const DUMMY_COMPANY: Company = {
   show_payments_mastercard: true,
   show_payments_elo: true,
   show_payments_hipercard: true,
-  show_payments_diners: true,
-  show_payments_amex: true,
-  show_payments_boleto: true,
-  show_payments_deposito: true,
-  show_payments_transferencia: true,
+  show_payments_diners: false,
+  show_payments_amex: false,
+  show_payments_boleto: false,
+  show_payments_deposito: false,
+  show_payments_transferencia: false,
   show_payments_pix: true,
   show_delivery_sedex: true,
-  show_delivery_pac: true,
+  show_delivery_pac: false,
   show_delivery_correios: true,
   show_delivery_jadlog: true,
   show_delivery_motoboy: true,
@@ -1381,6 +1398,7 @@ export const DUMMY_SETTINGS: Settings = {
   pix_key: 'financeiro@printflowpro.com.br',
   pix_key_type: 'email',
   bank_name: 'Banco Sicoob',
+  profit_margin: 40.0,
   tax_rate: 6.0,
   commission_rate: 5.0,
   top_bar_hours: 'Segunda à Sexta: 8h às 12h / 13h30 às 18h',

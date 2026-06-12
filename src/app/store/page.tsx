@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
-import { formatCEP, getProductUnitPrice, sanitizeRichTextHtml } from '@/lib/utils';
+import { formatCEP, getProductUnitPrice, normalizeRichTextHtml, sanitizeRichTextHtml } from '@/lib/utils';
 import { safeHref } from '@/lib/safe-url';
 import { BrandLogo, BrandMark } from '@/components/brand';
 
@@ -39,6 +39,8 @@ interface CartItem {
   quantity: number;
   width?: number;
   height?: number;
+  variant?: string;
+  color?: string;
   calculatedPrice: number;
 }
 
@@ -270,6 +272,8 @@ export default function StorefrontPage() {
   const [configQty, setConfigQty] = useState(1);
   const [configWidth, setConfigWidth] = useState(1.0);
   const [configHeight, setConfigHeight] = useState(1.0);
+  const [configVariant, setConfigVariant] = useState('');
+  const [configColor, setConfigColor] = useState('');
 
   // Client checkout info
   const [clientName, setClientName] = useState('');
@@ -302,11 +306,13 @@ export default function StorefrontPage() {
       } else {
         setConfigQty(1);
       }
+      setConfigVariant(activeConfigProduct.variant_options?.[0]?.name || '');
+      setConfigColor(activeConfigProduct.color_options?.[0]?.name || '');
     }
   }, [activeConfigProduct]);
 
   // 2. Filter products based on active status, category, and search query
-  const activeProducts = (products || []).filter(p => p && p.active);
+  const activeProducts = (products || []).filter(p => p && p.catalog_active !== false);
   const searchedProducts = searchQuery.trim() !== ''
     ? activeProducts.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -349,6 +355,8 @@ export default function StorefrontPage() {
       quantity: configQty,
       width: ['m2', 'linear'].includes(activeConfigProduct.pricing_type) ? configWidth : undefined,
       height: activeConfigProduct.pricing_type === 'm2' ? configHeight : undefined,
+      variant: configVariant || undefined,
+      color: configColor || undefined,
       calculatedPrice: price
     };
 
@@ -359,6 +367,8 @@ export default function StorefrontPage() {
     setConfigQty(1);
     setConfigWidth(1.0);
     setConfigHeight(1.0);
+    setConfigVariant('');
+    setConfigColor('');
   };
 
   const handleRemoveFromCart = (idx: number) => {
@@ -401,7 +411,9 @@ export default function StorefrontPage() {
       details: {
         width: c.width,
         height: c.height,
-        notes: 'Enviado pelo catálogo online'
+        variant: c.variant,
+        color: c.color,
+        notes: ['Enviado pelo catálogo online', c.variant ? `Variacao: ${c.variant}` : '', c.color ? `Cor: ${c.color}` : ''].filter(Boolean).join(' | ')
       }
     }));
 
@@ -409,7 +421,9 @@ export default function StorefrontPage() {
       .map((item, index) => {
         const dimensions = [
           item.width ? `largura ${item.width}m` : '',
-          item.height ? `altura ${item.height}m` : ''
+          item.height ? `altura ${item.height}m` : '',
+          item.variant ? `variacao ${item.variant}` : '',
+          item.color ? `cor ${item.color}` : ''
         ].filter(Boolean).join(', ');
         const config = dimensions ? ` (${dimensions})` : '';
         return `${index + 1}. ${item.product.name} - qtd ${item.quantity}${config} - total ${formatCurrency(item.quantity * item.calculatedPrice)}`;
@@ -1433,6 +1447,66 @@ export default function StorefrontPage() {
                   </div>
                 )}
 
+                {((activeConfigProduct.variant_options && activeConfigProduct.variant_options.length > 0) ||
+                  (activeConfigProduct.color_options && activeConfigProduct.color_options.length > 0)) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {activeConfigProduct.variant_options && activeConfigProduct.variant_options.length > 0 && (
+                      <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl space-y-2">
+                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                          Selecione a Variacao:
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {activeConfigProduct.variant_options.map((option) => {
+                            const isSelected = configVariant === option.name;
+                            return (
+                              <button
+                                key={option.name}
+                                type="button"
+                                onClick={() => setConfigVariant(option.name)}
+                                className={`px-3 py-2 rounded-xl border text-[10px] font-bold transition-all ${
+                                  isSelected
+                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-600/10'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-500/40'
+                                }`}
+                              >
+                                {option.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeConfigProduct.color_options && activeConfigProduct.color_options.length > 0 && (
+                      <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl space-y-2">
+                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                          Selecione a Cor:
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {activeConfigProduct.color_options.map((option) => {
+                            const isSelected = configColor === option.name;
+                            return (
+                              <button
+                                key={option.name}
+                                type="button"
+                                onClick={() => setConfigColor(option.name)}
+                                className={`px-3 py-2 rounded-xl border text-[10px] font-bold transition-all inline-flex items-center gap-1.5 ${
+                                  isSelected
+                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-600/10'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-500/40'
+                                }`}
+                              >
+                                <span className="h-3 w-3 rounded-full border border-slate-300" style={{ backgroundColor: option.hex || '#111827' }} />
+                                {option.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Quantity Selection */}
                 {activeConfigProduct.volume_pricing && activeConfigProduct.volume_pricing.length > 0 ? (
                   /* Predefined volume tiers selection (no custom input) */
@@ -1574,6 +1648,11 @@ export default function StorefrontPage() {
                         {item.width && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
                             Dimensões: {item.width}m {item.height ? `x ${item.height}m` : 'linear'}
+                          </div>
+                        )}
+                        {(item.variant || item.color) && (
+                          <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                            {[item.variant ? `Variacao: ${item.variant}` : '', item.color ? `Cor: ${item.color}` : ''].filter(Boolean).join(' | ')}
                           </div>
                         )}
                         <span className="text-[10px] text-slate-500 mt-0.5 block font-semibold">{item.quantity}x {formatCurrency(item.calculatedPrice)}</span>
@@ -2033,28 +2112,28 @@ export default function StorefrontPage() {
                   <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Hipercard</span>
                 )
               )}
-              {company.show_payments_diners !== false && (
+              {false && company.show_payments_diners !== false && (
                 company.img_payments_diners ? (
                   <img src={company.img_payments_diners} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Diners Club" title="Diners Club" />
                 ) : (
                   <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Diners</span>
                 )
               )}
-              {company.show_payments_amex !== false && (
+              {false && company.show_payments_amex !== false && (
                 company.img_payments_amex ? (
                   <img src={company.img_payments_amex} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="American Express" title="American Express" />
                 ) : (
                   <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Amex</span>
                 )
               )}
-              {company.show_payments_boleto !== false && (
+              {false && company.show_payments_boleto !== false && (
                 company.img_payments_boleto ? (
                   <img src={company.img_payments_boleto} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Boleto Bancário" title="Boleto Bancário" />
                 ) : (
                   <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Boleto</span>
                 )
               )}
-              {company.show_payments_transferencia !== false && (
+              {false && company.show_payments_transferencia !== false && (
                 company.img_payments_transferencia ? (
                   <img src={company.img_payments_transferencia} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Transferência" title="Transferência" />
                 ) : (
@@ -2082,7 +2161,7 @@ export default function StorefrontPage() {
                   <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">SEDEX</span>
                 )
               )}
-              {company.show_delivery_pac !== false && (
+              {false && company.show_delivery_pac !== false && (
                 company.img_delivery_pac ? (
                   <img src={company.img_delivery_pac} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="PAC" title="PAC" />
                 ) : (
@@ -2235,9 +2314,16 @@ export default function StorefrontPage() {
               </button>
             </div>
 
-            <div className="max-h-[350px] overflow-y-auto pr-1 text-xs leading-relaxed text-slate-600 space-y-3 whitespace-pre-line font-medium">
-              {company.refund_policy || 'Nenhuma política cadastrada no momento. Entre com contato com o suporte.'}
-            </div>
+            {company.refund_policy ? (
+              <div
+                className="rich-text-description max-h-[350px] overflow-y-auto pr-1 text-xs leading-relaxed text-slate-600 font-medium"
+                dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(company.refund_policy) }}
+              />
+            ) : (
+              <div className="max-h-[350px] overflow-y-auto pr-1 text-xs leading-relaxed text-slate-600 font-medium">
+                Nenhuma política cadastrada no momento. Entre com contato com o suporte.
+              </div>
+            )}
 
             <div className="flex justify-end pt-3 border-t border-slate-100">
               <button

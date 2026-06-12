@@ -32,10 +32,11 @@ import {
 } from 'lucide-react';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
-import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
+import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber, normalizeRichTextHtml } from '@/lib/utils';
 import { lookupCNPJ } from '@/lib/cnpj-lookup';
 import { DUMMY_COMPANY, PickupPoint, UserProfile } from '@/lib/dummy-data';
 import { warnCaught } from '@/lib/safe-log';
+import { RichTextEditor } from '@/components/rich-text-editor';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
 type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'sistema';
@@ -125,7 +126,7 @@ export default function SettingsPage() {
   const [compInstagram, setCompInstagram] = useState(company.instagram_url || '');
   const [compFacebook, setCompFacebook] = useState(company.facebook_url || '');
   const [compYoutube, setCompYoutube] = useState(company.youtube_url || '');
-  const [compRefundPolicy, setCompRefundPolicy] = useState(company.refund_policy || '');
+  const [compRefundPolicy, setCompRefundPolicy] = useState(normalizeRichTextHtml(company.refund_policy || ''));
 
   // Benefit cards states
   const [benefits1Title, setBenefits1Title] = useState(company.card_benefits_1_title || 'Até 4x Sem Juros');
@@ -149,14 +150,14 @@ export default function SettingsPage() {
   const [payMastercard, setPayMastercard] = useState(company.show_payments_mastercard !== false);
   const [payElo, setPayElo] = useState(company.show_payments_elo !== false);
   const [payHipercard, setPayHipercard] = useState(company.show_payments_hipercard !== false);
-  const [payDiners, setPayDiners] = useState(company.show_payments_diners !== false);
-  const [payAmex, setPayAmex] = useState(company.show_payments_amex !== false);
-  const [payBoleto, setPayBoleto] = useState(company.show_payments_boleto !== false);
-  const [payTransferencia, setPayTransferencia] = useState(company.show_payments_transferencia !== false);
+  const [payDiners, setPayDiners] = useState(company.show_payments_diners === true);
+  const [payAmex, setPayAmex] = useState(company.show_payments_amex === true);
+  const [payBoleto, setPayBoleto] = useState(company.show_payments_boleto === true);
+  const [payTransferencia, setPayTransferencia] = useState(company.show_payments_transferencia === true);
   const [payPix, setPayPix] = useState(company.show_payments_pix !== false);
 
   const [delSedex, setDelSedex] = useState(company.show_delivery_sedex !== false);
-  const [delPac, setDelPac] = useState(company.show_delivery_pac !== false);
+  const [delPac, setDelPac] = useState(company.show_delivery_pac === true);
   const [delCorreios, setDelCorreios] = useState(company.show_delivery_correios !== false);
   const [delJadlog, setDelJadlog] = useState(company.show_delivery_jadlog !== false);
   const [delMotoboy, setDelMotoboy] = useState(company.show_delivery_motoboy !== false);
@@ -229,6 +230,10 @@ export default function SettingsPage() {
     setImgVal: (val: string) => void,
     defaultSvg: string
   ) => {
+    if (['Diners Club', 'Amex', 'Boleto Bancário', 'Boleto BancÃ¡rio', 'Transferência', 'TransferÃªncia', 'PAC'].includes(label)) {
+      return null;
+    }
+
     return (
       <div className="flex flex-col p-3 bg-secondary/10 border border-border rounded-xl space-y-3">
         <div className="flex items-center justify-between">
@@ -361,8 +366,15 @@ export default function SettingsPage() {
   const [pointHoursWeek, setPointHoursWeek] = useState('');
   const [pointHoursSat, setPointHoursSat] = useState('');
   const [pointActive, setPointActive] = useState(true);
+  const [profitMarginRate, setProfitMarginRate] = useState(settings.profit_margin !== undefined && settings.profit_margin !== null ? settings.profit_margin : 40.0);
   const [taxRate, setTaxRate] = useState(settings.tax_rate !== undefined && settings.tax_rate !== null ? settings.tax_rate : 6.0);
   const [commissionRate, setCommissionRate] = useState(settings.commission_rate !== undefined && settings.commission_rate !== null ? settings.commission_rate : 5.0);
+
+  useEffect(() => {
+    setProfitMarginRate(settings.profit_margin !== undefined && settings.profit_margin !== null ? settings.profit_margin : 40.0);
+    setTaxRate(settings.tax_rate !== undefined && settings.tax_rate !== null ? settings.tax_rate : 6.0);
+    setCommissionRate(settings.commission_rate !== undefined && settings.commission_rate !== null ? settings.commission_rate : 5.0);
+  }, [settings.profit_margin, settings.tax_rate, settings.commission_rate]);
 
   // Storefront Header & Footer Customization State
   const [topBarHours, setTopBarHours] = useState(settings.top_bar_hours || 'Segunda à Sexta: 8h às 12h / 13h30 às 18h');
@@ -388,6 +400,96 @@ export default function SettingsPage() {
 
   const [notification, setNotification] = useState<string | null>(null);
 
+  useEffect(() => {
+    setPixKey(settings.pix_key || 'financeiro@printflowpro.com.br');
+    setPixKeyType(settings.pix_key_type || 'email');
+    setBankName(settings.bank_name || 'Banco Sicoob');
+    setCompanyAddress(settings.company_address || 'Av. Paulista, 1000 - Bela Vista, Sao Paulo - SP, 01310-100');
+    setDeliveryMotoboyPriceKm(settings.delivery_motoboy_price_km !== undefined && settings.delivery_motoboy_price_km !== null ? settings.delivery_motoboy_price_km : 2.50);
+    setDeliveryCarPriceKm(settings.delivery_car_price_km !== undefined && settings.delivery_car_price_km !== null ? settings.delivery_car_price_km : 4.50);
+    setDeliveryMinFee(settings.delivery_min_fee !== undefined && settings.delivery_min_fee !== null ? settings.delivery_min_fee : 10.00);
+    setTopBarHours(settings.top_bar_hours || 'Segunda a Sexta: 8h as 12h / 13h30 as 18h');
+    setTopBarShowPickup(settings.top_bar_show_pickup !== false);
+    setTopBarPhone(settings.top_bar_phone || '(51) 98765-4321');
+    setFooterShowAddress(settings.footer_show_address !== false);
+    setFooterHoursMessage(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
+    setFooterHoursWeek(settings.footer_hours_week || '8h as 12h / 13h30 as 18h');
+    setFooterHoursSat(settings.footer_hours_sat || 'Segunda a Sexta-feira');
+    setFooterHoursSatTime(settings.footer_hours_sat_time || 'Fechado');
+    setFooterHoursSatDesc(settings.footer_hours_sat_desc || 'Sabado');
+    setSaasEnabled(settings.saas_enabled !== undefined ? settings.saas_enabled : true);
+    setNfeEnabled(settings.nfe_enabled || false);
+    setAiEnabled(settings.ai_enabled || false);
+  }, [settings]);
+
+  useEffect(() => {
+    setCompName(company.name || '');
+    setCompDocument(company.document || '');
+    setCompLogoLight(company.logo_light || '');
+    setCompLogoDark(company.logo_dark || '');
+    setCompFavicon(company.favicon || '');
+    setCompThemeColor(company.theme_color || 'violet');
+    setCompPhone(company.phone || '');
+    setCompEmail(company.email || '');
+    setCompCEP(company.cep || '');
+    setCompStreet(company.street || '');
+    setCompNumber(company.number || '');
+    setCompNeighborhood(company.neighborhood || '');
+    setCompCity(company.city || '');
+    setCompState(company.state || '');
+    setCompInstagram(company.instagram_url || '');
+    setCompFacebook(company.facebook_url || '');
+    setCompYoutube(company.youtube_url || '');
+    setCompRefundPolicy(normalizeRichTextHtml(company.refund_policy || ''));
+
+    setBenefits1Title(company.card_benefits_1_title || 'Ate 4x Sem Juros');
+    setBenefits1Subtitle(company.card_benefits_1_subtitle || 'Parcela minima de R$ 300,00 nos cartoes Visa/Master.');
+    setBenefits1Active(company.card_benefits_1_active !== false);
+    setBenefits2Title(company.card_benefits_2_title || 'Desconto no PIX');
+    setBenefits2Subtitle(company.card_benefits_2_subtitle || 'Ganhe 5% de desconto automatico em pagamentos a vista.');
+    setBenefits2Active(company.card_benefits_2_active !== false);
+    setBenefits3Title(company.card_benefits_3_title || 'Frete para todo Brasil');
+    setBenefits3Subtitle(company.card_benefits_3_subtitle || 'Despacho via Correios ou Transportadora com codigo de rastreamento.');
+    setBenefits3Active(company.card_benefits_3_active !== false);
+    setBenefits4Title(company.card_benefits_4_title || 'Pontos de Coleta');
+    setBenefits4Subtitle(company.card_benefits_4_subtitle || 'Retire sem custos em qualquer um de nossos balcoes autorizados.');
+    setBenefits4Active(company.card_benefits_4_active !== false);
+
+    setPayVisa(company.show_payments_visa !== false);
+    setPayMastercard(company.show_payments_mastercard !== false);
+    setPayElo(company.show_payments_elo !== false);
+    setPayHipercard(company.show_payments_hipercard !== false);
+    setPayDiners(company.show_payments_diners === true);
+    setPayAmex(company.show_payments_amex === true);
+    setPayBoleto(company.show_payments_boleto === true);
+    setPayTransferencia(company.show_payments_transferencia === true);
+    setPayPix(company.show_payments_pix !== false);
+    setDelSedex(company.show_delivery_sedex !== false);
+    setDelPac(company.show_delivery_pac === true);
+    setDelCorreios(company.show_delivery_correios !== false);
+    setDelJadlog(company.show_delivery_jadlog !== false);
+    setDelMotoboy(company.show_delivery_motoboy !== false);
+    setSecLetsencrypt(company.show_security_letsencrypt !== false);
+    setSecGoogle(company.show_security_google !== false);
+
+    setImgVisa(company.img_payments_visa || '');
+    setImgMastercard(company.img_payments_mastercard || '');
+    setImgElo(company.img_payments_elo || '');
+    setImgHipercard(company.img_payments_hipercard || '');
+    setImgDiners(company.img_payments_diners || '');
+    setImgAmex(company.img_payments_amex || '');
+    setImgBoleto(company.img_payments_boleto || '');
+    setImgTransferencia(company.img_payments_transferencia || '');
+    setImgPix(company.img_payments_pix || '');
+    setImgSedex(company.img_delivery_sedex || '');
+    setImgPac(company.img_delivery_pac || '');
+    setImgCorreios(company.img_delivery_correios || '');
+    setImgJadlog(company.img_delivery_jadlog || '');
+    setImgMotoboy(company.img_delivery_motoboy || '');
+    setImgLetsencrypt(company.img_security_letsencrypt || '');
+    setImgGoogle(company.img_security_google || '');
+  }, [company]);
+
   // Safeguard: redirect if not admin and on funcionarios tab
   useEffect(() => {
     if (activeTab === 'funcionarios' && activeProfile?.role !== 'admin') {
@@ -397,10 +499,10 @@ export default function SettingsPage() {
 
   // Auto-sync company origin address from company fields
   useEffect(() => {
-    if (compStreet || compNumber || compNeighborhood || compCity || compState || compCEP) {
+    if (!settings.company_address && (compStreet || compNumber || compNeighborhood || compCity || compState || compCEP)) {
       setCompanyAddress(`${compStreet}, ${compNumber} - ${compNeighborhood}, ${compCity} - ${compState}${compCEP ? `, CEP ${compCEP}` : ''}`);
     }
-  }, [compStreet, compNumber, compNeighborhood, compCity, compState, compCEP]);
+  }, [settings.company_address, compStreet, compNumber, compNeighborhood, compCity, compState, compCEP]);
 
   // Employee-related state variables
   const [empSearchTerm, setEmpSearchTerm] = useState('');
@@ -666,6 +768,7 @@ export default function SettingsPage() {
       pix_key: pixKey,
       pix_key_type: pixKeyType,
       bank_name: bankName,
+      profit_margin: Number(profitMarginRate),
       tax_rate: Number(taxRate),
       commission_rate: Number(commissionRate),
       top_bar_hours: topBarHours,
@@ -706,18 +809,18 @@ export default function SettingsPage() {
       instagram_url: normalizeSocialHandle(compInstagram),
       facebook_url: normalizeSocialHandle(compFacebook),
       youtube_url: normalizeSocialHandle(compYoutube),
-      refund_policy: compRefundPolicy,
+      refund_policy: normalizeRichTextHtml(compRefundPolicy),
       show_payments_visa: payVisa,
       show_payments_mastercard: payMastercard,
       show_payments_elo: payElo,
       show_payments_hipercard: payHipercard,
-      show_payments_diners: payDiners,
-      show_payments_amex: payAmex,
-      show_payments_boleto: payBoleto,
-      show_payments_transferencia: payTransferencia,
+      show_payments_diners: false,
+      show_payments_amex: false,
+      show_payments_boleto: false,
+      show_payments_transferencia: false,
       show_payments_pix: payPix,
       show_delivery_sedex: delSedex,
-      show_delivery_pac: delPac,
+      show_delivery_pac: false,
       show_delivery_correios: delCorreios,
       show_delivery_jadlog: delJadlog,
       show_delivery_motoboy: delMotoboy,
@@ -1554,12 +1657,11 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-1.5 text-xs">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase">Texto da Política (Será exibido em modal no catálogo)</label>
-                    <textarea
+                    <RichTextEditor
                       value={compRefundPolicy}
-                      onChange={(e) => setCompRefundPolicy(e.target.value)}
+                      onChange={setCompRefundPolicy}
                       placeholder="Escreva aqui a política de troca, reembolso e termos de devolução..."
-                      rows={4}
-                      className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none resize-none font-medium"
+                      minHeightClass="min-h-[170px]"
                     />
                   </div>
                 </div>
@@ -1789,7 +1891,17 @@ export default function SettingsPage() {
                     <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Alíquotas Padrão de Precificação</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">Margem Líquida Padrão (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={profitMarginRate}
+                        onChange={(e) => setProfitMarginRate(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
+                      />
+                    </div>
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground">Alíquota Média de Imposto Simples (%)</label>
                       <input
@@ -1828,8 +1940,6 @@ export default function SettingsPage() {
                       {renderBadgeConfigItem("Mastercard", payMastercard, setPayMastercard, imgMastercard, setImgMastercard, DUMMY_COMPANY.img_payments_mastercard || '')}
                       {renderBadgeConfigItem("Elo", payElo, setPayElo, imgElo, setImgElo, DUMMY_COMPANY.img_payments_elo || '')}
                       {renderBadgeConfigItem("Hipercard", payHipercard, setPayHipercard, imgHipercard, setImgHipercard, DUMMY_COMPANY.img_payments_hipercard || '')}
-                      {renderBadgeConfigItem("Diners Club", payDiners, setPayDiners, imgDiners, setImgDiners, DUMMY_COMPANY.img_payments_diners || '')}
-                      {renderBadgeConfigItem("Amex", payAmex, setPayAmex, imgAmex, setImgAmex, DUMMY_COMPANY.img_payments_amex || '')}
                       {renderBadgeConfigItem("Boleto Bancário", payBoleto, setPayBoleto, imgBoleto, setImgBoleto, DUMMY_COMPANY.img_payments_boleto || '')}
                       {renderBadgeConfigItem("Transferência", payTransferencia, setPayTransferencia, imgTransferencia, setImgTransferencia, DUMMY_COMPANY.img_payments_transferencia || '')}
                       {renderBadgeConfigItem("PIX", payPix, setPayPix, imgPix, setImgPix, DUMMY_COMPANY.img_payments_pix || '')}
@@ -1841,7 +1951,6 @@ export default function SettingsPage() {
                     <span className="text-[10px] font-extrabold text-primary uppercase block">Formas de Entrega Aceitas</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       {renderBadgeConfigItem("SEDEX", delSedex, setDelSedex, imgSedex, setImgSedex, DUMMY_COMPANY.img_delivery_sedex || '')}
-                      {renderBadgeConfigItem("PAC", delPac, setDelPac, imgPac, setImgPac, DUMMY_COMPANY.img_delivery_pac || '')}
                       {renderBadgeConfigItem("Correios Geral", delCorreios, setDelCorreios, imgCorreios, setImgCorreios, DUMMY_COMPANY.img_delivery_correios || '')}
                       {renderBadgeConfigItem("Jadlog", delJadlog, setDelJadlog, imgJadlog, setImgJadlog, DUMMY_COMPANY.img_delivery_jadlog || '')}
                       {renderBadgeConfigItem("Motoboy", delMotoboy, setDelMotoboy, imgMotoboy, setImgMotoboy, DUMMY_COMPANY.img_delivery_motoboy || '')}

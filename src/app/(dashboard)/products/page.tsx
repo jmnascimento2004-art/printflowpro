@@ -29,6 +29,7 @@ import {
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
 import { formatCurrencyInput, parseCurrencyInputToNumber, sanitizeRichTextHtml, stripRichTextHtml } from '@/lib/utils';
+import { RichTextEditor } from '@/components/rich-text-editor';
 
 function ProductDescriptionEditor({
   value,
@@ -132,8 +133,13 @@ export default function ProductsCRUDPage() {
     adjustStock,
     addCategory,
     updateCategory,
-    deleteCategory
+    deleteCategory,
+    settings
   } = useDatabase();
+
+  const defaultProfitMargin = settings.profit_margin ?? 40;
+  const defaultCommissionRate = settings.commission_rate ?? 5;
+  const defaultTaxRate = settings.tax_rate ?? 6;
 
   const [viewMode, setViewMode] = useState<'products' | 'categories'>('products');
   const [productViewMode, setProductViewMode] = useState<'list' | 'cards'>('list');
@@ -185,6 +191,7 @@ export default function ProductsCRUDPage() {
   const [minStock, setMinStock] = useState(10);
   const [initialStock, setInitialStock] = useState(0); // For creation only
   const [active, setActive] = useState(true);
+  const [catalogActive, setCatalogActive] = useState(true);
   const [isPromo, setIsPromo] = useState(false);
   const [isHighlight, setIsHighlight] = useState(false);
 
@@ -194,6 +201,11 @@ export default function ProductsCRUDPage() {
   const [tempMinQty, setTempMinQty] = useState<number | ''>(2);
   const [tempPrice, setTempPrice] = useState<number>(0);
   const [tempTotalPrice, setTempTotalPrice] = useState<number>(0);
+  const [variantOptions, setVariantOptions] = useState<Array<{ name: string }>>([]);
+  const [colorOptions, setColorOptions] = useState<Array<{ name: string, hex?: string }>>([]);
+  const [tempVariantName, setTempVariantName] = useState('');
+  const [tempColorName, setTempColorName] = useState('');
+  const [tempColorHex, setTempColorHex] = useState('#111827');
 
   const handleTempPriceChange = (val: number, qty: number | '' = tempMinQty) => {
     setTempPrice(val);
@@ -219,9 +231,17 @@ export default function ProductsCRUDPage() {
   };
 
   // Profitability parameters
-  const [profitMargin, setProfitMargin] = useState(40);
-  const [commissionPercent, setCommissionPercent] = useState(5);
-  const [taxPercent, setTaxPercent] = useState(6);
+  const [profitMargin, setProfitMargin] = useState(defaultProfitMargin);
+  const [commissionPercent, setCommissionPercent] = useState(defaultCommissionRate);
+  const [taxPercent, setTaxPercent] = useState(defaultTaxRate);
+
+  useEffect(() => {
+    if (isFormOpen && !isEditing) {
+      setProfitMargin(defaultProfitMargin);
+      setCommissionPercent(defaultCommissionRate);
+      setTaxPercent(defaultTaxRate);
+    }
+  }, [defaultProfitMargin, defaultCommissionRate, defaultTaxRate, isFormOpen, isEditing]);
 
   // Auto calculate suggested sales price based on cost and margins
   useEffect(() => {
@@ -258,8 +278,8 @@ export default function ProductsCRUDPage() {
   // Volume pricing helpers
   const addVolumeTier = () => {
     const qty = typeof tempMinQty === 'number' ? tempMinQty : 0;
-    if (qty <= 1) {
-      alert("A quantidade mínima deve ser maior que 1.");
+    if (qty < 1) {
+      alert("A quantidade minima deve ser pelo menos 1.");
       return;
     }
     if (tempPrice <= 0) {
@@ -281,6 +301,29 @@ export default function ProductsCRUDPage() {
 
   const removeVolumeTier = (qty: number) => {
     setVolumePricing(prev => prev.filter(t => t.min_qty !== qty));
+  };
+
+  const addVariantOption = () => {
+    const value = tempVariantName.trim();
+    if (!value) return;
+    if (variantOptions.some(option => option.name.toLowerCase() === value.toLowerCase())) {
+      alert('Esta variacao ja foi adicionada.');
+      return;
+    }
+    setVariantOptions(prev => [...prev, { name: value }]);
+    setTempVariantName('');
+  };
+
+  const addColorOption = () => {
+    const value = tempColorName.trim();
+    if (!value) return;
+    if (colorOptions.some(option => option.name.toLowerCase() === value.toLowerCase())) {
+      alert('Esta cor ja foi adicionada.');
+      return;
+    }
+    setColorOptions(prev => [...prev, { name: value, hex: tempColorHex }]);
+    setTempColorName('');
+    setTempColorHex('#111827');
   };
 
 
@@ -310,16 +353,22 @@ export default function ProductsCRUDPage() {
     setMinStock(10);
     setInitialStock(0);
     setActive(true);
+    setCatalogActive(true);
     setIsPromo(false);
     setIsHighlight(false);
     setImageUrl('');
     setVolumePricing([]);
+    setVariantOptions([]);
+    setColorOptions([]);
+    setTempVariantName('');
+    setTempColorName('');
+    setTempColorHex('#111827');
     setTempMinQty(2);
     setTempPrice(0);
     setTempTotalPrice(0);
-    setProfitMargin(40);
-    setCommissionPercent(5);
-    setTaxPercent(6);
+    setProfitMargin(defaultProfitMargin);
+    setCommissionPercent(defaultCommissionRate);
+    setTaxPercent(defaultTaxRate);
     setIsEditing(false);
     setIsFormOpen(true);
   };
@@ -335,22 +384,28 @@ export default function ProductsCRUDPage() {
     setSalesPrice(prod.sales_price);
     setStockControlled(prod.stock_controlled);
     setMinStock(prod.min_stock);
-    setActive(prod.active);
+    setActive(true);
+    setCatalogActive(prod.catalog_active ?? true);
     setIsPromo(prod.is_promo || false);
     setIsHighlight(prod.is_highlight || false);
     setImageUrl(prod.image_url || '');
     setVolumePricing(prod.volume_pricing || []);
+    setVariantOptions(prod.variant_options || []);
+    setColorOptions(prod.color_options || []);
+    setTempVariantName('');
+    setTempColorName('');
+    setTempColorHex('#111827');
     setTempMinQty(2);
     setTempPrice(0);
     setTempTotalPrice(0);
     if (prod.pricing_details) {
-      setProfitMargin(prod.pricing_details.markup || 40);
-      setCommissionPercent(prod.pricing_details.commission || 5);
-      setTaxPercent(prod.pricing_details.taxes || 6);
+      setProfitMargin(prod.pricing_details.markup || defaultProfitMargin);
+      setCommissionPercent(prod.pricing_details.commission || defaultCommissionRate);
+      setTaxPercent(prod.pricing_details.taxes || defaultTaxRate);
     } else {
-      setProfitMargin(40);
-      setCommissionPercent(5);
-      setTaxPercent(6);
+      setProfitMargin(defaultProfitMargin);
+      setCommissionPercent(defaultCommissionRate);
+      setTaxPercent(defaultTaxRate);
     }
     setIsEditing(true);
     setIsFormOpen(true);
@@ -367,11 +422,14 @@ export default function ProductsCRUDPage() {
       sales_price: prod.sales_price,
       stock_controlled: prod.stock_controlled,
       min_stock: prod.min_stock,
-      active: prod.active,
+      active: true,
+      catalog_active: prod.catalog_active ?? true,
       is_promo: prod.is_promo || false,
       is_highlight: prod.is_highlight || false,
       image_url: prod.image_url,
       volume_pricing: prod.volume_pricing ? [...prod.volume_pricing] : undefined,
+      variant_options: prod.variant_options ? [...prod.variant_options] : undefined,
+      color_options: prod.color_options ? [...prod.color_options] : undefined,
       pricing_details: prod.pricing_details ? { ...prod.pricing_details } : undefined
     });
 
@@ -381,6 +439,10 @@ export default function ProductsCRUDPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (volumePricing.length === 0) {
+      alert('Adicione pelo menos uma opcao de quantidade para este produto.');
+      return;
+    }
     const cleanDescription = sanitizeRichTextHtml(description);
 
     if (isEditing && selectedProduct) {
@@ -396,11 +458,14 @@ export default function ProductsCRUDPage() {
         sales_price: salesPrice,
         stock_controlled: stockControlled,
         min_stock: minStock,
-        active,
+        active: true,
+        catalog_active: catalogActive,
         is_promo: isPromo,
         is_highlight: isHighlight,
         image_url: imageUrl || undefined,
-        volume_pricing: volumePricing.length > 0 ? volumePricing : undefined,
+        volume_pricing: volumePricing,
+        variant_options: variantOptions.length > 0 ? variantOptions : undefined,
+        color_options: colorOptions.length > 0 ? colorOptions : undefined,
         pricing_details: {
           raw_material_cost: baseCost,
           operating_cost: 0,
@@ -424,11 +489,14 @@ export default function ProductsCRUDPage() {
         sales_price: salesPrice,
         stock_controlled: stockControlled,
         min_stock: minStock,
-        active,
+        active: true,
+        catalog_active: catalogActive,
         is_promo: isPromo,
         is_highlight: isHighlight,
         image_url: imageUrl || undefined,
-        volume_pricing: volumePricing.length > 0 ? volumePricing : undefined,
+        volume_pricing: volumePricing,
+        variant_options: variantOptions.length > 0 ? variantOptions : undefined,
+        color_options: colorOptions.length > 0 ? colorOptions : undefined,
         pricing_details: {
           raw_material_cost: baseCost,
           operating_cost: 0,
@@ -509,7 +577,7 @@ export default function ProductsCRUDPage() {
                 <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
                   <span className="text-[10px] font-bold text-emerald-400 uppercase">Produtos Ativos</span>
                   <h3 className="text-2xl font-black text-emerald-500 mt-2 tracking-tight">
-                    {products.filter(p => p.active).length}
+                    {products.filter(p => p.catalog_active !== false).length}
                   </h3>
                   <p className="text-[10px] text-muted-foreground mt-1">Disponíveis para vendas/loja</p>
                 </div>
@@ -748,11 +816,11 @@ export default function ProductsCRUDPage() {
                               {/* Active Status */}
                               <td className="px-3 py-3.5 text-center">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  prod.active 
+                                  prod.catalog_active !== false
                                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                                     : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                                 }`}>
-                                  {prod.active ? 'ATIVO' : 'INATIVO'}
+                                  {prod.catalog_active !== false ? 'CATALOGO' : 'SOMENTE SAAS'}
                                 </span>
                               </td>
 
@@ -833,11 +901,11 @@ export default function ProductsCRUDPage() {
                                       </p>
                                     </div>
                                     <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[8px] font-black border ${
-                                      prod.active
+                                      prod.catalog_active !== false
                                         ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                                         : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
                                     }`}>
-                                      {prod.active ? 'ATIVO' : 'INATIVO'}
+                                      {prod.catalog_active !== false ? 'CATALOGO' : 'SAAS'}
                                     </span>
                                   </div>
 
@@ -1324,12 +1392,15 @@ export default function ProductsCRUDPage() {
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Status do Produto</label>
                 <select
-                  value={active ? 'true' : 'false'}
-                  onChange={(e) => setActive(e.target.value === 'true')}
+                  value={catalogActive ? 'catalogo' : 'saas'}
+                  onChange={(e) => {
+                    setActive(true);
+                    setCatalogActive(e.target.value === 'catalogo');
+                  }}
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 >
-                  <option value="true">Ativo (Exibir no ERP/Loja)</option>
-                  <option value="false">Inativo (Bloquear venda)</option>
+                  <option value="catalogo">Ativo no Catálogo</option>
+                  <option value="saas">Ativo apenas no SaaS</option>
                 </select>
               </div>
 
@@ -1478,9 +1549,11 @@ export default function ProductsCRUDPage() {
               {/* Description */}
               <div className="md:col-span-2 space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Descrição / Detalhes de Produção</label>
-                <ProductDescriptionEditor
+                <RichTextEditor
                   value={description}
                   onChange={setDescription}
+                  placeholder="Detalhes sobre o produto, aplicacao, materiais..."
+                  minHeightClass="min-h-[136px]"
                 />
               </div>
 
@@ -1570,6 +1643,107 @@ export default function ProductsCRUDPage() {
                     </table>
                   </div>
                 )}
+              </div>
+
+              {/* Variations and colors */}
+              <div className="md:col-span-2 border-t border-border/60 pt-3 space-y-3">
+                <div>
+                  <span className="font-bold text-xs text-foreground block">Variacoes e Cores do Produto</span>
+                  <span className="text-[9px] text-muted-foreground mt-0.5 block">
+                    Opcional: estas opcoes aparecem no catalogo e entram nas observacoes do orcamento.
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="bg-secondary/15 p-3 rounded-xl border border-border space-y-2">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase">Variacoes</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={tempVariantName}
+                        onChange={(e) => setTempVariantName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addVariantOption();
+                          }
+                        }}
+                        placeholder="Ex: Fosco, Brilho, Frente e verso"
+                        className="flex-1 px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground"
+                      />
+                      <button
+                        type="button"
+                        onClick={addVariantOption}
+                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
+                    {variantOptions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {variantOptions.map((option) => (
+                          <button
+                            key={option.name}
+                            type="button"
+                            onClick={() => setVariantOptions(prev => prev.filter(item => item.name !== option.name))}
+                            className="px-2 py-1 rounded-lg bg-primary/10 text-primary text-[10px] font-bold border border-primary/20"
+                            title="Clique para remover"
+                          >
+                            {option.name} x
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-secondary/15 p-3 rounded-xl border border-border space-y-2">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase">Cores</label>
+                    <div className="grid grid-cols-[44px_1fr_40px] gap-2">
+                      <input
+                        type="color"
+                        value={tempColorHex}
+                        onChange={(e) => setTempColorHex(e.target.value)}
+                        className="h-8 w-11 rounded-lg border border-border bg-background p-1"
+                      />
+                      <input
+                        type="text"
+                        value={tempColorName}
+                        onChange={(e) => setTempColorName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addColorOption();
+                          }
+                        }}
+                        placeholder="Ex: Azul, Preto, Vermelho"
+                        className="px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground"
+                      />
+                      <button
+                        type="button"
+                        onClick={addColorOption}
+                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold"
+                      >
+                        +
+                      </button>
+                    </div>
+                    {colorOptions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {colorOptions.map((option) => (
+                          <button
+                            key={option.name}
+                            type="button"
+                            onClick={() => setColorOptions(prev => prev.filter(item => item.name !== option.name))}
+                            className="px-2 py-1 rounded-lg bg-secondary text-foreground text-[10px] font-bold border border-border inline-flex items-center gap-1.5"
+                            title="Clique para remover"
+                          >
+                            <span className="h-2.5 w-2.5 rounded-full border border-border" style={{ backgroundColor: option.hex || '#111827' }} />
+                            {option.name} x
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Stock control configurations */}

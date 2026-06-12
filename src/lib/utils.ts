@@ -198,8 +198,30 @@ export function stripRichTextHtml(value: string = ''): string {
     .trim();
 }
 
+function decodeRichTextEntities(value: string = ''): string {
+  let decoded = value;
+
+  for (let index = 0; index < 2; index += 1) {
+    decoded = decoded
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&nbsp;/gi, ' ');
+  }
+
+  return decoded;
+}
+
+export function normalizeRichTextHtml(value: string = ''): string {
+  const decodedValue = decodeRichTextEntities(value);
+  const decodedLooksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(decodedValue);
+  return sanitizeRichTextHtml(decodedLooksLikeHtml ? decodedValue : value);
+}
+
 export function sanitizeRichTextHtml(value: string = ''): string {
-  const allowedTags = ['b', 'strong', 'i', 'em', 'u', 'br', 'p', 'div', 'ul', 'ol', 'li'];
+  const allowedTags = ['a', 'b', 'blockquote', 'br', 'div', 'em', 'h1', 'h2', 'h3', 'i', 'img', 'li', 'ol', 'p', 'span', 'strong', 's', 'u', 'ul'];
   const hasHtml = /<\/?[a-z][\s\S]*>/i.test(value);
   const escapeHtml = (text: string) =>
     text
@@ -216,10 +238,36 @@ export function sanitizeRichTextHtml(value: string = ''): string {
   return value
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi, '')
     .replace(/<\/?([a-z0-9]+)(?:\s[^>]*)?>/gi, (match, tag) => {
       const cleanTag = String(tag).toLowerCase();
       if (!allowedTags.includes(cleanTag)) return '';
-      return match.startsWith('</') ? `</${cleanTag}>` : `<${cleanTag}>`;
+      if (match.startsWith('</')) return `</${cleanTag}>`;
+
+      if (cleanTag === 'a') {
+        const href = match.match(/\shref\s*=\s*["']([^"']+)["']/i)?.[1] || '';
+        const safeHref = /^(https?:\/\/|mailto:|tel:)/i.test(href) ? href : '';
+        return safeHref ? `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">` : '<a>';
+      }
+
+      if (cleanTag === 'img') {
+        const src = match.match(/\ssrc\s*=\s*["']([^"']+)["']/i)?.[1] || '';
+        const alt = match.match(/\salt\s*=\s*["']([^"']*)["']/i)?.[1] || '';
+        const safeSrc = /^(https?:\/\/|data:image\/(png|jpe?g|gif|webp);base64,)/i.test(src) ? src : '';
+        return safeSrc ? `<img src="${safeSrc}" alt="${escapeHtml(alt)}" />` : '';
+      }
+
+      if (cleanTag === 'span') {
+        const color = match.match(/color\s*:\s*(#[0-9a-f]{3,8}|rgb\([^)]+\)|[a-z]+)\s*;?/i)?.[1] || '';
+        const background = match.match(/background(?:-color)?\s*:\s*(#[0-9a-f]{3,8}|rgb\([^)]+\)|[a-z]+)\s*;?/i)?.[1] || '';
+        const style = [
+          color ? `color: ${color}` : '',
+          background ? `background-color: ${background}` : ''
+        ].filter(Boolean).join('; ');
+        return style ? `<span style="${style}">` : '<span>';
+      }
+
+      return `<${cleanTag}>`;
     })
     .trim();
 }
