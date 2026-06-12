@@ -231,6 +231,31 @@ const SETTINGS_LOCAL_FALLBACK_KEYS = [
   'catalog_footer_text'
 ] as const;
 const isBrowser = () => typeof window !== 'undefined';
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+
+const normalizeDomain = (value: string = '') => {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return '';
+
+  const withoutProtocol = trimmed.replace(/^https?:\/\//, '');
+  return withoutProtocol.split('/')[0].split(':')[0].replace(/^www\./, '');
+};
+
+const getCurrentHostname = () => {
+  if (!isBrowser()) return '';
+  return normalizeDomain(window.location.hostname);
+};
+
+const resolveCompanyForHostname = (companies: Company[]) => {
+  const hostname = getCurrentHostname();
+  if (!hostname || LOCAL_HOSTNAMES.has(hostname)) return companies[0];
+  return companies.find((item) => {
+    const adminDomain = normalizeDomain(item.admin_domain);
+    const storeDomain = normalizeDomain(item.store_domain || item.custom_domain);
+    return adminDomain === hostname || storeDomain === hostname;
+  }) || companies[0];
+};
+
 const isDemoFallbackAllowed = () => {
   if (!isBrowser()) return false;
   return process.env.NODE_ENV !== 'production' || window.localStorage.getItem('printflow_demo_mode') === 'true';
@@ -411,24 +436,32 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           supabase.from('cash_register_transactions').select('*')
         ]);
 
-        if (companies && companies.length > 0) setCompany(companies[0]);
+        const activeCompany = companies && companies.length > 0 ? resolveCompanyForHostname(companies as Company[]) : null;
+        const activeCompanyId = activeCompany?.id || companies?.[0]?.id;
+        const filterByCompany = <T extends { company_id?: string }>(items: T[] | null) =>
+          activeCompanyId ? (items || []).filter((item) => item.company_id === activeCompanyId) : (items || []);
+
+        if (activeCompany) setCompany(activeCompany);
         if (settingsData && settingsData.length > 0) {
+          const activeSettings = activeCompanyId
+            ? settingsData.find((item) => item.company_id === activeCompanyId) || settingsData[0]
+            : settingsData[0];
           let storedSettings: Partial<typeof DUMMY_SETTINGS> | null = null;
           try {
             storedSettings = JSON.parse(window.localStorage.getItem('printflow_settings') || 'null');
           } catch {
             storedSettings = null;
           }
-          setSettings(mergeSettingsWithDefaults(settingsData[0] as Partial<typeof DUMMY_SETTINGS>, storedSettings));
+          setSettings(mergeSettingsWithDefaults(activeSettings as Partial<typeof DUMMY_SETTINGS>, storedSettings));
         }
-        if (profilesData) setProfiles(profilesData as any);
-        if (customersData) setCustomers(customersData as any);
-        if (suppliersData) setSuppliers(suppliersData as any);
-        if (categoriesData) setCategories(categoriesData as any);
-        if (productsData) setProducts(productsData as any);
+        if (profilesData) setProfiles(filterByCompany(profilesData as UserProfile[]) as any);
+        if (customersData) setCustomers(filterByCompany(customersData as any) as any);
+        if (suppliersData) setSuppliers(filterByCompany(suppliersData as any) as any);
+        if (categoriesData) setCategories(filterByCompany(categoriesData as any) as any);
+        if (productsData) setProducts(filterByCompany(productsData as any) as any);
         
         if (quotesData) {
-          const reconstructed = quotesData.map(q => {
+          const reconstructed = (filterByCompany(quotesData as any) as any[]).map(q => {
             const items = quoteItemsData ? quoteItemsData.filter(qi => qi.quote_id === q.id) : [];
             return { ...q, items };
           });
@@ -436,19 +469,19 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (ordersData) {
-          const reconstructed = ordersData.map(o => {
+          const reconstructed = (filterByCompany(ordersData as any) as any[]).map(o => {
             const items = orderItemsData ? orderItemsData.filter(oi => oi.order_id === o.id) : [];
             return { ...o, items };
           });
           setOrders(reconstructed as any);
         }
 
-        if (productionData) setProduction(productionData as any);
-        if (financialData) setFinancial(financialData as any);
-        if (shipmentsData) setShipments(shipmentsData as any);
-        if (stockMovementsData) setStockMovements(stockMovementsData as any);
-        if (pickupPointsData) setPickupPoints(pickupPointsData as any);
-        if (bannersData) setBanners(bannersData as any);
+        if (productionData) setProduction(filterByCompany(productionData as any) as any);
+        if (financialData) setFinancial(filterByCompany(financialData as any) as any);
+        if (shipmentsData) setShipments(filterByCompany(shipmentsData as any) as any);
+        if (stockMovementsData) setStockMovements(filterByCompany(stockMovementsData as any) as any);
+        if (pickupPointsData) setPickupPoints(filterByCompany(pickupPointsData as any) as any);
+        if (bannersData) setBanners(filterByCompany(bannersData as any) as any);
         
         if (rolePermsData) {
           const perms: Record<string, string[]> = {};
@@ -458,7 +491,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           setRolePermissions(perms);
         }
 
-        if (sessionsData) setSessions(sessionsData as any);
+        if (sessionsData) setSessions(filterByCompany(sessionsData as any) as any);
         if (regTransData) setRegisterTransactions(regTransData as any);
 
         setInitialized(true);
@@ -844,6 +877,11 @@ useEffect(() => {
         logo_dark: company.logo_dark,
         favicon: company.favicon,
         theme_color: company.theme_color,
+        admin_domain: company.admin_domain || null,
+        store_domain: company.store_domain || company.custom_domain || null,
+        custom_domain: company.custom_domain || null,
+        custom_domain_status: company.custom_domain_status || 'not_configured',
+        custom_domain_verified_at: company.custom_domain_verified_at || null,
         instagram_url: company.instagram_url,
         facebook_url: company.facebook_url,
         youtube_url: company.youtube_url,

@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/context/theme-context";
 import { AuthProvider } from "@/context/auth-context";
 import PWARegister from "@/components/pwa-register";
 import BrowserProtocolGuard from "@/components/browser-protocol-guard";
+import { CompanyThemeSync } from "@/components/company-theme-sync";
 
 export const metadata: Metadata = {
   title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
@@ -34,6 +35,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <DatabaseProvider>
+              <CompanyThemeSync />
               {children}
             </DatabaseProvider>
           </AuthProvider>

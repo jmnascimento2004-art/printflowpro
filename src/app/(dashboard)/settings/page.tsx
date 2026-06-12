@@ -113,6 +113,8 @@ export default function SettingsPage() {
   const [compLogoDark, setCompLogoDark] = useState(company.logo_dark || '');
   const [compFavicon, setCompFavicon] = useState(company.favicon || '');
   const [compThemeColor, setCompThemeColor] = useState(company.theme_color || 'violet');
+  const [compAdminDomain, setCompAdminDomain] = useState(company.admin_domain || '');
+  const [compStoreDomain, setCompStoreDomain] = useState(company.store_domain || company.custom_domain || '');
   const [compPhone, setCompPhone] = useState(company.phone || '');
   const [compEmail, setCompEmail] = useState(company.email || '');
   const [compCEP, setCompCEP] = useState(company.cep || '');
@@ -400,6 +402,12 @@ export default function SettingsPage() {
 
   const [notification, setNotification] = useState<string | null>(null);
 
+  const normalizeCustomDomainInput = (value: string) => {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) return '';
+    return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/^www\./, '');
+  };
+
   useEffect(() => {
     setPixKey(settings.pix_key || 'financeiro@printflowpro.com.br');
     setPixKeyType(settings.pix_key_type || 'email');
@@ -429,6 +437,8 @@ export default function SettingsPage() {
     setCompLogoDark(company.logo_dark || '');
     setCompFavicon(company.favicon || '');
     setCompThemeColor(company.theme_color || 'violet');
+    setCompAdminDomain(company.admin_domain || '');
+    setCompStoreDomain(company.store_domain || company.custom_domain || '');
     setCompPhone(company.phone || '');
     setCompEmail(company.email || '');
     setCompCEP(company.cep || '');
@@ -497,7 +507,7 @@ export default function SettingsPage() {
     }
   }, [activeTab, activeProfile]);
 
-  // Auto-sync company origin address from company fields
+  // Suggest an initial delivery origin only when no custom routing address exists yet.
   useEffect(() => {
     if (!settings.company_address && (compStreet || compNumber || compNeighborhood || compCity || compState || compCEP)) {
       setCompanyAddress(`${compStreet}, ${compNumber} - ${compNeighborhood}, ${compCity} - ${compState}${compCEP ? `, CEP ${compCEP}` : ''}`);
@@ -798,6 +808,11 @@ export default function SettingsPage() {
       logo_dark: compLogoDark,
       favicon: compFavicon,
       theme_color: compThemeColor,
+      admin_domain: normalizeCustomDomainInput(compAdminDomain),
+      store_domain: normalizeCustomDomainInput(compStoreDomain),
+      custom_domain: normalizeCustomDomainInput(compStoreDomain),
+      custom_domain_status: normalizeCustomDomainInput(compAdminDomain) || normalizeCustomDomainInput(compStoreDomain) ? (company.custom_domain_status === 'active' ? 'active' : 'pending') : 'not_configured',
+      custom_domain_verified_at: normalizeCustomDomainInput(compAdminDomain) || normalizeCustomDomainInput(compStoreDomain) ? company.custom_domain_verified_at || null : null,
       phone: compPhone,
       email: compEmail,
       cep: compCEP,
@@ -1223,6 +1238,68 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="border-t border-border pt-4 mt-4">
+                    <h4 className="font-bold text-foreground text-xs uppercase tracking-wider mb-3">Domínios Próprios do Cliente</h4>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Domínio do Admin / SaaS</label>
+                        <input
+                          type="text"
+                          value={compAdminDomain}
+                          onChange={(e) => setCompAdminDomain(e.target.value)}
+                          onBlur={(e) => setCompAdminDomain(normalizeCustomDomainInput(e.target.value))}
+                          placeholder="admin.cibeleprint.com.br"
+                          className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none focus:border-primary"
+                        />
+                        <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+                          Use este domínio para o painel administrativo: produtos, pedidos, orçamentos, financeiro e configurações.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Domínio do Catálogo / Loja</label>
+                        <input
+                          type="text"
+                          value={compStoreDomain}
+                          onChange={(e) => setCompStoreDomain(e.target.value)}
+                          onBlur={(e) => setCompStoreDomain(normalizeCustomDomainInput(e.target.value))}
+                          placeholder="store.cibeleprint.com.br"
+                          className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none focus:border-primary"
+                        />
+                        <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+                          Use este domínio para o catálogo público que o cliente final acessa para consultar produtos e enviar orçamento.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-primary/15 bg-primary/5 p-3 space-y-2">
+                      <p className="text-[10px] font-black uppercase text-primary">Instrução para DNS e Vercel</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px]">
+                        <div className="rounded-lg bg-background border border-border p-2">
+                          <span className="block text-muted-foreground font-bold uppercase">Tipo</span>
+                          <span className="font-black text-foreground">CNAME</span>
+                        </div>
+                        <div className="rounded-lg bg-background border border-border p-2">
+                          <span className="block text-muted-foreground font-bold uppercase">Nomes</span>
+                          <span className="font-black text-foreground break-all">admin / store</span>
+                        </div>
+                        <div className="rounded-lg bg-background border border-border p-2">
+                          <span className="block text-muted-foreground font-bold uppercase">Destino</span>
+                          <span className="font-black text-foreground break-all">Valor CNAME exibido pela Vercel</span>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+                        Adicione os dois domínios no projeto da Vercel e configure o DNS conforme a Vercel indicar. O SaaS identifica a empresa pelos hostnames salvos aqui.
+                      </p>
+                      <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary/20 px-2.5 py-1.5">
+                        <span className={`h-2 w-2 rounded-full ${compAdminDomain || compStoreDomain ? 'bg-amber-500' : 'bg-muted-foreground/50'}`} />
+                        <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                          {compAdminDomain || compStoreDomain ? 'Aguardando DNS / verificação' : 'Não configurado'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Identidade Visual */}
@@ -1339,9 +1416,9 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Cor do Tema do Catálogo */}
+                  {/* Cor do Tema do SaaS e Catálogo */}
                   <div className="border-t border-border pt-4 mt-2">
-                    <h4 className="font-bold text-foreground text-xs uppercase tracking-wider mb-3">Cor do Tema do Catálogo Online</h4>
+                    <h4 className="font-bold text-foreground text-xs uppercase tracking-wider mb-3">Cor do Tema do SaaS e Catálogo Online</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end text-xs">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">Selecione a Cor Principal</label>
@@ -1419,12 +1496,12 @@ export default function SettingsPage() {
                       <input
                         type="text"
                         required
-                        readOnly
                         value={companyAddress}
-                        placeholder="Preencha o endereço da empresa acima..."
-                        className="w-full px-3 py-1.5 bg-secondary/30 text-muted-foreground cursor-not-allowed border border-border rounded-lg text-xs font-semibold focus:outline-none"
+                        onChange={(e) => setCompanyAddress(e.target.value)}
+                        placeholder="Ex: Rua do fornecedor, 123 - Bairro, Cidade - UF, CEP 00000-000"
+                        className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none focus:border-primary"
                       />
-                      <p className="text-[9px] text-muted-foreground">Este endereço é gerado automaticamente a partir dos &quot;Dados de Cadastro da Empresa&quot; acima e é usado como ponto de partida (Origem).</p>
+                      <p className="text-[9px] text-muted-foreground">Este é o ponto de origem usado para calcular a distância em KM no frete. Pode ser o endereço da empresa, fornecedor, parceiro terceirizado ou outro ponto operacional.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

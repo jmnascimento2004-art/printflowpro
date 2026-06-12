@@ -15,6 +15,11 @@ export interface Company {
   city?: string;
   state?: string;
   theme_color?: string;
+  admin_domain?: string;
+  store_domain?: string;
+  custom_domain?: string;
+  custom_domain_status?: 'not_configured' | 'pending' | 'active' | 'error';
+  custom_domain_verified_at?: string | null;
   instagram_url?: string;
   facebook_url?: string;
   youtube_url?: string;
@@ -397,6 +402,11 @@ export const DUMMY_COMPANY: Company = {
   city: 'São Paulo',
   state: 'SP',
   theme_color: 'violet',
+  admin_domain: '',
+  store_domain: '',
+  custom_domain: '',
+  custom_domain_status: 'not_configured',
+  custom_domain_verified_at: null,
   instagram_url: '/printflowpro',
   facebook_url: '/printflowpro',
   youtube_url: '/@printflowpro',

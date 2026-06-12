@@ -30,6 +30,8 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
   const { company, rolePermissions } = useDatabase();
   const { activeProfile } = useAuth();
   const [isMobile, setIsMobile] = useState(false);
+  const storeDomain = (company.store_domain || company.custom_domain || '').trim();
+  const storeHref = storeDomain ? `https://${storeDomain.replace(/^https?:\/\//, '')}/store` : '/store';
 
   // Check window resize
   useEffect(() => {
@@ -152,7 +154,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
         {/* Bottom Section */}
         <div className="p-2 border-t border-border space-y-1 bg-secondary/30">
           <Link
-            href="/store"
+            href={storeHref}
             target="_blank"
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-primary hover:bg-secondary transition-all"
             title="Abrir Loja de Demonstração"
