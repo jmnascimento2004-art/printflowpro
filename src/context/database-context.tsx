@@ -241,6 +241,13 @@ const normalizeDomain = (value: string = '') => {
   return withoutProtocol.split('/')[0].split(':')[0].replace(/^www\./, '');
 };
 
+const normalizeDomainSlug = (value: string = '') =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
 const getCurrentHostname = () => {
   if (!isBrowser()) return '';
   return normalizeDomain(window.location.hostname);
@@ -249,11 +256,21 @@ const getCurrentHostname = () => {
 const resolveCompanyForHostname = (companies: Company[]) => {
   const hostname = getCurrentHostname();
   if (!hostname || LOCAL_HOSTNAMES.has(hostname)) return companies[0];
-  return companies.find((item) => {
+  const exactDomainMatch = companies.find((item) => {
     const adminDomain = normalizeDomain(item.admin_domain);
     const storeDomain = normalizeDomain(item.store_domain || item.custom_domain);
     return adminDomain === hostname || storeDomain === hostname;
-  }) || companies[0];
+  });
+  if (exactDomainMatch) return exactDomainMatch;
+
+  const hostnameWithoutKnownPrefix = hostname.replace(/^(admin|store)\./, '');
+  const hostnameSlug = normalizeDomainSlug(hostnameWithoutKnownPrefix.split('.')[0] || hostnameWithoutKnownPrefix);
+  const brandedDomainMatch = companies.find((item) => {
+    const companySlug = normalizeDomainSlug(item.name);
+    return companySlug.length >= 4 && hostnameSlug.includes(companySlug);
+  });
+
+  return brandedDomainMatch || companies[0];
 };
 
 const isDemoFallbackAllowed = () => {
