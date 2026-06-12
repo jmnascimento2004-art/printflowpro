@@ -351,23 +351,32 @@ export default function QuotesPage() {
   // 2. Dynamic Price calculation for item addition
   const getProductPriceInfo = (prodId: string) => {
     const prod = products.find(p => p.id === prodId);
-    if (!prod) return { price: 0, type: 'unidade' };
+    if (!prod) return { price: 0, type: 'unidade', volumeTier: null, hasVolumePricing: false };
 
-    let price = prod.sales_price;
+    const volumeTiers = [...(prod.volume_pricing || [])].sort((a, b) => b.min_qty - a.min_qty);
+    const volumeTier = volumeTiers.find(tier => itemQty >= tier.min_qty) || null;
+    const baseUnitPrice = volumeTier?.price ?? prod.sales_price;
+    let price = baseUnitPrice;
+
     if (prod.pricing_type === 'm2') {
-      price = prod.sales_price * itemWidth * itemHeight;
+      price = baseUnitPrice * itemWidth * itemHeight;
     } else if (prod.pricing_type === 'linear') {
-      price = prod.sales_price * itemWidth;
+      price = baseUnitPrice * itemWidth;
     }
 
-    return { price, type: prod.pricing_type };
+    return {
+      price,
+      type: prod.pricing_type,
+      volumeTier,
+      hasVolumePricing: volumeTiers.length > 0
+    };
   };
 
   const handleAddItem = () => {
     const prod = products.find(p => p.id === selectedProductId);
     if (!prod) return;
 
-    const { price } = getProductPriceInfo(selectedProductId);
+    const { price, volumeTier } = getProductPriceInfo(selectedProductId);
 
     const newItem = {
       product_id: prod.id,
@@ -377,7 +386,9 @@ export default function QuotesPage() {
       details: {
         width: prod.pricing_type === 'm2' || prod.pricing_type === 'linear' ? itemWidth : undefined,
         height: prod.pricing_type === 'm2' ? itemHeight : undefined,
-        notes: ''
+        notes: volumeTier
+          ? `Faixa de preco aplicada: a partir de ${volumeTier.min_qty} un (${formatCurrency(volumeTier.price)} / un).`
+          : ''
       }
     };
 
@@ -563,6 +574,11 @@ export default function QuotesPage() {
                       {item.details && (item.details.width || item.details.height) && (
                         <div className="text-[10px] text-muted-foreground">
                           Dimensões: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
+                        </div>
+                      )}
+                      {item.details?.notes && (
+                        <div className="text-[10px] text-primary font-semibold">
+                          {item.details.notes}
                         </div>
                       )}
                     </td>
@@ -856,6 +872,32 @@ export default function QuotesPage() {
                 />
               </div>
 
+              {selectedProductId && getProductPriceInfo(selectedProductId).hasVolumePricing && (
+                <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground">
+                  {getProductPriceInfo(selectedProductId).volumeTier ? (
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-semibold">
+                        Faixa aplicada: a partir de {getProductPriceInfo(selectedProductId).volumeTier?.min_qty} un
+                      </span>
+                      <span className="font-bold text-primary">
+                        {formatCurrency(getProductPriceInfo(selectedProductId).volumeTier?.price || 0)} / un
+                        {' | '}
+                        {formatCurrency(getProductPriceInfo(selectedProductId).price * itemQty)} total
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-semibold text-amber-600">
+                        Este produto possui tabela por quantidade, mas a quantidade informada ainda nao atingiu a primeira faixa.
+                      </span>
+                      <span className="font-bold text-foreground">
+                        Preco base: {formatCurrency(getProductPriceInfo(selectedProductId).price)} / un
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="md:col-span-2">
                 <button
                   type="button"
@@ -888,6 +930,11 @@ export default function QuotesPage() {
                           {item.details && (item.details.width || item.details.height) && (
                             <div className="text-[9px] text-muted-foreground">
                               Medidas: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
+                            </div>
+                          )}
+                          {item.details?.notes && (
+                            <div className="text-[9px] text-primary font-semibold">
+                              {item.details.notes}
                             </div>
                           )}
                         </td>
