@@ -342,6 +342,11 @@ export default function QuotesPage() {
   const [itemWidth, setItemWidth] = useState(1.0);
   const [itemHeight, setItemHeight] = useState(1.0);
 
+  const getProductVolumeTiers = (prodId: string) => {
+    const prod = products.find(p => p.id === prodId);
+    return [...(prod?.volume_pricing || [])].sort((a, b) => a.min_qty - b.min_qty);
+  };
+
   // 1. Filter Quotes
   const filteredQuotes = quotes.filter(q => 
     q.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -349,12 +354,12 @@ export default function QuotesPage() {
   );
 
   // 2. Dynamic Price calculation for item addition
-  const getProductPriceInfo = (prodId: string) => {
+  const getProductPriceInfo = (prodId: string, qty = itemQty) => {
     const prod = products.find(p => p.id === prodId);
     if (!prod) return { price: 0, type: 'unidade', volumeTier: null, hasVolumePricing: false };
 
-    const volumeTiers = [...(prod.volume_pricing || [])].sort((a, b) => b.min_qty - a.min_qty);
-    const volumeTier = volumeTiers.find(tier => itemQty >= tier.min_qty) || null;
+    const volumeTiers = getProductVolumeTiers(prodId);
+    const volumeTier = [...volumeTiers].reverse().find(tier => qty >= tier.min_qty) || null;
     const baseUnitPrice = volumeTier?.price ?? prod.sales_price;
     let price = baseUnitPrice;
 
@@ -376,12 +381,18 @@ export default function QuotesPage() {
     const prod = products.find(p => p.id === selectedProductId);
     if (!prod) return;
 
-    const { price, volumeTier } = getProductPriceInfo(selectedProductId);
+    const volumeTiers = getProductVolumeTiers(selectedProductId);
+    const minAllowedQty = volumeTiers[0]?.min_qty || 1;
+    const normalizedQty = Math.max(itemQty, minAllowedQty);
+    const originalQty = itemQty;
+    if (normalizedQty !== originalQty) setItemQty(normalizedQty);
+
+    const { price, volumeTier } = getProductPriceInfo(selectedProductId, normalizedQty);
 
     const newItem = {
       product_id: prod.id,
       product_name: prod.name,
-      quantity: itemQty,
+      quantity: normalizedQty,
       unit_price: price,
       details: {
         width: prod.pricing_type === 'm2' || prod.pricing_type === 'linear' ? itemWidth : undefined,
@@ -818,7 +829,12 @@ export default function QuotesPage() {
                 <label className="text-[10px] font-semibold text-muted-foreground">Produto / Serviço</label>
                 <select
                   value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
+                  onChange={(e) => {
+                    const nextProductId = e.target.value;
+                    setSelectedProductId(nextProductId);
+                    const firstTier = getProductVolumeTiers(nextProductId)[0];
+                    setItemQty(firstTier?.min_qty || 1);
+                  }}
                   className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
                 >
                   <option value="">Selecione...</option>
@@ -865,15 +881,34 @@ export default function QuotesPage() {
                 <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
                 <input
                   type="number"
-                  min="1"
+                  min={getProductVolumeTiers(selectedProductId)[0]?.min_qty || 1}
                   value={itemQty}
-                  onChange={(e) => setItemQty(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => {
+                    const minQty = getProductVolumeTiers(selectedProductId)[0]?.min_qty || 1;
+                    setItemQty(Math.max(minQty, parseInt(e.target.value) || minQty));
+                  }}
                   className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                 />
               </div>
 
               {selectedProductId && getProductPriceInfo(selectedProductId).hasVolumePricing && (
-                <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground">
+                <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {getProductVolumeTiers(selectedProductId).map((tier) => (
+                      <button
+                        key={tier.min_qty}
+                        type="button"
+                        onClick={() => setItemQty(tier.min_qty)}
+                        className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${
+                          itemQty === tier.min_qty
+                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                            : 'bg-card text-foreground border-border hover:border-primary/50'
+                        }`}
+                      >
+                        {tier.min_qty} un - {formatCurrency(tier.price)} / un
+                      </button>
+                    ))}
+                  </div>
                   {getProductPriceInfo(selectedProductId).volumeTier ? (
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <span className="font-semibold">
