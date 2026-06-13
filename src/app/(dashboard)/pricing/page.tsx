@@ -533,34 +533,37 @@ export default function PricingPage() {
                 {pricingType === 'm2' ? (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Largura (metros)</label>
+                      <label className="text-[10px] font-semibold text-muted-foreground">Largura (cm)</label>
                       <input
                         type="number"
-                        step="0.1"
-                        value={simWidth}
-                        onChange={(e) => setSimWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                        step="1"
+                        min="1"
+                        value={Number((simWidth * 100).toFixed(2))}
+                        onChange={(e) => setSimWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (metros)</label>
+                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
                       <input
                         type="number"
-                        step="0.1"
-                        value={simHeight}
-                        onChange={(e) => setSimHeight(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                        step="1"
+                        min="1"
+                        value={Number((simHeight * 100).toFixed(2))}
+                        onChange={(e) => setSimHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                       />
                     </div>
                   </>
                 ) : (
                   <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (metros)</label>
+                    <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (cm)</label>
                     <input
                       type="number"
-                      step="0.1"
-                      value={simWidth}
-                      onChange={(e) => setSimWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                      step="1"
+                      min="1"
+                      value={Number((simWidth * 100).toFixed(2))}
+                      onChange={(e) => setSimWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                       className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                     />
                   </div>

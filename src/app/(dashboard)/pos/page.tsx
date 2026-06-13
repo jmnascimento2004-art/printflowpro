@@ -1097,13 +1097,13 @@ export default function POSPage() {
             <form onSubmit={handleDimensionConfirm} className="space-y-4 text-left font-medium">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground">Largura / Compr. (m)</label>
+                  <label className="text-[10px] font-bold text-muted-foreground">Largura / Compr. (cm)</label>
                   <input
                     type="number"
-                    step="0.01"
-                    min="0.05"
-                    value={customWidth}
-                    onChange={(e) => setCustomWidth(Math.max(0.01, parseFloat(e.target.value) || 0))}
+                    step="1"
+                    min="1"
+                    value={Number((customWidth * 100).toFixed(2))}
+                    onChange={(e) => setCustomWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                     className="w-full px-2.5 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs font-bold text-foreground"
                     required
                   />
@@ -1111,13 +1111,13 @@ export default function POSPage() {
                 
                 {configuringProduct.pricing_type === 'm2' && (
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-muted-foreground">Altura (m)</label>
+                    <label className="text-[10px] font-bold text-muted-foreground">Altura (cm)</label>
                     <input
                       type="number"
-                      step="0.01"
-                      min="0.05"
-                      value={customHeight}
-                      onChange={(e) => setCustomHeight(Math.max(0.01, parseFloat(e.target.value) || 0))}
+                      step="1"
+                      min="1"
+                      value={Number((customHeight * 100).toFixed(2))}
+                      onChange={(e) => setCustomHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                       className="w-full px-2.5 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs font-bold text-foreground"
                       required
                     />

@@ -864,25 +864,25 @@ export default function QuotesPage() {
               {selectedProductId && ['m2', 'linear'].includes(getProductPriceInfo(selectedProductId).type) && (
                 <>
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Largura / Compr. (m)</label>
+                    <label className="text-[10px] font-semibold text-muted-foreground">Largura / Compr. (cm)</label>
                     <input
                       type="number"
-                      step="0.1"
-                      min="0.1"
-                      value={itemWidth}
-                      onChange={(e) => setItemWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                      step="1"
+                      min="1"
+                      value={Number((itemWidth * 100).toFixed(2))}
+                      onChange={(e) => setItemWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                       className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                     />
                   </div>
                   {getProductPriceInfo(selectedProductId).type === 'm2' && (
                     <div className="md:col-span-2 space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (m)</label>
+                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
                       <input
                         type="number"
-                        step="0.1"
-                        min="0.1"
-                        value={itemHeight}
-                        onChange={(e) => setItemHeight(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                        step="1"
+                        min="1"
+                        value={Number((itemHeight * 100).toFixed(2))}
+                        onChange={(e) => setItemHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                         className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                       />
                     </div>
