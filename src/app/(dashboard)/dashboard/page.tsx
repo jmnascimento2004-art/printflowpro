@@ -64,16 +64,20 @@ export default function DashboardPage() {
     (!!entry.order_number && cancelledOrderNumbers.has(entry.order_number))
   );
   const validFinancial = financial.filter(f => !isFromCancelledOrder(f));
+  const paidIncomeTransactions = validFinancial.filter(f => f.type === 'receita' && f.status === 'pago');
+  const getFinancialPaymentDate = (entry: { paid_at?: string; due_date?: string; created_at: string }) => (
+    new Date(entry.paid_at || entry.due_date || entry.created_at)
+  );
 
-  // Sales Today
-  const salesToday = activeOrders
-    .filter(o => o.created_at.startsWith(todayStr))
-    .reduce((sum, o) => sum + o.total_amount, 0);
+  // Sales Today: real paid income from financial flow, excluding cancelled orders
+  const salesToday = paidIncomeTransactions
+    .filter(f => getFinancialPaymentDate(f).toISOString().split('T')[0] === todayStr)
+    .reduce((sum, f) => sum + f.amount, 0);
 
-  // Sales Month
-  const salesMonth = activeOrders
-    .filter(o => new Date(o.created_at) >= startOfMonth)
-    .reduce((sum, o) => sum + o.total_amount, 0);
+  // Sales Month: real paid income from all financial entries (orders, POS, manual), excluding cancelled orders
+  const salesMonth = paidIncomeTransactions
+    .filter(f => getFinancialPaymentDate(f) >= startOfMonth)
+    .reduce((sum, f) => sum + f.amount, 0);
 
   // Production Orders
   const productionCount = orders.filter(o => ['producao', 'impressao', 'acabamento'].includes(o.status)).length;
@@ -95,9 +99,7 @@ export default function DashboardPage() {
     .reduce((sum, f) => sum + f.amount, 0);
 
   // Financial summary
-  const totalReceived = validFinancial
-    .filter(f => f.type === 'receita' && f.status === 'pago')
-    .reduce((sum, f) => sum + f.amount, 0);
+  const totalReceived = paidIncomeTransactions.reduce((sum, f) => sum + f.amount, 0);
 
   const totalPaid = validFinancial
     .filter(f => f.type === 'despesa' && f.status === 'pago')
@@ -315,7 +317,13 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-xs font-semibold text-muted-foreground">Valor oculto no painel</p>
+            <h3 className="text-2xl font-bold tracking-tight text-foreground">{formatCurrency(salesMonth)}</h3>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-[10px] text-muted-foreground">Hoje:</span>
+              <span className="text-xs font-semibold text-emerald-500 flex items-center">
+                {formatCurrency(salesToday)} <ArrowUpRight className="h-3 w-3" />
+              </span>
+            </div>
           </div>
         </div>
 
