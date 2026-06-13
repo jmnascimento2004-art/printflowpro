@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
-import { formatCEP, getProductUnitPrice, normalizeRichTextHtml, sanitizeRichTextHtml } from '@/lib/utils';
+import { formatCEP, getProductUnitPrice, normalizeRichTextHtml, sanitizeRichTextHtml, stripRichTextHtml } from '@/lib/utils';
 import { safeHref } from '@/lib/safe-url';
 import { BrandLogo, BrandMark } from '@/components/brand';
 
@@ -94,9 +94,10 @@ function getThemeColorShade(hex: string, percent: number, opacity?: number) {
 }
 
 export default function StorefrontPage() {
-  const { products, categories, addQuote, addCustomer, pickupPoints, banners, company, settings } = useDatabase();
+  const { products, categories, orders, addQuote, addCustomer, pickupPoints, banners, company, settings } = useDatabase();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<'all' | 'promo' | 'highlight'>('all');
+  const [showcaseTab, setShowcaseTab] = useState<'bestsellers' | 'promo' | 'highlight'>('bestsellers');
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
 
   // Local store theme state (catalog defaults to light mode!)
@@ -332,10 +333,30 @@ export default function StorefrontPage() {
     if (selectedTagFilter === 'highlight') return product.is_highlight;
     return true;
   });
-  const promotionalProducts = activeProducts
-    .filter((product) => product.is_promo || product.is_highlight)
+  const soldQuantityByProductId = (orders || []).reduce<Record<string, number>>((acc, order) => {
+    (order.items || []).forEach((item) => {
+      acc[item.product_id] = (acc[item.product_id] || 0) + item.quantity;
+    });
+    return acc;
+  }, {});
+  const bestsellingProducts = [...activeProducts]
+    .sort((a, b) => {
+      const salesDiff = (soldQuantityByProductId[b.id] || 0) - (soldQuantityByProductId[a.id] || 0);
+      if (salesDiff !== 0) return salesDiff;
+      return a.name.localeCompare(b.name);
+    })
     .slice(0, 8);
-  const showPromotionsSection = settings.catalog_promotions_section_enabled !== false && promotionalProducts.length > 0;
+  const promoProducts = activeProducts.filter((product) => product.is_promo).slice(0, 8);
+  const highlightProducts = activeProducts.filter((product) => product.is_highlight).slice(0, 8);
+  const showcaseProductsByTab = {
+    bestsellers: bestsellingProducts,
+    promo: promoProducts,
+    highlight: highlightProducts
+  };
+  const showcaseProducts = showcaseProductsByTab[showcaseTab];
+  const showPromotionsSection = settings.catalog_promotions_section_enabled !== false && (
+    bestsellingProducts.length > 0 || promoProducts.length > 0 || highlightProducts.length > 0
+  );
 
   // 3. Pricing details for configured item
   const getProductConfigPrice = (prod: Product, qty: number = 1) => {
@@ -1116,88 +1137,6 @@ export default function StorefrontPage() {
           )}
         </section>
 
-        {showPromotionsSection && (
-          <section className="max-w-7xl w-full mx-auto px-4 md:px-8 space-y-4">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
-                  <Tag className="h-3.5 w-3.5" />
-                  Promoções
-                </span>
-                <h2 className="mt-1 text-xl md:text-2xl font-black text-slate-900 dark:text-zinc-50 tracking-tight">
-                  Produtos em destaque
-                </h2>
-              </div>
-              {selectedTagFilter !== 'all' && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedTagFilter('all')}
-                  className="text-[11px] font-extrabold text-emerald-600 hover:text-emerald-500 uppercase tracking-wider"
-                >
-                  Ver todos
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {promotionalProducts.map((product) => {
-                const displayPrice = product.volume_pricing && product.volume_pricing.length > 0
-                  ? Math.min(...product.volume_pricing.map(v => v.price))
-                  : product.sales_price;
-
-                return (
-                  <button
-                    key={product.id}
-                    type="button"
-                    onClick={() => setActiveConfigProduct(product)}
-                    className="group text-left bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-emerald-500/40 transition-all"
-                  >
-                    <div className="aspect-[4/3] bg-white dark:bg-zinc-800 relative overflow-hidden">
-                      {product.image_url ? (
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="h-full w-full object-contain p-2 group-hover:scale-[1.03] transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-slate-300">
-                          <ShoppingBag className="h-9 w-9 stroke-[1.3]" />
-                        </div>
-                      )}
-                      <div className="absolute top-2 left-2 flex flex-wrap gap-1.5">
-                        {product.is_promo && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider shadow-sm">
-                            <Tag className="h-2.5 w-2.5" />
-                            Promoção
-                          </span>
-                        )}
-                        {product.is_highlight && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-950/85 text-white text-[9px] font-black uppercase tracking-wider shadow-sm">
-                            <Star className="h-2.5 w-2.5 fill-white stroke-none" />
-                            Destaque
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="p-3 space-y-2">
-                      <h3 className="text-xs font-black text-slate-900 dark:text-zinc-50 uppercase tracking-wide line-clamp-2 min-h-[2rem]">
-                        {product.name}
-                      </h3>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          A partir de
-                        </span>
-                        <span className="text-xs font-black text-emerald-600">
-                          {formatCurrency(displayPrice)}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
 
         {/* 5. Products Showcase */}
         <main id="products-showcase" className="max-w-7xl w-full mx-auto px-4 md:px-8 space-y-6">
@@ -1939,6 +1878,90 @@ export default function StorefrontPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {showPromotionsSection && (
+        <section className="bg-slate-100 dark:bg-zinc-950 border-y border-slate-200 dark:border-zinc-800 py-10 md:py-12 px-4">
+          <div className="max-w-7xl mx-auto space-y-7">
+            <div className="flex items-center gap-5">
+              <div className="h-px flex-1 bg-slate-900/80 dark:bg-zinc-700" />
+              <div className="flex items-center gap-4 md:gap-7 text-sm md:text-base font-black uppercase tracking-wide text-slate-950 dark:text-zinc-100 whitespace-nowrap">
+                {[
+                  { id: 'bestsellers' as const, label: '+ Vendidos' },
+                  { id: 'promo' as const, label: 'Promoções' },
+                  { id: 'highlight' as const, label: 'Destaque' }
+                ].map((tab, index) => (
+                  <React.Fragment key={tab.id}>
+                    <button
+                      type="button"
+                      onClick={() => setShowcaseTab(tab.id)}
+                      className={`transition-colors ${
+                        showcaseTab === tab.id
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-slate-950 dark:text-zinc-100 hover:text-emerald-600 dark:hover:text-emerald-400'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                    {index < 2 && <span className="text-slate-950 dark:text-zinc-500">|</span>}
+                  </React.Fragment>
+                ))}
+              </div>
+              <div className="h-px flex-1 bg-slate-900/80 dark:bg-zinc-700" />
+            </div>
+
+            {showcaseProducts.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {showcaseProducts.map((product) => {
+                  const displayPrice = product.volume_pricing && product.volume_pricing.length > 0
+                    ? Math.min(...product.volume_pricing.map(v => v.price))
+                    : product.sales_price;
+
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => setActiveConfigProduct(product)}
+                      className="group text-left bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-800 rounded-md overflow-hidden hover:border-emerald-500 dark:hover:border-emerald-500 transition-all min-h-[430px] flex flex-col"
+                    >
+                      <div className="h-56 bg-white dark:bg-zinc-950 flex items-center justify-center overflow-hidden border-b border-slate-200 dark:border-zinc-800">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="h-full w-full object-contain p-4 group-hover:scale-[1.03] transition-transform duration-500"
+                          />
+                        ) : (
+                          <ShoppingBag className="h-10 w-10 text-slate-300" />
+                        )}
+                      </div>
+                      <div className="p-4 flex flex-col flex-1">
+                        <h3 className="font-black text-sm text-slate-950 dark:text-white uppercase leading-snug line-clamp-2">
+                          {product.name}
+                        </h3>
+                        <p className="mt-2 text-xs text-slate-600 dark:text-zinc-400 line-clamp-2">
+                          {stripRichTextHtml(product.description)}
+                        </p>
+                        <div className="mt-auto pt-5 flex items-center justify-between gap-3">
+                          <span className="font-black text-emerald-600 text-sm">
+                            {formatCurrency(displayPrice)}
+                          </span>
+                          <span className="px-3 py-2 rounded-md bg-emerald-600 text-white text-[11px] font-black uppercase">
+                            Detalhe
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="min-h-40 rounded-md border border-dashed border-slate-300 dark:border-zinc-700 flex items-center justify-center text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+                Nenhum produto nesta seleção
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {/* 10. Footer */}

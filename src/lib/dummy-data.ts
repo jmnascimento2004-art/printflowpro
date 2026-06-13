@@ -312,7 +312,7 @@ export interface ProductionItem {
   order_item_id: string;
   product_name: string;
   quantity: number;
-  status: 'fila' | 'producao' | 'impressao' | 'acabamento' | 'concluido';
+  status: 'fila' | 'producao' | 'impressao' | 'acabamento' | 'concluido' | 'expedicao' | 'entregue' | 'finalizado';
   priority: 'baixa' | 'media' | 'alta';
   deadline: string;
   responsible_name?: string;

@@ -439,7 +439,10 @@ export default function ProductsCRUDPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    if (volumePricing.length === 0) {
+    const usesRequiredVolumePricing = !['m2', 'linear'].includes(pricingType);
+    const productVolumePricing = usesRequiredVolumePricing ? volumePricing : (volumePricing.length > 0 ? volumePricing : undefined);
+
+    if (usesRequiredVolumePricing && volumePricing.length === 0) {
       alert('Adicione pelo menos uma opcao de quantidade para este produto.');
       return;
     }
@@ -463,7 +466,7 @@ export default function ProductsCRUDPage() {
         is_promo: isPromo,
         is_highlight: isHighlight,
         image_url: imageUrl || undefined,
-        volume_pricing: volumePricing,
+        volume_pricing: productVolumePricing,
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
         color_options: colorOptions.length > 0 ? colorOptions : undefined,
         pricing_details: {
@@ -494,7 +497,7 @@ export default function ProductsCRUDPage() {
         is_promo: isPromo,
         is_highlight: isHighlight,
         image_url: imageUrl || undefined,
-        volume_pricing: volumePricing,
+        volume_pricing: productVolumePricing,
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
         color_options: colorOptions.length > 0 ? colorOptions : undefined,
         pricing_details: {

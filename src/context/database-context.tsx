@@ -1139,7 +1139,7 @@ useEffect(() => {
     };
     setCustomers(prev => [newCust, ...prev]);
     supabase.from('customers').insert(newCust).then(({ error }) => {
-      if (error) warnCaught('Erro ao sincronizar cliente criado no catÃ¡logo:', error);
+      if (error) warnCaught('Erro ao sincronizar cliente criado no catálogo:', error);
     });
     return newCust;
   };
@@ -1537,7 +1537,7 @@ useEffect(() => {
     if (status === 'finalizado') {
       // Complete production items
       setProduction(prev =>
-        prev.map(p => (p.order_id === id ? { ...p, status: 'concluido', finished_at: new Date().toISOString() } : p))
+        prev.map(p => (p.order_id === id ? { ...p, status: 'finalizado', finished_at: new Date().toISOString() } : p))
       );
       // Mark shipment as delivered
       setShipments(prev =>
@@ -1645,12 +1645,28 @@ useEffect(() => {
   // PRODUCTION API
   // ----------------------------------------------------
   const updateProductionStatus = (id: string, status: ProductionItem['status']) => {
+    const orderStatusByProductionStatus: Partial<Record<ProductionItem['status'], Order['status']>> = {
+      producao: 'producao',
+      impressao: 'impressao',
+      acabamento: 'acabamento',
+      expedicao: 'expedicao',
+      entregue: 'entregue',
+      finalizado: 'finalizado'
+    };
+
     setProduction(prev =>
       prev.map(p => {
         if (p.id === id) {
           const started_at = status === 'producao' ? new Date().toISOString() : p.started_at;
-          const finished_at = status === 'concluido' ? new Date().toISOString() : p.finished_at;
+          const finished_at = ['concluido', 'finalizado'].includes(status) ? new Date().toISOString() : p.finished_at;
           
+          const nextOrderStatus = orderStatusByProductionStatus[status];
+          if (nextOrderStatus) {
+            setTimeout(() => {
+              updateOrderStatus(p.order_id, nextOrderStatus);
+            }, 10);
+          }
+
           // If completed, check if all items in this order are completed
           if (status === 'concluido') {
             setTimeout(() => {

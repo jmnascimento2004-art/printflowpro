@@ -523,16 +523,16 @@ export default function POSPage() {
                       <button
                         key={prod.id}
                         onClick={() => handleAddProductClick(prod)}
-                        className="p-3.5 bg-card border border-border rounded-2xl hover:border-primary/50 text-left transition-all flex flex-col justify-between h-36 group hover:shadow-sm"
+                        className="p-3.5 bg-card border border-border rounded-2xl hover:border-primary/50 text-left transition-all flex flex-col justify-between min-h-44 group hover:shadow-sm overflow-hidden"
                       >
                         <div>
-                          <div className="flex justify-between items-start gap-1 flex-wrap">
-                            <div className="flex gap-1 flex-wrap">
-                              <span className="text-[8px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded font-mono font-bold shrink-0">
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex gap-1 flex-wrap min-w-0">
+                              <span className="text-[8px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded font-mono font-bold max-w-[105px] truncate">
                                 {prod.sku}
                               </span>
                               {prod.volume_pricing && prod.volume_pricing.length > 0 && (
-                                <span className="text-[8px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-1 py-0.5 rounded font-bold shrink-0">
+                                <span className="text-[8px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-1 py-0.5 rounded font-bold">
                                   ATACADO
                                 </span>
                               )}
@@ -541,18 +541,18 @@ export default function POSPage() {
                               {prod.pricing_type.toUpperCase()}
                             </span>
                           </div>
-                          <h4 className="font-bold text-xs text-foreground mt-2 line-clamp-2 group-hover:text-primary transition-colors">
+                          <h4 className="font-bold text-xs text-foreground mt-2 line-clamp-2 min-h-[2rem] group-hover:text-primary transition-colors">
                             {prod.name}
                           </h4>
-                          <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{stripRichTextHtml(prod.description)}</p>
+                          <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5 leading-snug">{stripRichTextHtml(prod.description)}</p>
                         </div>
-                        <div className="flex justify-between items-baseline mt-2">
-                          <span className="text-xs font-extrabold text-foreground">
+                        <div className="flex justify-between items-end mt-3 gap-2">
+                          <span className="text-xs font-extrabold text-foreground min-w-0 leading-tight">
                             {formatCurrency(prod.sales_price)}
                             {prod.pricing_type === 'm2' && <span className="text-[9px] text-muted-foreground font-medium">/m²</span>}
                             {prod.pricing_type === 'linear' && <span className="text-[9px] text-muted-foreground font-medium">/m.lin</span>}
                           </span>
-                          <span className="h-6 w-6 rounded-lg bg-secondary group-hover:bg-primary group-hover:text-primary-foreground text-muted-foreground flex items-center justify-center transition-all shrink-0">
+                          <span className="h-7 w-7 rounded-lg bg-secondary group-hover:bg-primary group-hover:text-primary-foreground text-muted-foreground flex items-center justify-center transition-all shrink-0">
                             <Plus className="h-3.5 w-3.5" />
                           </span>
                         </div>
@@ -605,7 +605,7 @@ export default function POSPage() {
                     <option value="guest">Consumidor Final (Venda Rápida de Balcão)</option>
                     {customers.map(cust => (
                       <option key={cust.id} value={cust.id}>
-                        {cust.name} {cust.billing_type === 'faturado' ? '• FATURADO B2B' : ''}
+                        {cust.name} {cust.billing_type === 'faturado' ? '- FATURADO B2B' : ''}
                       </option>
                     ))}
                   </select>
@@ -817,7 +817,7 @@ export default function POSPage() {
                     <span className="text-xs text-muted-foreground font-medium">{getSessionName(activeSession.id)}</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Aberto por: <strong>{activeSession.opened_by}</strong> • Início: {new Date(activeSession.opened_at).toLocaleString('pt-BR')}
+                    Aberto por: <strong>{activeSession.opened_by}</strong> - Início: {new Date(activeSession.opened_at).toLocaleString('pt-BR')}
                   </p>
                 </div>
 

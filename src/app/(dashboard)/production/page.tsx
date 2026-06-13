@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { 
@@ -51,13 +51,15 @@ export default function ProductionPage() {
       : cleanPhone;
       
     const statusLabels: Record<ProductionItem['status'], string> = {
-      fila: "Fila (Aguardando)",
-      producao: "Preparação",
-      impressao: "Impressão",
-      acabamento: "Acabamento",
-      concluido: "Concluído (Pronto para Retirada/Entrega)"
+      fila: 'Fila (Aguardando)',
+      producao: 'Preparação',
+      impressao: 'Impressão',
+      acabamento: 'Acabamento',
+      concluido: 'Concluído (Pronto para Retirada/Entrega)',
+      expedicao: 'Expedição',
+      entregue: 'Entregue',
+      finalizado: 'Finalizado'
     };
-
     const statusName = statusLabels[item.status] || item.status;
     const companyName = company?.name || "Nossa Gráfica";
 
@@ -87,6 +89,9 @@ export default function ProductionPage() {
     { id: 'impressao', label: 'Impressão', color: 'border-blue-500/50 bg-blue-500/5', borderTop: 'border-t-blue-500' },
     { id: 'acabamento', label: 'Acabamento', color: 'border-indigo-500/50 bg-indigo-500/5', borderTop: 'border-t-indigo-500' },
     { id: 'concluido', label: 'Concluído', color: 'border-emerald-500/50 bg-emerald-500/5', borderTop: 'border-t-emerald-500' },
+    { id: 'expedicao', label: 'Expedição', color: 'border-cyan-500/50 bg-cyan-500/5', borderTop: 'border-t-cyan-500' },
+    { id: 'entregue', label: 'Entregue', color: 'border-teal-500/50 bg-teal-500/5', borderTop: 'border-t-teal-500' },
+    { id: 'finalizado', label: 'Finalizado', color: 'border-emerald-600/60 bg-emerald-600/10', borderTop: 'border-t-emerald-600' },
   ];
 
   // 2. Drag & Drop Handlers
@@ -120,7 +125,7 @@ export default function ProductionPage() {
   };
 
   const isOverdue = (dateStr: string, status: string) => {
-    return new Date(dateStr) < new Date() && status !== 'concluido';
+    return new Date(dateStr) < new Date() && !['concluido', 'expedicao', 'entregue', 'finalizado'].includes(status);
   };
 
   return (
