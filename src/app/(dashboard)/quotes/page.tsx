@@ -126,13 +126,15 @@ export default function QuotesPage() {
       key: pixKey,
       keyType: settings.pix_key_type,
       amount,
-      merchantName: company?.name || "PrintFlowPRO"
+      merchantName: company?.name || "PrintFlowPRO",
+      beneficiaryName: settings.pix_beneficiary_name || company?.name,
+      bankName: settings.bank_name
     });
     const logoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark);
     const logoLine = logoUrl ? `\n\n🏢 Logo da empresa: ${logoUrl}` : '';
     const greeting = getWhatsAppTimeGreeting();
 
-    const message = `${greeting}, *${customer?.name || getQuoteCustomerName(quote)}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu orçamento *#${quote.number}*:\n\n💰 *Valor total:* *${formatCurrency(amount)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = `${greeting}, *${customer?.name || getQuoteCustomerName(quote)}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu orçamento *#${quote.number}*:\n\n💰 *Valor total:* *${formatCurrency(amount)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;

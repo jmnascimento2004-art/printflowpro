@@ -84,6 +84,7 @@ export interface Settings {
   theme: string;
   pix_key: string;
   pix_key_type: string;
+  pix_beneficiary_name: string;
   bank_name: string;
   profit_margin: number;
   tax_rate: number;
@@ -1407,6 +1408,7 @@ export const DUMMY_SETTINGS: Settings = {
   theme: 'dark',
   pix_key: 'financeiro@printflowpro.com.br',
   pix_key_type: 'email',
+  pix_beneficiary_name: 'PrintFlowPRO Demo Ltda',
   bank_name: 'Banco Sicoob',
   profit_margin: 40.0,
   tax_rate: 6.0,

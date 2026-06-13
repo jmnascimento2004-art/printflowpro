@@ -205,6 +205,7 @@ const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined
 const SETTINGS_LOCAL_FALLBACK_KEYS = [
   'pix_key',
   'pix_key_type',
+  'pix_beneficiary_name',
   'bank_name',
   'profit_margin',
   'tax_rate',
@@ -818,6 +819,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         company_id: company.id,
         pix_key: settings.pix_key || null,
         pix_key_type: settings.pix_key_type || null,
+        pix_beneficiary_name: settings.pix_beneficiary_name || null,
         bank_name: settings.bank_name || null,
         profit_margin: settings.profit_margin || 0,
         tax_rate: settings.tax_rate || 0,

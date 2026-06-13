@@ -93,19 +93,28 @@ export function getPixWhatsAppPaymentInfo({
   key,
   keyType,
   amount,
-  merchantName
+  merchantName,
+  beneficiaryName,
+  bankName
 }: {
   key: string;
   keyType?: string;
   amount: number;
   merchantName?: string;
-}): { label: string; value: string } {
+  beneficiaryName?: string;
+  bankName?: string;
+}): { label: string; value: string; securityText: string } {
   const cleanKey = key.trim();
   const isRandomKey = keyType === 'aleatoria';
+  const securityLines = [
+    beneficiaryName?.trim() ? `👤 *Favorecido:* ${beneficiaryName.trim()}` : '',
+    bankName?.trim() ? `🏦 *Banco:* ${bankName.trim()}` : ''
+  ].filter(Boolean);
 
   return {
     label: isRandomKey ? 'Chave PIX Aleatória' : 'PIX Copia e Cola',
-    value: isRandomKey ? cleanKey : generatePixPayload(cleanKey, amount, merchantName || 'PrintFlowPRO')
+    value: isRandomKey ? cleanKey : generatePixPayload(cleanKey, amount, merchantName || 'PrintFlowPRO'),
+    securityText: securityLines.length > 0 ? `\n\n${securityLines.join('\n')}` : ''
   };
 }
 

@@ -532,13 +532,15 @@ export default function OrdersPage() {
       key: pixKey,
       keyType: settings.pix_key_type,
       amount: balance,
-      merchantName: company?.name || "PrintFlowPRO"
+      merchantName: company?.name || "PrintFlowPRO",
+      beneficiaryName: settings.pix_beneficiary_name || company?.name,
+      bankName: settings.bank_name
     });
     const logoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark);
     const logoLine = logoUrl ? `\n\n🏢 Logo da empresa: ${logoUrl}` : '';
     const greeting = getWhatsAppTimeGreeting();
 
-    const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${order.number}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${order.number}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;

@@ -104,6 +104,7 @@ export default function SettingsPage() {
 
   const [pixKey, setPixKey] = useState(settings.pix_key || 'financeiro@printflowpro.com.br');
   const [pixKeyType, setPixKeyType] = useState(settings.pix_key_type || 'email');
+  const [pixBeneficiaryName, setPixBeneficiaryName] = useState(settings.pix_beneficiary_name || company.name || '');
   const [bankName, setBankName] = useState(settings.bank_name || 'Banco Sicoob');
 
   // Company Form State
@@ -411,6 +412,7 @@ export default function SettingsPage() {
   useEffect(() => {
     setPixKey(settings.pix_key || 'financeiro@printflowpro.com.br');
     setPixKeyType(settings.pix_key_type || 'email');
+    setPixBeneficiaryName(settings.pix_beneficiary_name || company.name || '');
     setBankName(settings.bank_name || 'Banco Sicoob');
     setCompanyAddress(settings.company_address || 'Av. Paulista, 1000 - Bela Vista, Sao Paulo - SP, 01310-100');
     setDeliveryMotoboyPriceKm(settings.delivery_motoboy_price_km !== undefined && settings.delivery_motoboy_price_km !== null ? settings.delivery_motoboy_price_km : 2.50);
@@ -777,6 +779,7 @@ export default function SettingsPage() {
     updateSettings({
       pix_key: pixKey,
       pix_key_type: pixKeyType,
+      pix_beneficiary_name: pixBeneficiaryName,
       bank_name: bankName,
       profit_margin: Number(profitMarginRate),
       tax_rate: Number(taxRate),
@@ -1923,7 +1926,7 @@ export default function SettingsPage() {
                     <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Configurações do Pix Integrado</h3>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground">Tipo de Chave Pix</label>
                       <select
@@ -1945,6 +1948,16 @@ export default function SettingsPage() {
                         value={pixKey}
                         onChange={(e) => setPixKey(e.target.value)}
                         placeholder="Ex: 00.000.000/0000-00, CPF, e-mail ou celular"
+                        className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">Nome do Favorecido</label>
+                      <input
+                        type="text"
+                        value={pixBeneficiaryName}
+                        onChange={(e) => setPixBeneficiaryName(e.target.value)}
+                        placeholder="Ex: CIBELEPRINT"
                         className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
                       />
                     </div>
