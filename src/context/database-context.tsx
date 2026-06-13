@@ -229,6 +229,7 @@ const SETTINGS_LOCAL_FALLBACK_KEYS = [
   'catalog_header_message',
   'catalog_whatsapp',
   'free_pickup_alert',
+  'catalog_promotions_section_enabled',
   'catalog_footer_text'
 ] as const;
 const isBrowser = () => typeof window !== 'undefined';
@@ -843,6 +844,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         catalog_header_message: settings.catalog_header_message || null,
         catalog_whatsapp: settings.catalog_whatsapp || null,
         free_pickup_alert: settings.free_pickup_alert ?? true,
+        catalog_promotions_section_enabled: settings.catalog_promotions_section_enabled ?? true,
         catalog_footer_text: settings.catalog_footer_text || null,
         updated_at: new Date().toISOString(),
       })

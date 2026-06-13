@@ -384,6 +384,7 @@ export default function SettingsPage() {
   const [topBarShowPickup, setTopBarShowPickup] = useState(settings.top_bar_show_pickup !== false);
   const [topBarPhone, setTopBarPhone] = useState(settings.top_bar_phone || '(51) 98765-4321');
   const [footerShowAddress, setFooterShowAddress] = useState(settings.footer_show_address !== false);
+  const [catalogPromotionsSectionEnabled, setCatalogPromotionsSectionEnabled] = useState(settings.catalog_promotions_section_enabled !== false);
   const [footerHoursMessage, setFooterHoursMessage] = useState(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
   const [footerHoursWeek, setFooterHoursWeek] = useState(settings.footer_hours_week || '8h às 12h / 13h30 às 18h');
   const [footerHoursSat, setFooterHoursSat] = useState(settings.footer_hours_sat || 'Segunda à Sexta-feira');
@@ -422,6 +423,7 @@ export default function SettingsPage() {
     setTopBarShowPickup(settings.top_bar_show_pickup !== false);
     setTopBarPhone(settings.top_bar_phone || '(51) 98765-4321');
     setFooterShowAddress(settings.footer_show_address !== false);
+    setCatalogPromotionsSectionEnabled(settings.catalog_promotions_section_enabled !== false);
     setFooterHoursMessage(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
     setFooterHoursWeek(settings.footer_hours_week || '8h as 12h / 13h30 as 18h');
     setFooterHoursSat(settings.footer_hours_sat || 'Segunda a Sexta-feira');
@@ -788,6 +790,7 @@ export default function SettingsPage() {
       top_bar_show_pickup: topBarShowPickup,
       top_bar_phone: topBarPhone,
       footer_show_address: footerShowAddress,
+      catalog_promotions_section_enabled: catalogPromotionsSectionEnabled,
       footer_hours_message: footerHoursMessage,
       footer_hours_week: footerHoursWeek,
       footer_hours_sat: footerHoursSat,
@@ -1582,6 +1585,26 @@ export default function SettingsPage() {
                           className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
                         />
                       </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3.5 bg-secondary/20 border border-border rounded-xl">
+                      <div>
+                        <span className="font-bold text-xs text-foreground block">Seção de Promoções e Destaques</span>
+                        <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                          Exibir produtos marcados como promoção ou destaque no corpo do catálogo.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCatalogPromotionsSectionEnabled(!catalogPromotionsSectionEnabled)}
+                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${
+                          catalogPromotionsSectionEnabled ? 'bg-primary' : 'bg-secondary border border-border'
+                        }`}
+                      >
+                        <div className={`h-4.5 w-4.5 bg-white rounded-full transition-transform absolute ${
+                          catalogPromotionsSectionEnabled ? 'translate-x-5.5' : 'translate-x-1'
+                        }`} />
+                      </button>
                     </div>
 
                     <div className="flex items-center justify-between p-3.5 bg-secondary/20 border border-border rounded-xl">

@@ -108,6 +108,7 @@ export interface Settings {
   catalog_header_message: string;
   catalog_whatsapp: string;
   free_pickup_alert: boolean;
+  catalog_promotions_section_enabled: boolean;
   catalog_footer_text: string;
 }
 
@@ -1432,5 +1433,6 @@ export const DUMMY_SETTINGS: Settings = {
   catalog_header_message: 'Atendimento online para pedidos personalizados',
   catalog_whatsapp: '(51) 98765-4321',
   free_pickup_alert: true,
+  catalog_promotions_section_enabled: true,
   catalog_footer_text: 'PrintFlowPRO - solucoes graficas sob medida.'
 };
