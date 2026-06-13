@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
-import { formatCEP, getProductUnitPrice, normalizeRichTextHtml, sanitizeRichTextHtml, stripRichTextHtml } from '@/lib/utils';
+import { formatCEP, getProductUnitPrice, normalizeRichTextHtml, sanitizeRichTextHtml } from '@/lib/utils';
 import { safeHref } from '@/lib/safe-url';
 import { BrandLogo, BrandMark } from '@/components/brand';
 
@@ -1158,10 +1158,10 @@ export default function StorefrontPage() {
                       {/* Product Image Area (Aspect Square & No Margin at top/left/right) */}
                       <div className="aspect-[1/1.08] w-full bg-white overflow-hidden border-b border-slate-200/60 flex items-center justify-center shrink-0 relative">
                         {p.image_url ? (
-                          <img 
-                            src={p.image_url} 
-                            alt={p.name} 
-                            className="h-full w-full object-contain p-2 group-hover:scale-[1.03] transition-transform duration-500"
+                          <img
+                            src={p.image_url}
+                            alt={p.name}
+                            className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                           />
                         ) : (
                           <div className="text-slate-300 flex flex-col items-center gap-1">
@@ -1911,47 +1911,122 @@ export default function StorefrontPage() {
             </div>
 
             {showcaseProducts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {showcaseProducts.map((product) => {
+                  const hasVolumeTiers = product.volume_pricing && product.volume_pricing.length > 0;
                   const displayPrice = product.volume_pricing && product.volume_pricing.length > 0
                     ? Math.min(...product.volume_pricing.map(v => v.price))
                     : product.sales_price;
 
                   return (
-                    <button
+                    <div
                       key={product.id}
-                      type="button"
-                      onClick={() => setActiveConfigProduct(product)}
-                      className="group text-left bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-800 rounded-md overflow-hidden hover:border-emerald-500 dark:hover:border-emerald-500 transition-all min-h-[430px] flex flex-col"
+                      className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-500/40 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden"
                     >
-                      <div className="h-56 bg-white dark:bg-zinc-950 flex items-center justify-center overflow-hidden border-b border-slate-200 dark:border-zinc-800">
-                        {product.image_url ? (
-                          <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="h-full w-full object-contain p-4 group-hover:scale-[1.03] transition-transform duration-500"
-                          />
-                        ) : (
-                          <ShoppingBag className="h-10 w-10 text-slate-300" />
-                        )}
-                      </div>
-                      <div className="p-4 flex flex-col flex-1">
-                        <h3 className="font-black text-sm text-slate-950 dark:text-white uppercase leading-snug line-clamp-2">
-                          {product.name}
-                        </h3>
-                        <p className="mt-2 text-xs text-slate-600 dark:text-zinc-400 line-clamp-2">
-                          {stripRichTextHtml(product.description)}
-                        </p>
-                        <div className="mt-auto pt-5 flex items-center justify-between gap-3">
-                          <span className="font-black text-emerald-600 text-sm">
-                            {formatCurrency(displayPrice)}
-                          </span>
-                          <span className="px-3 py-2 rounded-md bg-emerald-600 text-white text-[11px] font-black uppercase">
-                            Detalhe
-                          </span>
+                      <div>
+                        <div className="aspect-[1/1.08] w-full bg-white overflow-hidden border-b border-slate-200/60 flex items-center justify-center shrink-0 relative">
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt={product.name}
+                              className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className="text-slate-300 flex flex-col items-center gap-1">
+                              <ShoppingBag className="h-10 w-10 stroke-[1.2]" />
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sem Foto</span>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            className="absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm text-slate-400 hover:text-rose-500 shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10"
+                            onClick={(e) => { e.stopPropagation(); alert("Adicionado aos favoritos!"); }}
+                          >
+                            <Heart className="h-4 w-4" />
+                          </button>
+
+                          <div className="absolute top-2.5 right-2.5 flex flex-col gap-1 items-end z-10">
+                            {product.is_promo && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowcaseTab('promo');
+                                }}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[8px] md:text-[9px] uppercase tracking-wider shadow-md hover:bg-emerald-500 transition-colors"
+                                title="Filtrar promoções"
+                              >
+                                <Tag className="h-2.5 w-2.5 stroke-[2.5]" />
+                                Promoção
+                              </button>
+                            )}
+                            {product.is_highlight && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowcaseTab('highlight');
+                                }}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-extrabold text-[8px] md:text-[9px] uppercase tracking-wider shadow-md hover:bg-emerald-500 transition-colors"
+                                title="Filtrar destaques"
+                              >
+                                <Star className="h-2.5 w-2.5 fill-white stroke-none" />
+                                Destaque
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-3 space-y-2.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
+                              {(categories || []).find(c => c && c.id === product.category_id)?.name || 'Outros'}
+                            </span>
+                            {product.pricing_type === 'm2' && (
+                              <span className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg border border-blue-500/10 uppercase tracking-wide">
+                                Sob Medida (m²)
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wide line-clamp-2 min-h-[2rem] group-hover:text-emerald-600 transition-colors duration-300">
+                            {product.name}
+                          </h3>
                         </div>
                       </div>
-                    </button>
+
+                      <div className="border-t border-slate-100 p-3 pt-3 mt-1 flex items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
+                            {hasVolumeTiers ? 'A partir de' : 'Preço'}
+                          </span>
+                          <span className="font-extrabold text-emerald-600 text-sm block leading-none">
+                            {formatCurrency(displayPrice)}
+                            <span className="text-[10px] text-slate-400 font-normal">/{product.pricing_type}</span>
+                          </span>
+                          {company.show_payments_pix !== false && (
+                            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold">
+                              <svg className="h-3.5 w-3.5 text-[#32BCAD] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0L1.6 10.4 12 20.8 22.4 10.4 12 0zm0 3.2L19.2 10.4 12 17.6 4.8 10.4 12 3.2zm0 3.8L8.2 10.8 12 14.6 15.8 10.8 12 7zm0 2.2l1.6 1.6-1.6 1.6-1.6-1.6 1.6-1.6z"/>
+                              </svg>
+                              <span>
+                                {formatCurrency(displayPrice * 0.95)} à vista
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveConfigProduct(product)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
+                        >
+                          <ShoppingBag className="h-3.5 w-3.5" />
+                          Comprar
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
