@@ -315,13 +315,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3">
-            <h3 className="text-2xl font-bold tracking-tight text-foreground">{formatCurrency(salesMonth)}</h3>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-[10px] text-muted-foreground">Hoje:</span>
-              <span className="text-xs font-semibold text-emerald-500 flex items-center">
-                {formatCurrency(salesToday)} <ArrowUpRight className="h-3 w-3" />
-              </span>
-            </div>
+            <p className="text-xs font-semibold text-muted-foreground">Valor oculto no painel</p>
           </div>
         </div>
 
