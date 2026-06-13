@@ -1303,15 +1303,15 @@ export default function StorefrontPage() {
           <div className="bg-white border border-slate-200 rounded-xl w-full max-w-6xl max-h-[calc(100dvh-1rem)] md:max-h-[calc(100dvh-2rem)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-slate-800 flex flex-col md:flex-row">
             
             {/* Left Column: Product Image & Badges */}
-            <div className="w-full md:w-[48%] bg-slate-50 p-3 md:p-4 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between overflow-y-auto max-h-[42dvh] md:max-h-none">
+            <div className="w-full md:w-[48%] bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between overflow-y-auto max-h-[42dvh] md:max-h-none">
               <div>
                 {/* Large Product Image */}
-                <div className="aspect-[4/3] w-full min-h-[300px] md:min-h-[380px] max-h-[64dvh] rounded-none bg-white overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center relative">
+                <div className="aspect-[4/3] w-full min-h-[300px] md:min-h-[380px] max-h-[64dvh] rounded-none bg-white overflow-hidden border-b border-slate-200 flex items-center justify-center relative">
                   {activeConfigProduct.image_url ? (
                     <img 
                       src={activeConfigProduct.image_url} 
                       alt={activeConfigProduct.name} 
-                      className="h-full w-full object-contain p-2"
+                      className="h-full w-full object-contain"
                     />
                   ) : (
                     <div className="text-slate-300 flex flex-col items-center gap-1.5">
@@ -1322,7 +1322,7 @@ export default function StorefrontPage() {
                 </div>
 
                 {/* Additional specifications/details badges */}
-                <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                <div className="m-3 md:m-4 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
                   <div className="bg-white border border-slate-200 p-2.5 rounded-lg flex items-center gap-2 shadow-sm">
                     <Truck className="h-4 w-4 text-emerald-600" />
                     <span>Entrega Rápida</span>
@@ -1335,7 +1335,7 @@ export default function StorefrontPage() {
               </div>
 
               {/* WhatsApp Support Link */}
-              <div className="mt-4 border-t border-slate-200 pt-3">
+              <div className="mx-3 mb-3 md:mx-4 md:mb-4 border-t border-slate-200 pt-3">
                 <a
                   href={`https://wa.me/5551987654321?text=Olá, tenho dúvidas sobre o produto: ${activeConfigProduct.name}`}
                   target="_blank"
