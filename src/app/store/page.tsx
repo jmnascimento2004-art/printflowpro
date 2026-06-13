@@ -1145,6 +1145,7 @@ export default function StorefrontPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {taggedProducts.map(p => {
                 const hasVolumeTiers = p.volume_pricing && p.volume_pricing.length > 0;
+                const deliveryTime = p.delivery_time || p.pricing_details?.delivery_time;
                 const displayPrice = p.volume_pricing && p.volume_pricing.length > 0
                   ? Math.min(...p.volume_pricing.map(v => v.price))
                   : p.sales_price;
@@ -1230,6 +1231,11 @@ export default function StorefrontPage() {
                         <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wide line-clamp-2 min-h-[2rem] group-hover:text-emerald-600 transition-colors duration-300">
                           {p.name}
                         </h3>
+                        {deliveryTime && (
+                          <p className="text-[10px] leading-snug text-slate-500">
+                            <strong className="text-slate-700">Prazo de entrega:</strong> {deliveryTime}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1358,6 +1364,11 @@ export default function StorefrontPage() {
                     <h3 className="font-black text-slate-900 text-lg md:text-xl mt-2 uppercase tracking-wide leading-tight">
                       {activeConfigProduct.name}
                     </h3>
+                    {(activeConfigProduct.delivery_time || activeConfigProduct.pricing_details?.delivery_time) && (
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        <strong className="text-slate-700">Prazo de entrega:</strong> {activeConfigProduct.delivery_time || activeConfigProduct.pricing_details?.delivery_time}
+                      </p>
+                    )}
                   </div>
                   <button 
                     onClick={() => setActiveConfigProduct(null)}
@@ -1914,6 +1925,7 @@ export default function StorefrontPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {showcaseProducts.map((product) => {
                   const hasVolumeTiers = product.volume_pricing && product.volume_pricing.length > 0;
+                  const deliveryTime = product.delivery_time || product.pricing_details?.delivery_time;
                   const displayPrice = product.volume_pricing && product.volume_pricing.length > 0
                     ? Math.min(...product.volume_pricing.map(v => v.price))
                     : product.sales_price;
@@ -1993,6 +2005,11 @@ export default function StorefrontPage() {
                           <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wide line-clamp-2 min-h-[2rem] group-hover:text-emerald-600 transition-colors duration-300">
                             {product.name}
                           </h3>
+                          {deliveryTime && (
+                            <p className="text-[10px] leading-snug text-slate-500">
+                              <strong className="text-slate-700">Prazo de entrega:</strong> {deliveryTime}
+                            </p>
+                          )}
                         </div>
                       </div>
 

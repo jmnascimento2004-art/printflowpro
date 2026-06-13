@@ -24,6 +24,7 @@ export default function PricingPage() {
   const [categoryId, setCategoryId] = useState('');
   const [pricingType, setPricingType] = useState<'unidade' | 'm2' | 'linear' | 'pacote'>('m2');
   const [sku, setSku] = useState('');
+  const [deliveryTime, setDeliveryTime] = useState('');
   
   // Cost & Operational states
   const [rawMaterialCost, setRawMaterialCost] = useState(15.00);
@@ -146,6 +147,7 @@ export default function PricingPage() {
       stock_controlled: true,
       min_stock: 10,
       active: true,
+      delivery_time: deliveryTime.trim() || undefined,
       pricing_details: {
         raw_material_cost: rawMaterialCost,
         operating_cost: operationalCost,
@@ -154,13 +156,15 @@ export default function PricingPage() {
         commission: commissionPercent,
         taxes: taxPercent,
         waste_percent: wastePercent,
-        calculated_price: suggestedPrice
+        calculated_price: suggestedPrice,
+        delivery_time: deliveryTime.trim() || undefined
       }
     });
 
     setNotification('Produto salvo e adicionado ao estoque do ERP com sucesso!');
     setName('');
     setSku('');
+    setDeliveryTime('');
     
     setTimeout(() => {
       setNotification(null);
@@ -437,6 +441,16 @@ export default function PricingPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ex: Banner Lona Fosca 440g Ilhós"
+                  className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary text-foreground font-medium"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Prazo de Entrega</label>
+                <input
+                  type="text"
+                  value={deliveryTime}
+                  onChange={(e) => setDeliveryTime(e.target.value)}
+                  placeholder="Ex: Até 2 dias úteis"
                   className="w-full px-3 py-2 bg-secondary/30 border border-border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-primary text-foreground font-medium"
                 />
               </div>

@@ -194,6 +194,7 @@ export default function ProductsCRUDPage() {
   const [catalogActive, setCatalogActive] = useState(true);
   const [isPromo, setIsPromo] = useState(false);
   const [isHighlight, setIsHighlight] = useState(false);
+  const [deliveryTime, setDeliveryTime] = useState('');
 
   // Advanced States
   const [imageUrl, setImageUrl] = useState('');
@@ -356,6 +357,7 @@ export default function ProductsCRUDPage() {
     setCatalogActive(true);
     setIsPromo(false);
     setIsHighlight(false);
+    setDeliveryTime('');
     setImageUrl('');
     setVolumePricing([]);
     setVariantOptions([]);
@@ -388,6 +390,7 @@ export default function ProductsCRUDPage() {
     setCatalogActive(prod.catalog_active ?? true);
     setIsPromo(prod.is_promo || false);
     setIsHighlight(prod.is_highlight || false);
+    setDeliveryTime(prod.delivery_time || prod.pricing_details?.delivery_time || '');
     setImageUrl(prod.image_url || '');
     setVolumePricing(prod.volume_pricing || []);
     setVariantOptions(prod.variant_options || []);
@@ -426,11 +429,14 @@ export default function ProductsCRUDPage() {
       catalog_active: prod.catalog_active ?? true,
       is_promo: prod.is_promo || false,
       is_highlight: prod.is_highlight || false,
+      delivery_time: prod.delivery_time || prod.pricing_details?.delivery_time,
       image_url: prod.image_url,
       volume_pricing: prod.volume_pricing ? [...prod.volume_pricing] : undefined,
       variant_options: prod.variant_options ? [...prod.variant_options] : undefined,
       color_options: prod.color_options ? [...prod.color_options] : undefined,
-      pricing_details: prod.pricing_details ? { ...prod.pricing_details } : undefined
+      pricing_details: prod.pricing_details
+        ? { ...prod.pricing_details, delivery_time: prod.delivery_time || prod.pricing_details.delivery_time }
+        : undefined
     });
 
     handleOpenEdit(duplicated);
@@ -441,6 +447,7 @@ export default function ProductsCRUDPage() {
     if (!name.trim()) return;
     const usesRequiredVolumePricing = !['m2', 'linear'].includes(pricingType);
     const productVolumePricing = usesRequiredVolumePricing ? volumePricing : (volumePricing.length > 0 ? volumePricing : undefined);
+    const cleanDeliveryTime = deliveryTime.trim();
 
     if (usesRequiredVolumePricing && volumePricing.length === 0) {
       alert('Adicione pelo menos uma opcao de quantidade para este produto.');
@@ -465,6 +472,7 @@ export default function ProductsCRUDPage() {
         catalog_active: catalogActive,
         is_promo: isPromo,
         is_highlight: isHighlight,
+        delivery_time: cleanDeliveryTime || undefined,
         image_url: imageUrl || undefined,
         volume_pricing: productVolumePricing,
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
@@ -477,7 +485,8 @@ export default function ProductsCRUDPage() {
           commission: commissionPercent,
           taxes: taxPercent,
           waste_percent: 0,
-          calculated_price: salesPrice
+          calculated_price: salesPrice,
+          delivery_time: cleanDeliveryTime || undefined
         }
       });
     } else {
@@ -496,6 +505,7 @@ export default function ProductsCRUDPage() {
         catalog_active: catalogActive,
         is_promo: isPromo,
         is_highlight: isHighlight,
+        delivery_time: cleanDeliveryTime || undefined,
         image_url: imageUrl || undefined,
         volume_pricing: productVolumePricing,
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
@@ -508,7 +518,8 @@ export default function ProductsCRUDPage() {
           commission: commissionPercent,
           taxes: taxPercent,
           waste_percent: 0,
-          calculated_price: salesPrice
+          calculated_price: salesPrice,
+          delivery_time: cleanDeliveryTime || undefined
         }
       });
 
@@ -1408,6 +1419,20 @@ export default function ProductsCRUDPage() {
               </div>
 
               {/* Tags Destaque e Promoção */}
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Prazo de Entrega</label>
+                <input
+                  type="text"
+                  value={deliveryTime}
+                  onChange={(e) => setDeliveryTime(e.target.value)}
+                  placeholder="Ex: Até 2 dias úteis"
+                  className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
+                />
+                <span className="text-[9px] text-muted-foreground block">
+                  Esta informação aparece no card do produto no catálogo online.
+                </span>
+              </div>
+
               <div className="md:col-span-2 flex flex-col sm:flex-row gap-4 py-2 border-t border-b border-border/40">
                 <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
                   <input

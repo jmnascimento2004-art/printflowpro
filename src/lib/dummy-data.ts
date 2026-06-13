@@ -185,6 +185,7 @@ export interface PricingDetails {
   taxes: number; // percentage
   waste_percent: number; // percentage
   calculated_price: number;
+  delivery_time?: string;
 }
 
 export interface VolumePriceTier {
@@ -219,6 +220,7 @@ export interface Product {
   pricing_details?: PricingDetails;
   created_at: string;
   image_url?: string;
+  delivery_time?: string;
   volume_pricing?: VolumePriceTier[];
   variant_options?: ProductOption[];
   color_options?: ProductColorOption[];
