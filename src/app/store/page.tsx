@@ -47,7 +47,7 @@ const getProductBadge = (name: string): 'favorito' | 'novo' | null => {
   const lowerName = name.toLowerCase();
   if (
     (lowerName.includes('flyer') && !lowerName.includes('premium')) ||
-    lowerName.includes('cartÃ£o') ||
+    lowerName.includes('cartão') ||
     lowerName.includes('pasta') ||
     lowerName.includes('folder') ||
     lowerName.includes('cartaz') ||
@@ -395,7 +395,7 @@ export default function StorefrontPage() {
         !deliveryCity.trim() ||
         !deliveryState.trim())
     ) {
-      alert('Preencha o endereÃ§o completo para entrega por motoboy.');
+      alert('Preencha o endereço completo para entrega por motoboy.');
       return;
     }
 
@@ -416,7 +416,7 @@ export default function StorefrontPage() {
         height: c.height,
         variant: c.variant,
         color: c.color,
-        notes: ['Enviado pelo catÃ¡logo online', c.variant ? `Variacao: ${c.variant}` : '', c.color ? `Cor: ${c.color}` : ''].filter(Boolean).join(' | ')
+        notes: ['Enviado pelo catálogo online', c.variant ? `Variação: ${c.variant}` : '', c.color ? `Cor: ${c.color}` : ''].filter(Boolean).join(' | ')
       }
     }));
 
@@ -468,7 +468,7 @@ export default function StorefrontPage() {
       delivery_type: deliveryMethod,
       delivery_address: isMotoboyDelivery ? deliveryFullAddress : undefined,
       delivery_fee: 0,
-      notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no BalcÃ£o - ${selectedPickupPoint}` : `Envio por motoboy - ${deliveryFullAddress}`}. Interesse de compra: ${purchaseInterest.replace(/\n/g, ' | ')}. Obs cliente: ${checkoutNotes}`,
+      notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no Balcão - ${selectedPickupPoint}` : `Envio por motoboy - ${deliveryFullAddress}`}. Interesse de compra: ${purchaseInterest.replace(/\n/g, ' | ')}. Obs cliente: ${checkoutNotes}`,
       items: qItems
     });
 
@@ -580,11 +580,11 @@ export default function StorefrontPage() {
         <div className="max-w-7xl mx-auto w-full px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-2">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5 text-emerald-500" /> {settings?.top_bar_hours || 'Segunda Ã  Sexta: 8h Ã s 12h / 13h30 Ã s 18h'}
+              <Clock className="h-3.5 w-3.5 text-emerald-500" /> {settings?.top_bar_hours || 'Segunda à Sexta: 8h às 12h / 13h30 às 18h'}
             </span>
             {settings?.top_bar_show_pickup !== false && (
               <span className="hidden md:flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5 text-emerald-500" /> Retire grÃ¡tis em nossos balcÃµes autorizados
+                <MapPin className="h-3.5 w-3.5 text-emerald-500" /> Retire grátis em nossos balcões autorizados
               </span>
             )}
           </div>
@@ -643,7 +643,7 @@ export default function StorefrontPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar banners, adesivos, canecas, cartÃµes..."
+              placeholder="Buscar banners, adesivos, canecas, cartões..."
               className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl text-xs focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-zinc-900 text-slate-800 dark:text-zinc-100 transition-all font-medium"
             />
             {searchQuery && (
@@ -691,7 +691,7 @@ export default function StorefrontPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="O que vocÃª deseja produzir hoje?"
+            placeholder="O que você deseja produzir hoje?"
             className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg text-xs text-slate-800 dark:text-zinc-100 focus:outline-none focus:bg-white dark:focus:bg-zinc-900"
           />
           {searchQuery && (
@@ -702,12 +702,12 @@ export default function StorefrontPage() {
         </div>
       </div>
 
-      {/* Category Menu Bar (Barra de menu com todos os serviÃ§os) */}
+      {/* Category Menu Bar */}
       <div className="bg-white dark:bg-zinc-900 sticky top-20 z-20 shadow-sm border-b border-slate-200 dark:border-zinc-800 w-full select-none">
         <div ref={menuBarRef} className="max-w-7xl mx-auto w-full px-4 md:px-8 relative">
           <div className="w-full flex items-center overflow-x-auto no-scrollbar">
             <div className="flex items-center w-full min-w-max h-12">
-              {/* Todos os ServiÃ§os button styled as hamburger menu */}
+              {/* Todos os Serviços button styled as hamburger menu */}
               <button
                 onClick={(e) => handleTopCategoryClick(null, e)}
                 className={`flex items-center gap-2 h-full pl-0 pr-6 text-xs font-bold uppercase tracking-wider transition-colors shrink-0 border-r border-slate-200 dark:border-zinc-800 mr-4 relative ${
@@ -912,12 +912,12 @@ export default function StorefrontPage() {
                       </div>
                       )}
 
-                      {/* Column 3: Veja TambÃ©m */}
+                      {/* Column 3 */}
                       {column3.length > 0 && (
                       <div className="space-y-4">
                         <div>
                           <span className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider border-b border-slate-100 dark:border-zinc-850 pb-2 mb-3 block">
-                            Veja tambÃ©m
+                            Veja também
                           </span>
                         </div>
                         <div className="space-y-2">
@@ -1023,7 +1023,7 @@ export default function StorefrontPage() {
                     type="button"
                     onClick={handleNextSlide}
                     className="absolute right-6 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-black/25 hover:bg-black/45 text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm shadow-md"
-                    aria-label="PrÃ³ximo slide"
+                    aria-label="Próximo slide"
                   >
                     <ChevronRight className="h-6 w-6" />
                   </button>
@@ -1058,10 +1058,10 @@ export default function StorefrontPage() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  {company.card_benefits_1_title || 'AtÃ© 4x Sem Juros'}
+                  {company.card_benefits_1_title || 'Até 4x Sem Juros'}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-zinc-300 mt-0.5">
-                  {company.card_benefits_1_subtitle || 'Parcela mÃ­nima de R$ 300,00 nos cartÃµes Visa/Master.'}
+                  {company.card_benefits_1_subtitle || 'Parcela mínima de R$ 300,00 nos cartões Visa/Master.'}
                 </p>
               </div>
             </div>
@@ -1077,7 +1077,7 @@ export default function StorefrontPage() {
                   {company.card_benefits_2_title || 'Desconto no PIX'}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-zinc-300 mt-0.5">
-                  {company.card_benefits_2_subtitle || 'Ganhe 5% de desconto automÃ¡tico em pagamentos Ã  vista.'}
+                  {company.card_benefits_2_subtitle || 'Ganhe 5% de desconto automático em pagamentos à vista.'}
                 </p>
               </div>
             </div>
@@ -1093,7 +1093,7 @@ export default function StorefrontPage() {
                   {company.card_benefits_3_title || 'Frete para todo Brasil'}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-zinc-300 mt-0.5">
-                  {company.card_benefits_3_subtitle || 'Despacho via Correios ou Transportadora com cÃ³digo de rastreamento.'}
+                  {company.card_benefits_3_subtitle || 'Despacho via Correios ou Transportadora com código de rastreamento.'}
                 </p>
               </div>
             </div>
@@ -1109,7 +1109,7 @@ export default function StorefrontPage() {
                   {company.card_benefits_4_title || 'Pontos de Coleta'}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-zinc-300 mt-0.5">
-                  {company.card_benefits_4_subtitle || 'Retire sem custos em qualquer um de nossos balcÃµes autorizados.'}
+                  {company.card_benefits_4_subtitle || 'Retire sem custos em qualquer um de nossos balcões autorizados.'}
                 </p>
               </div>
             </div>
@@ -1122,7 +1122,7 @@ export default function StorefrontPage() {
               <div>
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
                   <Tag className="h-3.5 w-3.5" />
-                  PromoÃ§Ãµes
+                  Promoções
                 </span>
                 <h2 className="mt-1 text-xl md:text-2xl font-black text-slate-900 dark:text-zinc-50 tracking-tight">
                   Produtos em destaque
@@ -1152,12 +1152,12 @@ export default function StorefrontPage() {
                     onClick={() => setActiveConfigProduct(product)}
                     className="group text-left bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-emerald-500/40 transition-all"
                   >
-                    <div className="aspect-[5/3] bg-slate-100 dark:bg-zinc-800 relative overflow-hidden">
+                    <div className="aspect-[4/3] bg-white dark:bg-zinc-800 relative overflow-hidden">
                       {product.image_url ? (
                         <img
                           src={product.image_url}
                           alt={product.name}
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          className="h-full w-full object-contain p-2 group-hover:scale-[1.03] transition-transform duration-500"
                         />
                       ) : (
                         <div className="h-full w-full flex items-center justify-center text-slate-300">
@@ -1168,7 +1168,7 @@ export default function StorefrontPage() {
                         {product.is_promo && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider shadow-sm">
                             <Tag className="h-2.5 w-2.5" />
-                            PromoÃ§Ã£o
+                            Promoção
                           </span>
                         )}
                         {product.is_highlight && (
@@ -1217,12 +1217,12 @@ export default function StorefrontPage() {
                   >
                     <div>
                       {/* Product Image Area (Aspect Square & No Margin at top/left/right) */}
-                      <div className="aspect-[4/3] w-full bg-slate-100/60 overflow-hidden border-b border-slate-200/60 flex items-center justify-center shrink-0 relative">
+                      <div className="aspect-[1/1.08] w-full bg-white overflow-hidden border-b border-slate-200/60 flex items-center justify-center shrink-0 relative">
                         {p.image_url ? (
                           <img 
                             src={p.image_url} 
                             alt={p.name} 
-                            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                            className="h-full w-full object-contain p-2 group-hover:scale-[1.03] transition-transform duration-500"
                           />
                         ) : (
                           <div className="text-slate-300 flex flex-col items-center gap-1">
@@ -1253,7 +1253,7 @@ export default function StorefrontPage() {
                               title="Filtrar promocoes"
                             >
                               <Tag className="h-2.5 w-2.5 stroke-[2.5]" />
-                              Promocao
+                              Promoção
                             </button>
                           )}
                           {p.is_highlight && (
@@ -1282,7 +1282,7 @@ export default function StorefrontPage() {
                           </span>
                           {p.pricing_type === 'm2' && (
                             <span className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg border border-blue-500/10 uppercase tracking-wide">
-                              Sob Medida (mÂ²)
+                              Sob Medida (m²)
                             </span>
                           )}
                         </div>
@@ -1298,7 +1298,7 @@ export default function StorefrontPage() {
                     <div className="border-t border-slate-100 p-3 pt-3 mt-1 flex items-center justify-between gap-2">
                       <div>
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
-                          {hasVolumeTiers ? 'A partir de' : 'PreÃ§o'}
+                          {hasVolumeTiers ? 'A partir de' : 'Preço'}
                         </span>
                         <span className="font-extrabold text-emerald-600 text-sm block leading-none">
                           {formatCurrency(displayPrice)} 
@@ -1310,7 +1310,7 @@ export default function StorefrontPage() {
                               <path d="M12 0L1.6 10.4 12 20.8 22.4 10.4 12 0zm0 3.2L19.2 10.4 12 17.6 4.8 10.4 12 3.2zm0 3.8L8.2 10.8 12 14.6 15.8 10.8 12 7zm0 2.2l1.6 1.6-1.6 1.6-1.6-1.6 1.6-1.6z"/>
                             </svg>
                             <span>
-                              {formatCurrency(displayPrice * 0.95)} Ã  vista
+                              {formatCurrency(displayPrice * 0.95)} à vista
                             </span>
                           </div>
                         )}
@@ -1331,7 +1331,7 @@ export default function StorefrontPage() {
           ) : (
             <div className="py-20 text-center space-y-3 bg-white border border-slate-200 rounded-xl">
               <HelpCircle className="h-10 w-10 text-slate-400 mx-auto" />
-              <p className="text-slate-500 text-sm font-medium">Nenhum serviÃ§o grÃ¡fico encontrado nesta busca.</p>
+              <p className="text-slate-500 text-sm font-medium">Nenhum serviço gráfico encontrado nesta busca.</p>
               <button 
                 onClick={() => { setSelectedCategory(null); setSearchQuery(''); setSelectedTagFilter('all'); }}
                 className="text-xs text-emerald-600 font-bold hover:underline"
@@ -1353,7 +1353,7 @@ export default function StorefrontPage() {
             </span>
           </h2>
           <p className="text-sm md:text-base text-slate-500 max-w-xl mx-auto leading-relaxed">
-            OrÃ§amentos automÃ¡ticos para lonas, banners e adesivos. Configure as dimensÃµes exatas de seu projeto e envie o pedido instantaneamente para nossa fila de produÃ§Ã£o.
+            Orçamentos automáticos para lonas, banners e adesivos. Configure as dimensões exatas de seu projeto e envie o pedido instantaneamente para nossa fila de produção.
           </p>
         </div>
       </section>
@@ -1367,12 +1367,12 @@ export default function StorefrontPage() {
             <div className="w-full md:w-[48%] bg-slate-50 p-3 md:p-4 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between overflow-y-auto max-h-[42dvh] md:max-h-none">
               <div>
                 {/* Large Product Image */}
-                <div className="aspect-[4/3] w-full max-h-[300px] md:max-h-[60dvh] rounded-none bg-white overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center relative">
+                <div className="aspect-[4/3] w-full min-h-[300px] md:min-h-[380px] max-h-[64dvh] rounded-none bg-white overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center relative">
                   {activeConfigProduct.image_url ? (
                     <img 
                       src={activeConfigProduct.image_url} 
                       alt={activeConfigProduct.name} 
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-contain p-2"
                     />
                   ) : (
                     <div className="text-slate-300 flex flex-col items-center gap-1.5">
@@ -1386,7 +1386,7 @@ export default function StorefrontPage() {
                 <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
                   <div className="bg-white border border-slate-200 p-2.5 rounded-lg flex items-center gap-2 shadow-sm">
                     <Truck className="h-4 w-4 text-emerald-600" />
-                    <span>Entrega RÃ¡pida</span>
+                    <span>Entrega Rápida</span>
                   </div>
                   <div className="bg-white border border-slate-200 p-2.5 rounded-lg flex items-center gap-2 shadow-sm">
                     <ShieldCheck className="h-4 w-4 text-emerald-600" />
@@ -1398,11 +1398,11 @@ export default function StorefrontPage() {
               {/* WhatsApp Support Link */}
               <div className="mt-4 border-t border-slate-200 pt-3">
                 <a
-                  href={`https://wa.me/5551987654321?text=OlÃ¡, tenho dÃºvidas sobre o produto: ${activeConfigProduct.name}`}
+                  href={`https://wa.me/5551987654321?text=Olá, tenho dúvidas sobre o produto: ${activeConfigProduct.name}`}
                   target="_blank"
                   className="w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  <Phone className="h-4 w-4 text-emerald-600" /> Tirar dÃºvidas no WhatsApp
+                  <Phone className="h-4 w-4 text-emerald-600" /> Tirar dúvidas no WhatsApp
                 </a>
               </div>
             </div>
@@ -1431,7 +1431,7 @@ export default function StorefrontPage() {
                 {/* Description */}
                 {activeConfigProduct.description && (
                   <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl text-xs text-slate-600 leading-relaxed font-medium max-h-[30dvh] overflow-y-auto">
-                    <strong className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">DescriÃ§Ã£o:</strong>
+                    <strong className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Descrição:</strong>
                     <div
                       className="rich-text-content"
                       dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(activeConfigProduct.description) }}
@@ -1598,7 +1598,7 @@ export default function StorefrontPage() {
               <div className="space-y-3 pt-3 border-t border-slate-100">
                 <div className="p-3 bg-emerald-50/30 border border-emerald-500/10 rounded-xl flex justify-between items-center text-xs shadow-sm">
                   <div>
-                    <span className="text-slate-500 block font-medium">PreÃ§o UnitÃ¡rio:</span>
+                    <span className="text-slate-500 block font-medium">Preço Unitário:</span>
                     <span className="font-extrabold text-slate-800 text-sm mt-1 block">
                       {formatCurrency(getProductConfigPrice(activeConfigProduct, configQty))}
                     </span>
@@ -1614,7 +1614,7 @@ export default function StorefrontPage() {
                           <path d="M12 0L1.6 10.4 12 20.8 22.4 10.4 12 0zm0 3.2L19.2 10.4 12 17.6 4.8 10.4 12 3.2zm0 3.8L8.2 10.8 12 14.6 15.8 10.8 12 7zm0 2.2l1.6 1.6-1.6 1.6-1.6-1.6 1.6-1.6z"/>
                         </svg>
                         <span>
-                          {formatCurrency(getProductConfigPrice(activeConfigProduct, configQty) * configQty * 0.95)} Ã  vista
+                          {formatCurrency(getProductConfigPrice(activeConfigProduct, configQty) * configQty * 0.95)} à vista
                         </span>
                       </div>
                     )}
@@ -1652,7 +1652,7 @@ export default function StorefrontPage() {
             <div className="space-y-5">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h3 className="font-bold text-slate-900 text-sm uppercase flex items-center gap-1.5 tracking-wide">
-                  <ShoppingCart className="h-4.5 w-4.5 text-emerald-600" /> Carrinho de OrÃ§amentos
+                  <ShoppingCart className="h-4.5 w-4.5 text-emerald-600" /> Carrinho de Orçamentos
                 </h3>
                 <button 
                   onClick={() => setCartOpen(false)}
@@ -1671,7 +1671,7 @@ export default function StorefrontPage() {
                         <div className="font-bold text-slate-900">{item.product.name}</div>
                         {item.width && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                            DimensÃµes: {item.width}m {item.height ? `x ${item.height}m` : 'linear'}
+                            Dimensões: {item.width}m {item.height ? `x ${item.height}m` : 'linear'}
                           </div>
                         )}
                         {(item.variant || item.color) && (
@@ -1694,7 +1694,7 @@ export default function StorefrontPage() {
                   ))
                 ) : (
                   <div className="py-12 text-center text-slate-400 italic text-xs font-medium">
-                    Seu carrinho estÃ¡ vazio. Adicione produtos para orÃ§amento.
+                    Seu carrinho está vazio. Adicione produtos para orçamento.
                   </div>
                 )}
               </div>
@@ -1749,7 +1749,7 @@ export default function StorefrontPage() {
                             : 'bg-slate-50 border-slate-200 text-slate-500'
                         }`}
                       >
-                        Retirar no BalcÃ£o
+                        Retirar no Balcão
                       </button>
                       <button
                         type="button"
@@ -1768,7 +1768,7 @@ export default function StorefrontPage() {
                   {/* Pickup locations dropdown if Retirada selected */}
                   {deliveryMethod === 'retirada' && activePickupPoints.length > 0 && (
                     <div className="space-y-1 animate-in slide-in-from-top duration-150">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Escolha o BalcÃ£o de Coleta *</label>
+                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Escolha o Balcão de Coleta *</label>
                       <select
                         required
                         value={selectedPickupPoint}
@@ -1886,11 +1886,11 @@ export default function StorefrontPage() {
                   )}
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">ObservaÃ§Ãµes do OrÃ§amento</label>
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Observações do Orçamento</label>
                     <textarea
                       value={clientNotes}
                       onChange={(e) => setClientNotes(e.target.value)}
-                      placeholder="Descreva detalhes como acabamento, cores ou urgÃªncia..."
+                      placeholder="Descreva detalhes como acabamento, cores ou urgência..."
                       rows={2}
                       className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white resize-none"
                     />
@@ -1900,7 +1900,7 @@ export default function StorefrontPage() {
                     type="submit"
                     className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all flex items-center justify-center gap-1.5 mt-3"
                   >
-                    Enviar Pedido de OrÃ§amento <ArrowRight className="h-4.5 w-4.5" />
+                    Enviar Pedido de Orçamento <ArrowRight className="h-4.5 w-4.5" />
                   </button>
                 </form>
               )}
@@ -1911,7 +1911,7 @@ export default function StorefrontPage() {
                 onClick={() => setCartOpen(false)}
                 className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold text-center transition-colors"
               >
-                Voltar ao CatÃ¡logo
+                Voltar ao Catálogo
               </button>
             </div>
 
@@ -1924,18 +1924,18 @@ export default function StorefrontPage() {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center py-6 px-4">
           <div className="bg-white border border-slate-200 rounded-xl w-full max-w-sm p-6 text-center space-y-4 animate-in zoom-in duration-200 text-slate-800 shadow-2xl">
             <CheckCircle2 className="h-14 w-14 text-emerald-500 mx-auto animate-bounce" />
-            <h3 className="text-lg font-bold text-slate-900 leading-tight">OrÃ§amento Recebido!</h3>
+            <h3 className="text-lg font-bold text-slate-900 leading-tight">Orçamento Recebido!</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Obrigado! Seu pedido de orÃ§amento foi cadastrado com sucesso. CÃ³digo gerado: <strong className="text-slate-800">OrÃ§amento #{orderCompleted}</strong>.
+              Obrigado! Seu pedido de orçamento foi cadastrado com sucesso. Código gerado: <strong className="text-slate-800">Orçamento #{orderCompleted}</strong>.
             </p>
             <p className="text-[10px] bg-slate-50 border border-slate-200 p-2.5 rounded-lg italic text-slate-600">
-              Nossa equipe comercial analisarÃ¡ suas configuraÃ§Ãµes e entrarÃ¡ em contato via WhatsApp nas prÃ³ximas horas.
+              Nossa equipe comercial analisará suas configurações e entrará em contato via WhatsApp nas próximas horas.
             </p>
             <button
               onClick={() => setOrderCompleted(null)}
               className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md"
             >
-              Voltar ao CatÃ¡logo
+              Voltar ao Catálogo
             </button>
           </div>
         </div>
@@ -2007,10 +2007,10 @@ export default function StorefrontPage() {
             </div>
           </div>
 
-          {/* EndereÃ§o */}
+          {/* Endereço */}
           <div className="space-y-4">
             <div>
-              <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">EndereÃ§o</h4>
+              <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Endereço</h4>
             </div>
             <div className="space-y-3">
               <div className="space-y-1.5">
@@ -2020,12 +2020,12 @@ export default function StorefrontPage() {
                     {company.street ? (
                       <>
                         {company.street}, {company.number}<br />
-                        {company.neighborhood} â€” {company.city}/{company.state}<br />
+                        {company.neighborhood} - {company.city}/{company.state}<br />
                         CEP {company.cep}
                       </>
                     ) : (
                       <>
-                        Avenida das IndÃºstrias, 1200 - Igara<br />
+                        Avenida das Indústrias, 1200 - Igara<br />
                         Porto Alegre - RS | CEP 90200-290
                       </>
                     )}
@@ -2039,10 +2039,10 @@ export default function StorefrontPage() {
             </div>
           </div>
 
-          {/* HorÃ¡rio de Atendimento */}
+          {/* Horário de Atendimento */}
           <div className="space-y-4">
             <div>
-              <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">HorÃ¡rio de Atendimento</h4>
+              <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Horário de Atendimento</h4>
             </div>
             <div className="space-y-3.5 text-slate-200 font-medium leading-relaxed">
               {settings?.footer_hours_message && (
@@ -2054,9 +2054,9 @@ export default function StorefrontPage() {
                 <div className="space-y-0.5">
                   <p className="flex items-center gap-2 text-slate-200 font-semibold">
                     <Clock className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    <span>{settings?.footer_hours_week || '8h Ã s 12h / 13h30 Ã s 18h'}</span>
+                    <span>{settings?.footer_hours_week || '8h às 12h / 13h30 às 18h'}</span>
                   </p>
-                  <p className="text-slate-400 text-[10px] uppercase font-bold pl-5.5">{settings?.footer_hours_sat || 'Segunda Ã  Sexta-feira'}</p>
+                  <p className="text-slate-400 text-[10px] uppercase font-bold pl-5.5">{settings?.footer_hours_sat || 'Segunda à Sexta-feira'}</p>
                 </div>
                 {settings?.footer_hours_sat_time && (
                   <div className="space-y-0.5">
@@ -2064,13 +2064,13 @@ export default function StorefrontPage() {
                       <Clock className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                       <span>{settings.footer_hours_sat_time}</span>
                     </p>
-                    <p className="text-slate-400 text-[10px] uppercase font-bold pl-5.5">{settings?.footer_hours_sat_desc || 'SÃ¡bado'}</p>
+                    <p className="text-slate-400 text-[10px] uppercase font-bold pl-5.5">{settings?.footer_hours_sat_desc || 'Sábado'}</p>
                   </div>
                 )}
               </div>
               {settings?.footer_show_address !== false && (
                 <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                  LOJA FÃSICA | MATRIZ {company.city || 'PORTO ALEGRE'} - {company.state || 'RS'}
+                  LOJA FÍSICA | MATRIZ {company.city || 'PORTO ALEGRE'} - {company.state || 'RS'}
                 </div>
               )}
             </div>
@@ -2083,16 +2083,16 @@ export default function StorefrontPage() {
             </div>
             <div className="flex flex-col gap-2.5 font-semibold">
               <button onClick={() => setCartOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Carrinho de OrÃ§amentos
+                Carrinho de Orçamentos
               </button>
               <button onClick={() => setSelectedCategory(null)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Todos os ServiÃ§os
+                Todos os Serviços
               </button>
               <button onClick={() => setPickupModalOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                BalcÃµes de Retirada
+                Balcões de Retirada
               </button>
               <button onClick={() => setRefundModalOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                PolÃ­tica de devoluÃ§Ã£o e reembolso
+                Política de devolução e reembolso
               </button>
               <a href={`https://wa.me/55${(company.phone || '51987654321').replace(/\D/g, '')}`} target="_blank" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                 Falar com Vendedor
@@ -2152,16 +2152,16 @@ export default function StorefrontPage() {
               )}
               {false && company.show_payments_boleto !== false && (
                 company.img_payments_boleto ? (
-                  <img src={company.img_payments_boleto} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Boleto BancÃ¡rio" title="Boleto BancÃ¡rio" />
+                  <img src={company.img_payments_boleto} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Boleto Bancário" title="Boleto Bancário" />
                 ) : (
                   <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Boleto</span>
                 )
               )}
               {false && company.show_payments_transferencia !== false && (
                 company.img_payments_transferencia ? (
-                  <img src={company.img_payments_transferencia} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="TransferÃªncia" title="TransferÃªncia" />
+                  <img src={company.img_payments_transferencia} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Transferência" title="Transferência" />
                 ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">TransferÃªncia</span>
+                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Transferência</span>
                 )
               )}
               {company.show_payments_pix !== false && (
@@ -2216,9 +2216,9 @@ export default function StorefrontPage() {
             </div>
           </div>
  
-          {/* SEGURANÃ‡A */}
+          {/* SEGURANÇA */}
           <div className="space-y-3.5">
-            <h4 className="font-extrabold text-emerald-500 text-xs uppercase tracking-wider">SeguranÃ§a</h4>
+            <h4 className="font-extrabold text-emerald-500 text-xs uppercase tracking-wider">Segurança</h4>
             <div className="flex flex-wrap gap-2">
               {company.show_security_letsencrypt !== false && (
                 company.img_security_letsencrypt ? (
@@ -2241,8 +2241,8 @@ export default function StorefrontPage() {
         {/* Bottom Bar */}
         <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-[15px] mt-[15px] text-center text-[10px] md:text-xs text-slate-500 font-medium flex flex-col items-center gap-4">
           <p>
-            {new Date().getFullYear()} â€” Copyright Â© â€” {company.name || 'PrintFlowPRO'}
-            {company.document ? ` â€” CNPJ: ${company.document}` : ''} | Desenvolvido para Alta Lucratividade de GrÃ¡ficas e ComunicaÃ§Ã£o Visual.
+            {new Date().getFullYear()} - Copyright © - {company.name || 'PrintFlowPRO'}
+            {company.document ? ` - CNPJ: ${company.document}` : ''} | Desenvolvido para Alta Lucratividade de Gráficas e Comunicação Visual.
           </p>
 
           <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-600 bg-slate-950/40 px-3 py-1.5 rounded-full border border-slate-800/60 select-none">
@@ -2273,7 +2273,7 @@ export default function StorefrontPage() {
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-emerald-600" />
-                <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">Nossos BalcÃµes de Retirada</h3>
+                <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">Nossos Balcões de Retirada</h3>
               </div>
               <button 
                 onClick={() => setPickupModalOpen(false)}
@@ -2303,7 +2303,7 @@ export default function StorefrontPage() {
                 ))
               ) : (
                 <div className="col-span-2 text-center py-6 text-xs text-slate-400 italic">
-                  Nenhum balcÃ£o de retirada disponÃ­vel no momento.
+                  Nenhum balcão de retirada disponível no momento.
                 </div>
               )}
             </div>
@@ -2328,7 +2328,7 @@ export default function StorefrontPage() {
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <HelpCircle className="h-5 w-5 text-emerald-600" />
-                <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">PolÃ­tica de DevoluÃ§Ã£o e Reembolso</h3>
+                <h3 className="font-extrabold text-slate-900 text-sm uppercase tracking-wider">Política de Devolução e Reembolso</h3>
               </div>
               <button 
                 onClick={() => setRefundModalOpen(false)}
@@ -2345,7 +2345,7 @@ export default function StorefrontPage() {
               />
             ) : (
               <div className="max-h-[350px] overflow-y-auto pr-1 text-xs leading-relaxed text-slate-600 font-medium">
-                Nenhuma polÃ­tica cadastrada no momento. Entre com contato com o suporte.
+                Nenhuma política cadastrada no momento. Entre em contato com o suporte.
               </div>
             )}
 
