@@ -80,6 +80,15 @@ export default function DashboardPage() {
   const getFinancialPaymentDate = (entry: { paid_at?: string; created_at: string }) => (
     new Date(entry.paid_at || entry.created_at)
   );
+  const transactionMatchesOrder = (entry: { order_id?: string; order_number?: string }, order: { id: string; number: string }) => (
+    normalizeKey(entry.order_id) === normalizeKey(order.id) ||
+    normalizeKey(entry.order_number) === normalizeKey(order.number)
+  );
+  const getPaidIncomeForOrder = (order: { id: string; number: string }) => (
+    paidIncomeTransactions
+      .filter(f => transactionMatchesOrder(f, order))
+      .reduce((sum, f) => sum + f.amount, 0)
+  );
 
   // Sales Today: real paid income from financial flow, excluding cancelled orders
   const salesToday = paidIncomeTransactions
@@ -179,12 +188,18 @@ export default function DashboardPage() {
   const getBestsellers = () => {
     const counts: Record<string, { qty: number; val: number }> = {};
     activeOrders.forEach(o => {
+      const paidAmount = getPaidIncomeForOrder(o);
+      if (paidAmount <= 0) return;
+
+      const itemsTotal = o.items.reduce((sum, item) => sum + Number(item.total_price), 0);
       o.items.forEach(i => {
         if (!counts[i.product_name]) {
           counts[i.product_name] = { qty: 0, val: 0 };
         }
         counts[i.product_name].qty += Number(i.quantity);
-        counts[i.product_name].val += Number(i.total_price);
+        counts[i.product_name].val += itemsTotal > 0
+          ? (paidAmount * Number(i.total_price)) / itemsTotal
+          : Number(i.total_price);
       });
     });
 
