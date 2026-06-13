@@ -1303,10 +1303,10 @@ export default function StorefrontPage() {
           <div className="bg-white border border-slate-200 rounded-xl w-full max-w-6xl max-h-[calc(100dvh-1rem)] md:max-h-[calc(100dvh-2rem)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-slate-800 flex flex-col md:flex-row">
             
             {/* Left Column: Product Image & Badges */}
-            <div className="w-full md:w-[48%] bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between overflow-y-auto max-h-[42dvh] md:max-h-none">
+            <div className="w-full md:w-[42%] bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between overflow-y-auto max-h-[42dvh] md:max-h-none">
               <div>
                 {/* Large Product Image */}
-                <div className="aspect-[4/3] w-full min-h-[300px] md:min-h-[380px] max-h-[64dvh] rounded-none bg-white overflow-hidden border-b border-slate-200 flex items-center justify-center relative">
+                <div className="aspect-square w-full rounded-none bg-white overflow-hidden border-b border-slate-200 flex items-center justify-center relative">
                   {activeConfigProduct.image_url ? (
                     <img 
                       src={activeConfigProduct.image_url} 
