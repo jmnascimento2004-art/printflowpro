@@ -1347,7 +1347,7 @@ export default function StorefrontPage() {
             </div>
 
             {/* Right Column: Product title, description, selectors, pricing & add button */}
-            <div className="w-full md:w-[52%] p-4 md:p-5 flex flex-col justify-between space-y-4 overflow-y-auto max-h-[58dvh] md:max-h-[calc(100dvh-2rem)]">
+            <div className="w-full md:w-[58%] p-4 md:p-5 flex flex-col justify-between space-y-4 overflow-y-auto max-h-[58dvh] md:max-h-[calc(100dvh-2rem)]">
               <div className="space-y-3">
                 {/* Header */}
                 <div className="flex justify-between items-start border-b border-slate-100 pb-3">
@@ -1383,26 +1383,26 @@ export default function StorefrontPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                        {activeConfigProduct.pricing_type === 'm2' ? 'Largura (metros)' : 'Comprimento (metros)'}
+                        {activeConfigProduct.pricing_type === 'm2' ? 'Largura (cm)' : 'Comprimento (cm)'}
                       </label>
                       <input
                         type="number"
-                        step="0.1"
-                        min="0.1"
-                        value={configWidth}
-                        onChange={(e) => setConfigWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                        step="1"
+                        min="1"
+                        value={Number((configWidth * 100).toFixed(2))}
+                        onChange={(e) => setConfigWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-center text-slate-800 focus:outline-none focus:border-emerald-500"
                       />
                     </div>
                     {activeConfigProduct.pricing_type === 'm2' && (
                       <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Altura (metros)</label>
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Altura (cm)</label>
                         <input
                           type="number"
-                          step="0.1"
-                          min="0.1"
-                          value={configHeight}
-                          onChange={(e) => setConfigHeight(Math.max(0.1, parseFloat(e.target.value) || 0.1))}
+                          step="1"
+                          min="1"
+                          value={Number((configHeight * 100).toFixed(2))}
+                          onChange={(e) => setConfigHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
                           className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-center text-slate-800 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
