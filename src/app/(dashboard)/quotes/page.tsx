@@ -21,7 +21,14 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Quote, QuoteItem } from '@/lib/dummy-data';
-import { formatCurrencyInput, parseCurrencyInputToNumber, generatePixPayload, formatCEP } from '@/lib/utils';
+import {
+  formatCurrencyInput,
+  parseCurrencyInputToNumber,
+  formatCEP,
+  getPixWhatsAppPaymentInfo,
+  getPublicImageUrl,
+  getWhatsAppTimeGreeting
+} from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 
@@ -113,12 +120,19 @@ export default function QuotesPage() {
       ? `55${cleanPhone}`
       : cleanPhone;
 
-    // Generate PIX key
     const pixKey = settings.pix_key || "financeiro@printflowpro.com.br";
     const amount = quote.total_amount;
-    const pixPayload = generatePixPayload(pixKey, amount, company?.name || "PrintFlowPRO");
+    const pixInfo = getPixWhatsAppPaymentInfo({
+      key: pixKey,
+      keyType: settings.pix_key_type,
+      amount,
+      merchantName: company?.name || "PrintFlowPRO"
+    });
+    const logoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark);
+    const logoLine = logoUrl ? `\n\n🏢 Logo da empresa: ${logoUrl}` : '';
+    const greeting = getWhatsAppTimeGreeting();
 
-    const message = `Olá, *${customer?.name || getQuoteCustomerName(quote)}*!\n\nAqui estão os dados para pagamento do seu orçamento *#${quote.number}* no valor total de *${formatCurrency(amount)}*:\n\n*Chave Copia e Cola PIX:*\n\`\`\`${pixPayload}\`\`\`\n\nApós realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = `${greeting}, *${customer?.name || getQuoteCustomerName(quote)}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu orçamento *#${quote.number}*:\n\n💰 *Valor total:* *${formatCurrency(amount)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;

@@ -23,7 +23,15 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Order } from '@/lib/dummy-data';
-import { formatCurrencyInput, parseCurrencyInputToNumber, generatePixPayload, formatCEP } from '@/lib/utils';
+import {
+  formatCurrencyInput,
+  parseCurrencyInputToNumber,
+  generatePixPayload,
+  formatCEP,
+  getPixWhatsAppPaymentInfo,
+  getPublicImageUrl,
+  getWhatsAppTimeGreeting
+} from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 
@@ -520,9 +528,17 @@ export default function OrdersPage() {
     }
 
     const pixKey = settings.pix_key || "financeiro@printflowpro.com.br";
-    const pixPayload = generatePixPayload(pixKey, balance, company?.name || "PrintFlowPRO");
+    const pixInfo = getPixWhatsAppPaymentInfo({
+      key: pixKey,
+      keyType: settings.pix_key_type,
+      amount: balance,
+      merchantName: company?.name || "PrintFlowPRO"
+    });
+    const logoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark);
+    const logoLine = logoUrl ? `\n\n🏢 Logo da empresa: ${logoUrl}` : '';
+    const greeting = getWhatsAppTimeGreeting();
 
-    const message = `Olá, *${order.customer_name}*!\n\nAqui estão os dados para pagamento do seu pedido *${order.number}*:\n\n*Valor a Pagar:* *${formatCurrency(balance)}*\n\n*Chave Copia e Cola PIX:*\n\`\`\`${pixPayload}\`\`\`\n\nApós realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${order.number}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const encodedText = encodeURIComponent(message);
     const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;

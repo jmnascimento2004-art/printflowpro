@@ -82,6 +82,38 @@ export function generatePixPayload(key: string, amount: number, merchantName: st
   return `${partPayload}${crc}`;
 }
 
+export function getWhatsAppTimeGreeting(date = new Date()): string {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return 'Bom dia';
+  if (hour >= 12 && hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+export function getPixWhatsAppPaymentInfo({
+  key,
+  keyType,
+  amount,
+  merchantName
+}: {
+  key: string;
+  keyType?: string;
+  amount: number;
+  merchantName?: string;
+}): { label: string; value: string } {
+  const cleanKey = key.trim();
+  const isRandomKey = keyType === 'aleatoria';
+
+  return {
+    label: isRandomKey ? 'Chave PIX Aleatória' : 'PIX Copia e Cola',
+    value: isRandomKey ? cleanKey : generatePixPayload(cleanKey, amount, merchantName || 'PrintFlowPRO')
+  };
+}
+
+export function getPublicImageUrl(value?: string): string {
+  const url = value?.trim() || '';
+  return /^https?:\/\//i.test(url) ? url : '';
+}
+
 /**
  * Formats a raw number or string value as R$ Currency input format
  * e.g. 10.5 -> "R$ 10,50"
