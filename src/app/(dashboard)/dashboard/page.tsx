@@ -55,15 +55,24 @@ export default function DashboardPage() {
   // 1. Calculations based on database state
   const todayStr = new Date().toISOString().split('T')[0];
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const isCancelledOrder = (status?: string) => ['cancelado', 'cancelled', 'canceled'].includes((status || '').toLowerCase());
+  const activeOrders = orders.filter(o => !isCancelledOrder(o.status));
+  const cancelledOrderIds = new Set(orders.filter(o => isCancelledOrder(o.status)).map(o => o.id));
+  const cancelledOrderNumbers = new Set(orders.filter(o => isCancelledOrder(o.status)).map(o => o.number));
+  const isFromCancelledOrder = (entry: { order_id?: string; order_number?: string }) => (
+    (!!entry.order_id && cancelledOrderIds.has(entry.order_id)) ||
+    (!!entry.order_number && cancelledOrderNumbers.has(entry.order_number))
+  );
+  const validFinancial = financial.filter(f => !isFromCancelledOrder(f));
 
   // Sales Today
-  const salesToday = orders
-    .filter(o => o.created_at.startsWith(todayStr) && o.status !== 'cancelado')
+  const salesToday = activeOrders
+    .filter(o => o.created_at.startsWith(todayStr))
     .reduce((sum, o) => sum + o.total_amount, 0);
 
   // Sales Month
-  const salesMonth = orders
-    .filter(o => new Date(o.created_at) >= startOfMonth && o.status !== 'cancelado')
+  const salesMonth = activeOrders
+    .filter(o => new Date(o.created_at) >= startOfMonth)
     .reduce((sum, o) => sum + o.total_amount, 0);
 
   // Production Orders
@@ -76,21 +85,21 @@ export default function DashboardPage() {
   }).length;
 
   // Accounts Receivable (total_amount - paid_amount on non-cancelled, non-fully paid orders)
-  const accountsReceivable = orders
-    .filter(o => o.status !== 'cancelado' && o.payment_status !== 'pago')
+  const accountsReceivable = activeOrders
+    .filter(o => o.payment_status !== 'pago')
     .reduce((sum, o) => sum + (o.total_amount - o.paid_amount), 0);
 
   // Accounts Payable (due_date in future or past, status pendente for type despesa)
-  const accountsPayable = financial
+  const accountsPayable = validFinancial
     .filter(f => f.type === 'despesa' && f.status === 'pendente')
     .reduce((sum, f) => sum + f.amount, 0);
 
   // Financial summary
-  const totalReceived = financial
+  const totalReceived = validFinancial
     .filter(f => f.type === 'receita' && f.status === 'pago')
     .reduce((sum, f) => sum + f.amount, 0);
 
-  const totalPaid = financial
+  const totalPaid = validFinancial
     .filter(f => f.type === 'despesa' && f.status === 'pago')
     .reduce((sum, f) => sum + f.amount, 0);
 
@@ -157,8 +166,7 @@ export default function DashboardPage() {
   // 3. Bestselling products (simulated based on orders data or static if empty, computed dynamically)
   const getBestsellers = () => {
     const counts: Record<string, { qty: number; val: number }> = {};
-    orders.forEach(o => {
-      if (o.status === 'cancelado') return;
+    activeOrders.forEach(o => {
       o.items.forEach(i => {
         if (!counts[i.product_name]) {
           counts[i.product_name] = { qty: 0, val: 0 };
