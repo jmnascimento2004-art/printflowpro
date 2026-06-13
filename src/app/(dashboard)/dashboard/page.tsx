@@ -53,25 +53,37 @@ export default function DashboardPage() {
   };
 
   // 1. Calculations based on database state
-  const todayStr = new Date().toISOString().split('T')[0];
+  const formatDateKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const todayStr = formatDateKey(new Date());
   const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const isCancelledOrder = (status?: string) => ['cancelado', 'cancelled', 'canceled'].includes((status || '').toLowerCase());
-  const activeOrders = orders.filter(o => !isCancelledOrder(o.status));
-  const cancelledOrderIds = new Set(orders.filter(o => isCancelledOrder(o.status)).map(o => o.id));
-  const cancelledOrderNumbers = new Set(orders.filter(o => isCancelledOrder(o.status)).map(o => o.number));
+  const isCancelledOrder = (order: { status?: string; payment_status?: string }) => {
+    const status = (order.status || '').trim().toLowerCase();
+    const paymentStatus = (order.payment_status || '').trim().toLowerCase();
+    return ['cancelado', 'cancelled', 'canceled'].includes(status) || paymentStatus === 'reembolsado';
+  };
+  const activeOrders = orders.filter(o => !isCancelledOrder(o));
+  const normalizeKey = (value?: string) => (value || '').trim().toLowerCase();
+  const cancelledOrderIds = new Set(orders.filter(o => isCancelledOrder(o)).map(o => normalizeKey(o.id)));
+  const cancelledOrderNumbers = new Set(orders.filter(o => isCancelledOrder(o)).map(o => normalizeKey(o.number)));
   const isFromCancelledOrder = (entry: { order_id?: string; order_number?: string }) => (
-    (!!entry.order_id && cancelledOrderIds.has(entry.order_id)) ||
-    (!!entry.order_number && cancelledOrderNumbers.has(entry.order_number))
+    (!!entry.order_id && cancelledOrderIds.has(normalizeKey(entry.order_id))) ||
+    (!!entry.order_number && cancelledOrderNumbers.has(normalizeKey(entry.order_number)))
   );
   const validFinancial = financial.filter(f => !isFromCancelledOrder(f));
-  const paidIncomeTransactions = validFinancial.filter(f => f.type === 'receita' && f.status === 'pago');
-  const getFinancialPaymentDate = (entry: { paid_at?: string; due_date?: string; created_at: string }) => (
-    new Date(entry.paid_at || entry.due_date || entry.created_at)
+  const paidIncomeTransactions = validFinancial.filter(f => normalizeKey(f.type) === 'receita' && normalizeKey(f.status) === 'pago');
+  const pendingIncomeTransactions = validFinancial.filter(f => normalizeKey(f.type) === 'receita' && normalizeKey(f.status) === 'pendente');
+  const getFinancialPaymentDate = (entry: { paid_at?: string; created_at: string }) => (
+    new Date(entry.paid_at || entry.created_at)
   );
 
   // Sales Today: real paid income from financial flow, excluding cancelled orders
   const salesToday = paidIncomeTransactions
-    .filter(f => getFinancialPaymentDate(f).toISOString().split('T')[0] === todayStr)
+    .filter(f => formatDateKey(getFinancialPaymentDate(f)) === todayStr)
     .reduce((sum, f) => sum + f.amount, 0);
 
   // Sales Month: real paid income from all financial entries (orders, POS, manual), excluding cancelled orders
@@ -88,10 +100,8 @@ export default function DashboardPage() {
     return isOverdue;
   }).length;
 
-  // Accounts Receivable (total_amount - paid_amount on non-cancelled, non-fully paid orders)
-  const accountsReceivable = activeOrders
-    .filter(o => o.payment_status !== 'pago')
-    .reduce((sum, o) => sum + (o.total_amount - o.paid_amount), 0);
+  // Accounts Receivable: pending income registered in financial flow, excluding cancelled orders
+  const accountsReceivable = pendingIncomeTransactions.reduce((sum, f) => sum + f.amount, 0);
 
   // Accounts Payable (due_date in future or past, status pendente for type despesa)
   const accountsPayable = validFinancial
