@@ -113,7 +113,7 @@ export function CompanyThemeSync() {
     const companyName = company.name?.trim();
     if (!companyName) return;
 
-    const suffix = pathname === '/store' ? 'Catalogo Online' : 'ERP';
+    const suffix = pathname === '/store' ? 'Catálogo Online' : 'ERP';
     document.title = `${companyName} - ${suffix}`;
   }, [company.name, pathname]);
 
