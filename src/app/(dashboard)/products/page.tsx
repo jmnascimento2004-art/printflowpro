@@ -153,6 +153,7 @@ export default function ProductsCRUDPage() {
   const [catName, setCatName] = useState('');
   const [catDescription, setCatDescription] = useState('');
   const [catParentId, setCatParentId] = useState('');
+  const [catShowInCatalog, setCatShowInCatalog] = useState(true);
   const [isCategoryEditing, setIsCategoryEditing] = useState(false);
   const [selectedCatId, setSelectedCatId] = useState('');
 
@@ -167,15 +168,16 @@ export default function ProductsCRUDPage() {
     if (!catName.trim()) return;
 
     if (isCategoryEditing) {
-      updateCategory(selectedCatId, catName, catDescription, catParentId || null);
+      updateCategory(selectedCatId, catName, catDescription, catParentId || null, catShowInCatalog);
       setIsCategoryEditing(false);
     } else {
-      addCategory(catName, catDescription, catParentId || null);
+      addCategory(catName, catDescription, catParentId || null, catShowInCatalog);
     }
 
     setCatName('');
     setCatDescription('');
     setCatParentId('');
+    setCatShowInCatalog(true);
     setSelectedCatId('');
   };
 
@@ -1033,6 +1035,18 @@ export default function ProductsCRUDPage() {
                   </div>
 
                   <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Exibir no Catálogo</label>
+                    <select
+                      value={catShowInCatalog ? 'sim' : 'nao'}
+                      onChange={(e) => setCatShowInCatalog(e.target.value === 'sim')}
+                      className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none font-medium"
+                    >
+                      <option value="sim">Exibir categoria no catálogo</option>
+                      <option value="nao">Não exibir categoria no catálogo</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground">Descrição (Opcional)</label>
                     <textarea
                       value={catDescription}
@@ -1051,6 +1065,8 @@ export default function ProductsCRUDPage() {
                           setIsCategoryEditing(false);
                           setCatName('');
                           setCatDescription('');
+                          setCatParentId('');
+                          setCatShowInCatalog(true);
                           setSelectedCatId('');
                         }}
                         className="flex-1 px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold transition-all text-center"
@@ -1116,6 +1132,7 @@ export default function ProductsCRUDPage() {
                                       setCatName(parent.name);
                                       setCatDescription(parent.description || '');
                                       setCatParentId(parent.parent_id || '');
+                                      setCatShowInCatalog(parent.show_in_catalog !== false);
                                     }}
                                     className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                                     title="Editar Categoria"
@@ -1137,6 +1154,7 @@ export default function ProductsCRUDPage() {
                                           setCatName('');
                                           setCatDescription('');
                                           setCatParentId('');
+                                          setCatShowInCatalog(true);
                                           setSelectedCatId('');
                                         }
                                       }
@@ -1176,6 +1194,7 @@ export default function ProductsCRUDPage() {
                                         setCatName(child.name);
                                         setCatDescription(child.description || '');
                                         setCatParentId(child.parent_id || '');
+                                        setCatShowInCatalog(child.show_in_catalog !== false);
                                       }}
                                       className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                                       title="Editar Categoria"
@@ -1197,6 +1216,7 @@ export default function ProductsCRUDPage() {
                                             setCatName('');
                                             setCatDescription('');
                                             setCatParentId('');
+                                            setCatShowInCatalog(true);
                                             setSelectedCatId('');
                                           }
                                         }
@@ -1238,6 +1258,7 @@ export default function ProductsCRUDPage() {
                                       setCatName(child.name);
                                       setCatDescription(child.description || '');
                                       setCatParentId(child.parent_id || '');
+                                      setCatShowInCatalog(child.show_in_catalog !== false);
                                     }}
                                     className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                                     title="Editar Categoria"
@@ -1259,6 +1280,7 @@ export default function ProductsCRUDPage() {
                                           setCatName('');
                                           setCatDescription('');
                                           setCatParentId('');
+                                          setCatShowInCatalog(true);
                                           setSelectedCatId('');
                                         }
                                       }

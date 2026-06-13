@@ -98,8 +98,8 @@ interface DatabaseContextType {
 
   // Suppliers & Categories
   addSupplier: (sup: Omit<Supplier, 'id' | 'company_id' | 'created_at'>) => Supplier;
-  addCategory: (name: string, description: string, parent_id?: string | null) => Category;
-  updateCategory: (id: string, name: string, description: string, parent_id?: string | null) => void;
+  addCategory: (name: string, description: string, parent_id?: string | null, show_in_catalog?: boolean) => Category;
+  updateCategory: (id: string, name: string, description: string, parent_id?: string | null, show_in_catalog?: boolean) => void;
   deleteCategory: (id: string) => void;
 
   // Products
@@ -476,7 +476,20 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         if (profilesData) setProfiles(filterByCompany(profilesData as UserProfile[]) as any);
         if (customersData) setCustomers(filterByCompany(customersData as any) as any);
         if (suppliersData) setSuppliers(filterByCompany(suppliersData as any) as any);
-        if (categoriesData) setCategories(filterByCompany(categoriesData as any) as any);
+        if (categoriesData) {
+          let storedCategories: Category[] = [];
+          try {
+            storedCategories = JSON.parse(window.localStorage.getItem('printflow_categories') || '[]');
+          } catch {
+            storedCategories = [];
+          }
+          const storedVisibility = new Map(storedCategories.map((category) => [category.id, category.show_in_catalog]));
+          const mergedCategories = (filterByCompany(categoriesData as any) as Category[]).map((category) => ({
+            ...category,
+            show_in_catalog: category.show_in_catalog ?? storedVisibility.get(category.id) ?? true
+          }));
+          setCategories(mergedCategories as any);
+        }
         if (productsData) setProducts(filterByCompany(productsData as any) as any);
         
         if (quotesData) {
@@ -1169,21 +1182,22 @@ useEffect(() => {
     return newSup;
   };
 
-  const addCategory = (name: string, description: string, parent_id?: string | null) => {
+  const addCategory = (name: string, description: string, parent_id?: string | null, show_in_catalog: boolean = true) => {
     const newCat: Category = {
       id: `cat-${Date.now()}`,
       company_id: currentCompanyId,
       name,
       description,
       parent_id: parent_id || null,
+      show_in_catalog,
       created_at: new Date().toISOString()
     };
     setCategories(prev => [...prev, newCat]);
     return newCat;
   };
 
-  const updateCategory = (id: string, name: string, description: string, parent_id?: string | null) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, name, description, parent_id: parent_id || null } : c));
+  const updateCategory = (id: string, name: string, description: string, parent_id?: string | null, show_in_catalog: boolean = true) => {
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, name, description, parent_id: parent_id || null, show_in_catalog } : c));
   };
 
   const deleteCategory = (id: string) => {

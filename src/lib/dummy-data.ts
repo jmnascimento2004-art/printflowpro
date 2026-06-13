@@ -173,6 +173,7 @@ export interface Category {
   name: string;
   description: string;
   parent_id?: string | null;
+  show_in_catalog?: boolean;
   created_at: string;
 }
 

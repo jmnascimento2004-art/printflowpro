@@ -311,8 +311,18 @@ export default function StorefrontPage() {
     }
   }, [activeConfigProduct]);
 
-  // 2. Filter products based on active status, category, and search query
-  const activeProducts = (products || []).filter(p => p && p.catalog_active !== false);
+  // 2. Filter products based on active status, visible category, and search query
+  const catalogCategories = (categories || []).filter((category) => {
+    if (!category || category.show_in_catalog === false) return false;
+    if (!category.parent_id) return true;
+    const parent = (categories || []).find((item) => item.id === category.parent_id);
+    return parent?.show_in_catalog !== false;
+  });
+  const catalogCategoryIds = new Set(catalogCategories.map((category) => category.id));
+  const activeProducts = (products || []).filter((product) => {
+    if (!product || product.catalog_active === false) return false;
+    return !product.category_id || catalogCategoryIds.has(product.category_id);
+  });
   const searchedProducts = searchQuery.trim() !== ''
     ? activeProducts.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -321,7 +331,7 @@ export default function StorefrontPage() {
     : activeProducts;
 
   const selectedCategoryIds = selectedCategory
-    ? [selectedCategory, ...categories.filter(c => c.parent_id === selectedCategory).map(c => c.id)]
+    ? [selectedCategory, ...catalogCategories.filter(c => c.parent_id === selectedCategory).map(c => c.id)]
     : [];
 
   const filteredProducts = selectedCategory 
@@ -743,7 +753,7 @@ export default function StorefrontPage() {
 
               {/* Other Categories */}
               <div className="flex items-center gap-6 md:gap-8 h-full">
-                {(categories || []).filter(c => !c.parent_id).map(cat => (
+                {catalogCategories.filter(c => !c.parent_id).map(cat => (
                   <button
                     key={cat.id}
                     onClick={(e) => handleTopCategoryClick(cat.id, e)}
@@ -793,8 +803,8 @@ export default function StorefrontPage() {
 
                     {/* Other category options in sidebar */}
                     {(() => {
-                      const rootCategories = (categories || []).filter(c => !c.parent_id);
-                      const childCategories = (categories || []).filter(c => c.parent_id);
+                      const rootCategories = catalogCategories.filter(c => !c.parent_id);
+                      const childCategories = catalogCategories.filter(c => c.parent_id);
                       const selectedChild = childCategories.find(child => child.id === megaMenuCategory);
                       const expandedParentId = selectedChild?.parent_id || megaMenuCategory;
                       
@@ -844,7 +854,7 @@ export default function StorefrontPage() {
                 {/* Right Area: Product Sublists */}
                 {(() => {
                   const selectedCategoryIds = megaMenuCategory
-                    ? [megaMenuCategory, ...categories.filter(c => c.parent_id === megaMenuCategory).map(c => c.id)]
+                    ? [megaMenuCategory, ...catalogCategories.filter(c => c.parent_id === megaMenuCategory).map(c => c.id)]
                     : [];
                   const menuProducts = megaMenuCategory
                     ? activeProducts.filter(p => selectedCategoryIds.includes(p.category_id))
@@ -1218,7 +1228,7 @@ export default function StorefrontPage() {
                         {/* Visual Category badge */}
                         <div className="flex justify-between items-center">
                           <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
-                            {(categories || []).find(c => c && c.id === p.category_id)?.name || 'Outros'}
+                            {catalogCategories.find(c => c && c.id === p.category_id)?.name || 'Outros'}
                           </span>
                           {p.pricing_type === 'm2' && (
                             <span className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg border border-blue-500/10 uppercase tracking-wide">
@@ -1359,7 +1369,7 @@ export default function StorefrontPage() {
                 <div className="flex justify-between items-start border-b border-slate-100 pb-3">
                   <div>
                     <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
-                      {(categories || []).find(c => c && c.id === activeConfigProduct.category_id)?.name || 'Outros'}
+                      {catalogCategories.find(c => c && c.id === activeConfigProduct.category_id)?.name || 'Outros'}
                     </span>
                     <h3 className="font-black text-slate-900 text-lg md:text-xl mt-2 uppercase tracking-wide leading-tight">
                       {activeConfigProduct.name}
@@ -1993,7 +2003,7 @@ export default function StorefrontPage() {
                         <div className="p-3 space-y-2.5">
                           <div className="flex justify-between items-center">
                             <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
-                              {(categories || []).find(c => c && c.id === product.category_id)?.name || 'Outros'}
+                              {catalogCategories.find(c => c && c.id === product.category_id)?.name || 'Outros'}
                             </span>
                             {product.pricing_type === 'm2' && (
                               <span className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg border border-blue-500/10 uppercase tracking-wide">
