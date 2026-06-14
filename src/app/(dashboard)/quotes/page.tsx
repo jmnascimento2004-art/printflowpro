@@ -75,6 +75,38 @@ export default function QuotesPage() {
     };
   };
 
+  const buildAddressLine = (address?: {
+    street?: string;
+    number?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+  }) => {
+    if (!address) return '';
+    const streetLine = [address.street, address.number].filter(Boolean).join(', ');
+    const districtLine = [address.neighborhood, address.city].filter(Boolean).join(' - ');
+    const stateLine = [address.state, address.zip_code ? `CEP ${address.zip_code}` : ''].filter(Boolean).join(' - ');
+    return [streetLine, districtLine, stateLine].filter(Boolean).join(', ');
+  };
+
+  const buildCompanyRegisteredAddress = () => {
+    const structuredAddress = buildAddressLine({
+      street: company?.street,
+      number: company?.number,
+      neighborhood: company?.neighborhood,
+      city: company?.city,
+      state: company?.state,
+      zip_code: company?.cep
+    });
+
+    return structuredAddress || settings.company_address || '';
+  };
+
+  const shouldShowCompanyAddress = settings.footer_show_address !== false;
+  const companyLogoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark);
+  const companyDisplayName = company?.name?.trim() || 'Empresa';
+
   const handleStartEdit = (quote: Quote) => {
     const resolvedQuote = withResolvedCustomer(quote);
     setEditingQuoteId(resolvedQuote.id);
@@ -554,11 +586,23 @@ export default function QuotesPage() {
         <div className="hidden print:block p-8 space-y-6 text-foreground bg-white" id="printable-quote-area">
           {/* Header */}
           <div className="flex justify-between items-start border-b border-border pb-6">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-primary">PrintFlowPRO</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Sistemas ERP Especializados em Gráfica</p>
-              <p className="text-xs text-muted-foreground">CNPJ: 12.345.678/0001-90</p>
-              <p className="text-xs text-muted-foreground">E-mail: comercial@printflowpro.com.br</p>
+            <div className="max-w-[62%]">
+              {companyLogoUrl ? (
+                <img
+                  src={companyLogoUrl}
+                  alt={companyDisplayName}
+                  className="h-12 max-w-[220px] object-contain object-left mb-2"
+                />
+              ) : (
+                <h2 className="text-2xl font-bold tracking-tight text-primary">{companyDisplayName}</h2>
+              )}
+              <p className="text-xs text-muted-foreground mt-0.5 font-semibold">{companyDisplayName}</p>
+              {company?.document && <p className="text-xs text-muted-foreground">CNPJ: {company.document}</p>}
+              {company?.phone && <p className="text-xs text-muted-foreground">Telefone: {company.phone}</p>}
+              {company?.email && <p className="text-xs text-muted-foreground">E-mail: {company.email}</p>}
+              {shouldShowCompanyAddress && buildCompanyRegisteredAddress() && (
+                <p className="text-xs text-muted-foreground">Endere&ccedil;o: {buildCompanyRegisteredAddress()}</p>
+              )}
             </div>
             <div className="text-right">
               <h3 className="text-lg font-bold">ORÇAMENTO #{activePrintQuote.number}</h3>
@@ -569,15 +613,30 @@ export default function QuotesPage() {
 
           {/* Client Info */}
           <div className="grid grid-cols-2 gap-6 bg-secondary/25 p-4 rounded-xl border border-border">
-            <div>
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase">Destinatário (Cliente)</h4>
-              <p className="text-sm font-bold mt-1">{getQuoteCustomerName(activePrintQuote)}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Contato do Cliente cadastrado no CRM</p>
-            </div>
-            <div className="text-right">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase">Status da Proposta</h4>
-              <div className="mt-1">{getStatusBadge(activePrintQuote.status)}</div>
-            </div>
+            {(() => {
+              const customer = resolveQuoteCustomer(activePrintQuote);
+              const customerAddress = buildAddressLine(customer?.address);
+              const customerPhone = customer?.phone || activePrintQuote.customer_phone;
+              const customerEmail = customer?.email;
+              const customerDocument = customer?.document;
+
+              return (
+                <>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-muted-foreground uppercase">Destinat&aacute;rio (Cliente)</h4>
+                    <p className="text-sm font-bold mt-1">{customer?.name || getQuoteCustomerName(activePrintQuote)}</p>
+                    {customerDocument && <p className="text-xs text-muted-foreground mt-0.5">CPF/CNPJ: {customerDocument}</p>}
+                    {customerPhone && <p className="text-xs text-muted-foreground">Telefone: {customerPhone}</p>}
+                    {customerEmail && <p className="text-xs text-muted-foreground">E-mail: {customerEmail}</p>}
+                    {customerAddress && <p className="text-xs text-muted-foreground">Endere&ccedil;o: {customerAddress}</p>}
+                  </div>
+                  <div className="text-right">
+                    <h4 className="text-[10px] font-bold text-muted-foreground uppercase">Status da Proposta</h4>
+                    <div className="mt-1">{getStatusBadge(activePrintQuote.status)}</div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           {/* Items Table */}
