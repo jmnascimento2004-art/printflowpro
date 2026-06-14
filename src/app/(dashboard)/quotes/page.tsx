@@ -27,7 +27,8 @@ import {
   formatCEP,
   getPixWhatsAppPaymentInfo,
   getPublicImageUrl,
-  getWhatsAppTimeGreeting
+  getWhatsAppTimeGreeting,
+  stripRichTextHtml
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
@@ -104,7 +105,7 @@ export default function QuotesPage() {
   };
 
   const shouldShowCompanyAddress = settings.footer_show_address !== false;
-  const companyLogoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark);
+  const companyLogoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark || company?.favicon);
   const companyDisplayName = company?.name?.trim() || 'Empresa';
 
   const handleStartEdit = (quote: Quote) => {
@@ -591,12 +592,12 @@ export default function QuotesPage() {
                 <img
                   src={companyLogoUrl}
                   alt={companyDisplayName}
-                  className="h-12 max-w-[220px] object-contain object-left mb-2"
+                  className="h-16 max-w-[260px] object-contain object-left mb-2"
                 />
               ) : (
-                <h2 className="text-2xl font-bold tracking-tight text-primary">{companyDisplayName}</h2>
+                <h2 className="text-base font-bold tracking-tight text-primary">{companyDisplayName}</h2>
               )}
-              <p className="text-xs text-muted-foreground mt-0.5 font-semibold">{companyDisplayName}</p>
+              {!companyLogoUrl && <p className="text-xs text-muted-foreground mt-0.5 font-semibold">{companyDisplayName}</p>}
               {company?.document && <p className="text-xs text-muted-foreground">CNPJ: {company.document}</p>}
               {company?.phone && <p className="text-xs text-muted-foreground">Telefone: {company.phone}</p>}
               {company?.email && <p className="text-xs text-muted-foreground">E-mail: {company.email}</p>}
@@ -643,75 +644,81 @@ export default function QuotesPage() {
           <div className="border border-border rounded-xl overflow-hidden bg-white">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-secondary/40 font-bold border-b border-border text-foreground">
-                  <th className="px-4 py-2.5">Item / Descrição</th>
-                  <th className="px-4 py-2.5 text-center">Quant.</th>
-                  <th className="px-4 py-2.5 text-right">Preço Unit.</th>
-                  <th className="px-4 py-2.5 text-right">Total</th>
+                <tr className="bg-secondary/40 font-bold border-b border-border text-foreground uppercase">
+                  <th className="px-4 py-2.5 w-[28%]">Itens</th>
+                  <th className="px-4 py-2.5 w-[38%]">Descrição</th>
+                  <th className="px-4 py-2.5 text-right w-[16%]">Preço Unit.</th>
+                  <th className="px-4 py-2.5 text-right w-[18%]">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {activePrintQuote.items.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-secondary/5">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-foreground">{item.product_name}</div>
-                      {item.details && (item.details.width || item.details.height) && (
-                        <div className="text-[10px] text-muted-foreground">
-                          Dimensões: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
-                        </div>
-                      )}
-                      {item.details?.notes && (
-                        <div className="text-[10px] text-primary font-semibold">
-                          {item.details.notes}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center text-muted-foreground font-semibold">{item.quantity}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">{formatCurrency(item.unit_price)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-foreground">{formatCurrency(item.total_price)}</td>
+                {activePrintQuote.items.length > 0 ? (
+                  activePrintQuote.items.map((item) => {
+                    const product = products.find((productItem) => productItem.id === item.product_id);
+                    const productDescription = stripRichTextHtml(product?.description || item.details?.notes || '');
+                    const dimensions = item.details && (item.details.width || item.details.height)
+                      ? `Dimensões: ${item.details.width || '-'}m ${item.details.height ? `x ${item.details.height}m` : 'linear'}`
+                      : '';
+
+                    return (
+                      <tr key={item.id} className="hover:bg-secondary/5 align-top">
+                        <td className="px-4 py-3 font-semibold text-foreground">
+                          <div>{item.product_name}</div>
+                          <div className="text-[10px] text-muted-foreground mt-1">Qtd: {item.quantity}</div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground leading-relaxed">
+                          {productDescription && <div>{productDescription}</div>}
+                          {dimensions && <div className="text-[10px] mt-1">{dimensions}</div>}
+                          {item.details?.notes && productDescription !== item.details.notes && (
+                            <div className="text-[10px] text-primary font-semibold mt-1">{item.details.notes}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{formatCurrency(item.unit_price)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-foreground whitespace-nowrap">{formatCurrency(item.total_price)}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground italic">Nenhum produto informado neste orçamento.</td>
                   </tr>
-                ))}
+                )}
               </tbody>
+              <tfoot className="border-t border-border bg-secondary/10 text-xs">
+                <tr>
+                  <td colSpan={3} className="px-4 py-2 text-right font-semibold text-muted-foreground">Subtotal</td>
+                  <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(activePrintQuote.items.reduce((sum, item) => sum + item.total_price, 0))}</td>
+                </tr>
+                {activePrintQuote.delivery_type && activePrintQuote.delivery_type !== 'retirada' && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-right font-semibold text-muted-foreground">Taxa de Entrega ({activePrintQuote.delivery_type.toUpperCase()})</td>
+                    <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(activePrintQuote.delivery_fee || 0)}</td>
+                  </tr>
+                )}
+                {activePrintQuote.discount > 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-right font-semibold text-emerald-600">Desconto</td>
+                    <td className="px-4 py-2 text-right font-bold text-emerald-600">-{formatCurrency(activePrintQuote.discount)}</td>
+                  </tr>
+                )}
+                <tr className="border-t border-border bg-white">
+                  <td colSpan={3} className="px-4 py-3 text-right text-sm font-extrabold text-foreground">Total Líquido</td>
+                  <td className="px-4 py-3 text-right text-base font-extrabold text-primary">{formatCurrency(activePrintQuote.total_amount)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 
-          {/* Summary and notes */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-            <div className="md:col-span-2 text-xs text-muted-foreground space-y-1">
-              <h4 className="font-bold text-foreground text-[10px] uppercase">Observações Legais</h4>
-              <p>• Os preços apresentados têm validade estrita conforme a data informada.</p>
-              <p>• Prazo médio de produção de 5 a 7 dias úteis após confirmação do layout.</p>
-              {activePrintQuote.notes && (
-                <div className="p-3 bg-secondary/20 rounded-lg text-foreground font-medium mt-3 border border-border">
-                  Obs: "{activePrintQuote.notes}"
-                </div>
-              )}
-            </div>
-
-            <div className="bg-secondary/15 border border-border p-4 rounded-xl flex flex-col justify-between text-right text-xs">
-              <div className="space-y-1 text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Subtotal Itens:</span>
-                  <span className="font-medium text-foreground">{formatCurrency(activePrintQuote.items.reduce((sum, i) => sum + i.total_price, 0))}</span>
-                </div>
-                {activePrintQuote.delivery_type && activePrintQuote.delivery_type !== 'retirada' && (
-                  <div className="flex justify-between">
-                    <span>Taxa de Entrega ({activePrintQuote.delivery_type.toUpperCase()}):</span>
-                    <span className="font-medium text-foreground">{formatCurrency(activePrintQuote.delivery_fee || 0)}</span>
-                  </div>
-                )}
-                {activePrintQuote.discount > 0 && (
-                  <div className="flex justify-between text-emerald-500">
-                    <span>Desconto:</span>
-                    <span>-{formatCurrency(activePrintQuote.discount)}</span>
-                  </div>
-                )}
+          {/* Legal notes */}
+          <div className="text-xs text-muted-foreground space-y-1 pt-2">
+            <h4 className="font-bold text-foreground text-[10px] uppercase">Observações Legais</h4>
+            <p>• Os preços apresentados têm validade estrita conforme a data informada.</p>
+            <p>• Prazo médio de produção de 5 a 7 dias úteis após confirmação do layout.</p>
+            {activePrintQuote.notes && (
+              <div className="p-3 bg-secondary/20 rounded-lg text-foreground font-medium mt-3 border border-border">
+                Obs: "{activePrintQuote.notes}"
               </div>
-              <div className="flex justify-between border-t border-border pt-3 mt-3 font-bold text-sm">
-                <span className="font-bold text-foreground">Total Líquido:</span>
-                <span className="font-extrabold text-primary text-base">{formatCurrency(activePrintQuote.total_amount)}</span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Signatures */}
