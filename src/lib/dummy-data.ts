@@ -274,8 +274,20 @@ export interface QuoteItem {
   details?: {
     width?: number;
     height?: number;
+    length?: number;
     variant?: string;
     color?: string;
+    selected_options?: Array<{
+      name?: string;
+      option_name?: string;
+      price_delta?: number | string | null;
+      additional_days?: number | string | null;
+      group_id?: string;
+      group_name?: string;
+    }>;
+    pricing_type?: Product['pricing_type'];
+    production_days?: number;
+    configuration_summary?: string;
     notes?: string;
   };
 }

@@ -30,18 +30,27 @@ import {
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
 import { formatCEP, normalizeRichTextHtml, sanitizeRichTextHtml } from '@/lib/utils';
-import { formatCurrency, getPriceBreakdown } from '@/lib/pricing';
+import { formatCurrency, getPriceBreakdown, hasAdvancedConfigurator } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
 import { BrandLogo, BrandMark } from '@/components/brand';
+import {
+  ProductConfiguratorModal,
+  type ProductConfiguratorCartPayload
+} from '@/components/store/ProductConfiguratorModal';
 
 interface CartItem {
   product: Product;
   quantity: number;
   width?: number;
   height?: number;
+  length?: number;
   variant?: string;
   color?: string;
   calculatedPrice: number;
+  selected_options?: ProductConfiguratorCartPayload['selected_options'];
+  pricing_type?: Product['pricing_type'];
+  production_days?: number;
+  configuration_summary?: string;
 }
 const getProductBadge = (name: string): 'favorito' | 'novo' | null => {
   const lowerName = name.toLowerCase();
@@ -254,6 +263,7 @@ export default function StorefrontPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [activeConfigProduct, setActiveConfigProduct] = useState<Product | null>(null);
+  const [activeAdvancedConfigProduct, setActiveAdvancedConfigProduct] = useState<Product | null>(null);
 
   // Configuration form state
   const [configQty, setConfigQty] = useState(1);
@@ -369,6 +379,15 @@ export default function StorefrontPage() {
     return breakdown.quantity > 0 ? breakdown.subtotal / breakdown.quantity : 0;
   };
 
+  const handleOpenProductConfig = (product: Product) => {
+    if (hasAdvancedConfigurator(product)) {
+      setActiveAdvancedConfigProduct(product);
+      return;
+    }
+
+    setActiveConfigProduct(product);
+  };
+
   const handleAddToCart = () => {
     if (!activeConfigProduct) return;
 
@@ -392,6 +411,24 @@ export default function StorefrontPage() {
     setConfigHeight(1.0);
     setConfigVariant('');
     setConfigColor('');
+  };
+
+  const handleAddAdvancedProductToCart = (payload: ProductConfiguratorCartPayload) => {
+    const newItem: CartItem = {
+      product: payload.product,
+      quantity: payload.quantity,
+      width: payload.dimensions?.width,
+      height: payload.dimensions?.height,
+      length: payload.dimensions?.length,
+      calculatedPrice: payload.unit_price,
+      selected_options: payload.selected_options,
+      pricing_type: payload.pricing_type,
+      production_days: payload.production_days,
+      configuration_summary: payload.configuration_summary
+    };
+
+    setCart(prev => [...prev, newItem]);
+    setActiveAdvancedConfigProduct(null);
   };
 
   const handleRemoveFromCart = (idx: number) => {
@@ -434,8 +471,13 @@ export default function StorefrontPage() {
       details: {
         width: c.width,
         height: c.height,
+        length: c.length,
         variant: c.variant,
         color: c.color,
+        selected_options: c.selected_options,
+        pricing_type: c.pricing_type || c.product.pricing_type,
+        production_days: c.production_days,
+        configuration_summary: c.configuration_summary,
         notes: ['Enviado pelo catálogo online', c.variant ? `Variação: ${c.variant}` : '', c.color ? `Cor: ${c.color}` : ''].filter(Boolean).join(' | ')
       }
     }));
@@ -445,8 +487,10 @@ export default function StorefrontPage() {
         const dimensions = [
           item.width ? `largura ${item.width}m` : '',
           item.height ? `altura ${item.height}m` : '',
+          item.length ? `metragem ${item.length}m` : '',
           item.variant ? `variacao ${item.variant}` : '',
-          item.color ? `cor ${item.color}` : ''
+          item.color ? `cor ${item.color}` : '',
+          item.configuration_summary ? item.configuration_summary : ''
         ].filter(Boolean).join(', ');
         const config = dimensions ? ` (${dimensions})` : '';
         return `${index + 1}. ${item.product.name} - qtd ${item.quantity}${config} - total ${formatCurrency(item.quantity * item.calculatedPrice)}`;
@@ -872,7 +916,7 @@ export default function StorefrontPage() {
                               return (
                                 <button
                                   key={p.id}
-                                  onClick={() => { setMegaMenuOpen(false); setActiveConfigProduct(p); }}
+                                  onClick={() => { setMegaMenuOpen(false); handleOpenProductConfig(p); }}
                                   className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
                                 >
                                   <span className="truncate">{p.name}</span>
@@ -907,7 +951,7 @@ export default function StorefrontPage() {
                               return (
                                 <button
                                   key={p.id}
-                                  onClick={() => { setMegaMenuOpen(false); setActiveConfigProduct(p); }}
+                                  onClick={() => { setMegaMenuOpen(false); handleOpenProductConfig(p); }}
                                   className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
                                 >
                                   <span className="truncate">{p.name}</span>
@@ -942,7 +986,7 @@ export default function StorefrontPage() {
                               return (
                                 <button
                                   key={p.id}
-                                  onClick={() => { setMegaMenuOpen(false); setActiveConfigProduct(p); }}
+                                  onClick={() => { setMegaMenuOpen(false); handleOpenProductConfig(p); }}
                                   className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
                                 >
                                   <span className="truncate">{p.name}</span>
@@ -1257,7 +1301,7 @@ export default function StorefrontPage() {
                       </div>
                       
                       <button
-                        onClick={() => setActiveConfigProduct(p)}
+                        onClick={() => handleOpenProductConfig(p)}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
                       >
                         <ShoppingBag className="h-3.5 w-3.5" />
@@ -1297,6 +1341,18 @@ export default function StorefrontPage() {
           </p>
         </div>
       </section>
+
+      <ProductConfiguratorModal
+        product={activeAdvancedConfigProduct}
+        isOpen={Boolean(activeAdvancedConfigProduct)}
+        onClose={() => setActiveAdvancedConfigProduct(null)}
+        onAddToCart={handleAddAdvancedProductToCart}
+        categoryName={
+          activeAdvancedConfigProduct
+            ? catalogCategories.find(c => c && c.id === activeAdvancedConfigProduct.category_id)?.name || 'Catálogo'
+            : undefined
+        }
+      />
 
       {/* 7. Product custom configurations details sheet (modal overlay) */}
       {activeConfigProduct && (
@@ -1619,9 +1675,19 @@ export default function StorefrontPage() {
                             Dimensões: {item.width}m {item.height ? `x ${item.height}m` : 'linear'}
                           </div>
                         )}
+                        {item.length && (
+                          <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                            Metragem: {item.length}m
+                          </div>
+                        )}
                         {(item.variant || item.color) && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
                             {[item.variant ? `Variacao: ${item.variant}` : '', item.color ? `Cor: ${item.color}` : ''].filter(Boolean).join(' | ')}
+                          </div>
+                        )}
+                        {item.configuration_summary && (
+                          <div className="text-[10px] text-slate-400 mt-0.5 font-medium line-clamp-2">
+                            {item.configuration_summary}
                           </div>
                         )}
                         <span className="text-[10px] text-slate-500 mt-0.5 block font-semibold">{item.quantity}x {formatCurrency(item.calculatedPrice)}</span>
@@ -2031,7 +2097,7 @@ export default function StorefrontPage() {
 
                         <button
                           type="button"
-                          onClick={() => setActiveConfigProduct(product)}
+                          onClick={() => handleOpenProductConfig(product)}
                           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
                         >
                           <ShoppingBag className="h-3.5 w-3.5" />

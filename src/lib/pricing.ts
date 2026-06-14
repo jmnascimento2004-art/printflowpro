@@ -1,4 +1,4 @@
-import type { Product } from './dummy-data';
+import type { Product, ProductConfiguratorSettings } from './dummy-data';
 
 export type PricingType = Product['pricing_type'];
 
@@ -9,7 +9,20 @@ export interface PricingConfig {
   length?: number | string | null;
   selectedVariant?: string | null;
   selectedColor?: string | null;
-  customOptions?: Record<string, unknown> | null;
+  customOptions?: PricingCustomOptions | null;
+}
+
+export interface PricingSelectedOption {
+  name?: string;
+  option_name?: string;
+  price_delta?: number | string | null;
+  additional_days?: number | string | null;
+}
+
+export interface PricingCustomOptions {
+  selectedOptions?: PricingSelectedOption[];
+  optionSurcharge?: number | string | null;
+  [key: string]: unknown;
 }
 
 export interface NormalizedPricingConfig {
@@ -19,7 +32,7 @@ export interface NormalizedPricingConfig {
   length: number;
   selectedVariant?: string;
   selectedColor?: string;
-  customOptions?: Record<string, unknown>;
+  customOptions?: PricingCustomOptions;
 }
 
 export interface PriceBreakdown {
@@ -27,6 +40,7 @@ export interface PriceBreakdown {
   quantity: number;
   area: number;
   length: number;
+  optionsTotal: number;
   subtotal: number;
   pricingType: PricingType;
   appliedVolumePrice: number | null;
@@ -39,6 +53,9 @@ type ProductLike = Partial<Product> & {
   base_cost?: number | string | null;
   pricing_type?: PricingType | string | null;
   volume_pricing?: unknown;
+  pricing_details?: {
+    configurator_options?: ProductConfiguratorSettings | null;
+  } | null;
 };
 
 const toFiniteNumber = (value: unknown, fallback = 0): number => {
@@ -47,6 +64,34 @@ const toFiniteNumber = (value: unknown, fallback = 0): number => {
 };
 
 const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+
+const hasConfiguratorContent = (configurator: ProductConfiguratorSettings): boolean => {
+  return Boolean(
+    configurator.sale_mode ||
+    configurator.allow_custom_measure ||
+    configurator.min_width ||
+    configurator.min_height ||
+    configurator.max_width ||
+    configurator.max_height ||
+    configurator.min_area ||
+    configurator.min_length ||
+    configurator.kit_items?.trim() ||
+    configurator.min_quantity ||
+    configurator.quote_on_request ||
+    configurator.customer_message?.trim() ||
+    (configurator.size_options && configurator.size_options.length > 0) ||
+    (configurator.option_groups && configurator.option_groups.length > 0)
+  );
+};
+
+export function getProductConfigurator(product: ProductLike | null | undefined): ProductConfiguratorSettings | null {
+  const configurator = product?.pricing_details?.configurator_options;
+  return configurator && hasConfiguratorContent(configurator) ? configurator : null;
+}
+
+export function hasAdvancedConfigurator(product: ProductLike | null | undefined): boolean {
+  return getProductConfigurator(product) !== null;
+}
 
 export function normalizePricingConfig(config: PricingConfig = {}): NormalizedPricingConfig {
   const quantity = Math.max(1, toFiniteNumber(config.quantity, 1));
@@ -97,6 +142,22 @@ export function getProductUnitPrice(product: ProductLike | null | undefined, qua
   return matchingTier ? matchingTier.price : fallbackPrice;
 }
 
+function getOptionsSurcharge(config: NormalizedPricingConfig): number {
+  const customOptions = config.customOptions;
+  if (!customOptions) return 0;
+
+  const explicitSurcharge = toFiniteNumber(customOptions.optionSurcharge, NaN);
+  if (Number.isFinite(explicitSurcharge)) return Math.max(0, explicitSurcharge);
+
+  const selectedOptions = Array.isArray(customOptions.selectedOptions)
+    ? customOptions.selectedOptions
+    : [];
+
+  return selectedOptions.reduce((sum, option) => {
+    return sum + Math.max(0, toFiniteNumber(option.price_delta, 0));
+  }, 0);
+}
+
 export function calculateProductPrice(product: ProductLike | null | undefined, config: PricingConfig = {}): number {
   const breakdown = getPriceBreakdown(product, config);
   return breakdown.subtotal;
@@ -114,7 +175,8 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
     : pricingType === 'linear'
       ? length
       : 1;
-  const subtotal = roundMoney(unitPrice * multiplier * normalized.quantity);
+  const optionsTotal = roundMoney(getOptionsSurcharge(normalized));
+  const subtotal = roundMoney((unitPrice * multiplier + optionsTotal) * normalized.quantity);
   const baseUnitPrice = getProductUnitPrice(product, 1);
   const appliedVolumePrice = unitPrice !== baseUnitPrice ? unitPrice : null;
 
@@ -123,6 +185,7 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
     quantity: normalized.quantity,
     area,
     length,
+    optionsTotal,
     subtotal,
     pricingType,
     appliedVolumePrice,
