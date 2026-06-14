@@ -27,8 +27,7 @@ import {
   formatCEP,
   getPixWhatsAppPaymentInfo,
   getPublicImageUrl,
-  getWhatsAppTimeGreeting,
-  stripRichTextHtml
+  getWhatsAppTimeGreeting
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
@@ -664,39 +663,26 @@ export default function QuotesPage() {
             <table className="w-full text-left border-separate border-spacing-y-1 text-xs">
               <thead>
                 <tr className="bg-secondary/40 font-bold text-foreground uppercase">
-                  <th className="px-4 py-2.5 w-[10%] rounded-l-lg">QTD</th>
-                  <th className="px-4 py-2.5 w-[56%]">Descrição</th>
-                  <th className="px-4 py-2.5 text-right w-[16%]">Preço Unit.</th>
+                  <th className="px-4 py-2.5 w-[10%] rounded-l-lg border-r border-border">QTD</th>
+                  <th className="px-4 py-2.5 w-[56%] border-r border-border">Descrição</th>
+                  <th className="px-4 py-2.5 text-right w-[16%] border-r border-border">Preço Unit.</th>
                   <th className="px-4 py-2.5 text-right w-[18%] rounded-r-lg">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {activePrintQuote.items.length > 0 ? (
-                  activePrintQuote.items.map((item) => {
-                    const product = products.find((productItem) => productItem.id === item.product_id);
-                    const productDescription = stripRichTextHtml(product?.description || item.details?.notes || '');
-                    const dimensions = item.details && (item.details.width || item.details.height)
-                      ? `Dimensões: ${item.details.width || '-'}m ${item.details.height ? `x ${item.details.height}m` : 'linear'}`
-                      : '';
-
-                    return (
+                  activePrintQuote.items.map((item) => (
                       <tr key={item.id} className="hover:bg-secondary/5 align-top">
-                        <td className="px-4 py-3 text-center font-bold text-foreground border-y border-l border-border rounded-l-lg">
+                        <td className="px-4 py-3 text-center font-bold text-foreground border-y border-l border-r border-border rounded-l-lg">
                           {item.quantity}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground leading-relaxed border-y border-border">
-                          <div className="font-semibold text-foreground mb-1">{item.product_name}</div>
-                          {productDescription && <div>{productDescription}</div>}
-                          {dimensions && <div className="text-[10px] mt-1">{dimensions}</div>}
-                          {item.details?.notes && productDescription !== item.details.notes && (
-                            <div className="text-[10px] text-primary font-semibold mt-1">{item.details.notes}</div>
-                          )}
+                        <td className="px-4 py-3 font-semibold text-foreground leading-relaxed border-y border-r border-border">
+                          {item.product_name}
                         </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap border-y border-border">{formatCurrency(item.unit_price)}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap border-y border-r border-border">{formatCurrency(item.unit_price)}</td>
                         <td className="px-4 py-3 text-right font-bold text-foreground whitespace-nowrap border-y border-r border-border rounded-r-lg">{formatCurrency(item.total_price)}</td>
                       </tr>
-                    );
-                  })
+                  ))
                 ) : (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground italic">Nenhum produto informado neste orçamento.</td>
