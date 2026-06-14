@@ -10,14 +10,9 @@ import {
   Package,
   Check,
   X,
-  Filter,
-  FileText,
-  Coins,
   Layers,
   LayoutGrid,
   List as ListIcon,
-  ArrowRight,
-  TrendingUp,
   AlertTriangle,
   Bold,
   Italic,
@@ -122,6 +117,8 @@ function ProductDescriptionEditor({
     </div>
   );
 }
+
+void ProductDescriptionEditor;
 
 const saleModeOptions: Array<{ value: ProductSaleMode; label: string; pricingType: Product['pricing_type'] }> = [
   { value: 'unidade', label: 'Unidade simples', pricingType: 'unidade' },
@@ -235,7 +232,7 @@ export default function ProductsCRUDPage() {
   const [stockControlled, setStockControlled] = useState(true);
   const [minStock, setMinStock] = useState(10);
   const [initialStock, setInitialStock] = useState(0); // For creation only
-  const [active, setActive] = useState(true);
+  const [, setActive] = useState(true);
   const [catalogActive, setCatalogActive] = useState(true);
   const [isPromo, setIsPromo] = useState(false);
   const [isHighlight, setIsHighlight] = useState(false);
@@ -1501,7 +1498,16 @@ export default function ProductsCRUDPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-1">
+            <div className="flex flex-col gap-4 py-1">
+              <section className="order-1 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+                <div className="border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">1. Informações do Produto</span>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Dados principais usados no cadastro interno, identificação e organização do produto.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Product Name */}
               <div className="md:col-span-2 space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Nome do Produto / Serviço *</label>
@@ -1579,11 +1585,13 @@ export default function ProductsCRUDPage() {
                   })()}
                 </select>
               </div>
+                </div>
+              </section>
 
               {/* Online sale configurator */}
-              <div className="md:col-span-2 rounded-xl border border-primary/15 bg-white p-4 shadow-sm space-y-4">
+              <section className="order-2 rounded-2xl border border-primary/15 bg-white p-4 shadow-sm space-y-4">
                 <div className="flex flex-col gap-1 border-b border-border/60 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wide text-primary">Venda Online / Configurador</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">2. Modelo de Venda</span>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     Defina como este produto será configurado e vendido no catálogo online. As opções novas ficam preparadas no JSON do produto sem alterar o banco.
                   </p>
@@ -1717,7 +1725,7 @@ export default function ProductsCRUDPage() {
                     )}
                   </div>
                 </div>
-              </div>
+              </section>
 
               {/* Pricing Type */}
               <div className="hidden">
@@ -1734,6 +1742,15 @@ export default function ProductsCRUDPage() {
                 </select>
               </div>
 
+              <section className="order-5 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+                <div className="border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">5. Catálogo Online</span>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Controle como este produto aparece para o cliente no catálogo.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Status active */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Status do Produto</label>
@@ -1786,9 +1803,19 @@ export default function ProductsCRUDPage() {
                   <span>Marcar como DESTAQUE (tag no catálogo)</span>
                 </label>
               </div>
+                </div>
+              </section>
+
+              <section className="order-6 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+                <div className="border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">6. Upload e Instruções</span>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Imagem, prévia visual e instruções do produto para produção e apresentação.
+                  </p>
+                </div>
 
               {/* Product Image Attachment */}
-              <div className="space-y-1 md:col-span-2 border-b border-border/60 pb-3">
+              <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground block">Imagem do Produto</label>
                 <div className="flex items-center gap-4 mt-1.5">
                   {imageUrl ? (
@@ -1827,6 +1854,27 @@ export default function ProductsCRUDPage() {
                 </div>
               </div>
 
+              {/* Description */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Descrição / Detalhes de Produção</label>
+                <RichTextEditor
+                  value={description}
+                  onChange={setDescription}
+                  placeholder="Detalhes sobre o produto, aplicacao, materiais..."
+                  minHeightClass="min-h-[136px]"
+                />
+              </div>
+              </section>
+
+              <section className="order-4 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+                <div className="border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">4. Precificação</span>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Custos, preço de venda, margens e regras de preço por quantidade.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Cost Price */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Custo de Matéria-Prima / Aquisição (R$)</label>
@@ -1904,17 +1952,6 @@ export default function ProductsCRUDPage() {
                     />
                   </div>
                 </div>
-              </div>
-
-              {/* Description */}
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Descrição / Detalhes de Produção</label>
-                <RichTextEditor
-                  value={description}
-                  onChange={setDescription}
-                  placeholder="Detalhes sobre o produto, aplicacao, materiais..."
-                  minHeightClass="min-h-[136px]"
-                />
               </div>
 
               {/* Volume pricing tiers */}
@@ -2004,9 +2041,19 @@ export default function ProductsCRUDPage() {
                   </div>
                 )}
               </div>
+                </div>
+              </section>
+
+              <section className="order-3 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+                <div className="border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">3. Configurador do Produto</span>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Variações, cores e grupos de opções usados para montar o produto no catálogo online.
+                  </p>
+                </div>
 
               {/* Variations and colors */}
-              <div className="md:col-span-2 border-t border-border/60 pt-3 space-y-3">
+              <div className="space-y-3">
                 <div>
                   <span className="font-bold text-xs text-foreground block">Variacoes e Cores do Produto</span>
                   <span className="text-[9px] text-muted-foreground mt-0.5 block">
@@ -2229,9 +2276,18 @@ export default function ProductsCRUDPage() {
                   </div>
                 )}
               </div>
+              </section>
 
               {/* Stock control configurations */}
-              <div className="md:col-span-2 border-t border-border/60 pt-3 flex items-center justify-between">
+              <section className="order-7 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+                <div className="border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">7. Estoque</span>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Controle de estoque, alerta mínimo e lançamento inicial quando aplicável.
+                  </p>
+                </div>
+
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <span className="font-bold text-xs text-foreground block">Ativar Controle de Estoque</span>
                   <span className="text-[9px] text-muted-foreground mt-0.5 block">
@@ -2252,7 +2308,7 @@ export default function ProductsCRUDPage() {
               </div>
 
               {stockControlled && (
-                <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground">Estoque Mínimo de Alerta</label>
                     <input
@@ -2274,8 +2330,9 @@ export default function ProductsCRUDPage() {
                       />
                     </div>
                   )}
-                </>
+                </div>
               )}
+              </section>
             </div>
 
             <div className="flex justify-end gap-2 border-t border-border pt-4 mt-2 shrink-0">
