@@ -1566,7 +1566,7 @@ export default function POSPage() {
             <p><strong>Operador:</strong> Caixa Balcão</p>
           </div>
 
-          <div className="border-b border-dashed border-black py-2 space-y-2">
+          <div className="print-items-list border-b border-dashed border-black py-1.5 space-y-1">
             <div className="flex justify-between font-bold border-b border-dashed border-black pb-1">
               <span>Item / Qtd</span>
               <span className="text-right">Total</span>
@@ -1575,13 +1575,13 @@ export default function POSPage() {
             {justCompletedOrder.items.map((item: any, idx: number) => {
               const hasDimensions = item.details && (item.details.width || item.details.height);
               return (
-                <div key={idx} className="space-y-0.5">
-                  <div className="flex justify-between">
+                <div key={idx} className="space-y-px leading-tight">
+                  <div className="flex justify-between gap-2">
                     <span>{item.quantity}x {item.product_name}</span>
                     <span className="text-right">{formatCurrency(item.total_price)}</span>
                   </div>
                   {hasDimensions && (
-                    <div className="text-[9px] text-gray-500 pl-2">
+                    <div className="text-[9px] text-gray-500 pl-2 leading-tight">
                       Medida: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
                     </div>
                   )}

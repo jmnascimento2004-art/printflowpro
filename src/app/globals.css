@@ -261,4 +261,42 @@
     -webkit-print-color-adjust: economy !important;
     print-color-adjust: economy !important;
   }
+
+  /* Compact product listings in commercial PDFs */
+  #printable-order-area .print-items-table,
+  #printable-quote-area .print-items-table {
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    line-height: 1.15 !important;
+  }
+
+  #printable-order-area .print-items-table tbody tr,
+  #printable-quote-area .print-items-table tbody tr {
+    height: auto !important;
+    min-height: 0 !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+  }
+
+  #printable-order-area .print-items-table tbody td,
+  #printable-quote-area .print-items-table tbody td {
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+    line-height: 1.15 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    vertical-align: middle !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+  }
+
+  #printable-order-area .print-items-table tbody td:nth-child(2),
+  #printable-quote-area .print-items-table tbody td:nth-child(2) {
+    vertical-align: top !important;
+  }
+
+  #printable-pos-receipt .print-items-list,
+  #printable-pos-receipt .print-items-list * {
+    line-height: 1.15 !important;
+  }
 }

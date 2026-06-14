@@ -1469,8 +1469,8 @@ export default function OrdersPage() {
             
             <div className="space-y-1">
               <strong>Descricao dos Produtos e/ou Servicos:</strong>
-              <div className="mt-2 overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[10px] border border-zinc-300">
+              <div className="mt-1 overflow-x-auto">
+                <table className="print-items-table w-full text-left border-collapse text-[10px] border border-zinc-300">
                   <thead>
                     <tr className="bg-zinc-100 border-b border-zinc-300 font-bold text-[9px] uppercase text-zinc-700">
                       <th className="px-2 py-1.5 text-center border-r border-zinc-300 w-10">QTD</th>
@@ -1482,23 +1482,23 @@ export default function OrdersPage() {
                   </thead>
                   <tbody>
                     {activePrintOrder.items.map((item) => (
-                      <tr key={item.id} className="border-b border-zinc-200">
-                        <td className="px-2 py-1.5 text-center border-r border-zinc-200 font-mono">{item.quantity}</td>
-                        <td className="px-2 py-1.5 border-r border-zinc-200">
+                      <tr key={item.id}>
+                        <td className="px-2 py-0.5 text-center border-r border-zinc-200 font-mono leading-tight">{item.quantity}</td>
+                        <td className="px-2 py-0.5 border-r border-zinc-200 leading-tight">
                           <span className="font-semibold">{getPrintItemDescription(item)}</span>
                           {item.details?.notes && (
-                            <span className="block text-[8px] text-zinc-500 font-normal italic mt-0.5">
+                            <span className="block text-[8px] text-zinc-500 font-normal italic mt-px leading-tight">
                               Obs: {item.details.notes}
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-1.5 text-center border-r border-zinc-200 font-mono">
+                        <td className="px-2 py-0.5 text-center border-r border-zinc-200 font-mono leading-tight">
                           {getPrintItemSize(item)}
                         </td>
-                        <td className="px-2 py-1.5 text-right border-r border-zinc-200 font-mono">
+                        <td className="px-2 py-0.5 text-right border-r border-zinc-200 font-mono leading-tight">
                           {formatCurrency(item.unit_price)}
                         </td>
-                        <td className="px-2 py-1.5 text-right font-mono font-semibold">
+                        <td className="px-2 py-0.5 text-right font-mono font-semibold leading-tight">
                           {formatCurrency(item.total_price)}
                         </td>
                       </tr>

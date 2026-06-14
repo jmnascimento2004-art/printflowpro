@@ -660,7 +660,7 @@ export default function QuotesPage() {
 
           {/* Items Table */}
           <div className="border border-border rounded-xl overflow-hidden bg-white">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="print-items-table w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-secondary/40 font-bold text-foreground uppercase">
                   <th className="px-4 py-2.5 w-[10%] rounded-l-lg border-r border-border">QTD</th>
@@ -673,14 +673,14 @@ export default function QuotesPage() {
                 {activePrintQuote.items.length > 0 ? (
                   activePrintQuote.items.map((item) => (
                       <tr key={item.id} className="align-top">
-                        <td className="px-4 py-1 text-center font-bold text-foreground leading-tight">
+                        <td className="px-4 py-0.5 text-center font-bold text-foreground leading-tight">
                           {item.quantity}
                         </td>
-                        <td className="px-4 py-1 font-semibold text-foreground leading-tight">
+                        <td className="px-4 py-0.5 font-semibold text-foreground leading-tight">
                           {item.product_name}
                         </td>
-                        <td className="px-4 py-1 text-right text-muted-foreground whitespace-nowrap leading-tight">{formatCurrency(item.unit_price)}</td>
-                        <td className="px-4 py-1 text-right font-bold text-foreground whitespace-nowrap leading-tight">{formatCurrency(item.total_price)}</td>
+                        <td className="px-4 py-0.5 text-right text-muted-foreground whitespace-nowrap leading-tight">{formatCurrency(item.unit_price)}</td>
+                        <td className="px-4 py-0.5 text-right font-bold text-foreground whitespace-nowrap leading-tight">{formatCurrency(item.total_price)}</td>
                       </tr>
                   ))
                 ) : (
