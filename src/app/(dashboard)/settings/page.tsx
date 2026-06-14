@@ -233,7 +233,7 @@ export default function SettingsPage() {
     setImgVal: (val: string) => void,
     defaultSvg: string
   ) => {
-    if (['Diners Club', 'Amex', 'Boleto Bancário', 'Boleto BancÃ¡rio', 'Transferência', 'TransferÃªncia', 'PAC'].includes(label)) {
+    if (['Diners Club', 'Amex', 'Boleto Bancário', 'Transferência', 'PAC'].includes(label)) {
       return null;
     }
 
@@ -2869,4 +2869,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

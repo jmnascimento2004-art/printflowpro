@@ -135,19 +135,19 @@ export default function CRMPage() {
 
     const rawDoc = document.replace(/\D/g, '');
     if (rawDoc.length > 11 && !validateCNPJ(rawDoc)) {
-      alert('Documento CNPJ invÃ¡lido! Verifique os dÃ­gitos e tente novamente.');
+      alert('Documento CNPJ inválido! Verifique os dígitos e tente novamente.');
       return;
     }
 
     const duplicateDoc = rawDoc && customers.some(customer => customer.document.replace(/\D/g, '') === rawDoc);
     if (duplicateDoc) {
-      alert('JÃ¡ existe um cliente cadastrado com este CPF/CNPJ.');
+      alert('Já existe um cliente cadastrado com este CPF/CNPJ.');
       return;
     }
 
     const rawCEP = zipCode.replace(/\D/g, '');
     if (rawCEP && !validateCEP(rawCEP)) {
-      alert('CEP invÃ¡lido! O CEP deve conter exatamente 8 dÃ­gitos.');
+      alert('CEP inválido! O CEP deve conter exatamente 8 dígitos.');
       return;
     }
 
