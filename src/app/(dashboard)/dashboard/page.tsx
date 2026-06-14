@@ -501,9 +501,9 @@ export default function DashboardPage() {
               {bestsellers.length > 0 ? (
                 bestsellers.map((item, idx) => (
                   <div key={idx} className="space-y-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-foreground truncate max-w-[170px]">{item.name}</span>
-                      <span className="font-medium text-muted-foreground">{formatCurrency(item.sales)}</span>
+                    <div className="flex justify-between items-center gap-3 text-xs">
+                      <span className="font-semibold text-foreground truncate min-w-0">{item.name}</span>
+                      <span className="shrink-0 font-medium text-muted-foreground">{formatCurrency(item.sales)}</span>
                     </div>
                     {/* Progress indicator */}
                     <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">

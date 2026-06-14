@@ -936,7 +936,7 @@ export default function ProductsCRUDPage() {
                                 </div>
                               </div>
 
-                              <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
+                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px]">
                                 <div>
                                   <span className="block text-muted-foreground font-bold uppercase">Custo</span>
                                   <strong className="text-foreground">{formatCurrency(prod.base_cost)}</strong>
@@ -1866,4 +1866,3 @@ export default function ProductsCRUDPage() {
     </div>
   );
 }
-

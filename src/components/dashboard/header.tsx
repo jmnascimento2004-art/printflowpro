@@ -147,8 +147,8 @@ export default function Header({
   };
 
   return (
-    <header className="h-16 border-b border-border bg-white/85 dark:bg-card/90 px-4 flex items-center justify-between sticky top-0 z-30 shadow-sm backdrop-blur no-print">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="h-16 border-b border-border bg-white/85 dark:bg-card/90 px-3 sm:px-4 flex items-center justify-between gap-2 sticky top-0 z-30 shadow-sm backdrop-blur no-print">
+      <div className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="hidden md:flex items-center justify-center p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-primary border border-border mr-1 transition-all"
@@ -175,7 +175,7 @@ export default function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <button
           onClick={toggleTheme}
           className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground border border-border"
@@ -266,7 +266,7 @@ export default function Header({
         <div className="relative">
           <button
             onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-            className="flex items-center gap-2 p-1.5 pl-2.5 pr-2 rounded-lg hover:bg-secondary border border-border text-sm font-medium text-foreground transition-all"
+            className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:pl-2.5 sm:pr-2 rounded-lg hover:bg-secondary border border-border text-sm font-medium text-foreground transition-all"
           >
             <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
               {activeProfile.name.charAt(0)}
@@ -275,7 +275,7 @@ export default function Header({
               <span className="text-xs font-semibold">{activeProfile.name}</span>
               <span className="text-[10px] text-muted-foreground">{getRoleLabel(activeProfile.role)}</span>
             </div>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-1" />
+            <ChevronDown className="hidden sm:block h-3.5 w-3.5 text-muted-foreground ml-1" />
           </button>
 
           {profileDropdownOpen && (

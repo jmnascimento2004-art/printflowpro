@@ -609,8 +609,8 @@ export default function StorefrontPage() {
       {/* 1. Header Top Info Bar */}
       <div className="bg-white/75 dark:bg-zinc-950 text-slate-600 dark:text-zinc-300 text-xs py-2 border-b border-slate-200 dark:border-zinc-800 backdrop-blur">
         <div className="max-w-7xl mx-auto w-full px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-2">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-1 min-w-0 text-center md:text-left">
+            <span className="flex min-w-0 items-center justify-center md:justify-start gap-1">
               <Clock className="h-3.5 w-3.5 text-emerald-500" /> {settings?.top_bar_hours || 'Segunda à Sexta: 8h às 12h / 13h30 às 18h'}
             </span>
             {settings?.top_bar_show_pickup !== false && (
@@ -619,7 +619,7 @@ export default function StorefrontPage() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-center gap-4">
             {company.instagram_url && (
               <a href={socialUrl('instagram', company.instagram_url)} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-emerald-400 transition-colors flex items-center hover:scale-110" title="Instagram">
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -650,8 +650,8 @@ export default function StorefrontPage() {
 
       {/* 2. Main Navigation Header */}
       <header className="bg-white/90 dark:bg-zinc-900/95 border-b border-slate-200 dark:border-zinc-800 h-20 sticky top-0 z-30 shadow-sm backdrop-blur flex items-center">
-        <div className="max-w-7xl mx-auto w-full px-4 md:px-8 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="max-w-7xl mx-auto w-full px-4 md:px-8 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {/* Header Logo */}
             {(() => {
               const logoSrc = storeTheme === 'dark' ? (company.logo_dark || company.logo_light) : (company.logo_light || company.logo_dark);
@@ -659,7 +659,7 @@ export default function StorefrontPage() {
                 <img 
                   src={logoSrc} 
                   alt={company.name || 'Logo'} 
-                  className="h-9 w-auto object-contain max-w-[200px]"
+                  className="h-9 w-auto object-contain max-w-[140px] sm:max-w-[200px]"
                 />
               ) : (
                 <BrandLogo subtitle="Catalogo Online" className="[&>img]:h-9 [&>img]:w-9" />
@@ -684,7 +684,7 @@ export default function StorefrontPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Theme Toggle Button */}
             <button
               onClick={toggleStoreTheme}
@@ -700,7 +700,7 @@ export default function StorefrontPage() {
 
             <button
               onClick={() => setCartOpen(true)}
-              className="flex items-center gap-2 p-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white relative transition-all shadow-md shadow-emerald-600/10"
+              className="flex items-center gap-2 p-2.5 px-3 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white relative transition-all shadow-md shadow-emerald-600/10"
             >
               <ShoppingCart className="h-4.5 w-4.5" />
               {cart.length > 0 && (
@@ -708,7 +708,7 @@ export default function StorefrontPage() {
                   {cart.length}
                 </span>
               )}
-              <span className="text-xs font-bold">Carrinho</span>
+              <span className="hidden sm:inline text-xs font-bold">Carrinho</span>
             </button>
           </div>
         </div>
@@ -1607,7 +1607,7 @@ export default function StorefrontPage() {
       {/* 8. Cart Drawer Panel */}
       {cartOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex justify-end">
-          <div className="bg-white w-full max-w-md border-l border-slate-200 h-full flex flex-col justify-between shadow-2xl p-6 overflow-y-auto animate-in slide-in-from-right duration-200 text-slate-800">
+          <div className="bg-white w-full max-w-md border-l border-slate-200 h-full flex flex-col justify-between shadow-2xl p-4 sm:p-6 overflow-y-auto animate-in slide-in-from-right duration-200 text-slate-800">
             
             <div className="space-y-5">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -1626,9 +1626,9 @@ export default function StorefrontPage() {
               <div className="space-y-3 max-h-52 overflow-y-auto divide-y divide-slate-100 pr-1">
                 {cart.length > 0 ? (
                   cart.map((item, idx) => (
-                    <div key={idx} className="pt-3 first:pt-0 flex justify-between items-start text-xs">
-                      <div>
-                        <div className="font-bold text-slate-900">{item.product.name}</div>
+                    <div key={idx} className="pt-3 first:pt-0 flex justify-between items-start gap-3 text-xs">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900 break-words">{item.product.name}</div>
                         {item.width && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
                             Dimensões: {item.width}m {item.height ? `x ${item.height}m` : 'linear'}
@@ -1641,8 +1641,8 @@ export default function StorefrontPage() {
                         )}
                         <span className="text-[10px] text-slate-500 mt-0.5 block font-semibold">{item.quantity}x {formatCurrency(item.calculatedPrice)}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-black text-slate-900">{formatCurrency(item.quantity * item.calculatedPrice)}</span>
+                      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                        <span className="font-black text-slate-900 whitespace-nowrap">{formatCurrency(item.quantity * item.calculatedPrice)}</span>
                         <button
                           onClick={() => handleRemoveFromCart(idx)}
                           className="p-1.5 rounded-lg border border-slate-200 hover:bg-rose-50 text-rose-500 hover:text-white transition-colors"
@@ -1749,8 +1749,8 @@ export default function StorefrontPage() {
                         <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Endereco completo para entrega *</label>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="col-span-1 space-y-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">CEP *</label>
                           <input
                             type="text"
@@ -1779,7 +1779,7 @@ export default function StorefrontPage() {
                             className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:bg-white"
                           />
                         </div>
-                        <div className="col-span-2 space-y-1">
+                        <div className="space-y-1 sm:col-span-2">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">Rua / Logradouro *</label>
                           <input
                             type="text"
@@ -1792,7 +1792,7 @@ export default function StorefrontPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-4 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">Numero *</label>
                           <input
@@ -1804,7 +1804,7 @@ export default function StorefrontPage() {
                             className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:bg-white"
                           />
                         </div>
-                        <div className="col-span-3 space-y-1">
+                        <div className="space-y-1 sm:col-span-3">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">Bairro *</label>
                           <input
                             type="text"
@@ -1817,8 +1817,8 @@ export default function StorefrontPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-4 gap-2">
-                        <div className="col-span-3 space-y-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                        <div className="space-y-1 sm:col-span-3">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">Cidade *</label>
                           <input
                             type="text"
@@ -1904,9 +1904,9 @@ export default function StorefrontPage() {
       {showPromotionsSection && (
         <section className="bg-slate-100 dark:bg-zinc-950 border-y border-slate-200 dark:border-zinc-800 py-10 md:py-12 px-4">
           <div className="max-w-7xl mx-auto space-y-7">
-            <div className="flex items-center gap-5">
-              <div className="h-px flex-1 bg-slate-900/80 dark:bg-zinc-700" />
-              <div className="flex items-center gap-4 md:gap-7 text-sm md:text-base font-black uppercase tracking-wide text-slate-950 dark:text-zinc-100 whitespace-nowrap">
+            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5">
+              <div className="hidden sm:block h-px flex-1 bg-slate-900/80 dark:bg-zinc-700" />
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:gap-x-4 md:gap-x-7 text-xs sm:text-sm md:text-base font-black uppercase tracking-wide text-slate-950 dark:text-zinc-100">
                 {[
                   { id: 'bestsellers' as const, label: '+ Vendidos' },
                   { id: 'promo' as const, label: 'Promoções' },
@@ -1928,7 +1928,7 @@ export default function StorefrontPage() {
                   </React.Fragment>
                 ))}
               </div>
-              <div className="h-px flex-1 bg-slate-900/80 dark:bg-zinc-700" />
+              <div className="hidden sm:block h-px flex-1 bg-slate-900/80 dark:bg-zinc-700" />
             </div>
 
             {showcaseProducts.length > 0 ? (

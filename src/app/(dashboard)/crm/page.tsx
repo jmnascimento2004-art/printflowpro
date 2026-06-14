@@ -280,9 +280,9 @@ export default function CRMPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end min-w-0">
           {/* Tag Filter pills */}
-          <div className="flex gap-1.5 overflow-x-auto py-1">
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1 sm:flex-none">
             <button
               onClick={() => setSelectedTag(null)}
               className={`px-3 py-1 rounded-full text-xs font-semibold border ${
@@ -310,7 +310,7 @@ export default function CRMPage() {
 
           <button
             onClick={() => setIsAddingCustomer(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-semibold shadow-md shadow-primary/20 transition-all ml-2 whitespace-nowrap"
+            className="flex shrink-0 items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs sm:text-sm font-semibold shadow-md shadow-primary/20 transition-all sm:ml-2 whitespace-nowrap"
           >
             <Plus className="h-4 w-4" /> Novo Cliente
           </button>

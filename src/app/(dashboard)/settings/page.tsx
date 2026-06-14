@@ -1218,8 +1218,8 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 col-span-1 md:col-span-1">
-                      <div className="col-span-2 space-y-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 col-span-1 md:col-span-1">
+                      <div className="space-y-1 sm:col-span-2">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">Cidade *</label>
                         <input
                           type="text"
