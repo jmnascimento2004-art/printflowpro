@@ -76,6 +76,25 @@ export default function QuotesPage() {
     };
   };
 
+  const withPrintableItems = (quote: Quote): Quote => {
+    if (quote.items && quote.items.length > 0) return quote;
+
+    const match = quotes.find((item) => item.id === quote.id || item.number === quote.number);
+    if (match?.items?.length) return { ...quote, items: match.items };
+
+    try {
+      const storedQuotes = JSON.parse(window.localStorage.getItem('printflow_quotes') || '[]') as Quote[];
+      const stored = storedQuotes.find((item) => item.id === quote.id || item.number === quote.number);
+      if (stored?.items?.length) return { ...quote, items: stored.items };
+    } catch {
+      // Keep the quote as-is when browser storage is unavailable or malformed.
+    }
+
+    return quote;
+  };
+
+  const preparePrintQuote = (quote: Quote) => withPrintableItems(withResolvedCustomer(quote));
+
   const buildAddressLine = (address?: {
     street?: string;
     number?: string;
@@ -642,16 +661,16 @@ export default function QuotesPage() {
 
           {/* Items Table */}
           <div className="border border-border rounded-xl overflow-hidden bg-white">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-separate border-spacing-y-1 text-xs">
               <thead>
-                <tr className="bg-secondary/40 font-bold border-b border-border text-foreground uppercase">
-                  <th className="px-4 py-2.5 w-[28%]">Itens</th>
-                  <th className="px-4 py-2.5 w-[38%]">Descrição</th>
+                <tr className="bg-secondary/40 font-bold text-foreground uppercase">
+                  <th className="px-4 py-2.5 w-[10%] rounded-l-lg">QTD</th>
+                  <th className="px-4 py-2.5 w-[56%]">Descrição</th>
                   <th className="px-4 py-2.5 text-right w-[16%]">Preço Unit.</th>
-                  <th className="px-4 py-2.5 text-right w-[18%]">Total</th>
+                  <th className="px-4 py-2.5 text-right w-[18%] rounded-r-lg">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {activePrintQuote.items.length > 0 ? (
                   activePrintQuote.items.map((item) => {
                     const product = products.find((productItem) => productItem.id === item.product_id);
@@ -662,19 +681,19 @@ export default function QuotesPage() {
 
                     return (
                       <tr key={item.id} className="hover:bg-secondary/5 align-top">
-                        <td className="px-4 py-3 font-semibold text-foreground">
-                          <div>{item.product_name}</div>
-                          <div className="text-[10px] text-muted-foreground mt-1">Qtd: {item.quantity}</div>
+                        <td className="px-4 py-3 text-center font-bold text-foreground border-y border-l border-border rounded-l-lg">
+                          {item.quantity}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground leading-relaxed">
+                        <td className="px-4 py-3 text-muted-foreground leading-relaxed border-y border-border">
+                          <div className="font-semibold text-foreground mb-1">{item.product_name}</div>
                           {productDescription && <div>{productDescription}</div>}
                           {dimensions && <div className="text-[10px] mt-1">{dimensions}</div>}
                           {item.details?.notes && productDescription !== item.details.notes && (
                             <div className="text-[10px] text-primary font-semibold mt-1">{item.details.notes}</div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">{formatCurrency(item.unit_price)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-foreground whitespace-nowrap">{formatCurrency(item.total_price)}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap border-y border-border">{formatCurrency(item.unit_price)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-foreground whitespace-nowrap border-y border-r border-border rounded-r-lg">{formatCurrency(item.total_price)}</td>
                       </tr>
                     );
                   })
@@ -785,7 +804,7 @@ export default function QuotesPage() {
                         <div className="flex items-center justify-start gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setActivePrintQuote(withResolvedCustomer(quote))}
+                            onClick={() => setActivePrintQuote(preparePrintQuote(quote))}
                             className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                             title="Imprimir PDF"
                           >

@@ -120,7 +120,9 @@ export function getPixWhatsAppPaymentInfo({
 
 export function getPublicImageUrl(value?: string): string {
   const url = value?.trim() || '';
-  return /^https?:\/\//i.test(url) ? url : '';
+  if (/^(https?:|data:image\/|blob:)/i.test(url)) return url;
+  if (url.startsWith('/')) return url;
+  return '';
 }
 
 /**
