@@ -673,14 +673,14 @@ export default function QuotesPage() {
                 {activePrintQuote.items.length > 0 ? (
                   activePrintQuote.items.map((item) => (
                       <tr key={item.id} className="hover:bg-secondary/5 align-top">
-                        <td className="px-4 py-3 text-center font-bold text-foreground border-y border-l border-r border-border rounded-l-lg">
+                        <td className="px-4 py-3 text-center font-bold text-foreground border-l border-r border-border">
                           {item.quantity}
                         </td>
-                        <td className="px-4 py-3 font-semibold text-foreground leading-relaxed border-y border-r border-border">
+                        <td className="px-4 py-3 font-semibold text-foreground leading-relaxed border-r border-border">
                           {item.product_name}
                         </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap border-y border-r border-border">{formatCurrency(item.unit_price)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-foreground whitespace-nowrap border-y border-r border-border rounded-r-lg">{formatCurrency(item.total_price)}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap border-r border-border">{formatCurrency(item.unit_price)}</td>
+                        <td className="px-4 py-3 text-right font-bold text-foreground whitespace-nowrap border-r border-border">{formatCurrency(item.total_price)}</td>
                       </tr>
                   ))
                 ) : (
