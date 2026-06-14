@@ -581,6 +581,12 @@ export default function OrdersPage() {
   const paymentMethodName = orderTx ? orderTx.payment_method.replace('_', ' ').toUpperCase() : 'PIX';
   const paymentDate = orderTx ? new Date(orderTx.created_at).toLocaleDateString('pt-BR') : (activePrintOrder ? new Date(activePrintOrder.created_at).toLocaleDateString('pt-BR') : '');
   const paymentNotes = orderTx?.description || (activePrintOrder ? activePrintOrder.notes : '') || 'Nenhuma observação registrada.';
+  const printGrossProductsTotal = activePrintOrder
+    ? activePrintOrder.items.reduce((sum, item) => sum + item.total_price, 0)
+    : 0;
+  const printDiscountAmount = activePrintOrder
+    ? Math.max(0, printGrossProductsTotal - activePrintOrder.total_amount)
+    : 0;
   
   const companyName = company?.name || 'PrintFlowPRO - ERP SAAS';
   const companyDocument = company?.document || '12.345.678/0001-90';
@@ -1494,6 +1500,16 @@ export default function OrdersPage() {
             </div>
             
             <div className="space-y-1 bg-zinc-50 p-3 border border-zinc-200 rounded-md">
+              <div className="flex justify-between">
+                <span>Valor Bruto dos Produtos:</span>
+                <span className="font-bold">{formatCurrency(printGrossProductsTotal)}</span>
+              </div>
+              {printDiscountAmount > 0 && (
+                <div className="flex justify-between text-emerald-600 font-semibold">
+                  <span>Desconto Concedido:</span>
+                  <span className="font-bold">{formatCurrency(printDiscountAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>Valor Total do Pedido:</span>
                 <span className="font-bold">{formatCurrency(activePrintOrder.total_amount)}</span>
