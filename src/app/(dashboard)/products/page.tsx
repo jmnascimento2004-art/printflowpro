@@ -27,7 +27,7 @@ import {
   Eraser
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
-import { Product } from '@/lib/dummy-data';
+import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductSaleMode } from '@/lib/dummy-data';
 import { formatCurrencyInput, parseCurrencyInputToNumber, sanitizeRichTextHtml, stripRichTextHtml } from '@/lib/utils';
 import { RichTextEditor } from '@/components/rich-text-editor';
 
@@ -123,6 +123,49 @@ function ProductDescriptionEditor({
   );
 }
 
+const saleModeOptions: Array<{ value: ProductSaleMode; label: string; pricingType: Product['pricing_type'] }> = [
+  { value: 'unidade', label: 'Unidade simples', pricingType: 'unidade' },
+  { value: 'm2', label: 'Metro quadrado (m²)', pricingType: 'm2' },
+  { value: 'linear', label: 'Metro linear', pricingType: 'linear' },
+  { value: 'width_height', label: 'Largura x Altura', pricingType: 'm2' },
+  { value: 'pacote', label: 'Pacote / Kit', pricingType: 'pacote' },
+  { value: 'size_grid', label: 'Grade de tamanhos', pricingType: 'unidade' },
+  { value: 'custom', label: 'Produto personalizado', pricingType: 'unidade' }
+];
+
+const saleModeDescriptions: Record<ProductSaleMode, string> = {
+  unidade: 'Use para cartões, panfletos, talões, brindes e produtos vendidos por quantidade.',
+  m2: 'Use para banners, lonas, adesivos, placas, ACM, fachadas e comunicação visual por área.',
+  linear: 'Use para adesivos em rolo, faixas e materiais vendidos por metro.',
+  width_height: 'Use quando o cliente informar largura e altura com limites mínimos e máximos controlados.',
+  pacote: 'Use para kits fechados, combos e pacotes com composição definida.',
+  kit: 'Use para kits fechados, combos e pacotes com composição definida.',
+  size_grid: 'Use para camisas, uniformes e produtos com tamanhos variados.',
+  custom: 'Use para produtos sob consulta, projetos especiais e configurações que precisam de análise comercial.'
+};
+
+const defaultSizeOptions: ProductConfiguratorOption[] = ['P', 'M', 'G', 'GG', 'XG'].map((name) => ({
+  name,
+  price_delta: 0,
+  additional_days: 0,
+  is_default: false
+}));
+
+const buildEmptyOptionGroup = (): ProductConfiguratorGroup => ({
+  id: `group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  name: '',
+  selection_type: 'single',
+  required: false,
+  options: []
+});
+
+const buildEmptyConfiguratorOption = (): ProductConfiguratorOption => ({
+  name: '',
+  price_delta: 0,
+  additional_days: 0,
+  is_default: false
+});
+
 export default function ProductsCRUDPage() {
   const { 
     products, 
@@ -209,6 +252,21 @@ export default function ProductsCRUDPage() {
   const [tempVariantName, setTempVariantName] = useState('');
   const [tempColorName, setTempColorName] = useState('');
   const [tempColorHex, setTempColorHex] = useState('#111827');
+  const [saleMode, setSaleMode] = useState<ProductSaleMode>('unidade');
+  const [allowCustomMeasure, setAllowCustomMeasure] = useState(true);
+  const [minWidth, setMinWidth] = useState(0);
+  const [minHeight, setMinHeight] = useState(0);
+  const [maxWidth, setMaxWidth] = useState(0);
+  const [maxHeight, setMaxHeight] = useState(0);
+  const [minArea, setMinArea] = useState(0);
+  const [minLength, setMinLength] = useState(0);
+  const [kitItems, setKitItems] = useState('');
+  const [configMinQuantity, setConfigMinQuantity] = useState(1);
+  const [sizeOptions, setSizeOptions] = useState<ProductConfiguratorOption[]>(defaultSizeOptions);
+  const [customSizeName, setCustomSizeName] = useState('');
+  const [quoteOnRequest, setQuoteOnRequest] = useState(false);
+  const [customerMessage, setCustomerMessage] = useState('');
+  const [optionGroups, setOptionGroups] = useState<ProductConfiguratorGroup[]>([]);
 
   const handleTempPriceChange = (val: number, qty: number | '' = tempMinQty) => {
     setTempPrice(val);
@@ -329,6 +387,95 @@ export default function ProductsCRUDPage() {
     setTempColorHex('#111827');
   };
 
+  const getPricingTypeForSaleMode = (mode: ProductSaleMode): Product['pricing_type'] => {
+    return saleModeOptions.find((option) => option.value === mode)?.pricingType || 'unidade';
+  };
+
+  const handleSaleModeChange = (mode: ProductSaleMode) => {
+    setSaleMode(mode);
+    setPricingType(getPricingTypeForSaleMode(mode));
+  };
+
+  const updateSizeOption = (index: number, patch: Partial<ProductConfiguratorOption>) => {
+    setSizeOptions(prev => prev.map((option, idx) => (idx === index ? { ...option, ...patch } : option)));
+  };
+
+  const addCustomSizeOption = () => {
+    const value = customSizeName.trim();
+    if (!value) return;
+    if (sizeOptions.some(option => option.name.toLowerCase() === value.toLowerCase())) {
+      alert('Este tamanho ja foi adicionado.');
+      return;
+    }
+    setSizeOptions(prev => [...prev, { ...buildEmptyConfiguratorOption(), name: value }]);
+    setCustomSizeName('');
+  };
+
+  const updateOptionGroup = (groupId: string, patch: Partial<ProductConfiguratorGroup>) => {
+    setOptionGroups(prev => prev.map(group => (group.id === groupId ? { ...group, ...patch } : group)));
+  };
+
+  const addOptionToGroup = (groupId: string) => {
+    setOptionGroups(prev => prev.map(group => (
+      group.id === groupId
+        ? { ...group, options: [...group.options, buildEmptyConfiguratorOption()] }
+        : group
+    )));
+  };
+
+  const updateGroupOption = (
+    groupId: string,
+    optionIndex: number,
+    patch: Partial<ProductConfiguratorOption>
+  ) => {
+    setOptionGroups(prev => prev.map(group => {
+      if (group.id !== groupId) return group;
+      return {
+        ...group,
+        options: group.options.map((option, idx) => (idx === optionIndex ? { ...option, ...patch } : option))
+      };
+    }));
+  };
+
+  const removeGroupOption = (groupId: string, optionIndex: number) => {
+    setOptionGroups(prev => prev.map(group => (
+      group.id === groupId
+        ? { ...group, options: group.options.filter((_, idx) => idx !== optionIndex) }
+        : group
+    )));
+  };
+
+  const normalizeConfiguratorGroups = () => optionGroups
+    .map(group => ({
+      ...group,
+      name: group.name.trim(),
+      options: group.options
+        .map(option => ({
+          ...option,
+          name: option.name.trim(),
+          price_delta: Math.max(0, option.price_delta || 0),
+          additional_days: Math.max(0, option.additional_days || 0)
+        }))
+        .filter(option => option.name)
+    }))
+    .filter(group => group.name && group.options.length > 0);
+
+  const buildConfiguratorOptions = () => ({
+    sale_mode: saleMode,
+    allow_custom_measure: allowCustomMeasure,
+    min_width: minWidth || undefined,
+    min_height: minHeight || undefined,
+    max_width: maxWidth || undefined,
+    max_height: maxHeight || undefined,
+    min_area: minArea || undefined,
+    min_length: minLength || undefined,
+    kit_items: kitItems.trim() || undefined,
+    min_quantity: Math.max(1, configMinQuantity || 1),
+    size_options: sizeOptions.filter(option => option.name.trim()),
+    quote_on_request: quoteOnRequest,
+    customer_message: customerMessage.trim() || undefined,
+    option_groups: normalizeConfiguratorGroups()
+  });
 
   // Filter products
   const filteredProducts = products.filter(p => {
@@ -367,6 +514,21 @@ export default function ProductsCRUDPage() {
     setTempVariantName('');
     setTempColorName('');
     setTempColorHex('#111827');
+    setSaleMode('unidade');
+    setAllowCustomMeasure(true);
+    setMinWidth(0);
+    setMinHeight(0);
+    setMaxWidth(0);
+    setMaxHeight(0);
+    setMinArea(0);
+    setMinLength(0);
+    setKitItems('');
+    setConfigMinQuantity(1);
+    setSizeOptions(defaultSizeOptions);
+    setCustomSizeName('');
+    setQuoteOnRequest(false);
+    setCustomerMessage('');
+    setOptionGroups([]);
     setTempMinQty(2);
     setTempPrice(0);
     setTempTotalPrice(0);
@@ -397,6 +559,22 @@ export default function ProductsCRUDPage() {
     setVolumePricing(prod.volume_pricing || []);
     setVariantOptions(prod.variant_options || []);
     setColorOptions(prod.color_options || []);
+    const configurator = prod.pricing_details?.configurator_options;
+    setSaleMode(configurator?.sale_mode || prod.pricing_type);
+    setAllowCustomMeasure(configurator?.allow_custom_measure !== false);
+    setMinWidth(configurator?.min_width || 0);
+    setMinHeight(configurator?.min_height || 0);
+    setMaxWidth(configurator?.max_width || 0);
+    setMaxHeight(configurator?.max_height || 0);
+    setMinArea(configurator?.min_area || 0);
+    setMinLength(configurator?.min_length || 0);
+    setKitItems(configurator?.kit_items || '');
+    setConfigMinQuantity(configurator?.min_quantity || 1);
+    setSizeOptions(configurator?.size_options && configurator.size_options.length > 0 ? configurator.size_options : defaultSizeOptions);
+    setCustomSizeName('');
+    setQuoteOnRequest(configurator?.quote_on_request || false);
+    setCustomerMessage(configurator?.customer_message || '');
+    setOptionGroups(configurator?.option_groups || []);
     setTempVariantName('');
     setTempColorName('');
     setTempColorHex('#111827');
@@ -447,7 +625,7 @@ export default function ProductsCRUDPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const usesRequiredVolumePricing = !['m2', 'linear'].includes(pricingType);
+    const usesRequiredVolumePricing = saleMode === 'unidade';
     const productVolumePricing = usesRequiredVolumePricing ? volumePricing : (volumePricing.length > 0 ? volumePricing : undefined);
     const cleanDeliveryTime = deliveryTime.trim();
 
@@ -456,6 +634,19 @@ export default function ProductsCRUDPage() {
       return;
     }
     const cleanDescription = sanitizeRichTextHtml(description);
+    const configuratorOptions = buildConfiguratorOptions();
+    const pricingDetails = {
+      raw_material_cost: baseCost,
+      operating_cost: 0,
+      production_time: 0,
+      markup: profitMargin,
+      commission: commissionPercent,
+      taxes: taxPercent,
+      waste_percent: 0,
+      calculated_price: salesPrice,
+      delivery_time: cleanDeliveryTime || undefined,
+      configurator_options: configuratorOptions
+    };
 
     if (isEditing && selectedProduct) {
       // Edit Product
@@ -479,17 +670,7 @@ export default function ProductsCRUDPage() {
         volume_pricing: productVolumePricing,
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
         color_options: colorOptions.length > 0 ? colorOptions : undefined,
-        pricing_details: {
-          raw_material_cost: baseCost,
-          operating_cost: 0,
-          production_time: 0,
-          markup: profitMargin,
-          commission: commissionPercent,
-          taxes: taxPercent,
-          waste_percent: 0,
-          calculated_price: salesPrice,
-          delivery_time: cleanDeliveryTime || undefined
-        }
+        pricing_details: pricingDetails
       });
     } else {
       // Create Product
@@ -512,17 +693,7 @@ export default function ProductsCRUDPage() {
         volume_pricing: productVolumePricing,
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
         color_options: colorOptions.length > 0 ? colorOptions : undefined,
-        pricing_details: {
-          raw_material_cost: baseCost,
-          operating_cost: 0,
-          production_time: 0,
-          markup: profitMargin,
-          commission: commissionPercent,
-          taxes: taxPercent,
-          waste_percent: 0,
-          calculated_price: salesPrice,
-          delivery_time: cleanDeliveryTime || undefined
-        }
+        pricing_details: pricingDetails
       });
 
       // Inject initial stock movement if set
@@ -1314,7 +1485,7 @@ export default function ProductsCRUDPage() {
           )}
         </>
       ) : (
-        <div className="max-w-2xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
+        <div className="max-w-5xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
           <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <h3 className="font-bold text-foreground text-sm uppercase flex items-center gap-1.5">
@@ -1409,12 +1580,151 @@ export default function ProductsCRUDPage() {
                 </select>
               </div>
 
+              {/* Online sale configurator */}
+              <div className="md:col-span-2 rounded-xl border border-primary/15 bg-white p-4 shadow-sm space-y-4">
+                <div className="flex flex-col gap-1 border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">Venda Online / Configurador</span>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Defina como este produto será configurado e vendido no catálogo online. As opções novas ficam preparadas no JSON do produto sem alterar o banco.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground">Como este produto será vendido?</label>
+                    <select
+                      value={saleMode}
+                      onChange={(e) => handleSaleModeChange(e.target.value as ProductSaleMode)}
+                      className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
+                    >
+                      {saleModeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <p className="rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                      {saleModeDescriptions[saleMode]}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-secondary/10 p-3 space-y-3">
+                    {saleMode === 'unidade' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
+                        <div className="rounded-lg bg-white border border-border p-3">
+                          <span className="font-bold text-foreground block">Preço de venda</span>
+                          <span className="text-muted-foreground">Usa o preço final sugerido e a tabela por quantidade.</span>
+                        </div>
+                        <div className="rounded-lg bg-white border border-border p-3">
+                          <span className="font-bold text-foreground block">Atacado, variações e cores</span>
+                          <span className="text-muted-foreground">Configure abaixo as faixas, variações simples e cores.</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {(saleMode === 'm2' || saleMode === 'width_height') && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura mínima (cm)</label>
+                          <input type="number" min="0" value={minWidth} onChange={(e) => setMinWidth(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Altura mínima (cm)</label>
+                          <input type="number" min="0" value={minHeight} onChange={(e) => setMinHeight(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Área mínima cobrada (m²)</label>
+                          <input type="number" min="0" step="0.01" value={minArea} onChange={(e) => setMinArea(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                        {saleMode === 'width_height' && (
+                          <>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura máxima (cm)</label>
+                              <input type="number" min="0" value={maxWidth} onChange={(e) => setMaxWidth(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-muted-foreground uppercase">Altura máxima (cm)</label>
+                              <input type="number" min="0" value={maxHeight} onChange={(e) => setMaxHeight(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                            </div>
+                          </>
+                        )}
+                        <label className="sm:col-span-2 lg:col-span-3 flex items-center gap-2 text-[11px] font-bold text-foreground">
+                          <input type="checkbox" checked={allowCustomMeasure} onChange={(e) => setAllowCustomMeasure(e.target.checked)} className="h-4 w-4 rounded border-border text-primary" />
+                          Permitir medida personalizada no catálogo
+                        </label>
+                      </div>
+                    )}
+
+                    {saleMode === 'linear' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Metragem mínima (m)</label>
+                          <input type="number" min="0" step="0.01" value={minLength} onChange={(e) => setMinLength(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                        <label className="flex items-center gap-2 text-[11px] font-bold text-foreground self-end pb-2">
+                          <input type="checkbox" checked={allowCustomMeasure} onChange={(e) => setAllowCustomMeasure(e.target.checked)} className="h-4 w-4 rounded border-border text-primary" />
+                          Permitir metragem personalizada no catálogo
+                        </label>
+                      </div>
+                    )}
+
+                    {(saleMode === 'pacote' || saleMode === 'kit') && (
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Itens inclusos no kit</label>
+                          <textarea value={kitItems} onChange={(e) => setKitItems(e.target.value)} placeholder="Ex: 1 banner, 2 adesivos, instalação inclusa..." className="min-h-[82px] w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Quantidade mínima</label>
+                          <input type="number" min="1" value={configMinQuantity} onChange={(e) => setConfigMinQuantity(Math.max(1, Number(e.target.value) || 1))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground text-center font-bold" />
+                          <p className="text-[10px] text-muted-foreground">Preço fixo usa o preço final sugerido.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {saleMode === 'size_grid' && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {sizeOptions.map((option, index) => (
+                            <div key={`${option.name}-${index}`} className="rounded-lg border border-border bg-white p-2 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-black text-foreground">{option.name}</span>
+                                <label className="flex items-center gap-1 text-[9px] font-bold text-muted-foreground">
+                                  <input type="checkbox" checked={option.is_default} onChange={(e) => updateSizeOption(index, { is_default: e.target.checked })} />
+                                  Padrão
+                                </label>
+                              </div>
+                              <input type="text" value={formatCurrencyInput(option.price_delta)} onChange={(e) => updateSizeOption(index, { price_delta: parseCurrencyInputToNumber(e.target.value) })} className="w-full px-2 py-1.5 rounded border border-border bg-secondary/30 text-[11px] font-bold text-foreground" />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input value={customSizeName} onChange={(e) => setCustomSizeName(e.target.value)} placeholder="Adicionar tamanho personalizado" className="flex-1 px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <button type="button" onClick={addCustomSizeOption} className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-bold">Adicionar</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {saleMode === 'custom' && (
+                      <div className="grid grid-cols-1 gap-3">
+                        <label className="flex items-center gap-2 text-[11px] font-bold text-foreground">
+                          <input type="checkbox" checked={quoteOnRequest} onChange={(e) => setQuoteOnRequest(e.target.checked)} className="h-4 w-4 rounded border-border text-primary" />
+                          Permitir orçamento sob consulta
+                        </label>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Mensagem para o cliente</label>
+                          <textarea value={customerMessage} onChange={(e) => setCustomerMessage(e.target.value)} placeholder="Ex: Envie sua ideia e nossa equipe prepara uma proposta personalizada." className="min-h-[78px] w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Pricing Type */}
-              <div className="space-y-1">
+              <div className="hidden">
                 <label className="text-xs font-semibold text-muted-foreground">Tipo de Cálculo / Medida</label>
                 <select
                   value={pricingType}
-                  onChange={(e: any) => setPricingType(e.target.value)}
+                  disabled
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 >
                   <option value="unidade">Unidade Simples</option>
@@ -1794,6 +2104,130 @@ export default function ProductsCRUDPage() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Product option groups */}
+              <div className="md:col-span-2 border-t border-border/60 pt-3 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-xs text-foreground block">Grupos de Opções do Produto</span>
+                    <span className="text-[9px] text-muted-foreground mt-0.5 block">
+                      Prepare materiais, acabamentos, extras, prazos e outras escolhas para o futuro configurador online.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOptionGroups(prev => [...prev, buildEmptyOptionGroup()])}
+                    className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-bold"
+                  >
+                    + Adicionar Grupo
+                  </button>
+                </div>
+
+                {optionGroups.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-secondary/10 px-4 py-5 text-center text-xs text-muted-foreground">
+                    Nenhum grupo configurado. Exemplos: Material, Tamanho, Cores, Acabamento, Extras, Prazo, Instalação e Arte.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {optionGroups.map((group) => (
+                      <div key={group.id} className="rounded-xl border border-border bg-secondary/10 p-3 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_140px_120px_36px] gap-2 items-end">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Nome do grupo</label>
+                            <input
+                              type="text"
+                              value={group.name}
+                              onChange={(e) => updateOptionGroup(group.id, { name: e.target.value })}
+                              placeholder="Ex: Acabamento"
+                              className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Seleção</label>
+                            <select
+                              value={group.selection_type}
+                              onChange={(e) => updateOptionGroup(group.id, { selection_type: e.target.value as 'single' | 'multiple' })}
+                              className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground"
+                            >
+                              <option value="single">Única</option>
+                              <option value="multiple">Múltipla</option>
+                            </select>
+                          </div>
+                          <label className="flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-[11px] font-bold text-foreground">
+                            <input
+                              type="checkbox"
+                              checked={group.required}
+                              onChange={(e) => updateOptionGroup(group.id, { required: e.target.checked })}
+                              className="h-4 w-4 rounded border-border text-primary"
+                            />
+                            Obrigatório
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setOptionGroups(prev => prev.filter(item => item.id !== group.id))}
+                            className="h-9 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-500 flex items-center justify-center"
+                            title="Remover grupo"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="space-y-2">
+                          {group.options.map((option, optionIndex) => (
+                            <div key={optionIndex} className="grid grid-cols-1 md:grid-cols-[1fr_120px_120px_110px_36px] gap-2 items-end rounded-lg bg-white border border-border p-2">
+                              <input
+                                type="text"
+                                value={option.name}
+                                onChange={(e) => updateGroupOption(group.id, optionIndex, { name: e.target.value })}
+                                placeholder="Nome da opcao"
+                                className="px-3 py-2 bg-secondary/30 border border-border rounded-lg text-xs text-foreground"
+                              />
+                              <input
+                                type="text"
+                                value={formatCurrencyInput(option.price_delta)}
+                                onChange={(e) => updateGroupOption(group.id, optionIndex, { price_delta: parseCurrencyInputToNumber(e.target.value) })}
+                                className="px-3 py-2 bg-secondary/30 border border-border rounded-lg text-xs text-foreground font-bold"
+                                title="Acrescimo em R$"
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                value={option.additional_days}
+                                onChange={(e) => updateGroupOption(group.id, optionIndex, { additional_days: Math.max(0, Number(e.target.value) || 0) })}
+                                className="px-3 py-2 bg-secondary/30 border border-border rounded-lg text-xs text-foreground font-bold"
+                                title="Prazo adicional em dias"
+                              />
+                              <label className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground">
+                                <input
+                                  type="checkbox"
+                                  checked={option.is_default}
+                                  onChange={(e) => updateGroupOption(group.id, optionIndex, { is_default: e.target.checked })}
+                                />
+                                  Padrão
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => removeGroupOption(group.id, optionIndex)}
+                                className="h-9 rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-500 flex items-center justify-center"
+                                title="Remover opção"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => addOptionToGroup(group.id)}
+                            className="w-full rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10"
+                          >
+                            + Adicionar opção neste grupo
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Stock control configurations */}

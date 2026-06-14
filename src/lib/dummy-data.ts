@@ -187,6 +187,41 @@ export interface PricingDetails {
   waste_percent: number; // percentage
   calculated_price: number;
   delivery_time?: string;
+  configurator_options?: ProductConfiguratorSettings;
+}
+
+export type ProductSaleMode = 'unidade' | 'm2' | 'linear' | 'width_height' | 'pacote' | 'kit' | 'size_grid' | 'custom';
+
+export interface ProductConfiguratorOption {
+  name: string;
+  price_delta: number;
+  additional_days: number;
+  is_default: boolean;
+}
+
+export interface ProductConfiguratorGroup {
+  id: string;
+  name: string;
+  selection_type: 'single' | 'multiple';
+  required: boolean;
+  options: ProductConfiguratorOption[];
+}
+
+export interface ProductConfiguratorSettings {
+  sale_mode: ProductSaleMode;
+  allow_custom_measure?: boolean;
+  min_width?: number;
+  min_height?: number;
+  max_width?: number;
+  max_height?: number;
+  min_area?: number;
+  min_length?: number;
+  kit_items?: string;
+  min_quantity?: number;
+  size_options?: ProductConfiguratorOption[];
+  quote_on_request?: boolean;
+  customer_message?: string;
+  option_groups?: ProductConfiguratorGroup[];
 }
 
 export interface VolumePriceTier {
