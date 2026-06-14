@@ -660,7 +660,7 @@ export default function QuotesPage() {
 
           {/* Items Table */}
           <div className="border border-border rounded-xl overflow-hidden bg-white">
-            <table className="w-full text-left border-separate border-spacing-y-1 text-xs">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-secondary/40 font-bold text-foreground uppercase">
                   <th className="px-4 py-2.5 w-[10%] rounded-l-lg border-r border-border">QTD</th>
@@ -672,15 +672,15 @@ export default function QuotesPage() {
               <tbody>
                 {activePrintQuote.items.length > 0 ? (
                   activePrintQuote.items.map((item) => (
-                      <tr key={item.id} className="hover:bg-secondary/5 align-top">
-                        <td className="px-4 py-3 text-center font-bold text-foreground border-l border-r border-border">
+                      <tr key={item.id} className="align-top">
+                        <td className="px-4 py-1 text-center font-bold text-foreground leading-tight">
                           {item.quantity}
                         </td>
-                        <td className="px-4 py-3 font-semibold text-foreground leading-relaxed border-r border-border">
+                        <td className="px-4 py-1 font-semibold text-foreground leading-tight">
                           {item.product_name}
                         </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap border-r border-border">{formatCurrency(item.unit_price)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-foreground whitespace-nowrap border-r border-border">{formatCurrency(item.total_price)}</td>
+                        <td className="px-4 py-1 text-right text-muted-foreground whitespace-nowrap leading-tight">{formatCurrency(item.unit_price)}</td>
+                        <td className="px-4 py-1 text-right font-bold text-foreground whitespace-nowrap leading-tight">{formatCurrency(item.total_price)}</td>
                       </tr>
                   ))
                 ) : (
@@ -691,24 +691,24 @@ export default function QuotesPage() {
               </tbody>
               <tfoot className="border-t border-border bg-secondary/10 text-xs">
                 <tr>
-                  <td colSpan={3} className="px-4 py-2 text-right font-semibold text-muted-foreground">Subtotal</td>
-                  <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(activePrintQuote.items.reduce((sum, item) => sum + item.total_price, 0))}</td>
+                  <td colSpan={3} className="px-4 py-1 text-right font-semibold text-muted-foreground">Subtotal</td>
+                  <td className="px-4 py-1 text-right font-bold text-foreground">{formatCurrency(activePrintQuote.items.reduce((sum, item) => sum + item.total_price, 0))}</td>
                 </tr>
                 {activePrintQuote.delivery_type && activePrintQuote.delivery_type !== 'retirada' && (
                   <tr>
-                    <td colSpan={3} className="px-4 py-2 text-right font-semibold text-muted-foreground">Taxa de Entrega ({activePrintQuote.delivery_type.toUpperCase()})</td>
-                    <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(activePrintQuote.delivery_fee || 0)}</td>
+                    <td colSpan={3} className="px-4 py-1 text-right font-semibold text-muted-foreground">Taxa de Entrega ({activePrintQuote.delivery_type.toUpperCase()})</td>
+                    <td className="px-4 py-1 text-right font-bold text-foreground">{formatCurrency(activePrintQuote.delivery_fee || 0)}</td>
                   </tr>
                 )}
                 {activePrintQuote.discount > 0 && (
                   <tr>
-                    <td colSpan={3} className="px-4 py-2 text-right font-semibold text-emerald-600">Desconto</td>
-                    <td className="px-4 py-2 text-right font-bold text-emerald-600">-{formatCurrency(activePrintQuote.discount)}</td>
+                    <td colSpan={3} className="px-4 py-1 text-right font-semibold text-emerald-600">Desconto</td>
+                    <td className="px-4 py-1 text-right font-bold text-emerald-600">-{formatCurrency(activePrintQuote.discount)}</td>
                   </tr>
                 )}
                 <tr className="border-t border-border bg-white">
-                  <td colSpan={3} className="px-4 py-3 text-right text-sm font-extrabold text-foreground">Total Líquido</td>
-                  <td className="px-4 py-3 text-right text-base font-extrabold text-primary">{formatCurrency(activePrintQuote.total_amount)}</td>
+                  <td colSpan={3} className="px-4 py-2 text-right text-sm font-extrabold text-foreground">Total Líquido</td>
+                  <td className="px-4 py-2 text-right text-base font-extrabold text-primary">{formatCurrency(activePrintQuote.total_amount)}</td>
                 </tr>
               </tfoot>
             </table>
