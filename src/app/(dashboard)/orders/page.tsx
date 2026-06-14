@@ -603,17 +603,6 @@ export default function OrdersPage() {
     const registeredProduct = products.find((product) => product.id === item.product_id);
     return item.product_name?.trim() || registeredProduct?.name || item.details?.notes || 'Produto / servico';
   };
-  const getPrintItemSize = (item: Order['items'][number]) => {
-    const width = item.details?.width;
-    const height = item.details?.height;
-
-    if (width && height) return `${width}m x ${height}m`;
-    if (width) return `${width}m linear`;
-    if (height) return `${height}m`;
-
-    return '-';
-  };
-
   return (
     <div className="space-y-6">
       {editingOrder ? (
@@ -1472,12 +1461,11 @@ export default function OrdersPage() {
               <div className="mt-1 overflow-x-auto">
                 <table className="print-items-table w-full text-left border-collapse text-[10px] border border-zinc-300">
                   <thead>
-                    <tr className="bg-zinc-100 border-b border-zinc-300 font-bold text-[9px] uppercase text-zinc-700">
-                      <th className="px-2 py-1.5 text-center border-r border-zinc-300 w-10">QTD</th>
-                      <th className="px-2 py-1.5 border-r border-zinc-300">DESCRICAO</th>
-                      <th className="px-2 py-1.5 text-center border-r border-zinc-300 w-20">TAMANHO</th>
-                      <th className="px-2 py-1.5 text-right border-r border-zinc-300 w-24">VALOR UNITARIO</th>
-                      <th className="px-2 py-1.5 text-right w-24">VALOR TOTAL</th>
+                    <tr className="bg-black border-b border-black font-bold text-[9px] uppercase text-white">
+                      <th className="px-2 py-1.5 text-center border-r border-white/40 w-10">QTD</th>
+                      <th className="px-2 py-1.5 border-r border-white/40">DESCRICAO</th>
+                      <th className="px-2 py-1.5 text-right border-r border-white/40 w-24">UNIT</th>
+                      <th className="px-2 py-1.5 text-right w-24">TOTAL</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1491,9 +1479,6 @@ export default function OrdersPage() {
                               Obs: {item.details.notes}
                             </span>
                           )}
-                        </td>
-                        <td className="px-2 py-0.5 text-center border-r border-zinc-200 font-mono leading-tight">
-                          {getPrintItemSize(item)}
                         </td>
                         <td className="px-2 py-0.5 text-right border-r border-zinc-200 font-mono leading-tight">
                           {formatCurrency(item.unit_price)}

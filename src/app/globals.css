@@ -270,6 +270,18 @@
     line-height: 1.15 !important;
   }
 
+  #printable-order-area .print-items-table thead tr,
+  #printable-quote-area .print-items-table thead tr,
+  #printable-order-area .print-items-table thead th,
+  #printable-quote-area .print-items-table thead th {
+    background-color: #000 !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    border-color: rgba(255, 255, 255, 0.55) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   #printable-order-area .print-items-table tbody tr,
   #printable-quote-area .print-items-table tbody tr {
     height: auto !important;

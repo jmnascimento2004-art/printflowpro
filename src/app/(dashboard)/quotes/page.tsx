@@ -662,11 +662,11 @@ export default function QuotesPage() {
           <div className="border border-border rounded-xl overflow-hidden bg-white">
             <table className="print-items-table w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-secondary/40 font-bold text-foreground uppercase">
-                  <th className="px-4 py-2.5 w-[10%] rounded-l-lg border-r border-border">QTD</th>
-                  <th className="px-4 py-2.5 w-[56%] border-r border-border">Descrição</th>
-                  <th className="px-4 py-2.5 text-right w-[16%] border-r border-border">Preço Unit.</th>
-                  <th className="px-4 py-2.5 text-right w-[18%] rounded-r-lg">Total</th>
+                <tr className="bg-black font-bold text-white uppercase">
+                  <th className="px-4 py-2.5 w-[10%] rounded-l-lg border-r border-white/40 text-center">QTD</th>
+                  <th className="px-4 py-2.5 w-[56%] border-r border-white/40 text-left">Descrição</th>
+                  <th className="px-4 py-2.5 text-right w-[16%] border-r border-white/40">UNIT</th>
+                  <th className="px-4 py-2.5 text-right w-[18%] rounded-r-lg">TOTAL</th>
                 </tr>
               </thead>
               <tbody>
