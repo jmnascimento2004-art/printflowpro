@@ -1,6 +1,5 @@
 'use client';
 
-import { supabase } from "@/lib/supabaseClient";
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShoppingBag, 
@@ -30,7 +29,8 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
-import { formatCEP, getProductUnitPrice, normalizeRichTextHtml, sanitizeRichTextHtml } from '@/lib/utils';
+import { formatCEP, normalizeRichTextHtml, sanitizeRichTextHtml } from '@/lib/utils';
+import { formatCurrency, getPriceBreakdown } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
 import { BrandLogo, BrandMark } from '@/components/brand';
 
@@ -247,19 +247,6 @@ export default function StorefrontPage() {
     }, 100);
   };
 
-  const handleTagFilterSelect = (tag: 'all' | 'promo' | 'highlight') => {
-    setSelectedTagFilter(tag);
-    setTimeout(() => {
-      if (typeof window === 'undefined') return;
-      const element = window.document.getElementById('products-showcase');
-      if (element) {
-        const yOffset = -135;
-        const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
-        window.scrollTo({ top: y, behavior: 'smooth' });
-      }
-    }, 100);
-  };
-  
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -370,14 +357,16 @@ export default function StorefrontPage() {
 
   // 3. Pricing details for configured item
   const getProductConfigPrice = (prod: Product, qty: number = 1) => {
-    const basePrice = getProductUnitPrice(prod, qty);
-    let price = basePrice;
-    if (prod.pricing_type === 'm2') {
-      price = basePrice * configWidth * configHeight;
-    } else if (prod.pricing_type === 'linear') {
-      price = basePrice * configWidth;
-    }
-    return price;
+    const breakdown = getPriceBreakdown(prod, {
+      quantity: qty,
+      width: configWidth,
+      height: configHeight,
+      length: configWidth,
+      selectedVariant: configVariant,
+      selectedColor: configColor
+    });
+
+    return breakdown.quantity > 0 ? breakdown.subtotal / breakdown.quantity : 0;
   };
 
   const handleAddToCart = () => {
@@ -516,10 +505,6 @@ export default function StorefrontPage() {
     setDeliveryState('');
     setCartOpen(false);
     setOrderCompleted(nextQuote.number.toString());
-  };
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
   let primaryColor = company.theme_color || '#5b3df4';

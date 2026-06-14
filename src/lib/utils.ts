@@ -329,14 +329,4 @@ export function formatCPF(cpf: string): string {
 /**
  * Retorna o preço unitário do produto com base na quantidade, considerando as faixas de volume
  */
-export function getProductUnitPrice(product: any, quantity: number): number {
-  if (!product || typeof product.sales_price !== 'number') return 0;
-  if (!product.volume_pricing || !Array.isArray(product.volume_pricing) || product.volume_pricing.length === 0) {
-    return product.sales_price;
-  }
-  // Ordena as faixas por min_qty decrescente
-  const sortedTiers = [...product.volume_pricing].sort((a: any, b: any) => b.min_qty - a.min_qty);
-  // Encontra a primeira faixa que a quantidade atende
-  const matchingTier = sortedTiers.find((tier: any) => quantity >= tier.min_qty);
-  return matchingTier ? matchingTier.price : product.sales_price;
-}
+export { getProductUnitPrice } from './pricing';
