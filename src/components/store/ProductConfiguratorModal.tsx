@@ -13,7 +13,7 @@ import {
   Tag,
   X
 } from 'lucide-react';
-import type { Product, ProductSaleMode } from '@/lib/dummy-data';
+import type { Product, ProductConfiguratorSettings, ProductSaleMode } from '@/lib/dummy-data';
 import {
   formatCurrency,
   getPriceBreakdown,
@@ -102,7 +102,15 @@ export function ProductConfiguratorModal({
   onAddToCart,
   categoryName
 }: ProductConfiguratorModalProps) {
-  const configurator = getProductConfigurator(product);
+  const savedConfigurator = getProductConfigurator(product);
+  const configurator = useMemo<ProductConfiguratorSettings>(() => {
+    return savedConfigurator || {
+      sale_mode: (product?.pricing_type || 'unidade') as ProductSaleMode,
+      min_quantity: product?.volume_pricing?.[0]?.min_qty || 1,
+      option_groups: [],
+      size_options: []
+    };
+  }, [product, savedConfigurator]);
   const saleMode = (configurator?.sale_mode || product?.pricing_type || 'unidade') as ProductSaleMode;
   const optionGroups = useMemo(() => configurator?.option_groups || [], [configurator]);
   const sizeOptions = useMemo(() => configurator?.size_options || [], [configurator]);
@@ -114,6 +122,8 @@ export function ProductConfiguratorModal({
   const [lengthCm, setLengthCm] = useState(100);
   const [selectedOptionsByGroup, setSelectedOptionsByGroup] = useState<Record<string, string[]>>({});
   const [selectedSize, setSelectedSize] = useState('');
+  const [selectedVariant, setSelectedVariant] = useState('');
+  const [selectedColor, setSelectedColor] = useState('');
 
   useEffect(() => {
     if (!isOpen || !product) return;
@@ -147,6 +157,8 @@ export function ProductConfiguratorModal({
     setLengthCm(toDisplayCm(configurator?.min_length));
     setSelectedOptionsByGroup(initialGroups);
     setSelectedSize(defaultSize);
+    setSelectedVariant(product.variant_options?.[0]?.name || '');
+    setSelectedColor(product.color_options?.[0]?.name || '');
   }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid]);
 
   const selectedOptions = useMemo(() => {
@@ -164,18 +176,38 @@ export function ProductConfiguratorModal({
     const selectedSizeOption = shouldShowSizeGrid
       ? sizeOptions.find((option) => option.name === selectedSize)
       : undefined;
-    if (selectedSizeOption) {
-      return [
-        ...groupOptions,
-        {
+    const sizeSelection = selectedSizeOption
+      ? [{
           ...selectedSizeOption,
           group_name: 'Tamanho'
-        }
-      ];
-    }
+        }]
+      : [];
+    const variantSelection = selectedVariant
+      ? [{
+          name: selectedVariant,
+          option_name: selectedVariant,
+          price_delta: 0,
+          additional_days: 0,
+          group_name: 'Variação'
+        }]
+      : [];
+    const colorSelection = selectedColor
+      ? [{
+          name: selectedColor,
+          option_name: selectedColor,
+          price_delta: 0,
+          additional_days: 0,
+          group_name: 'Cor'
+        }]
+      : [];
 
-    return groupOptions;
-  }, [optionGroups, selectedOptionsByGroup, selectedSize, sizeOptions, shouldShowSizeGrid]);
+    return [
+      ...groupOptions,
+      ...sizeSelection,
+      ...variantSelection,
+      ...colorSelection
+    ];
+  }, [optionGroups, selectedOptionsByGroup, selectedSize, selectedVariant, selectedColor, sizeOptions, shouldShowSizeGrid]);
 
   const selectedPricingOptions = useMemo(() => {
     return selectedOptions.map((option) => ({
@@ -196,13 +228,15 @@ export function ProductConfiguratorModal({
       width,
       height,
       length,
+      selectedVariant,
+      selectedColor,
       customOptions: {
         selectedOptions: selectedPricingOptions
       }
     });
-  }, [product, quantity, width, height, length, selectedPricingOptions]);
+  }, [product, quantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions]);
 
-  if (!isOpen || !product || !configurator) return null;
+  if (!isOpen || !product) return null;
 
   const additionalDays = selectedOptions.reduce((sum, option) => {
     return sum + toPositiveNumber(option.additional_days, 0);
@@ -426,6 +460,65 @@ export function ProductConfiguratorModal({
                       </button>
                     );
                   })}
+                </div>
+              </section>
+            )}
+
+            {((product.variant_options && product.variant_options.length > 0) ||
+              (product.color_options && product.color_options.length > 0)) && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Variações do produto</h3>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {product.variant_options && product.variant_options.length > 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Opção</span>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {product.variant_options.map((option) => {
+                          const selected = selectedVariant === option.name;
+                          return (
+                            <button
+                              key={option.name}
+                              type="button"
+                              onClick={() => setSelectedVariant(option.name)}
+                              className={`rounded-xl border px-3 py-2 text-xs font-black transition-all ${
+                                selected
+                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-600/10'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
+                              }`}
+                            >
+                              {option.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {product.color_options && product.color_options.length > 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Cor</span>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {product.color_options.map((option) => {
+                          const selected = selectedColor === option.name;
+                          return (
+                            <button
+                              key={option.name}
+                              type="button"
+                              onClick={() => setSelectedColor(option.name)}
+                              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition-all ${
+                                selected
+                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-600/10'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
+                              }`}
+                            >
+                              <span className="h-3 w-3 rounded-full border border-slate-300" style={{ backgroundColor: option.hex || '#111827' }} />
+                              {option.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
             )}

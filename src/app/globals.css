@@ -89,6 +89,26 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', sans-serif;
   }
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(148 163 184);
+    opacity: 1;
+  }
+  select:required:invalid {
+    color: rgb(148 163 184);
+  }
+  select option {
+    color: rgb(15 23 42);
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: rgb(148 163 184);
+    opacity: 1;
+  }
+  .dark select option {
+    color: rgb(226 232 240);
+    background-color: rgb(24 24 27);
+  }
 }
 
 @layer components {

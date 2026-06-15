@@ -29,8 +29,8 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
-import { formatCEP, normalizeRichTextHtml, sanitizeRichTextHtml } from '@/lib/utils';
-import { formatCurrency, getPriceBreakdown, hasAdvancedConfigurator } from '@/lib/pricing';
+import { formatCEP, normalizeRichTextHtml } from '@/lib/utils';
+import { formatCurrency } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
 import { BrandLogo, BrandMark } from '@/components/brand';
 import {
@@ -262,15 +262,7 @@ export default function StorefrontPage() {
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
-  const [activeConfigProduct, setActiveConfigProduct] = useState<Product | null>(null);
   const [activeAdvancedConfigProduct, setActiveAdvancedConfigProduct] = useState<Product | null>(null);
-
-  // Configuration form state
-  const [configQty, setConfigQty] = useState(1);
-  const [configWidth, setConfigWidth] = useState(1.0);
-  const [configHeight, setConfigHeight] = useState(1.0);
-  const [configVariant, setConfigVariant] = useState('');
-  const [configColor, setConfigColor] = useState('');
 
   // Client checkout info
   const [clientName, setClientName] = useState('');
@@ -294,19 +286,6 @@ export default function StorefrontPage() {
       setSelectedPickupPoint(activePickupPoints[0].name);
     }
   }, [pickupPoints, selectedPickupPoint]);
-
-  // Auto-initialize selected quantity when opening config sheet for product
-  useEffect(() => {
-    if (activeConfigProduct) {
-      if (activeConfigProduct.volume_pricing && activeConfigProduct.volume_pricing.length > 0) {
-        setConfigQty(activeConfigProduct.volume_pricing[0].min_qty);
-      } else {
-        setConfigQty(1);
-      }
-      setConfigVariant(activeConfigProduct.variant_options?.[0]?.name || '');
-      setConfigColor(activeConfigProduct.color_options?.[0]?.name || '');
-    }
-  }, [activeConfigProduct]);
 
   // 2. Filter products based on active status, visible category, and search query
   const catalogCategories = (categories || []).filter((category) => {
@@ -365,52 +344,8 @@ export default function StorefrontPage() {
     bestsellingProducts.length > 0 || promoProducts.length > 0 || highlightProducts.length > 0
   );
 
-  // 3. Pricing details for configured item
-  const getProductConfigPrice = (prod: Product, qty: number = 1) => {
-    const breakdown = getPriceBreakdown(prod, {
-      quantity: qty,
-      width: configWidth,
-      height: configHeight,
-      length: configWidth,
-      selectedVariant: configVariant,
-      selectedColor: configColor
-    });
-
-    return breakdown.quantity > 0 ? breakdown.subtotal / breakdown.quantity : 0;
-  };
-
   const handleOpenProductConfig = (product: Product) => {
-    if (hasAdvancedConfigurator(product)) {
-      setActiveAdvancedConfigProduct(product);
-      return;
-    }
-
-    setActiveConfigProduct(product);
-  };
-
-  const handleAddToCart = () => {
-    if (!activeConfigProduct) return;
-
-    const price = getProductConfigPrice(activeConfigProduct, configQty);
-    const newItem: CartItem = {
-      product: activeConfigProduct,
-      quantity: configQty,
-      width: ['m2', 'linear'].includes(activeConfigProduct.pricing_type) ? configWidth : undefined,
-      height: activeConfigProduct.pricing_type === 'm2' ? configHeight : undefined,
-      variant: configVariant || undefined,
-      color: configColor || undefined,
-      calculatedPrice: price
-    };
-
-    setCart(prev => [...prev, newItem]);
-    
-    // Reset config inputs
-    setActiveConfigProduct(null);
-    setConfigQty(1);
-    setConfigWidth(1.0);
-    setConfigHeight(1.0);
-    setConfigVariant('');
-    setConfigColor('');
+    setActiveAdvancedConfigProduct(product);
   };
 
   const handleAddAdvancedProductToCart = (payload: ProductConfiguratorCartPayload) => {
@@ -1353,297 +1288,6 @@ export default function StorefrontPage() {
             : undefined
         }
       />
-
-      {/* 7. Product custom configurations details sheet (modal overlay) */}
-      {activeConfigProduct && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex justify-center items-center p-2 md:p-4 overflow-hidden">
-          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-6xl max-h-[calc(100dvh-1rem)] md:max-h-[calc(100dvh-2rem)] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-slate-800 flex flex-col md:flex-row">
-            
-            {/* Left Column: Product Image & Badges */}
-            <div className="w-full md:w-[42%] bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col justify-between overflow-y-auto max-h-[42dvh] md:max-h-none">
-              <div>
-                {/* Large Product Image */}
-                <div className="aspect-square w-full rounded-none bg-white overflow-hidden border-b border-slate-200 flex items-center justify-center relative">
-                  {activeConfigProduct.image_url ? (
-                    <img 
-                      src={activeConfigProduct.image_url} 
-                      alt={activeConfigProduct.name} 
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <div className="text-slate-300 flex flex-col items-center gap-1.5">
-                      <ShoppingBag className="h-16 w-16 stroke-[1.2]" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Sem Foto</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Additional specifications/details badges */}
-                <div className="m-3 md:m-4 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                  <div className="bg-white border border-slate-200 p-2.5 rounded-lg flex items-center gap-2 shadow-sm">
-                    <Truck className="h-4 w-4 text-emerald-600" />
-                    <span>Entrega Rápida</span>
-                  </div>
-                  <div className="bg-white border border-slate-200 p-2.5 rounded-lg flex items-center gap-2 shadow-sm">
-                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                    <span>Garantia Total</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* WhatsApp Support Link */}
-              <div className="mx-3 mb-3 md:mx-4 md:mb-4 border-t border-slate-200 pt-3">
-                <a
-                  href={`https://wa.me/5551987654321?text=Olá, tenho dúvidas sobre o produto: ${activeConfigProduct.name}`}
-                  target="_blank"
-                  className="w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Phone className="h-4 w-4 text-emerald-600" /> Tirar dúvidas no WhatsApp
-                </a>
-              </div>
-            </div>
-
-            {/* Right Column: Product title, description, selectors, pricing & add button */}
-            <div className="w-full md:w-[58%] p-4 md:p-5 flex flex-col justify-between space-y-4 overflow-y-auto max-h-[58dvh] md:max-h-[calc(100dvh-2rem)]">
-              <div className="space-y-3">
-                {/* Header */}
-                <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-                  <div>
-                    <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
-                      {catalogCategories.find(c => c && c.id === activeConfigProduct.category_id)?.name || 'Outros'}
-                    </span>
-                    <h3 className="font-black text-slate-900 text-lg md:text-xl mt-2 uppercase tracking-wide leading-tight">
-                      {activeConfigProduct.name}
-                    </h3>
-                    {(activeConfigProduct.delivery_time || activeConfigProduct.pricing_details?.delivery_time) && (
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        <strong className="text-slate-700">Prazo de entrega:</strong> {activeConfigProduct.delivery_time || activeConfigProduct.pricing_details?.delivery_time}
-                      </p>
-                    )}
-                  </div>
-                  <button 
-                    onClick={() => setActiveConfigProduct(null)}
-                    className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors shrink-0"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-
-                {/* Description */}
-                {activeConfigProduct.description && (
-                  <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl text-xs text-slate-600 leading-relaxed font-medium max-h-[30dvh] overflow-y-auto">
-                    <strong className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Descrição:</strong>
-                    <div
-                      className="rich-text-content"
-                      dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(activeConfigProduct.description) }}
-                    />
-                  </div>
-                )}
-
-                {/* Dimensions (m2 or linear) */}
-                {['m2', 'linear'].includes(activeConfigProduct.pricing_type) && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                        {activeConfigProduct.pricing_type === 'm2' ? 'Largura (cm)' : 'Comprimento (cm)'}
-                      </label>
-                      <input
-                        type="number"
-                        step="1"
-                        min="1"
-                        value={Number((configWidth * 100).toFixed(2))}
-                        onChange={(e) => setConfigWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-center text-slate-800 focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                    {activeConfigProduct.pricing_type === 'm2' && (
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Altura (cm)</label>
-                        <input
-                          type="number"
-                          step="1"
-                          min="1"
-                          value={Number((configHeight * 100).toFixed(2))}
-                          onChange={(e) => setConfigHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-center text-slate-800 focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {((activeConfigProduct.variant_options && activeConfigProduct.variant_options.length > 0) ||
-                  (activeConfigProduct.color_options && activeConfigProduct.color_options.length > 0)) && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {activeConfigProduct.variant_options && activeConfigProduct.variant_options.length > 0 && (
-                      <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl space-y-2">
-                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                          Selecione a Variacao:
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {activeConfigProduct.variant_options.map((option) => {
-                            const isSelected = configVariant === option.name;
-                            return (
-                              <button
-                                key={option.name}
-                                type="button"
-                                onClick={() => setConfigVariant(option.name)}
-                                className={`px-3 py-2 rounded-xl border text-[10px] font-bold transition-all ${
-                                  isSelected
-                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-600/10'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-500/40'
-                                }`}
-                              >
-                                {option.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {activeConfigProduct.color_options && activeConfigProduct.color_options.length > 0 && (
-                      <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl space-y-2">
-                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                          Selecione a Cor:
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {activeConfigProduct.color_options.map((option) => {
-                            const isSelected = configColor === option.name;
-                            return (
-                              <button
-                                key={option.name}
-                                type="button"
-                                onClick={() => setConfigColor(option.name)}
-                                className={`px-3 py-2 rounded-xl border text-[10px] font-bold transition-all inline-flex items-center gap-1.5 ${
-                                  isSelected
-                                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-600/10'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-500/40'
-                                }`}
-                              >
-                                <span className="h-3 w-3 rounded-full border border-slate-300" style={{ backgroundColor: option.hex || '#111827' }} />
-                                {option.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Quantity Selection */}
-                {activeConfigProduct.volume_pricing && activeConfigProduct.volume_pricing.length > 0 ? (
-                  /* Predefined volume tiers selection (no custom input) */
-                  <div className="bg-slate-50 border border-slate-200/50 p-3 rounded-xl space-y-2">
-                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                      Selecione a Quantidade Desejada:
-                    </span>
-                    <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold">
-                      {activeConfigProduct.volume_pricing.map((tier, idx) => {
-                        const isSelected = configQty === tier.min_qty;
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setConfigQty(tier.min_qty)}
-                            className={`p-2.5 rounded-xl flex justify-between items-center shadow-sm border transition-all text-left ${
-                              isSelected
-                                ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-600/10 scale-[1.02]'
-                                : 'border-slate-200 bg-white hover:border-emerald-500/40 text-slate-700 hover:bg-slate-50/50'
-                            }`}
-                          >
-                            <span className={isSelected ? 'text-emerald-700 font-extrabold' : 'text-slate-500'}>
-                              {tier.min_qty} un:
-                            </span>
-                            <span className="font-extrabold text-emerald-600">
-                              {formatCurrency(tier.price)}/un
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  /* Standard Quantity Selector (plus/minus controls for simple/measured products) */
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Digite a Quantidade</label>
-                    <div className="flex gap-2">
-                      <button 
-                        type="button"
-                        onClick={() => setConfigQty(prev => Math.max(1, prev - 1))}
-                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm border border-slate-200 transition-all"
-                      >
-                        -
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
-                        value={configQty}
-                        onChange={(e) => setConfigQty(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-center text-slate-800 focus:outline-none focus:border-emerald-500"
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => setConfigQty(prev => prev + 1)}
-                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-sm border border-slate-200 transition-all"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Pricing breakdown & Add Button */}
-              <div className="space-y-3 pt-3 border-t border-slate-100">
-                <div className="p-3 bg-emerald-50/30 border border-emerald-500/10 rounded-xl flex justify-between items-center text-xs shadow-sm">
-                  <div>
-                    <span className="text-slate-500 block font-medium">Preço Unitário:</span>
-                    <span className="font-extrabold text-slate-800 text-sm mt-1 block">
-                      {formatCurrency(getProductConfigPrice(activeConfigProduct, configQty))}
-                    </span>
-                  </div>
-                  <div className="text-right border-l border-slate-200 pl-4">
-                    <span className="text-slate-500 block font-medium">Total ({configQty} un):</span>
-                    <span className="font-black text-emerald-600 text-base md:text-lg block mt-0.5 leading-none">
-                      {formatCurrency(getProductConfigPrice(activeConfigProduct, configQty) * configQty)}
-                    </span>
-                    {company.show_payments_pix !== false && (
-                      <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold">
-                        <svg className="h-3 w-3 text-[#32BCAD] shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 0L1.6 10.4 12 20.8 22.4 10.4 12 0zm0 3.2L19.2 10.4 12 17.6 4.8 10.4 12 3.2zm0 3.8L8.2 10.8 12 14.6 15.8 10.8 12 7zm0 2.2l1.6 1.6-1.6 1.6-1.6-1.6 1.6-1.6z"/>
-                        </svg>
-                        <span>
-                          {formatCurrency(getProductConfigPrice(activeConfigProduct, configQty) * configQty * 0.95)} à vista
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveConfigProduct(null)}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all border border-slate-200"
-                  >
-                    Voltar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAddToCart}
-                    className="flex-[2] py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all"
-                  >
-                    <ShoppingCart className="h-4 w-4" /> Adicionar ao Carrinho
-                  </button>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
 
       {/* 8. Cart Drawer Panel */}
       {cartOpen && (

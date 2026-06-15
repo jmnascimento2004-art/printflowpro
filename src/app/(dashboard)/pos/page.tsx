@@ -496,7 +496,7 @@ export default function POSPage() {
                       placeholder="Pesquisar SKU ou nome de produto..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 bg-secondary/20 border border-border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
+                      className="w-full pl-9 pr-4 py-2 bg-secondary/20 border border-border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-slate-400"
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
