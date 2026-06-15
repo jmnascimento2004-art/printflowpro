@@ -121,20 +121,20 @@ function ProductDescriptionEditor({
 void ProductDescriptionEditor;
 
 const saleModeOptions: Array<{ value: ProductSaleMode; label: string; pricingType: Product['pricing_type'] }> = [
-  { value: 'unidade', label: 'Unidade simples', pricingType: 'unidade' },
-  { value: 'm2', label: 'Metro quadrado (m²)', pricingType: 'm2' },
-  { value: 'linear', label: 'Metro linear', pricingType: 'linear' },
+  { value: 'unidade', label: 'Unidade Simples', pricingType: 'unidade' },
+  { value: 'm2', label: 'Metro Quadrado (m²)', pricingType: 'm2' },
+  { value: 'linear', label: 'Metro Linear', pricingType: 'linear' },
   { value: 'width_height', label: 'Largura x Altura', pricingType: 'm2' },
   { value: 'pacote', label: 'Pacote / Kit', pricingType: 'pacote' },
-  { value: 'size_grid', label: 'Grade de tamanhos', pricingType: 'unidade' },
-  { value: 'custom', label: 'Produto personalizado', pricingType: 'unidade' }
+  { value: 'size_grid', label: 'Grade de Tamanhos', pricingType: 'unidade' },
+  { value: 'custom', label: 'Produto Personalizado', pricingType: 'unidade' }
 ];
 
 const saleModeDescriptions: Record<ProductSaleMode, string> = {
   unidade: 'Use para cartões, panfletos, talões, brindes e produtos vendidos por quantidade.',
   m2: 'Use para banners, lonas, adesivos, placas, ACM, fachadas e comunicação visual por área.',
   linear: 'Use para adesivos em rolo, faixas e materiais vendidos por metro.',
-  width_height: 'Use quando o cliente informar largura e altura com limites mínimos e máximos controlados.',
+  width_height: 'Use para produtos que precisam de largura e altura com limites mínimos, máximos ou área mínima cobrada.',
   pacote: 'Use para kits fechados, combos e pacotes com composição definida.',
   kit: 'Use para kits fechados, combos e pacotes com composição definida.',
   size_grid: 'Use para camisas, uniformes e produtos com tamanhos variados.',
@@ -1593,7 +1593,7 @@ export default function ProductsCRUDPage() {
                 <div className="flex flex-col gap-1 border-b border-border/60 pb-3">
                   <span className="text-xs font-black uppercase tracking-wide text-primary">2. Modelo de Venda</span>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Defina como este produto será configurado e vendido no catálogo online. As opções novas ficam preparadas no JSON do produto sem alterar o banco.
+                    Escolha o modelo comercial usado para vender este produto e veja abaixo a orientação correspondente.
                   </p>
                 </div>
 
@@ -1729,7 +1729,7 @@ export default function ProductsCRUDPage() {
 
               {/* Pricing Type */}
               <div className="hidden">
-                <label className="text-xs font-semibold text-muted-foreground">Tipo de Cálculo / Medida</label>
+                <label className="text-xs font-semibold text-muted-foreground">Como este produto será vendido?</label>
                 <select
                   value={pricingType}
                   disabled
