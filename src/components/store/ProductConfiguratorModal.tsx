@@ -61,7 +61,8 @@ const saleModeLabels: Record<ProductSaleMode, string> = {
   custom: 'Produto personalizado'
 };
 
-const supportedSaleModes = new Set<ProductSaleMode>(['unidade', 'm2', 'linear', 'pacote', 'kit']);
+const supportedSaleModes = new Set<ProductSaleMode>(['unidade', 'm2', 'linear', 'pacote', 'kit', 'size_grid']);
+const defaultPlaceholderSizeNames = new Set(['P', 'M', 'G', 'GG', 'XG']);
 
 const toPositiveNumber = (value: unknown, fallback = 0): number => {
   const numeric = typeof value === 'number' ? value : Number(value);
@@ -80,6 +81,20 @@ const summarizeOptions = (options: ProductConfiguratorCartPayload['selected_opti
     .join(' | ');
 };
 
+const hasRealSizeConfiguration = (sizeOptions: Array<{ name?: string; price_delta?: number | string | null; additional_days?: number | string | null; is_default?: boolean }>): boolean => {
+  if (sizeOptions.length === 0) return false;
+
+  return sizeOptions.some((option) => {
+    const name = option.name?.trim().toUpperCase() || '';
+    return Boolean(
+      !defaultPlaceholderSizeNames.has(name) ||
+      toPositiveNumber(option.price_delta, 0) > 0 ||
+      toPositiveNumber(option.additional_days, 0) > 0 ||
+      option.is_default
+    );
+  });
+};
+
 export function ProductConfiguratorModal({
   product,
   isOpen,
@@ -91,6 +106,7 @@ export function ProductConfiguratorModal({
   const saleMode = (configurator?.sale_mode || product?.pricing_type || 'unidade') as ProductSaleMode;
   const optionGroups = useMemo(() => configurator?.option_groups || [], [configurator]);
   const sizeOptions = useMemo(() => configurator?.size_options || [], [configurator]);
+  const shouldShowSizeGrid = saleMode === 'size_grid' || hasRealSizeConfiguration(sizeOptions);
 
   const [quantity, setQuantity] = useState(1);
   const [widthCm, setWidthCm] = useState(100);
@@ -121,7 +137,9 @@ export function ProductConfiguratorModal({
       return acc;
     }, {});
 
-    const defaultSize = sizeOptions.find((option) => option.is_default)?.name || sizeOptions[0]?.name || '';
+    const defaultSize = shouldShowSizeGrid
+      ? sizeOptions.find((option) => option.is_default)?.name || sizeOptions[0]?.name || ''
+      : '';
 
     setQuantity(initialQuantity);
     setWidthCm(toDisplayCm(configurator?.min_width));
@@ -129,7 +147,7 @@ export function ProductConfiguratorModal({
     setLengthCm(toDisplayCm(configurator?.min_length));
     setSelectedOptionsByGroup(initialGroups);
     setSelectedSize(defaultSize);
-  }, [isOpen, product, configurator, optionGroups, sizeOptions]);
+  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid]);
 
   const selectedOptions = useMemo(() => {
     const groupOptions = optionGroups.flatMap((group) => {
@@ -143,7 +161,9 @@ export function ProductConfiguratorModal({
         }));
     });
 
-    const selectedSizeOption = sizeOptions.find((option) => option.name === selectedSize);
+    const selectedSizeOption = shouldShowSizeGrid
+      ? sizeOptions.find((option) => option.name === selectedSize)
+      : undefined;
     if (selectedSizeOption) {
       return [
         ...groupOptions,
@@ -155,7 +175,7 @@ export function ProductConfiguratorModal({
     }
 
     return groupOptions;
-  }, [optionGroups, selectedOptionsByGroup, selectedSize, sizeOptions]);
+  }, [optionGroups, selectedOptionsByGroup, selectedSize, sizeOptions, shouldShowSizeGrid]);
 
   const selectedPricingOptions = useMemo(() => {
     return selectedOptions.map((option) => ({
@@ -382,7 +402,7 @@ export function ProductConfiguratorModal({
               </div>
             </section>
 
-            {sizeOptions.length > 0 && (
+            {shouldShowSizeGrid && sizeOptions.length > 0 && (
               <section className="rounded-2xl border border-slate-200 bg-white p-4">
                 <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Grade de tamanhos</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
