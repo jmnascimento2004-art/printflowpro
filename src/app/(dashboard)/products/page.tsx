@@ -141,6 +141,63 @@ const saleModeDescriptions: Record<ProductSaleMode, string> = {
   custom: 'Use para produtos sob consulta, projetos especiais e configurações que precisam de análise comercial.'
 };
 
+type ConfiguratorInterfaceField = {
+  label: string;
+  placeholder?: string;
+  kind?: 'input' | 'toggle' | 'chip';
+};
+
+const configuratorInterfaceFields: Record<ProductSaleMode, ConfiguratorInterfaceField[]> = {
+  unidade: [
+    { label: 'Material', placeholder: 'Ex: Couchê, Offset, PVC' },
+    { label: 'Tamanho', placeholder: 'Ex: 15x21 cm, A4, personalizado' },
+    { label: 'Impressão', placeholder: 'Ex: 4x0, 4x4, PB' },
+    { label: 'Acabamento', placeholder: 'Ex: Verniz, laminação, corte' },
+    { label: 'Extras', placeholder: 'Ex: Arte, embalagem, urgência' }
+  ],
+  m2: [
+    { label: 'Preço por m²', placeholder: 'R$ 0,00' },
+    { label: 'Área mínima', placeholder: 'Ex: 1 m²' },
+    { label: 'Largura mínima', placeholder: 'Ex: 50 cm' },
+    { label: 'Altura mínima', placeholder: 'Ex: 50 cm' },
+    { label: 'Permitir medida personalizada', kind: 'toggle' }
+  ],
+  linear: [
+    { label: 'Preço por metro', placeholder: 'R$ 0,00' },
+    { label: 'Comprimento mínimo', placeholder: 'Ex: 1 metro' }
+  ],
+  width_height: [
+    { label: 'Preço por m²', placeholder: 'R$ 0,00' },
+    { label: 'Área mínima', placeholder: 'Ex: 1 m²' },
+    { label: 'Largura mínima', placeholder: 'Ex: 50 cm' },
+    { label: 'Altura mínima', placeholder: 'Ex: 50 cm' },
+    { label: 'Permitir medida personalizada', kind: 'toggle' }
+  ],
+  pacote: [
+    { label: 'Preço fixo do kit', placeholder: 'R$ 0,00' },
+    { label: 'Itens inclusos', placeholder: 'Ex: 1 banner + 1 suporte' },
+    { label: 'Quantidade mínima', placeholder: 'Ex: 1 kit' }
+  ],
+  kit: [
+    { label: 'Preço fixo do kit', placeholder: 'R$ 0,00' },
+    { label: 'Itens inclusos', placeholder: 'Ex: 1 banner + 1 suporte' },
+    { label: 'Quantidade mínima', placeholder: 'Ex: 1 kit' }
+  ],
+  size_grid: [
+    { label: 'PP', kind: 'chip' },
+    { label: 'P', kind: 'chip' },
+    { label: 'M', kind: 'chip' },
+    { label: 'G', kind: 'chip' },
+    { label: 'GG', kind: 'chip' },
+    { label: 'XG', kind: 'chip' }
+  ],
+  custom: [
+    { label: 'Preço base', placeholder: 'R$ 0,00' },
+    { label: 'Orçamento sob consulta', kind: 'toggle' },
+    { label: 'Mensagem para o cliente', placeholder: 'Ex: Envie sua ideia para análise' }
+  ]
+};
+
 const defaultSizeOptions: ProductConfiguratorOption[] = ['P', 'M', 'G', 'GG', 'XG'].map((name) => ({
   name,
   price_delta: 0,
@@ -2050,6 +2107,61 @@ export default function ProductsCRUDPage() {
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                     Variações, cores e grupos de opções usados para montar o produto no catálogo online.
                   </p>
+                </div>
+
+                <div key={saleMode} className="rounded-xl border border-primary/15 bg-primary/5 p-3 space-y-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-black uppercase tracking-wide text-primary">
+                      Campos exibidos para {saleModeOptions.find((option) => option.value === saleMode)?.label}
+                    </span>
+                    <span className="text-[11px] leading-relaxed text-muted-foreground">
+                      {saleModeDescriptions[saleMode]}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                    {configuratorInterfaceFields[saleMode].map((field) => {
+                      if (field.kind === 'toggle') {
+                        return (
+                          <label
+                            key={field.label}
+                            className="flex min-h-[42px] items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-xs font-bold text-foreground"
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                            />
+                            {field.label}
+                          </label>
+                        );
+                      }
+
+                      if (field.kind === 'chip') {
+                        return (
+                          <button
+                            key={field.label}
+                            type="button"
+                            className="min-h-[42px] rounded-lg border border-border bg-white px-3 py-2 text-xs font-black text-foreground hover:border-primary/40 hover:text-primary"
+                          >
+                            {field.label}
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <div key={field.label} className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                            {field.label}
+                          </label>
+                          <input
+                            type="text"
+                            placeholder={field.placeholder}
+                            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
               {/* Variations and colors */}
