@@ -3,10 +3,14 @@
 ## Arquivos criados
 
 - `public/manifest.webmanifest`: manifesto do aplicativo instalavel.
+- `src/app/api/pwa/manifest/route.ts`: manifesto dinamico com nome, descricao e icones da empresa ativa.
+- `src/app/api/pwa/icon/route.ts`: geracao segura de icones PWA a partir da logo/favIcon da empresa.
 - `public/icons/`: icones PNG do app nos tamanhos 72, 96, 128, 144, 152, 192, 384 e 512.
 - `public/sw.js`: service worker com cache seguro para assets estaticos e fallback offline.
 - `src/app/offline/page.tsx`: tela amigavel para uso sem conexao.
 - `src/lib/pwa.ts`: utilitarios de deteccao de PWA, iOS e Safari.
+- `src/lib/branding/resolveBranding.ts`: resolucao central da identidade visual ativa.
+- `src/components/branding-head-sync.tsx`: sincronizacao do manifest, meta tags e icones com a empresa ativa.
 - `src/components/install-app-button.tsx`: botao reutilizavel de instalacao e modal de orientacao para iPhone/iPad.
 
 ## Arquivos alterados
@@ -32,11 +36,14 @@ Service workers exigem HTTPS em producao. Em desenvolvimento, `localhost` e `127
 
 1. Abra o sistema no Chrome ou Edge.
 2. Entre no ERP.
-3. Abra o menu do perfil no canto superior direito.
-4. Clique em `Instalar aplicativo`.
-5. Confirme o prompt nativo do navegador.
+3. Aguarde a empresa ativa carregar. O manifest dinamico passa a usar nome, descricao, favicon/logo e cor da empresa.
+4. Abra o menu do perfil no canto superior direito.
+5. Clique em `Instalar aplicativo`.
+6. Confirme o prompt nativo do navegador.
 
 Depois de instalado, o app deve abrir em modo standalone.
+
+Quando nenhuma empresa real estiver configurada, o app usa o fallback `PrintFlowPRO`.
 
 ## Como instalar no Android
 

@@ -4,6 +4,7 @@ import { DatabaseProvider } from "@/context/database-context";
 import { ThemeProvider } from "@/context/theme-context";
 import { AuthProvider } from "@/context/auth-context";
 import BrowserProtocolGuard from "@/components/browser-protocol-guard";
+import { BrandingHeadSync } from "@/components/branding-head-sync";
 import { CompanyThemeSync } from "@/components/company-theme-sync";
 import PWARegister from "@/components/pwa-register";
 
@@ -65,7 +66,7 @@ const companyHeadBootScript = `
 export const metadata: Metadata = {
   title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
   description: "O ERP definitivo para controle de custos, precificação m², ordens de produção Kanban e gestão financeira de gráficas, brindes, sublimação e comunicação visual.",
-  manifest: "/manifest.webmanifest",
+  manifest: "/api/pwa/manifest",
   applicationName: "PrintFlowPRO",
   appleWebApp: {
     capable: true,
@@ -106,6 +107,7 @@ export default function RootLayout({
           <AuthProvider>
             <DatabaseProvider>
               <CompanyThemeSync />
+              <BrandingHeadSync />
               {children}
             </DatabaseProvider>
           </AuthProvider>

@@ -1,0 +1,152 @@
+import type { Company, Settings } from '@/lib/dummy-data';
+
+export type ActiveBranding = {
+  appName: string;
+  shortName: string;
+  description: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  pwaIconUrl: string | null;
+  themeColor: string;
+  backgroundColor: string;
+  companyId: string | null;
+  companySlug: string | null;
+  isPlatformFallback: boolean;
+};
+
+const PLATFORM_BRANDING: ActiveBranding = {
+  appName: 'PrintFlowPRO',
+  shortName: 'PrintFlowPRO',
+  description: 'Gestao completa para graficas rapidas e personalizados.',
+  logoUrl: '/printflowpro-mark.svg',
+  faviconUrl: '/printflowpro-mark.svg',
+  pwaIconUrl: '/printflowpro-mark.svg',
+  themeColor: '#1D35C9',
+  backgroundColor: '#F7F9FC',
+  companyId: null,
+  companySlug: null,
+  isPlatformFallback: true
+};
+
+const THEME_PRESETS: Record<string, string> = {
+  emerald: '#059669',
+  blue: '#2563eb',
+  violet: '#5b3df4',
+  amber: '#d97706',
+  rose: '#e11d48'
+};
+
+function clean(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed || '';
+}
+
+function isUnsupportedImage(value: string) {
+  return /\.(cdr|ai|eps|psd|pdf)(\?|#|$)/i.test(value);
+}
+
+function resolveAssetUrl(value?: string | null) {
+  const asset = clean(value);
+  if (!asset || isUnsupportedImage(asset)) return null;
+
+  return asset;
+}
+
+function normalizeThemeColor(value?: string | null) {
+  const color = clean(value);
+  if (!color) return PLATFORM_BRANDING.themeColor;
+  return THEME_PRESETS[color] || color;
+}
+
+function createSlug(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || null;
+}
+
+export function normalizeBrandDomain(value: string = '') {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return '';
+  return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/^www\./, '');
+}
+
+export function resolveCompanyForBrandingHostname(companies: Partial<Company>[], hostnameValue: string) {
+  const hostname = normalizeBrandDomain(hostnameValue);
+  if (!hostname) return companies[0] || null;
+
+  const exactMatch = companies.find((company) => {
+    const adminDomain = normalizeBrandDomain(company.admin_domain);
+    const storeDomain = normalizeBrandDomain(company.store_domain || company.custom_domain);
+    return Boolean(
+      (adminDomain && hostname === adminDomain) ||
+      (storeDomain && hostname === storeDomain)
+    );
+  });
+
+  if (exactMatch) return exactMatch;
+
+  const hostnameSlug = hostname.replace(/[^a-z0-9]/g, '');
+  return companies.find((company) => {
+    const companySlug = createSlug(company.name || '')?.replace(/[^a-z0-9]/g, '') || '';
+    return companySlug.length >= 4 && hostnameSlug.includes(companySlug);
+  }) || companies[0] || null;
+}
+
+function stripHtml(value?: string | null) {
+  return clean(value)
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function resolveBranding(company?: Partial<Company> | null, settings?: Partial<Settings> | null): ActiveBranding {
+  const companyName = clean(company?.name);
+  const companyId = clean(company?.id);
+
+  if (!companyName || companyName === PLATFORM_BRANDING.appName) {
+    return PLATFORM_BRANDING;
+  }
+
+  const logoUrl = resolveAssetUrl(company?.logo_light) || resolveAssetUrl(company?.logo_url) || resolveAssetUrl(company?.logo_dark);
+  const faviconUrl = resolveAssetUrl(company?.favicon) || logoUrl;
+  const description =
+    stripHtml(settings?.catalog_header_message) ||
+    stripHtml(settings?.catalog_footer_text) ||
+    stripHtml(company?.refund_policy) ||
+    `${companyName} - gestao completa para graficas, pedidos e producao.`;
+  const themeColor = normalizeThemeColor(company?.theme_color);
+
+  return {
+    appName: companyName,
+    shortName: companyName.length > 18 ? companyName.slice(0, 18).trim() : companyName,
+    description,
+    logoUrl,
+    faviconUrl,
+    pwaIconUrl: faviconUrl || logoUrl,
+    themeColor,
+    backgroundColor: PLATFORM_BRANDING.backgroundColor,
+    companyId: companyId || null,
+    companySlug: createSlug(companyName),
+    isPlatformFallback: false
+  };
+}
+
+export function createBrandManifestUrl(branding: ActiveBranding) {
+  const params = new URLSearchParams();
+  params.set('name', branding.appName);
+  params.set('short_name', branding.shortName);
+  params.set('description', branding.description);
+  params.set('theme_color', branding.themeColor);
+  params.set('background_color', branding.backgroundColor);
+  if (branding.companyId) params.set('company_id', branding.companyId);
+  if (branding.companySlug) params.set('slug', branding.companySlug);
+  if (branding.pwaIconUrl) params.set('icon', branding.pwaIconUrl);
+
+  return `/api/pwa/manifest?${params.toString()}`;
+}
+
+export const DEFAULT_BRANDING = PLATFORM_BRANDING;
