@@ -5,6 +5,9 @@
 - `public/manifest.webmanifest`: manifesto do aplicativo instalavel.
 - `src/app/api/pwa/manifest/route.ts`: manifesto dinamico com nome, descricao e icones da empresa ativa.
 - `src/app/api/pwa/icon/route.ts`: geracao segura de icones PWA a partir da logo/favIcon da empresa.
+- `src/app/store/manifest.webmanifest/route.ts`: manifesto dinamico exclusivo do catalogo publico.
+- `public/store-sw.js`: service worker proprio do catalogo, com escopo `/store/`.
+- `src/app/store/offline/page.tsx`: pagina offline publica do catalogo.
 - `public/icons/`: icones PNG do app nos tamanhos 72, 96, 128, 144, 152, 192, 384 e 512.
 - `public/sw.js`: service worker com cache seguro para assets estaticos e fallback offline.
 - `src/app/offline/page.tsx`: tela amigavel para uso sem conexao.
@@ -12,6 +15,8 @@
 - `src/lib/branding/resolveBranding.ts`: resolucao central da identidade visual ativa.
 - `src/components/branding-head-sync.tsx`: sincronizacao do manifest, meta tags e icones com a empresa ativa.
 - `src/components/install-app-button.tsx`: botao reutilizavel de instalacao e modal de orientacao para iPhone/iPad.
+- `src/components/store/StoreInstallAppButton.tsx`: botao de instalacao especifico do catalogo.
+- `src/components/store/store-pwa-register.tsx`: registro do service worker proprio da loja.
 
 ## Arquivos alterados
 
@@ -44,6 +49,39 @@ Service workers exigem HTTPS em producao. Em desenvolvimento, `localhost` e `127
 Depois de instalado, o app deve abrir em modo standalone.
 
 Quando nenhuma empresa real estiver configurada, o app usa o fallback `PrintFlowPRO`.
+
+## PWA independente do catalogo publico
+
+O catalogo publico usa uma configuracao separada do painel administrativo:
+
+- Manifest: `/store/manifest.webmanifest`
+- Service worker: `/store-sw.js`
+- Escopo: `/store/`
+- Offline: `/store/offline`
+- Start URL: `/store`
+
+Em producao, `https://store.cibeleprint.com.br` fica em origem propria e instala um app independente do painel em `https://admin.cibeleprint.com.br`.
+
+O manifest da loja tenta resolver a empresa pelo dominio `store_domain`/`custom_domain` e, apos o carregamento do app, o client atualiza o link do manifest com a identidade da empresa ativa.
+
+## Como instalar o catalogo no computador
+
+1. Abra `https://store.cibeleprint.com.br`.
+2. Aguarde o catalogo carregar a empresa/loja.
+3. Clique em `Instalar catalogo`, quando o navegador exibir a opcao.
+4. Confirme o prompt do Chrome/Edge.
+
+## Como instalar o catalogo no Android
+
+1. Abra `https://store.cibeleprint.com.br` no Chrome Android.
+2. Toque em `Instalar catalogo` ou use a opcao nativa `Adicionar a tela inicial`.
+3. Confirme a instalacao.
+
+## Como instalar o catalogo no iPhone/iPad
+
+1. Abra `https://store.cibeleprint.com.br` no Safari.
+2. Toque em `Instalar catalogo`.
+3. Siga o modal: Compartilhar > `Adicionar a Tela de Inicio`.
 
 ## Como instalar no Android
 
@@ -108,3 +146,5 @@ O modo offline nao disponibiliza dados privados do ERP. Por seguranca, o service
 - usuarios.
 
 Sem internet, o app mostra a pagina offline e mantem apenas assets estaticos ja cacheados, como icones, CSS, JavaScript e imagens publicas.
+
+No catalogo, produtos, precos, estoque, checkout, pedidos, pagamentos e dados de clientes continuam em rede/Supabase. Imagens publicas usam stale-while-revalidate e a pagina offline avisa que precos e disponibilidades podem estar desatualizados.

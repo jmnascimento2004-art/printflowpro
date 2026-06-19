@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { BrandMark } from '@/components/brand';
 import { isStandaloneApp } from '@/lib/pwa';
 
 export default function PWARegister() {
+  const pathname = usePathname();
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
@@ -24,6 +26,7 @@ export default function PWARegister() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    if (pathname === '/store' || pathname.startsWith('/store/')) return;
 
     let refreshing = false;
 
@@ -68,7 +71,7 @@ export default function PWARegister() {
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
       window.removeEventListener('load', registerServiceWorker);
     };
-  }, []);
+  }, [pathname]);
 
   const updateNow = () => {
     if (!waitingWorker) return;

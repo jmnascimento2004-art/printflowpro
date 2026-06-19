@@ -1,0 +1,131 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import type { Company, Settings } from '@/lib/dummy-data';
+import {
+  DEFAULT_BRANDING,
+  resolveBranding,
+  resolveCompanyForBrandingHostname
+} from '@/lib/branding/resolveBranding';
+
+const ICON_SIZES = [192, 512];
+
+function getParam(request: NextRequest, key: string, fallback: string) {
+  return request.nextUrl.searchParams.get(key)?.trim() || fallback;
+}
+
+function safeHexColor(value: string, fallback: string) {
+  return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+}
+
+function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: string | null) {
+  const icon = resolvedIcon || request.nextUrl.searchParams.get('icon')?.trim();
+  if (!icon) return `/icons/icon-${size}x${size}.png`;
+
+  const absoluteIcon = new URL(icon, request.nextUrl.origin).href;
+  return `/api/pwa/icon?src=${encodeURIComponent(absoluteIcon)}&size=${size}`;
+}
+
+async function resolveStoreBranding(request: NextRequest) {
+  if (request.nextUrl.searchParams.has('name')) {
+    return {
+      appName: getParam(request, 'name', DEFAULT_BRANDING.appName),
+      shortName: getParam(request, 'short_name', getParam(request, 'name', DEFAULT_BRANDING.shortName)),
+      description: getParam(request, 'description', DEFAULT_BRANDING.description),
+      themeColor: safeHexColor(getParam(request, 'theme_color', DEFAULT_BRANDING.themeColor), DEFAULT_BRANDING.themeColor),
+      backgroundColor: safeHexColor(getParam(request, 'background_color', DEFAULT_BRANDING.backgroundColor), DEFAULT_BRANDING.backgroundColor),
+      slug: request.nextUrl.searchParams.get('slug')?.trim() || 'catalogo',
+      iconUrl: request.nextUrl.searchParams.get('icon')?.trim() || null
+    };
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return {
+      appName: DEFAULT_BRANDING.appName,
+      shortName: DEFAULT_BRANDING.shortName,
+      description: DEFAULT_BRANDING.description,
+      themeColor: DEFAULT_BRANDING.themeColor,
+      backgroundColor: DEFAULT_BRANDING.backgroundColor,
+      slug: 'catalogo',
+      iconUrl: DEFAULT_BRANDING.pwaIconUrl
+    };
+  }
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    const { data: companies } = await supabase
+      .from('companies')
+      .select('id,name,logo_url,logo_light,logo_dark,favicon,theme_color,admin_domain,store_domain,custom_domain,refund_policy');
+    const activeCompany = resolveCompanyForBrandingHostname((companies || []) as Company[], request.headers.get('host') || request.nextUrl.hostname);
+    if (!activeCompany) throw new Error('No active store company');
+
+    const { data: settingsRows } = await supabase
+      .from('settings')
+      .select('company_id,catalog_header_message,catalog_footer_text')
+      .eq('company_id', activeCompany.id || '')
+      .limit(1);
+    const branding = resolveBranding(activeCompany, settingsRows?.[0] as Partial<Settings> | undefined);
+
+    return {
+      appName: branding.appName,
+      shortName: branding.shortName,
+      description: branding.description,
+      themeColor: safeHexColor(branding.themeColor, DEFAULT_BRANDING.themeColor),
+      backgroundColor: safeHexColor(branding.backgroundColor, DEFAULT_BRANDING.backgroundColor),
+      slug: `${branding.companySlug || 'loja'}-catalogo`,
+      iconUrl: branding.pwaIconUrl || branding.logoUrl || branding.faviconUrl
+    };
+  } catch {
+    return {
+      appName: DEFAULT_BRANDING.appName,
+      shortName: DEFAULT_BRANDING.shortName,
+      description: DEFAULT_BRANDING.description,
+      themeColor: DEFAULT_BRANDING.themeColor,
+      backgroundColor: DEFAULT_BRANDING.backgroundColor,
+      slug: 'catalogo',
+      iconUrl: DEFAULT_BRANDING.pwaIconUrl
+    };
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const branding = await resolveStoreBranding(request);
+
+  return NextResponse.json({
+    name: branding.appName,
+    short_name: branding.shortName,
+    description: branding.description,
+    id: `/store/${branding.slug}`,
+    start_url: '/store',
+    scope: '/store/',
+    display: 'standalone',
+    orientation: 'portrait-primary',
+    theme_color: branding.themeColor,
+    background_color: branding.backgroundColor,
+    categories: ['shopping', 'business'],
+    lang: 'pt-BR',
+    icons: ICON_SIZES.map((size) => ({
+      src: resolveIconSrc(request, size, branding.iconUrl),
+      sizes: `${size}x${size}`,
+      type: 'image/png',
+      purpose: 'any maskable'
+    })),
+    screenshots: [
+      {
+        src: '/screenshots/app-home-540x720.png',
+        sizes: '540x720',
+        type: 'image/png',
+        form_factor: 'narrow',
+        label: branding.appName
+      }
+    ]
+  }, {
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/manifest+json; charset=utf-8'
+    }
+  });
+}

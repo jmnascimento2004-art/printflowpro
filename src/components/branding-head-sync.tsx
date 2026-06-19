@@ -3,7 +3,11 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useDatabase } from '@/context/database-context';
-import { createBrandManifestUrl, resolveBranding } from '@/lib/branding/resolveBranding';
+import {
+  createBrandManifestUrl,
+  createStoreBrandManifestUrl,
+  resolveBranding
+} from '@/lib/branding/resolveBranding';
 
 function ensureLink(rel: string) {
   let link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
@@ -40,12 +44,16 @@ export function BrandingHeadSync() {
 
   useEffect(() => {
     const branding = resolveBranding(company, settings);
-    const suffix = pathname === '/store' ? 'Catalogo Online' : 'ERP';
+    const isStorePath = pathname === '/store' || pathname.startsWith('/store/');
+    const suffix = isStorePath ? 'Catalogo Online' : 'ERP';
     const iconUrl = absoluteUrl(branding.faviconUrl || branding.logoUrl || branding.pwaIconUrl);
-    const manifestUrl = createBrandManifestUrl({
+    const manifestBranding = {
       ...branding,
       pwaIconUrl: iconUrl || branding.pwaIconUrl
-    });
+    };
+    const manifestUrl = isStorePath
+      ? createStoreBrandManifestUrl(manifestBranding)
+      : createBrandManifestUrl(manifestBranding);
 
     document.title = `${branding.appName} - ${suffix}`;
 

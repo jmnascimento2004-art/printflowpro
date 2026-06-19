@@ -34,6 +34,8 @@ import { formatCurrency } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
 import { buildWhatsAppOrderMessage, openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { BrandLogo, BrandMark } from '@/components/brand';
+import { StoreInstallAppButton } from '@/components/store/StoreInstallAppButton';
+import { StorePWARegister } from '@/components/store/store-pwa-register';
 import {
   ProductConfiguratorModal,
   type ProductConfiguratorCartPayload
@@ -571,6 +573,7 @@ export default function StorefrontPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200/70 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans antialiased flex flex-col justify-between">
+      <StorePWARegister />
       <style dangerouslySetInnerHTML={{ __html: `
         .bg-emerald-600 { background-color: ${primary} !important; }
         .bg-emerald-500 { background-color: ${light} !important; }
@@ -679,6 +682,10 @@ export default function StorefrontPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <div className="hidden sm:block">
+              <StoreInstallAppButton />
+            </div>
+
             {/* Theme Toggle Button */}
             <button
               onClick={toggleStoreTheme}
@@ -1933,6 +1940,9 @@ export default function StorefrontPage() {
               <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Institucional</h4>
             </div>
             <div className="flex flex-col gap-2.5 font-semibold">
+              <div className="sm:hidden">
+                <StoreInstallAppButton />
+              </div>
               <button onClick={() => setCartOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                 Carrinho de Orçamentos
               </button>

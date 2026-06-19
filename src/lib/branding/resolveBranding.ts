@@ -149,4 +149,18 @@ export function createBrandManifestUrl(branding: ActiveBranding) {
   return `/api/pwa/manifest?${params.toString()}`;
 }
 
+export function createStoreBrandManifestUrl(branding: ActiveBranding) {
+  const params = new URLSearchParams();
+  params.set('name', branding.appName);
+  params.set('short_name', branding.shortName);
+  params.set('description', branding.description);
+  params.set('theme_color', branding.themeColor);
+  params.set('background_color', branding.backgroundColor);
+  if (branding.companyId) params.set('company_id', branding.companyId);
+  if (branding.companySlug) params.set('slug', branding.companySlug);
+  if (branding.pwaIconUrl) params.set('icon', branding.pwaIconUrl);
+
+  return `/store/manifest.webmanifest?${params.toString()}`;
+}
+
 export const DEFAULT_BRANDING = PLATFORM_BRANDING;
