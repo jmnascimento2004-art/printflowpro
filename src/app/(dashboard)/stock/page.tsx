@@ -215,14 +215,14 @@ export default function StockPage() {
         {/* 4. Active Tab content */}
       {activeTab === 'inventory' ? (
         /* Inventory Table */
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-card border border-border rounded-2xl shadow-sm">
           <div className="px-5 py-4 border-b border-border bg-secondary/10 flex justify-between items-center">
             <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Ficha de Estoque & Insumos</h3>
             <span className="text-[11px] text-muted-foreground font-semibold">Exibindo {filteredProducts.length} itens cadastrados</span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="w-full overflow-x-auto">
+            <table className="min-w-[980px] w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-secondary/40 text-[9px] uppercase font-bold text-muted-foreground border-b border-border">
                   <th className="px-5 py-3">Código SKU</th>
@@ -232,7 +232,7 @@ export default function StockPage() {
                   <th className="px-5 py-3 text-right">Valor Venda</th>
                   <th className="px-5 py-3 text-center">Mínimo</th>
                   <th className="px-5 py-3 text-center">Qtd. Atual</th>
-                  <th className="px-5 py-3 text-center">Status Estoque</th>
+                  <th className="px-5 py-3 text-center whitespace-nowrap min-w-[140px]">Status Estoque</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -257,9 +257,9 @@ export default function StockPage() {
                       <td className="px-5 py-3.5 text-center font-bold text-foreground">
                         {p.current_stock}
                       </td>
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
                         {!p.stock_controlled ? (
-                          <span className="text-[10px] text-zinc-400 font-semibold bg-zinc-500/5 px-2 py-0.5 rounded border border-zinc-500/10">
+                          <span className="inline-flex w-max items-center justify-center whitespace-nowrap text-[10px] text-zinc-400 font-semibold bg-zinc-500/5 px-2 py-0.5 rounded border border-zinc-500/10">
                             Sem Controle
                           </span>
                         ) : belowMin ? (
