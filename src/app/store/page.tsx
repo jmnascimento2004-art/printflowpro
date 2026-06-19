@@ -32,6 +32,7 @@ import { Product } from '@/lib/dummy-data';
 import { formatCEP, normalizeRichTextHtml } from '@/lib/utils';
 import { formatCurrency } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
+import { buildWhatsAppOrderMessage, openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { BrandLogo, BrandMark } from '@/components/brand';
 import {
   ProductConfiguratorModal,
@@ -364,6 +365,35 @@ export default function StorefrontPage() {
 
     setCart(prev => [...prev, newItem]);
     setActiveAdvancedConfigProduct(null);
+  };
+
+  const handleWhatsAppProductRequest = (payload: ProductConfiguratorCartPayload) => {
+    const companyWhatsAppPhone = settings.catalog_whatsapp || settings.top_bar_phone || company.phone || '';
+    if (!companyWhatsAppPhone.trim()) {
+      alert('WhatsApp da empresa não configurado.');
+      return;
+    }
+
+    const message = buildWhatsAppOrderMessage({
+      companyName: company.name,
+      productName: payload.product_name,
+      saleType: payload.sale_mode_label,
+      pricingType: payload.sale_mode || payload.pricing_type,
+      quantity: payload.quantity,
+      dimensions: payload.dimensions,
+      selectedOptions: payload.selected_options,
+      productionDays: payload.production_days,
+      estimatedDeadline: payload.product.delivery_time || payload.product.pricing_details?.delivery_time,
+      subtotal: payload.total_price,
+      customerName: clientName,
+      customerPhone: clientPhone,
+      notes: clientNotes
+    });
+
+    const opened = openWhatsAppWithMessage(companyWhatsAppPhone, message);
+    if (!opened) {
+      alert('WhatsApp da empresa não configurado.');
+    }
   };
 
   const handleRemoveFromCart = (idx: number) => {
@@ -1282,6 +1312,7 @@ export default function StorefrontPage() {
         isOpen={Boolean(activeAdvancedConfigProduct)}
         onClose={() => setActiveAdvancedConfigProduct(null)}
         onAddToCart={handleAddAdvancedProductToCart}
+        onRequestWhatsApp={handleWhatsAppProductRequest}
         categoryName={
           activeAdvancedConfigProduct
             ? catalogCategories.find(c => c && c.id === activeAdvancedConfigProduct.category_id)?.name || 'Catálogo'

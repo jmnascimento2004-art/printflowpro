@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Tag,
+  MessageCircle,
   X
 } from 'lucide-react';
 import type { Product, ProductConfiguratorSettings, ProductSaleMode } from '@/lib/dummy-data';
@@ -39,6 +40,8 @@ export interface ProductConfiguratorCartPayload {
   };
   pricing_type: Product['pricing_type'];
   production_days: number;
+  sale_mode?: ProductSaleMode;
+  sale_mode_label?: string;
   configuration_summary: string;
 }
 
@@ -47,6 +50,7 @@ interface ProductConfiguratorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddToCart: (payload: ProductConfiguratorCartPayload) => void;
+  onRequestWhatsApp?: (payload: ProductConfiguratorCartPayload) => void;
   categoryName?: string;
 }
 
@@ -100,6 +104,7 @@ export function ProductConfiguratorModal({
   isOpen,
   onClose,
   onAddToCart,
+  onRequestWhatsApp,
   categoryName
 }: ProductConfiguratorModalProps) {
   const savedConfigurator = getProductConfigurator(product);
@@ -276,8 +281,7 @@ export function ProductConfiguratorModal({
     });
   };
 
-  const handleAdd = () => {
-    onAddToCart({
+  const buildPayload = (): ProductConfiguratorCartPayload => ({
       product,
       product_id: product.id,
       product_name: product.name,
@@ -288,8 +292,17 @@ export function ProductConfiguratorModal({
       dimensions,
       pricing_type: product.pricing_type,
       production_days: additionalDays,
+      sale_mode: saleMode,
+      sale_mode_label: saleModeLabel,
       configuration_summary: configurationSummary
-    });
+  });
+
+  const handleAdd = () => {
+    onAddToCart(buildPayload());
+  };
+
+  const handleWhatsAppRequest = () => {
+    onRequestWhatsApp?.(buildPayload());
   };
 
   return (
@@ -652,6 +665,14 @@ export function ProductConfiguratorModal({
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition-all hover:bg-slate-100"
               >
                 Finalizar produto
+              </button>
+              <button
+                type="button"
+                onClick={handleWhatsAppRequest}
+                className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100 flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Solicitar pelo WhatsApp
               </button>
             </div>
           </aside>
