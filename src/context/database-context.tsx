@@ -1438,6 +1438,7 @@ useEffect(() => {
       shipping_cost: match.delivery_fee || 0,
       deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
       notes: `Convertido do Orçamento #${match.number}. ${match.notes}`,
+      additional_services: match.additional_services || [],
       items: match.items.map(i => ({
         id: `oi-${Math.random().toString(36).substr(2, 9)}`,
         product_id: i.product_id,

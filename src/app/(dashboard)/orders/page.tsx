@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Order } from '@/lib/dummy-data';
+import type { AdditionalService } from '@/lib/dummy-data';
+import { AdditionalServicesSection, getAdditionalServicesTotal } from '@/components/commercial/AdditionalServicesSection';
 import {
   formatCurrencyInput,
   parseCurrencyInputToNumber,
@@ -58,6 +60,7 @@ export default function OrdersPage() {
   const [editTotal, setEditTotal] = useState(0);
   const [editShipping, setEditShipping] = useState(0);
   const [editPaid, setEditPaid] = useState(0);
+  const [editAdditionalServices, setEditAdditionalServices] = useState<AdditionalService[]>([]);
 
   // Delivery states for edit modal
   const [editDeliveryType, setEditDeliveryType] = useState<'retirada' | 'motoboy' | 'carro' | 'correios'>('retirada');
@@ -281,6 +284,7 @@ export default function OrdersPage() {
     setEditTotal(order.total_amount);
     setEditShipping(order.shipping_cost || 0);
     setEditPaid(order.paid_amount || 0);
+    setEditAdditionalServices(order.additional_services || []);
     setEditDeliveryType(order.delivery_type || 'retirada');
     setEditDeliveryAddress(order.delivery_address || '');
     setEditDeliveryDistanceKm(order.delivery_distance_km || 0);
@@ -328,6 +332,10 @@ export default function OrdersPage() {
     e.preventDefault();
     if (!editingOrder) return;
 
+    const productsTotal = editingOrder.items.reduce((sum, item) => sum + item.total_price, 0);
+    const servicesTotal = getAdditionalServicesTotal(editAdditionalServices);
+    const nextTotal = Math.max(0, productsTotal + servicesTotal + editShipping);
+
     if (editStatus !== editingOrder.status) {
       updateOrderStatus(editingOrder.id, editStatus);
     }
@@ -337,10 +345,11 @@ export default function OrdersPage() {
       status: editStatus,
       deadline: new Date(editDeadline).toISOString(),
       notes: editNotes,
-      total_amount: editTotal,
+      total_amount: nextTotal,
       shipping_cost: editShipping,
-      paid_amount: editPaid,
-      payment_status: editPaid >= editTotal ? 'pago' : editPaid > 0 ? 'parcial' : 'pendente',
+      paid_amount: Math.min(editPaid, nextTotal),
+      payment_status: editPaid >= nextTotal ? 'pago' : editPaid > 0 ? 'parcial' : 'pendente',
+      additional_services: editAdditionalServices,
       delivery_type: editDeliveryType,
       delivery_address: editDeliveryType !== 'retirada' ? editDeliveryAddress : undefined,
       delivery_distance_km: ['motoboy', 'carro'].includes(editDeliveryType) ? editDeliveryDistanceKm : undefined
@@ -573,8 +582,11 @@ export default function OrdersPage() {
   const printGrossProductsTotal = activePrintOrder
     ? activePrintOrder.items.reduce((sum, item) => sum + item.total_price, 0)
     : 0;
+  const printServicesTotal = activePrintOrder
+    ? getAdditionalServicesTotal(activePrintOrder.additional_services)
+    : 0;
   const printDiscountAmount = activePrintOrder
-    ? Math.max(0, printGrossProductsTotal - activePrintOrder.total_amount)
+    ? Math.max(0, printGrossProductsTotal + printServicesTotal + (activePrintOrder.shipping_cost || 0) - activePrintOrder.total_amount)
     : 0;
   
   const companyName = company?.name || 'PrintFlowPRO - ERP SAAS';
@@ -860,6 +872,38 @@ export default function OrdersPage() {
                     )}
                   </div>
                 )}
+              </div>
+
+              <div className="md:col-span-2">
+                <AdditionalServicesSection
+                  services={editAdditionalServices}
+                  onChange={(services) => {
+                    setEditAdditionalServices(services);
+                    if (editingOrder) {
+                      const productsTotal = editingOrder.items.reduce((sum, item) => sum + item.total_price, 0);
+                      setEditTotal(Math.max(0, productsTotal + getAdditionalServicesTotal(services) + editShipping));
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="md:col-span-2 rounded-xl border border-border bg-secondary/20 p-3 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total de produtos</span>
+                  <span className="font-bold text-foreground">{formatCurrency(editingOrder.items.reduce((sum, item) => sum + item.total_price, 0))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total de serviços adicionais</span>
+                  <span className="font-bold text-foreground">{formatCurrency(getAdditionalServicesTotal(editAdditionalServices))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Frete</span>
+                  <span className="font-bold text-foreground">{formatCurrency(editShipping)}</span>
+                </div>
+                <div className="flex justify-between border-t border-border pt-2 text-sm">
+                  <span className="font-black text-foreground">Total geral</span>
+                  <span className="font-black text-primary">{formatCurrency(editTotal)}</span>
+                </div>
               </div>
 
               {/* Notes */}
@@ -1208,6 +1252,29 @@ export default function OrdersPage() {
             </div>
           </div>
 
+          {(selectedOrder.additional_services || []).length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider block">Serviços Adicionais</h4>
+              <div className="divide-y divide-border border border-border rounded-xl bg-secondary/10">
+                {(selectedOrder.additional_services || []).map((service) => (
+                  <div key={service.id} className="p-3.5 text-xs flex justify-between items-start">
+                    <div>
+                      <div className="font-semibold text-foreground">{service.name}</div>
+                      {service.notes && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{service.notes}</div>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-bold text-foreground">{service.quantity}x</span>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">{formatCurrency(service.unit_price)}</div>
+                      <div className="text-[10px] font-bold text-primary mt-0.5">{formatCurrency(service.total_price)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Payment Section Panel */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-border pt-4">
             <div className="md:col-span-2 space-y-4">
@@ -1452,7 +1519,7 @@ export default function OrdersPage() {
             )}
             
             <div className="space-y-1">
-              <strong>Descricao dos Produtos e/ou Servicos:</strong>
+              <strong>Produtos:</strong>
               <div className="mt-1 overflow-x-auto">
                 <table className="print-items-table w-full text-left border-collapse text-[10px] border border-zinc-300">
                   <thead>
@@ -1487,12 +1554,53 @@ export default function OrdersPage() {
                 </table>
               </div>
             </div>
+
+            {(activePrintOrder.additional_services || []).length > 0 && (
+              <div className="space-y-1">
+                <strong>Serviços Adicionais:</strong>
+                <div className="mt-1 overflow-x-auto">
+                  <table className="print-items-table w-full text-left border-collapse text-[10px] border border-zinc-300">
+                    <thead>
+                      <tr className="bg-black border-b border-black font-bold text-[9px] uppercase text-white">
+                        <th className="px-2 py-1.5 text-center border-r border-white/40 w-10">QTD</th>
+                        <th className="px-2 py-1.5 border-r border-white/40">DESCRICAO</th>
+                        <th className="px-2 py-1.5 text-right border-r border-white/40 w-24">UNIT</th>
+                        <th className="px-2 py-1.5 text-right w-24">TOTAL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(activePrintOrder.additional_services || []).map((service) => (
+                        <tr key={service.id}>
+                          <td className="px-2 py-0.5 text-center border-r border-zinc-200 font-mono leading-tight">{service.quantity}</td>
+                          <td className="px-2 py-0.5 border-r border-zinc-200 leading-tight">
+                            <span className="font-semibold">{service.name}</span>
+                            {service.notes && (
+                              <span className="block text-[8px] text-zinc-500 font-normal italic mt-px leading-tight">
+                                Obs: {service.notes}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-0.5 text-right border-r border-zinc-200 font-mono leading-tight">{formatCurrency(service.unit_price)}</td>
+                          <td className="px-2 py-0.5 text-right font-mono font-semibold leading-tight">{formatCurrency(service.total_price)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             
             <div className="space-y-1 bg-zinc-50 p-3 border border-zinc-200 rounded-md">
               <div className="flex justify-between">
                 <span>Valor Bruto dos Produtos:</span>
                 <span className="font-bold">{formatCurrency(printGrossProductsTotal)}</span>
               </div>
+              {(activePrintOrder.additional_services || []).length > 0 && (
+                <div className="flex justify-between">
+                  <span>Total Serviços Adicionais:</span>
+                  <span className="font-bold">{formatCurrency(printServicesTotal)}</span>
+                </div>
+              )}
               {printDiscountAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-semibold">
                   <span>Desconto Concedido:</span>

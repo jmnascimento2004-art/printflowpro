@@ -297,6 +297,17 @@ export interface QuoteItem {
   };
 }
 
+export interface AdditionalService {
+  id: string;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  notes?: string;
+  is_custom: boolean;
+  save_as_default?: boolean;
+}
+
 export interface Quote {
   id: string;
   company_id: string;
@@ -310,6 +321,7 @@ export interface Quote {
   valid_until: string;
   notes: string;
   items: QuoteItem[];
+  additional_services?: AdditionalService[];
   created_at: string;
   delivery_type?: 'retirada' | 'motoboy' | 'carro' | 'correios';
   delivery_origin_address?: string;
@@ -352,6 +364,7 @@ export interface Order {
   deadline: string;
   notes: string;
   items: OrderItem[];
+  additional_services?: AdditionalService[];
   created_at: string;
   delivery_type?: 'retirada' | 'motoboy' | 'carro' | 'correios';
   delivery_origin_address?: string;

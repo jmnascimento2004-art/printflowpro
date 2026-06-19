@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Quote, QuoteItem } from '@/lib/dummy-data';
+import type { AdditionalService } from '@/lib/dummy-data';
+import { AdditionalServicesSection, getAdditionalServicesTotal } from '@/components/commercial/AdditionalServicesSection';
 import {
   formatCurrencyInput,
   parseCurrencyInputToNumber,
@@ -128,6 +130,7 @@ export default function QuotesPage() {
     setDiscount(resolvedQuote.discount);
     setValidUntil(resolvedQuote.valid_until);
     setNotes(resolvedQuote.notes || '');
+    setAdditionalServices(resolvedQuote.additional_services || []);
     setItems(resolvedQuote.items.map(it => ({
       product_id: it.product_id,
       product_name: it.product_name,
@@ -194,6 +197,7 @@ export default function QuotesPage() {
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<Omit<QuoteItem, 'id' | 'total_price'>[]>([]);
+  const [additionalServices, setAdditionalServices] = useState<AdditionalService[]>([]);
 
   // Delivery Form States
   const [deliveryType, setDeliveryType] = useState<'retirada' | 'motoboy' | 'carro' | 'correios'>('retirada');
@@ -480,6 +484,8 @@ export default function QuotesPage() {
     return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
   };
 
+  const getServicesTotal = () => getAdditionalServicesTotal(additionalServices);
+
   const resetForm = () => {
     setIsCreating(false);
     setEditingQuoteId(null);
@@ -488,6 +494,7 @@ export default function QuotesPage() {
     setValidUntil('');
     setNotes('');
     setItems([]);
+    setAdditionalServices([]);
     setSelectedProductId('');
     setItemQty(1);
     setItemWidth(1.0);
@@ -518,13 +525,14 @@ export default function QuotesPage() {
     }
 
     const sub = getSubtotal();
+    const servicesTotal = getServicesTotal();
     const finalItems: QuoteItem[] = items.map((it, idx) => ({
       id: `qi-${idx}-${Date.now()}`,
       ...it,
       total_price: it.quantity * it.unit_price
     }));
 
-    const finalTotal = sub + deliveryFee - discount;
+    const finalTotal = sub + servicesTotal + deliveryFee - discount;
 
     if (editingQuoteId) {
       const match = quotes.find(q => q.id === editingQuoteId);
@@ -540,6 +548,7 @@ export default function QuotesPage() {
         valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes,
         items: finalItems,
+        additional_services: additionalServices,
         created_at: match?.created_at || new Date().toISOString(),
         delivery_type: deliveryType,
         delivery_address: deliveryType !== 'retirada' ? deliveryAddress : undefined,
@@ -556,6 +565,7 @@ export default function QuotesPage() {
         valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes,
         items: finalItems,
+        additional_services: additionalServices,
         delivery_type: deliveryType,
         delivery_address: deliveryType !== 'retirada' ? deliveryAddress : undefined,
         delivery_distance_km: ['motoboy', 'carro'].includes(deliveryType) ? deliveryDistanceKm : undefined,
@@ -655,6 +665,7 @@ export default function QuotesPage() {
 
           {/* Items Table */}
           <div className="border border-border rounded-xl overflow-hidden bg-white">
+            <h4 className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-foreground bg-secondary/20">Produtos</h4>
             <table className="print-items-table w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-black font-bold text-white uppercase">
@@ -685,8 +696,14 @@ export default function QuotesPage() {
                 )}
               </tbody>
               <tfoot className="border-t border-border bg-secondary/10 text-xs">
+                {(activePrintQuote.additional_services || []).length > 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-1 text-right font-semibold text-muted-foreground">Total Serviços</td>
+                    <td className="px-4 py-1 text-right font-bold text-foreground">{formatCurrency(getAdditionalServicesTotal(activePrintQuote.additional_services))}</td>
+                  </tr>
+                )}
                 <tr>
-                  <td colSpan={3} className="px-4 py-1 text-right font-semibold text-muted-foreground">Subtotal</td>
+                  <td colSpan={3} className="px-4 py-1 text-right font-semibold text-muted-foreground">Total Produtos</td>
                   <td className="px-4 py-1 text-right font-bold text-foreground">{formatCurrency(activePrintQuote.items.reduce((sum, item) => sum + item.total_price, 0))}</td>
                 </tr>
                 {activePrintQuote.delivery_type && activePrintQuote.delivery_type !== 'retirada' && (
@@ -708,6 +725,35 @@ export default function QuotesPage() {
               </tfoot>
             </table>
           </div>
+
+          {(activePrintQuote.additional_services || []).length > 0 && (
+            <div className="border border-border rounded-xl overflow-hidden bg-white">
+              <h4 className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-foreground bg-secondary/20">Serviços Adicionais</h4>
+              <table className="print-items-table w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-black font-bold text-white uppercase">
+                    <th className="px-4 py-2.5 w-[10%] rounded-l-lg border-r border-white/40 text-center">QTD</th>
+                    <th className="px-4 py-2.5 w-[56%] border-r border-white/40 text-left">Descrição</th>
+                    <th className="px-4 py-2.5 text-right w-[16%] border-r border-white/40">UNIT</th>
+                    <th className="px-4 py-2.5 text-right w-[18%] rounded-r-lg">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(activePrintQuote.additional_services || []).map((service) => (
+                    <tr key={service.id} className="align-top">
+                      <td className="px-4 py-0.5 text-center font-bold text-foreground leading-tight">{service.quantity}</td>
+                      <td className="px-4 py-0.5 font-semibold text-foreground leading-tight">
+                        {service.name}
+                        {service.notes && <div className="text-[9px] text-muted-foreground">{service.notes}</div>}
+                      </td>
+                      <td className="px-4 py-0.5 text-right text-muted-foreground whitespace-nowrap leading-tight">{formatCurrency(service.unit_price)}</td>
+                      <td className="px-4 py-0.5 text-right font-bold text-foreground whitespace-nowrap leading-tight">{formatCurrency(service.total_price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Legal notes */}
           <div className="text-xs text-muted-foreground space-y-1 pt-2">
@@ -1079,6 +1125,11 @@ export default function QuotesPage() {
             </div>
           </div>
 
+          <AdditionalServicesSection
+            services={additionalServices}
+            onChange={setAdditionalServices}
+          />
+
           {/* Form Bottom: Discount and Notes */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
             <div className="md:col-span-2 space-y-4">
@@ -1289,8 +1340,12 @@ export default function QuotesPage() {
               
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between items-center text-muted-foreground">
-                  <span>Soma dos Itens:</span>
+                  <span>Total de produtos:</span>
                   <span className="font-semibold text-foreground">{formatCurrency(getSubtotal())}</span>
+                </div>
+                <div className="flex justify-between items-center text-muted-foreground">
+                  <span>Total de serviços adicionais:</span>
+                  <span className="font-semibold text-foreground">{formatCurrency(getServicesTotal())}</span>
                 </div>
                 {deliveryType !== 'retirada' && (
                   <div className="flex justify-between items-center text-muted-foreground">
@@ -1309,7 +1364,7 @@ export default function QuotesPage() {
                 </div>
                 <div className="flex justify-between items-center border-t border-border pt-3 mt-3 font-bold text-sm">
                   <span className="text-foreground">Total Líquido:</span>
-                  <span className="text-primary text-base font-extrabold">{formatCurrency(getSubtotal() + deliveryFee - discount)}</span>
+                  <span className="text-primary text-base font-extrabold">{formatCurrency(getSubtotal() + getServicesTotal() + deliveryFee - discount)}</span>
                 </div>
               </div>
             </div>
