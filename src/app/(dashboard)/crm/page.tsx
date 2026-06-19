@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Building2,
   Check,
@@ -45,9 +46,11 @@ const isCatalogCustomer = (customer: Customer) =>
 
 export default function CustomersPage() {
   const { customers, addCustomer, updateCustomer, deleteCustomer, orders, quotes } = useDatabase();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isOpeningQuote, setIsOpeningQuote] = useState(false);
 
   const [personType, setPersonType] = useState<PersonType>('fisica');
   const [name, setName] = useState('');
@@ -151,6 +154,12 @@ export default function CustomersPage() {
       quote.customer_name === customer.name ||
       quote.customer_name === `${customer.name} (Web)`
     );
+
+  const handleNewQuoteForSelectedCustomer = () => {
+    if (!selectedCustomer) return;
+    setIsOpeningQuote(true);
+    router.push(`/quotes?customerId=${encodeURIComponent(selectedCustomer.id)}`);
+  };
 
   const handleDocumentChange = async (value: string) => {
     const clean = value.replace(/\D/g, '').slice(0, personType === 'juridica' ? 14 : 11);
@@ -559,7 +568,9 @@ export default function CustomersPage() {
                     </button>
                     <button
                       type="button"
-                      className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-xs font-black text-blue-600 transition-all hover:bg-blue-50"
+                      onClick={handleNewQuoteForSelectedCustomer}
+                      disabled={!selectedCustomer || isOpeningQuote}
+                      className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-xs font-black text-blue-600 transition-all hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Novo Orçamento
                     </button>
@@ -580,7 +591,7 @@ export default function CustomersPage() {
 
               <div className="space-y-5 p-5">
 
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <DetailCard title="Contato">
                     <DetailLine label="Telefone" value={selectedCustomer.phone || 'Não informado'} />
                     <DetailLine label="WhatsApp" value={selectedExtra.whatsapp || selectedCustomer.phone || 'Não informado'} />
@@ -758,10 +769,15 @@ function DetailCard({ title, children }: { title: string; children: React.ReactN
 }
 
 function DetailLine({ label, value }: { label: string; value: string }) {
+  const noWrapValueLabels = ['Telefone', 'WhatsApp', 'Número', 'Cidade / UF', 'CEP'];
+  const valueClassName = noWrapValueLabels.includes(label)
+    ? 'whitespace-nowrap'
+    : 'break-words';
+
   return (
-    <div className="flex items-start justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
-      <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</span>
-      <span className="text-right text-xs font-bold text-slate-800">{value}</span>
+    <div className="grid min-h-[44px] grid-cols-[105px_minmax(0,1fr)] items-start gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+      <span className="pt-0.5 text-left text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</span>
+      <span className={`min-w-0 text-left text-xs font-bold leading-relaxed text-slate-800 ${valueClassName}`}>{value}</span>
     </div>
   );
 }

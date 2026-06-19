@@ -46,6 +46,8 @@ export default function QuotesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [activePrintQuote, setActivePrintQuote] = useState<Quote | null>(null);
+  const [requestedCustomerId, setRequestedCustomerId] = useState('');
+  const [customerPrefillMessage, setCustomerPrefillMessage] = useState('');
 
   const resolveQuoteCustomer = (quote: Quote) => {
     const webName = quote.customer_name.replace(/\s+\(Web\)$/i, '').trim();
@@ -229,6 +231,34 @@ export default function QuotesPage() {
       ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}${company.cep ? `, CEP ${company.cep}` : ''}`
       : settings.company_address;
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const nextCustomerId = params.get('customerId')?.trim() || '';
+    if (nextCustomerId) {
+      setRequestedCustomerId(nextCustomerId);
+      setIsCreating(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!requestedCustomerId) return;
+
+    const selectedClient = customers.find((customer) => customer.id === requestedCustomerId);
+    if (selectedClient) {
+      setEditingQuoteId(null);
+      setCustomerId(selectedClient.id);
+      setCustomerPrefillMessage('');
+      return;
+    }
+
+    if (customers.length > 0) {
+      setCustomerId('');
+      setCustomerPrefillMessage('Cliente informado no link nao foi encontrado. Selecione outro cliente para continuar.');
+    }
+  }, [requestedCustomerId, customers]);
 
   // Helper para decodificar o endereço concatenado salvo
   const parseDeliveryAddress = (addrStr: string) => {
@@ -486,10 +516,19 @@ export default function QuotesPage() {
 
   const getServicesTotal = () => getAdditionalServicesTotal(additionalServices);
 
+  const selectedFormCustomer = customers.find((customer) => customer.id === customerId);
+  const selectedFormCustomerType = selectedFormCustomer
+    ? (selectedFormCustomer.document?.replace(/\D/g, '').length || 0) > 11 || selectedFormCustomer.billing_type === 'faturado'
+      ? 'PJ'
+      : 'PF'
+    : '';
+
   const resetForm = () => {
     setIsCreating(false);
     setEditingQuoteId(null);
     setCustomerId('');
+    setRequestedCustomerId('');
+    setCustomerPrefillMessage('');
     setDiscount(0);
     setValidUntil('');
     setNotes('');
@@ -942,6 +981,40 @@ export default function QuotesPage() {
               />
             </div>
           </div>
+
+          {customerPrefillMessage && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-700">
+              {customerPrefillMessage}
+            </div>
+          )}
+
+          {selectedFormCustomer && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+              <p className="text-[10px] font-black uppercase tracking-wide text-blue-500">Cliente selecionado</p>
+              <div className="mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 lg:grid-cols-5">
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">ID</span>
+                  <span className="block truncate font-bold text-slate-800">{selectedFormCustomer.id}</span>
+                </div>
+                <div className="min-w-0 lg:col-span-2">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Nome</span>
+                  <span className="block break-words font-bold text-slate-800">{selectedFormCustomer.name}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Tipo</span>
+                  <span className="block whitespace-nowrap font-bold text-slate-800">{selectedFormCustomerType}</span>
+                </div>
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">CPF/CNPJ</span>
+                  <span className="block whitespace-nowrap font-bold text-slate-800">{selectedFormCustomer.document || 'Nao informado'}</span>
+                </div>
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Telefone</span>
+                  <span className="block whitespace-nowrap font-bold text-slate-800">{selectedFormCustomer.phone || 'Nao informado'}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Item Adder Section */}
           <div className="border border-border rounded-xl p-4 space-y-4 bg-secondary/15">
