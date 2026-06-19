@@ -19,6 +19,10 @@ function ensureLink(rel: string) {
   return link;
 }
 
+function getPublicBrandIconUrl(size: number, version: string) {
+  return `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(version)}`;
+}
+
 function ensureMeta(selector: string, attrs: Record<string, string>) {
   let meta = document.querySelector<HTMLMetaElement>(selector);
   if (!meta) {
@@ -46,10 +50,11 @@ export function BrandingHeadSync() {
     const branding = resolveBranding(company, settings);
     const isStorePath = pathname === '/store' || pathname.startsWith('/store/');
     const suffix = isStorePath ? 'Catalogo Online' : 'ERP';
-    const iconUrl = absoluteUrl(branding.faviconUrl || branding.logoUrl || branding.pwaIconUrl);
+    const iconUrl = absoluteUrl(branding.effectiveIconUrl);
+    const publicIconUrl = getPublicBrandIconUrl(192, branding.brandingVersion);
     const manifestBranding = {
       ...branding,
-      pwaIconUrl: iconUrl || branding.pwaIconUrl
+      effectiveIconUrl: iconUrl || branding.effectiveIconUrl
     };
     const manifestUrl = isStorePath
       ? createStoreBrandManifestUrl(manifestBranding)
@@ -59,15 +64,18 @@ export function BrandingHeadSync() {
 
     ensureLink('manifest').href = manifestUrl;
 
-    if (iconUrl) {
-      ensureLink('icon').href = iconUrl;
-      ensureLink('apple-touch-icon').href = `/api/pwa/icon?src=${encodeURIComponent(iconUrl)}&size=192`;
-    }
+    ensureLink('icon').href = iconUrl || publicIconUrl;
+    ensureLink('shortcut icon').href = iconUrl || publicIconUrl;
+    ensureLink('apple-touch-icon').href = publicIconUrl;
 
     ensureMeta('meta[name="theme-color"]', { name: 'theme-color' }).content = branding.themeColor;
     ensureMeta('meta[name="application-name"]', { name: 'application-name' }).content = branding.appName;
     ensureMeta('meta[name="apple-mobile-web-app-title"]', { name: 'apple-mobile-web-app-title' }).content = branding.shortName;
     ensureMeta('meta[name="description"]', { name: 'description' }).content = branding.description;
+    ensureMeta('meta[property="og:title"]', { property: 'og:title' }).content = branding.appName;
+    ensureMeta('meta[property="og:description"]', { property: 'og:description' }).content = branding.description;
+    ensureMeta('meta[property="og:image"]', { property: 'og:image' }).content = new URL(getPublicBrandIconUrl(512, branding.brandingVersion), window.location.origin).href;
+    ensureMeta('meta[property="og:site_name"]', { property: 'og:site_name' }).content = branding.appName;
   }, [company, settings, pathname]);
 
   return null;

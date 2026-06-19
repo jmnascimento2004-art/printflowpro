@@ -7,10 +7,13 @@ export type ActiveBranding = {
   logoUrl: string | null;
   faviconUrl: string | null;
   pwaIconUrl: string | null;
+  effectiveIconUrl: string | null;
   themeColor: string;
   backgroundColor: string;
   companyId: string | null;
+  storeId: string | null;
   companySlug: string | null;
+  brandingVersion: string;
   isPlatformFallback: boolean;
 };
 
@@ -21,10 +24,13 @@ const PLATFORM_BRANDING: ActiveBranding = {
   logoUrl: '/printflowpro-mark.svg',
   faviconUrl: '/printflowpro-mark.svg',
   pwaIconUrl: '/printflowpro-mark.svg',
+  effectiveIconUrl: '/printflowpro-mark.svg',
   themeColor: '#1D35C9',
   backgroundColor: '#F7F9FC',
   companyId: null,
+  storeId: null,
   companySlug: null,
+  brandingVersion: 'printflowpro',
   isPlatformFallback: true
 };
 
@@ -41,6 +47,18 @@ function clean(value?: string | null) {
   return trimmed || '';
 }
 
+function getStringField(source: unknown, keys: string[]) {
+  if (!source || typeof source !== 'object') return '';
+  const record = source as Record<string, unknown>;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+
+  return '';
+}
+
 function isUnsupportedImage(value: string) {
   return /\.(cdr|ai|eps|psd|pdf)(\?|#|$)/i.test(value);
 }
@@ -54,6 +72,17 @@ function resolveAssetUrl(value?: string | null) {
 
 function canUseManifestIconParam(value: string | null) {
   return Boolean(value && !value.startsWith('data:image/'));
+}
+
+function createBrandingVersion(parts: Array<string | null | undefined>) {
+  const joined = parts.map((part) => clean(part)).filter(Boolean).join('|') || 'platform';
+  let hash = 0;
+
+  for (let index = 0; index < joined.length; index += 1) {
+    hash = ((hash << 5) - hash + joined.charCodeAt(index)) | 0;
+  }
+
+  return Math.abs(hash).toString(36);
 }
 
 function normalizeThemeColor(value?: string | null) {
@@ -123,13 +152,25 @@ export function resolveBranding(company?: Partial<Company> | null, settings?: Pa
 
   const displayName = resolveDisplayName(companyName);
   const logoUrl = resolveAssetUrl(company?.logo_light) || resolveAssetUrl(company?.logo_url) || resolveAssetUrl(company?.logo_dark);
-  const faviconUrl = resolveAssetUrl(company?.favicon) || logoUrl;
+  const faviconUrl = resolveAssetUrl(company?.favicon);
+  const pwaIconUrl = resolveAssetUrl(getStringField(company, ['pwa_icon_url', 'pwa_icon', 'app_icon', 'icon_url']));
+  const effectiveIconUrl = faviconUrl || pwaIconUrl || logoUrl;
   const description =
     stripHtml(settings?.catalog_header_message) ||
     stripHtml(settings?.catalog_footer_text) ||
     stripHtml(company?.refund_policy) ||
     `${displayName} - gestao completa para graficas, pedidos e producao.`;
   const themeColor = normalizeThemeColor(company?.theme_color);
+  const brandingVersion = createBrandingVersion([
+    getStringField(company, ['updated_at', 'custom_domain_verified_at']),
+    getStringField(settings, ['updated_at']),
+    displayName,
+    faviconUrl,
+    pwaIconUrl,
+    logoUrl,
+    themeColor,
+    description
+  ]);
 
   return {
     appName: displayName,
@@ -137,11 +178,14 @@ export function resolveBranding(company?: Partial<Company> | null, settings?: Pa
     description,
     logoUrl,
     faviconUrl,
-    pwaIconUrl: faviconUrl || logoUrl,
+    pwaIconUrl,
+    effectiveIconUrl,
     themeColor,
     backgroundColor: PLATFORM_BRANDING.backgroundColor,
     companyId: companyId || null,
+    storeId: getStringField(company, ['store_id']) || null,
     companySlug: createSlug(displayName),
+    brandingVersion,
     isPlatformFallback: false
   };
 }
@@ -155,8 +199,9 @@ export function createBrandManifestUrl(branding: ActiveBranding) {
   params.set('background_color', branding.backgroundColor);
   if (branding.companyId) params.set('company_id', branding.companyId);
   if (branding.companySlug) params.set('slug', branding.companySlug);
-  if (canUseManifestIconParam(branding.pwaIconUrl)) {
-    params.set('icon', branding.pwaIconUrl || '');
+  params.set('v', branding.brandingVersion);
+  if (canUseManifestIconParam(branding.effectiveIconUrl)) {
+    params.set('icon', branding.effectiveIconUrl || '');
   } else {
     params.set('public_icon', '1');
   }
@@ -173,8 +218,9 @@ export function createStoreBrandManifestUrl(branding: ActiveBranding) {
   params.set('background_color', branding.backgroundColor);
   if (branding.companyId) params.set('company_id', branding.companyId);
   if (branding.companySlug) params.set('slug', branding.companySlug);
-  if (canUseManifestIconParam(branding.pwaIconUrl)) {
-    params.set('icon', branding.pwaIconUrl || '');
+  params.set('v', branding.brandingVersion);
+  if (canUseManifestIconParam(branding.effectiveIconUrl)) {
+    params.set('icon', branding.effectiveIconUrl || '');
   } else {
     params.set('public_icon', '1');
   }

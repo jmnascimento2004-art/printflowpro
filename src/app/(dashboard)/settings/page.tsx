@@ -2155,11 +2155,14 @@ export default function SettingsPage() {
 
             {/* Global save button */}
             {['empresa', 'catalogo', 'financas', 'sistema'].includes(activeTab) && (
-              <div className="flex justify-end pt-4">
+              <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-semibold leading-5 text-blue-800">
+                  A identidade visual do aplicativo foi atualizada. Caso o nome ou icone antigo permaneça no seu dispositivo, remova e instale o aplicativo novamente.
+                </div>
                 <button
                   type="submit"
                   form="general-settings-form"
-                  className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all flex shrink-0 items-center justify-center gap-1.5"
                 >
                   <Check className="h-4.5 w-4.5" /> Salvar Configurações
                 </button>

@@ -22,7 +22,10 @@ import {
 import { useTheme } from '@/context/theme-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
-import { BrandLogo, BrandMark } from '@/components/brand';
+function getCompanyInitials(name: string) {
+  const words = name.split(/\s+/).map((word) => word.replace(/[^a-z0-9]/gi, '')).filter(Boolean);
+  return (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0]?.slice(0, 2) || 'PF').toUpperCase();
+}
 
 export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (o: boolean) => void }) {
   const pathname = usePathname();
@@ -99,16 +102,19 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
             {(() => {
               const logoSrc = theme === 'dark' ? (company.logo_dark || company.logo_light) : (company.logo_light || company.logo_dark);
               const faviconSrc = company.favicon;
+              const initials = getCompanyInitials(company.name || 'PrintFlowPRO');
 
               if (!isOpen) {
-                return faviconSrc ? (
+                return (faviconSrc || logoSrc) ? (
                   <img 
-                    src={faviconSrc} 
-                    alt="Favicon" 
+                    src={faviconSrc || logoSrc} 
+                    alt={company.name || 'Logo'} 
                     className="h-8 w-8 object-contain rounded-lg shrink-0"
                   />
                 ) : (
-                  <BrandMark className="h-8 w-8" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground">
+                    {initials}
+                  </div>
                 );
               }
 
@@ -119,9 +125,12 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
                   className="h-8 w-auto max-w-[170px] object-contain transition-all duration-300"
                 />
               ) : (
-                <>
-                  <BrandLogo className="[&>img]:h-8 [&>img]:w-8" />
-                </>
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-xs font-black text-primary-foreground">
+                    {initials}
+                  </div>
+                  <span className="truncate text-sm font-extrabold text-primary">{company.name || 'PrintFlowPRO'}</span>
+                </div>
               );
             })()}
           </div>

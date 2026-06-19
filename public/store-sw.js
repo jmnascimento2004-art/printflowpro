@@ -1,14 +1,11 @@
-const VERSION = '2026-06-19-store-01';
+const VERSION = '2026-06-19-store-02';
 const STATIC_CACHE = `printflowpro-store-static-${VERSION}`;
 const IMAGE_CACHE = `printflowpro-store-images-${VERSION}`;
+const BRANDING_CACHE = `printflowpro-store-branding-${VERSION}`;
 const OFFLINE_URL = '/store/offline';
 
 const STATIC_ASSETS = [
-  OFFLINE_URL,
-  '/store/manifest.webmanifest',
-  '/printflowpro-mark.svg',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  OFFLINE_URL
 ];
 
 function isSupabaseRequest(url) {
@@ -24,6 +21,20 @@ function isPrivateOrDynamicRequest(request) {
     url.pathname.includes('/rest/v1/') ||
     url.pathname.includes('/auth/v1/') ||
     isSupabaseRequest(url)
+  );
+}
+
+function isBrandingRequest(request) {
+  const url = new URL(request.url);
+  return (
+    request.method === 'GET' &&
+    url.origin === self.location.origin &&
+    (
+      url.pathname === '/store/manifest.webmanifest' ||
+      url.pathname === '/favicon.ico' ||
+      url.pathname.startsWith('/api/public/branding/icon') ||
+      url.pathname.startsWith('/api/pwa/icon')
+    )
   );
 }
 
@@ -60,7 +71,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((cacheNames) => Promise.all(
         cacheNames
-          .filter((cacheName) => cacheName.startsWith('printflowpro-store-') && ![STATIC_CACHE, IMAGE_CACHE].includes(cacheName))
+          .filter((cacheName) => cacheName.startsWith('printflowpro-store-') && ![STATIC_CACHE, IMAGE_CACHE, BRANDING_CACHE].includes(cacheName))
           .map((cacheName) => caches.delete(cacheName))
       ))
       .then(() => self.clients.claim())
@@ -73,6 +84,18 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
+  if (isBrandingRequest(request)) {
+    event.respondWith(
+      caches.open(BRANDING_CACHE).then((cache) =>
+        fetch(request).then((networkResponse) => {
+          if (networkResponse.ok) cache.put(request, networkResponse.clone());
+          return networkResponse;
+        }).catch(() => cache.match(request))
+      )
+    );
+    return;
+  }
 
   if (isPrivateOrDynamicRequest(request)) {
     event.respondWith(fetch(request));

@@ -19,6 +19,12 @@ function safeHexColor(value: string, fallback: string) {
 
 function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: string | null) {
   const icon = resolvedIcon || request.nextUrl.searchParams.get('icon')?.trim();
+  const usePublicBrandingIcon = request.nextUrl.searchParams.get('public_icon') === '1';
+  if (usePublicBrandingIcon) {
+    const version = request.nextUrl.searchParams.get('v')?.trim() || request.nextUrl.searchParams.get('slug')?.trim() || 'store-branding';
+    return `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(version)}`;
+  }
+
   if (!icon) return `/icons/icon-${size}x${size}.png`;
 
   const absoluteIcon = new URL(icon, request.nextUrl.origin).href;
@@ -27,14 +33,18 @@ function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: strin
 
 async function resolveStoreBranding(request: NextRequest) {
   if (request.nextUrl.searchParams.has('name')) {
+    const appName = getParam(request, 'name', DEFAULT_BRANDING.appName);
+    const iconUrl = request.nextUrl.searchParams.get('icon')?.trim() || null;
     return {
-      appName: getParam(request, 'name', DEFAULT_BRANDING.appName),
-      shortName: getParam(request, 'short_name', getParam(request, 'name', DEFAULT_BRANDING.shortName)),
+      appName,
+      shortName: getParam(request, 'short_name', appName || DEFAULT_BRANDING.shortName),
       description: getParam(request, 'description', DEFAULT_BRANDING.description),
       themeColor: safeHexColor(getParam(request, 'theme_color', DEFAULT_BRANDING.themeColor), DEFAULT_BRANDING.themeColor),
       backgroundColor: safeHexColor(getParam(request, 'background_color', DEFAULT_BRANDING.backgroundColor), DEFAULT_BRANDING.backgroundColor),
       slug: request.nextUrl.searchParams.get('slug')?.trim() || 'catalogo',
-      iconUrl: request.nextUrl.searchParams.get('icon')?.trim() || null
+      iconUrl,
+      version: request.nextUrl.searchParams.get('v')?.trim() || request.nextUrl.searchParams.get('slug')?.trim() || 'store-branding',
+      usePublicBrandingIcon: request.nextUrl.searchParams.get('public_icon') === '1' || (!iconUrl && appName !== DEFAULT_BRANDING.appName)
     };
   }
 
@@ -48,7 +58,9 @@ async function resolveStoreBranding(request: NextRequest) {
       themeColor: DEFAULT_BRANDING.themeColor,
       backgroundColor: DEFAULT_BRANDING.backgroundColor,
       slug: 'catalogo',
-      iconUrl: DEFAULT_BRANDING.pwaIconUrl
+      iconUrl: DEFAULT_BRANDING.pwaIconUrl,
+      version: DEFAULT_BRANDING.brandingVersion,
+      usePublicBrandingIcon: true
     };
   }
 
@@ -76,7 +88,9 @@ async function resolveStoreBranding(request: NextRequest) {
       themeColor: safeHexColor(branding.themeColor, DEFAULT_BRANDING.themeColor),
       backgroundColor: safeHexColor(branding.backgroundColor, DEFAULT_BRANDING.backgroundColor),
       slug: `${branding.companySlug || 'loja'}-catalogo`,
-      iconUrl: branding.pwaIconUrl || branding.logoUrl || branding.faviconUrl
+      iconUrl: branding.effectiveIconUrl,
+      version: branding.brandingVersion,
+      usePublicBrandingIcon: true
     };
   } catch {
     return {
@@ -86,7 +100,9 @@ async function resolveStoreBranding(request: NextRequest) {
       themeColor: DEFAULT_BRANDING.themeColor,
       backgroundColor: DEFAULT_BRANDING.backgroundColor,
       slug: 'catalogo',
-      iconUrl: DEFAULT_BRANDING.pwaIconUrl
+      iconUrl: DEFAULT_BRANDING.pwaIconUrl,
+      version: DEFAULT_BRANDING.brandingVersion,
+      usePublicBrandingIcon: true
     };
   }
 }
@@ -108,7 +124,9 @@ export async function GET(request: NextRequest) {
     categories: ['shopping', 'business'],
     lang: 'pt-BR',
     icons: ICON_SIZES.map((size) => ({
-      src: resolveIconSrc(request, size, branding.iconUrl),
+      src: branding.usePublicBrandingIcon
+        ? `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(branding.version)}`
+        : resolveIconSrc(request, size, branding.iconUrl),
       sizes: `${size}x${size}`,
       type: 'image/png',
       purpose: 'any maskable'

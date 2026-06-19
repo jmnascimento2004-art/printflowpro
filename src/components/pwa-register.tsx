@@ -3,19 +3,48 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { BrandMark } from '@/components/brand';
 import { isStandaloneApp } from '@/lib/pwa';
+
+type SplashBranding = {
+  name: string;
+  icon: string;
+};
+
+function resolveSplashBranding(): SplashBranding {
+  if (typeof window === 'undefined') {
+    return { name: 'PrintFlowPRO', icon: '/api/public/branding/icon?size=192&v=splash' };
+  }
+
+  try {
+    const raw = window.localStorage.getItem('printflow_company');
+    const company = raw ? JSON.parse(raw) : null;
+    const icon = company?.favicon || company?.logo_light || company?.logo_url || company?.logo_dark;
+    const name = typeof company?.name === 'string' && company.name.trim() ? company.name.trim() : 'PrintFlowPRO';
+
+    return {
+      name,
+      icon: icon || '/api/public/branding/icon?size=192&v=splash'
+    };
+  } catch {
+    return { name: 'PrintFlowPRO', icon: '/api/public/branding/icon?size=192&v=splash' };
+  }
+}
 
 export default function PWARegister() {
   const pathname = usePathname();
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
+  const [splashBranding, setSplashBranding] = useState<SplashBranding>({
+    name: 'PrintFlowPRO',
+    icon: '/api/public/branding/icon?size=192&v=splash'
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const standalone = isStandaloneApp();
+    setSplashBranding(resolveSplashBranding());
     setShowSplash(standalone);
 
     if (standalone) {
@@ -89,9 +118,13 @@ export default function PWARegister() {
       {showSplash && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#F7F9FC] text-slate-950">
           <div className="flex flex-col items-center gap-4">
-            <BrandMark className="h-16 w-16" />
+            <img
+              src={splashBranding.icon}
+              alt={splashBranding.name}
+              className="h-16 w-16 rounded-2xl object-contain shadow-sm shadow-slate-900/10"
+            />
             <div className="text-center">
-              <p className="text-lg font-black text-[#1D35C9]">PrintFlowPRO</p>
+              <p className="text-lg font-black text-[#1D35C9]">{splashBranding.name}</p>
               <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Carregando aplicativo</p>
             </div>
           </div>

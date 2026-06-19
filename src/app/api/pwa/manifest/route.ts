@@ -34,15 +34,18 @@ function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: strin
 async function resolveServerBranding(request: NextRequest) {
   const hasClientBranding = request.nextUrl.searchParams.has('name');
   if (hasClientBranding) {
+    const appName = getParam(request, 'name', DEFAULT_BRANDING.appName);
+    const iconUrl = request.nextUrl.searchParams.get('icon')?.trim() || null;
     return {
-      appName: getParam(request, 'name', DEFAULT_BRANDING.appName),
-      shortName: getParam(request, 'short_name', getParam(request, 'name', DEFAULT_BRANDING.shortName)),
+      appName,
+      shortName: getParam(request, 'short_name', appName || DEFAULT_BRANDING.shortName),
       description: getParam(request, 'description', DEFAULT_BRANDING.description),
       themeColor: safeHexColor(getParam(request, 'theme_color', DEFAULT_BRANDING.themeColor), DEFAULT_BRANDING.themeColor),
       backgroundColor: safeHexColor(getParam(request, 'background_color', DEFAULT_BRANDING.backgroundColor), DEFAULT_BRANDING.backgroundColor),
       slug: request.nextUrl.searchParams.get('slug')?.trim() || 'printflowpro',
-      iconUrl: request.nextUrl.searchParams.get('icon')?.trim() || null,
-      usePublicBrandingIcon: request.nextUrl.searchParams.get('public_icon') === '1'
+      iconUrl,
+      version: request.nextUrl.searchParams.get('v')?.trim() || request.nextUrl.searchParams.get('slug')?.trim() || 'branding',
+      usePublicBrandingIcon: request.nextUrl.searchParams.get('public_icon') === '1' || (!iconUrl && appName !== DEFAULT_BRANDING.appName)
     };
   }
 
@@ -57,6 +60,7 @@ async function resolveServerBranding(request: NextRequest) {
       backgroundColor: DEFAULT_BRANDING.backgroundColor,
       slug: 'printflowpro',
       iconUrl: DEFAULT_BRANDING.pwaIconUrl,
+      version: DEFAULT_BRANDING.brandingVersion,
       usePublicBrandingIcon: true
     };
   }
@@ -86,7 +90,8 @@ async function resolveServerBranding(request: NextRequest) {
       themeColor: safeHexColor(branding.themeColor, DEFAULT_BRANDING.themeColor),
       backgroundColor: safeHexColor(branding.backgroundColor, DEFAULT_BRANDING.backgroundColor),
       slug: branding.companySlug || 'printflowpro',
-      iconUrl: branding.pwaIconUrl || branding.logoUrl || branding.faviconUrl,
+      iconUrl: branding.effectiveIconUrl,
+      version: branding.brandingVersion,
       usePublicBrandingIcon: true
     };
   } catch {
@@ -98,6 +103,7 @@ async function resolveServerBranding(request: NextRequest) {
       backgroundColor: DEFAULT_BRANDING.backgroundColor,
       slug: 'printflowpro',
       iconUrl: DEFAULT_BRANDING.pwaIconUrl,
+      version: DEFAULT_BRANDING.brandingVersion,
       usePublicBrandingIcon: true
     };
   }
@@ -121,7 +127,7 @@ export async function GET(request: NextRequest) {
     lang: 'pt-BR',
     icons: ICON_SIZES.map((size) => ({
       src: branding.usePublicBrandingIcon
-        ? `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(branding.slug)}`
+        ? `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(branding.version)}`
         : resolveIconSrc(request, size, branding.iconUrl),
       sizes: `${size}x${size}`,
       type: 'image/png',

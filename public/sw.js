@@ -1,19 +1,10 @@
-const VERSION = '2026-06-19-01';
+const VERSION = '2026-06-19-02';
 const STATIC_CACHE = `printflowpro-static-${VERSION}`;
+const BRANDING_CACHE = `printflowpro-branding-${VERSION}`;
 const OFFLINE_URL = '/offline';
 
 const STATIC_ASSETS = [
   OFFLINE_URL,
-  '/manifest.webmanifest',
-  '/printflowpro-mark.svg',
-  '/icons/icon-72x72.png',
-  '/icons/icon-96x96.png',
-  '/icons/icon-128x128.png',
-  '/icons/icon-144x144.png',
-  '/icons/icon-152x152.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-384x384.png',
-  '/icons/icon-512x512.png',
   '/screenshots/app-home-540x720.png',
   '/screenshots/app-home-1280x720.png'
 ];
@@ -36,16 +27,32 @@ function isPrivateOrDynamicRequest(request) {
   );
 }
 
+function isBrandingRequest(request) {
+  const url = new URL(request.url);
+
+  return (
+    request.method === 'GET' &&
+    url.origin === self.location.origin &&
+    (
+      url.pathname === '/manifest.webmanifest' ||
+      url.pathname === '/favicon.ico' ||
+      url.pathname === '/icon.svg' ||
+      url.pathname === '/apple-touch-icon.png' ||
+      url.pathname.startsWith('/api/public/branding/icon') ||
+      url.pathname.startsWith('/api/pwa/icon')
+    )
+  );
+}
+
 function isStaticAssetRequest(request) {
   const url = new URL(request.url);
-  const staticDestination = ['font', 'image', 'script', 'style', 'worker'].includes(request.destination);
+  const staticDestination = ['font', 'script', 'style', 'worker'].includes(request.destination);
 
   return (
     request.method === 'GET' &&
     url.origin === self.location.origin &&
     (url.pathname.startsWith('/_next/static/') ||
       url.pathname.startsWith('/icons/') ||
-      url.pathname === '/printflowpro-mark.svg' ||
       staticDestination)
   );
 }
@@ -63,7 +70,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((cacheNames) => Promise.all(
         cacheNames
-          .filter((cacheName) => cacheName.startsWith('printflowpro-') && cacheName !== STATIC_CACHE)
+          .filter((cacheName) => cacheName.startsWith('printflowpro-') && ![STATIC_CACHE, BRANDING_CACHE].includes(cacheName))
           .map((cacheName) => caches.delete(cacheName))
       ))
       .then(() => self.clients.claim())
@@ -78,6 +85,18 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
+  if (isBrandingRequest(request)) {
+    event.respondWith(
+      caches.open(BRANDING_CACHE).then((cache) =>
+        fetch(request).then((networkResponse) => {
+          if (networkResponse.ok) cache.put(request, networkResponse.clone());
+          return networkResponse;
+        }).catch(() => cache.match(request))
+      )
+    );
+    return;
+  }
 
   if (isPrivateOrDynamicRequest(request)) {
     event.respondWith(fetch(request));

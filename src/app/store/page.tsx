@@ -33,7 +33,7 @@ import { formatCEP, normalizeRichTextHtml } from '@/lib/utils';
 import { formatCurrency } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
 import { buildWhatsAppOrderMessage, openWhatsAppWithMessage } from '@/lib/whatsapp-order';
-import { BrandLogo, BrandMark } from '@/components/brand';
+import { BrandMark } from '@/components/brand';
 import { StoreInstallAppButton } from '@/components/store/StoreInstallAppButton';
 import { StorePWARegister } from '@/components/store/store-pwa-register';
 import {
@@ -54,6 +54,11 @@ interface CartItem {
   pricing_type?: Product['pricing_type'];
   production_days?: number;
   configuration_summary?: string;
+}
+
+function getStoreInitials(name: string) {
+  const words = name.split(/\s+/).map((word) => word.replace(/[^a-z0-9]/gi, '')).filter(Boolean);
+  return (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0]?.slice(0, 2) || 'LO').toUpperCase();
 }
 const getProductBadge = (name: string): 'favorito' | 'novo' | null => {
   const lowerName = name.toLowerCase();
@@ -659,7 +664,15 @@ export default function StorefrontPage() {
                   className="h-9 w-auto object-contain max-w-[140px] sm:max-w-[200px]"
                 />
               ) : (
-                <BrandLogo subtitle="Catalogo Online" className="[&>img]:h-9 [&>img]:w-9" />
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-xs font-black text-white">
+                    {getStoreInitials(company.name || 'Loja')}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-slate-950 dark:text-white">{company.name || 'Loja'}</p>
+                    <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-500">Catalogo Online</p>
+                  </div>
+                </div>
               );
             })()}
           </div>

@@ -34,18 +34,24 @@ const companyHeadBootScript = `
     }
 
     var favicon = company && typeof company.favicon === 'string' ? company.favicon.trim() : '';
-    if (!favicon) return;
+    var logo = company && (
+      (typeof company.logo_light === 'string' && company.logo_light.trim()) ||
+      (typeof company.logo_url === 'string' && company.logo_url.trim()) ||
+      (typeof company.logo_dark === 'string' && company.logo_dark.trim())
+    );
+    var icon = favicon || logo || '/api/public/branding/icon?size=192&v=boot';
 
-    var lower = favicon.toLowerCase();
+    var lower = icon.toLowerCase();
     var supported = !lower.endsWith('.cdr') && (
       lower.indexOf('http') === 0 ||
+      lower.indexOf('/') === 0 ||
       lower.indexOf('data:image/') === 0 ||
       /\\.(png|ico|svg|jpg|jpeg|webp)(\\?|#|$)/.test(lower)
     );
 
     if (!supported) return;
 
-    var absoluteFavicon = new URL(favicon, window.location.href).href;
+    var absoluteFavicon = new URL(icon, window.location.href).href;
     var links = document.querySelectorAll("link[rel*='icon']");
 
     if (!links.length) {
@@ -65,6 +71,7 @@ const companyHeadBootScript = `
 `;
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://admin.cibeleprint.com.br"),
   title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
   description: "O ERP definitivo para controle de custos, precificação m², ordens de produção Kanban e gestão financeira de gráficas, brindes, sublimação e comunicação visual.",
   manifest: "/manifest.webmanifest",
@@ -78,8 +85,14 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: "/printflowpro-mark.svg",
-    apple: "/icons/icon-192x192.png",
+    icon: "/api/public/branding/icon?size=192&v=initial",
+    shortcut: "/api/public/branding/icon?size=192&v=initial",
+    apple: "/api/public/branding/icon?size=192&v=initial",
+  },
+  openGraph: {
+    title: "PrintFlowPRO",
+    description: "ERP SaaS para graficas e comunicacao visual.",
+    images: ["/api/public/branding/icon?size=512&v=initial"],
   },
 };
 
