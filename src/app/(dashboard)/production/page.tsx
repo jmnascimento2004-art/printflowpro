@@ -2,16 +2,10 @@
 
 import React, { useState } from 'react';
 import { 
-  Wrench, 
+   
   Clock, 
-  CheckCircle2, 
-  Play, 
-  Cpu, 
   User, 
   AlertTriangle,
-  ArrowRight,
-  TrendingUp,
-  SlidersHorizontal,
   Search,
   Sparkles
 } from 'lucide-react';

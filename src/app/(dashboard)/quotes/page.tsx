@@ -8,14 +8,9 @@ import {
   Trash2, 
   Check, 
   Printer, 
-  Calendar, 
   X, 
-  PlusCircle, 
-  User,
-  ArrowRight,
-  TrendingUp,
+  PlusCircle,
   Edit2,
-  MapPin,
   Truck,
   RefreshCw
 } from 'lucide-react';
@@ -345,9 +340,9 @@ export default function QuotesPage() {
       const minFee = settings.delivery_min_fee || 10.00;
       setDeliveryFee(Math.round(Math.max(rawFee, minFee) * 100) / 100);
       setLastCalculatedAddress(deliveryAddress);
-    } catch (err: any) {
+    } catch (err: unknown) {
       warnCaught('Erro capturado:', err);
-      setRouteError(err.message || 'Erro ao calcular a distância da rota.');
+      setRouteError(err instanceof Error ? err.message : 'Erro ao calcular a distância da rota.');
     } finally {
       setIsCalculatingRoute(false);
     }
@@ -380,9 +375,9 @@ export default function QuotesPage() {
         const minFee = settings.delivery_min_fee || 10.00;
         setDeliveryFee(Math.round(Math.max(rawFee, minFee) * 100) / 100);
         setLastCalculatedAddress(deliveryAddress);
-      } catch (err: any) {
+      } catch (err: unknown) {
         warnCaught('Erro capturado:', err);
-        setRouteError(err.message || 'Erro ao calcular a distância da rota automaticamente.');
+        setRouteError(err instanceof Error ? err.message : 'Erro ao calcular a distância da rota automaticamente.');
       } finally {
         setIsCalculatingRoute(false);
       }
@@ -721,7 +716,7 @@ export default function QuotesPage() {
             <p>• Prazo médio de produção de 5 a 7 dias úteis após confirmação do layout.</p>
             {activePrintQuote.notes && (
               <div className="p-3 bg-secondary/20 rounded-lg text-foreground font-medium mt-3 border border-border">
-                Obs: "{activePrintQuote.notes}"
+                Obs: &quot;{activePrintQuote.notes}&quot;
               </div>
             )}
           </div>
@@ -1099,7 +1094,7 @@ export default function QuotesPage() {
                     <select
                       value={deliveryType}
                       onChange={(e) => {
-                        const val = e.target.value as any;
+                        const val = e.target.value as typeof deliveryType;
                         setDeliveryType(val);
                         if (val === 'retirada') {
                           setDeliveryFee(0);

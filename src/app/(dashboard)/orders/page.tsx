@@ -3,22 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Search, 
-  Plus, 
-  Calendar, 
   DollarSign, 
-  User, 
   ChevronRight, 
   X, 
   Check, 
   AlertCircle,
-  Clock,
-  Layers,
-  Sparkles,
   Printer,
   Eye,
-  TrendingUp,
   Edit3,
-  MapPin,
   RefreshCw
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
@@ -42,7 +34,6 @@ export default function OrdersPage() {
     payOrder, 
     customers, 
     products, 
-    addOrder,
     settings,
     company,
     financial,
@@ -187,9 +178,9 @@ export default function OrdersPage() {
       setEditShipping(newShipping);
       setEditTotal(prev => Math.max(0, prev + diff));
       setLastCalculatedAddress(editDeliveryAddress);
-    } catch (err: any) {
+    } catch (err: unknown) {
       warnCaught('Erro capturado:', err);
-      setRouteError(err.message || 'Erro ao calcular a distância da rota.');
+      setRouteError(err instanceof Error ? err.message : 'Erro ao calcular a distância da rota.');
     } finally {
       setIsCalculatingRoute(false);
     }
@@ -226,9 +217,9 @@ export default function OrdersPage() {
         setEditShipping(newShipping);
         setEditTotal(prev => Math.max(0, prev + diff));
         setLastCalculatedAddress(editDeliveryAddress);
-      } catch (err: any) {
+      } catch (err: unknown) {
         warnCaught('Erro capturado:', err);
-        setRouteError(err.message || 'Erro ao calcular a distância da rota automaticamente.');
+        setRouteError(err instanceof Error ? err.message : 'Erro ao calcular a distância da rota automaticamente.');
       } finally {
         setIsCalculatingRoute(false);
       }
@@ -325,9 +316,9 @@ export default function OrdersPage() {
           setEditTotal(Math.max(0, baseTotal + newShipping));
           setLastCalculatedAddress(addressToCalculate);
         })
-        .catch((err: any) => {
+        .catch((err: unknown) => {
           warnCaught('Erro capturado:', err);
-          setRouteError(err.message || 'Erro ao calcular a distância da rota.');
+          setRouteError(err instanceof Error ? err.message : 'Erro ao calcular a distância da rota.');
         })
         .finally(() => setIsCalculatingRoute(false));
     }
@@ -574,8 +565,6 @@ export default function OrdersPage() {
       ].filter(Boolean).join(' - ')
     : '';
   const paymentType = activePrintOrder ? (activePrintOrder.paid_amount >= activePrintOrder.total_amount ? 'Total' : activePrintOrder.paid_amount > 0 ? 'Parcial / Entrada' : 'Pendente') : '';
-  const itemsDescription = activePrintOrder ? activePrintOrder.items.map(i => `${i.quantity}x ${i.product_name}`).join('\n') : '';
-  
   // Find payment info from latest transaction
   const orderTx = activePrintOrder ? financial.find(f => f.order_id === activePrintOrder.id || f.order_number === activePrintOrder.number) : null;
   const paymentMethodName = orderTx ? orderTx.payment_method.replace('_', ' ').toUpperCase() : 'PIX';
@@ -646,7 +635,7 @@ export default function OrdersPage() {
                 <label className="text-xs font-semibold text-muted-foreground">Status Operacional *</label>
                 <select
                   value={editStatus}
-                  onChange={(e: any) => setEditStatus(e.target.value)}
+                  onChange={(e) => setEditStatus(e.target.value as typeof editStatus)}
                   required
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 >
@@ -708,7 +697,7 @@ export default function OrdersPage() {
                     <label className="text-[10px] font-bold text-muted-foreground uppercase">Meio de Entrega</label>
                     <select
                       value={editDeliveryType}
-                      onChange={(e: any) => handleEditDeliveryTypeChange(e.target.value)}
+                      onChange={(e) => handleEditDeliveryTypeChange(e.target.value as typeof editDeliveryType)}
                       className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs text-foreground focus:outline-none font-semibold"
                     >
                       <option value="retirada">Retirada na Gráfica (Grátis)</option>
@@ -1269,7 +1258,7 @@ export default function OrdersPage() {
                         <label className="text-[10px] font-bold text-muted-foreground block">Meio de Pagamento</label>
                         <select
                           value={paymentMethod}
-                          onChange={(e: any) => setPaymentMethod(e.target.value)}
+                          onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs text-foreground font-semibold"
                         >
                           <option value="pix">Pix (QRCode)</option>
@@ -1552,7 +1541,7 @@ export default function OrdersPage() {
             
             <div className="space-y-1 border-t border-zinc-200 pt-2">
               <strong>Observacoes:</strong>
-              <p className="pl-2 italic">"{paymentNotes}"</p>
+              <p className="pl-2 italic">&quot;{paymentNotes}&quot;</p>
             </div>
             
             {activePrintMode === 'receipt' && (

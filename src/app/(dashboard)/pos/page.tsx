@@ -6,40 +6,35 @@ import {
   Plus,
   Trash2,
   DollarSign,
-  User,
   ShoppingBag,
-  CreditCard,
-  QrCode,
-  FileText,
   Briefcase,
   History,
   Lock,
   Unlock,
   PlusCircle,
   MinusCircle,
-  TrendingUp,
-  AlertCircle,
-  Check,
-  Printer,
-  ChevronRight,
   UserPlus
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
-import { OrderItem } from '@/lib/dummy-data';
+import type { Customer, Order, OrderItem, Product } from '@/lib/dummy-data';
 import { lookupCNPJ } from '@/lib/cnpj-lookup';
 import { warnCaught } from '@/lib/safe-log';
 import { 
   formatCurrencyInput, 
   parseCurrencyInputToNumber, 
   validateCNPJ, 
-  validateCEP, 
   formatCNPJ, 
-  formatCEP, 
   formatCPF, 
   generatePixPayload,
   getProductUnitPrice,
   stripRichTextHtml
 } from '@/lib/utils';
+
+type PaymentMethod = 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado';
+type POSCustomer = Pick<Customer, 'id' | 'name' | 'document' | 'phone' | 'email' | 'billing_type' | 'credit_status' | 'credit_limit' | 'credit_used' | 'payment_terms_days'>;
+type CartItem = Omit<OrderItem, 'id' | 'outsourced' | 'total_price'> & {
+  pricing_type: Product['pricing_type'];
+};
 
 export default function POSPage() {
   const {
@@ -60,39 +55,27 @@ export default function POSPage() {
   const [activeTab, setActiveTab] = useState<'pdv' | 'caixa' | 'historico'>('pdv');
 
   // POS State
-  const [cart, setCart] = useState<Array<{
-    product_id: string;
-    product_name: string;
-    quantity: number;
-    unit_price: number;
-    pricing_type: string;
-    details?: {
-      width?: number;
-      height?: number;
-      notes?: string;
-    };
-  }>>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('guest');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado'>('dinheiro');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('dinheiro');
 
   // Checkout Dialog State
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [checkoutNotes, setCheckoutNotes] = useState('');
-  const [justCompletedOrder, setJustCompletedOrder] = useState<any>(null);
+  const [justCompletedOrder, setJustCompletedOrder] = useState<Order | null>(null);
 
   // Modal configure dimension for m2/linear products
-  const [configuringProduct, setConfiguringProduct] = useState<any>(null);
+  const [configuringProduct, setConfiguringProduct] = useState<Product | null>(null);
   const [customWidth, setCustomWidth] = useState<number>(1);
   const [customHeight, setCustomHeight] = useState<number>(1);
   const [customNotes, setCustomNotes] = useState<string>('');
 
   // Daily Cash Register Dialog States
-  const [isOpeningRegister, setIsOpeningRegister] = useState(false);
   const [openingBalance, setOpeningBalance] = useState<number>(100);
   const [openingNotes, setOpeningNotes] = useState('');
 
@@ -197,13 +180,13 @@ export default function POSPage() {
 
   const getSelectedCustomer = () => {
     if (selectedCustomerId === 'guest') {
-      return { id: 'guest', name: 'Consumidor Final', document: '000.000.000-00', phone: '-', email: '-', billing_type: 'imediato' } as any;
+      return { id: 'guest', name: 'Consumidor Final', document: '000.000.000-00', phone: '-', email: '-', billing_type: 'imediato' } satisfies POSCustomer;
     }
-    return customers.find(c => c.id === selectedCustomerId);
+    return customers.find(c => c.id === selectedCustomerId) as POSCustomer | undefined;
   };
 
   // Handlers
-  const handleAddProductClick = (prod: any) => {
+  const handleAddProductClick = (prod: Product) => {
     if (prod.pricing_type === 'm2' || prod.pricing_type === 'linear') {
       setConfiguringProduct(prod);
       setCustomWidth(1);
@@ -214,7 +197,7 @@ export default function POSPage() {
     }
   };
 
-  const addToCart = (prod: any, quantity: number, details?: any) => {
+  const addToCart = (prod: Product, quantity: number, details?: CartItem['details']) => {
     setCart(prev => {
       // Find if item already exists with matching product and dimensions
       const matchIdx = prev.findIndex(item =>
@@ -635,7 +618,7 @@ export default function POSPage() {
                               </div>
                             )}
                             {item.details?.notes && (
-                              <div className="text-[9px] text-slate-400 italic font-medium">"{item.details.notes}"</div>
+                              <div className="text-[9px] text-slate-400 italic font-medium">&quot;{item.details.notes}&quot;</div>
                             )}
 
                             <div className="text-[10px] text-muted-foreground font-medium">
@@ -770,7 +753,6 @@ export default function POSPage() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   openRegister(openingBalance, openingNotes);
-                  setIsOpeningRegister(false);
                 }}
                 className="space-y-4 text-left"
               >
@@ -1185,9 +1167,10 @@ export default function POSPage() {
                     <label className="text-[10px] font-bold text-muted-foreground">Meio de Pagamento</label>
                     <select
                       value={paymentMethod}
-                      onChange={(e: any) => {
-                        setPaymentMethod(e.target.value);
-                        if (e.target.value !== 'dinheiro') {
+                      onChange={(e) => {
+                        const nextPaymentMethod = e.target.value as PaymentMethod;
+                        setPaymentMethod(nextPaymentMethod);
+                        if (nextPaymentMethod !== 'dinheiro') {
                           setAmountPaid(getCartTotal());
                         }
                       }}
@@ -1572,8 +1555,9 @@ export default function POSPage() {
               <span className="text-right">Total</span>
             </div>
             
-            {justCompletedOrder.items.map((item: any, idx: number) => {
-              const hasDimensions = item.details && (item.details.width || item.details.height);
+            {justCompletedOrder.items.map((item, idx) => {
+              const details = item.details;
+              const hasDimensions = details && (details.width || details.height);
               return (
                 <div key={idx} className="space-y-px leading-tight">
                   <div className="flex justify-between gap-2">
@@ -1582,7 +1566,7 @@ export default function POSPage() {
                   </div>
                   {hasDimensions && (
                     <div className="text-[9px] text-gray-500 pl-2 leading-tight">
-                      Medida: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
+                      Medida: {details.width}m {details.height ? `x ${details.height}m` : 'linear'}
                     </div>
                   )}
                 </div>

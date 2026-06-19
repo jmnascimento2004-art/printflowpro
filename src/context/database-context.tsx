@@ -4,11 +4,21 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { warnCaught } from '@/lib/safe-log';
 import {
+  buildCustomerRecord,
+  createCustomer,
+  deleteAllCustomers,
+  deleteCustomerRecord,
+  listCustomers,
+  updateCustomerRecord,
+  type NewCustomerInput
+} from '@/services/customers.service';
+import {
   Customer,
   Supplier,
   Category,
   Product,
   Quote,
+  QuoteItem,
   Order,
   ProductionItem,
   FinancialTransaction,
@@ -92,7 +102,7 @@ interface DatabaseContextType {
   }) => Order;
 
   // CRM
-  addCustomer: (cust: Omit<Customer, 'id' | 'company_id' | 'created_at'>) => Customer;
+  addCustomer: (cust: NewCustomerInput) => Customer;
   updateCustomer: (cust: Customer) => void;
   deleteCustomer: (id: string) => void;
 
@@ -167,6 +177,10 @@ export interface StoreBanner {
   subtitle?: string;
   link?: string;
 }
+
+type QuoteItemRow = QuoteItem & { quote_id: string };
+type OrderItemRow = OrderItem & { order_id: string };
+type StoreBannerRow = StoreBanner & { company_id?: string };
 
 const DEFAULT_BANNERS: StoreBanner[] = [
   {
@@ -278,6 +292,11 @@ const resolveCompanyForHostname = (companies: Company[]) => {
 const isDemoFallbackAllowed = () => {
   if (!isBrowser()) return false;
   return process.env.NODE_ENV !== 'production' || window.localStorage.getItem('printflow_demo_mode') === 'true';
+};
+
+const persistDemoSnapshot = (key: string, value: unknown) => {
+  if (!isDemoFallbackAllowed()) return;
+  window.localStorage.setItem(`printflow_${key}`, JSON.stringify(value));
 };
 
 const hasSettingValue = (value: unknown) => value !== undefined && value !== null && value !== '';
@@ -416,7 +435,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         const [
           { data: settingsData },
           { data: profilesData },
-          { data: customersData },
           { data: suppliersData },
           { data: categoriesData },
           { data: productsData },
@@ -436,7 +454,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         ] = await Promise.all([
           supabase.from('settings').select('*'),
           supabase.from('profiles').select('*'),
-          supabase.from('customers').select('*'),
           supabase.from('suppliers').select('*'),
           supabase.from('categories').select('*'),
           supabase.from('products').select('*'),
@@ -473,9 +490,9 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           }
           setSettings(mergeSettingsWithDefaults(activeSettings as Partial<typeof DUMMY_SETTINGS>, storedSettings));
         }
-        if (profilesData) setProfiles(filterByCompany(profilesData as UserProfile[]) as any);
-        if (customersData) setCustomers(filterByCompany(customersData as any) as any);
-        if (suppliersData) setSuppliers(filterByCompany(suppliersData as any) as any);
+        if (profilesData) setProfiles(filterByCompany(profilesData as UserProfile[]));
+        setCustomers(await listCustomers(activeCompanyId));
+        if (suppliersData) setSuppliers(filterByCompany(suppliersData as Supplier[]));
         if (categoriesData) {
           let storedCategories: Category[] = [];
           try {
@@ -484,36 +501,38 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             storedCategories = [];
           }
           const storedVisibility = new Map(storedCategories.map((category) => [category.id, category.show_in_catalog]));
-          const mergedCategories = (filterByCompany(categoriesData as any) as Category[]).map((category) => ({
+          const mergedCategories = filterByCompany(categoriesData as Category[]).map((category) => ({
             ...category,
             show_in_catalog: category.show_in_catalog ?? storedVisibility.get(category.id) ?? true
           }));
-          setCategories(mergedCategories as any);
+          setCategories(mergedCategories);
         }
-        if (productsData) setProducts(filterByCompany(productsData as any) as any);
+        if (productsData) setProducts(filterByCompany(productsData as Product[]));
         
         if (quotesData) {
-          const reconstructed = (filterByCompany(quotesData as any) as any[]).map(q => {
-            const items = quoteItemsData ? quoteItemsData.filter(qi => qi.quote_id === q.id) : [];
+          const quoteItems = (quoteItemsData || []) as QuoteItemRow[];
+          const reconstructed: Quote[] = filterByCompany(quotesData as Quote[]).map(q => {
+            const items = quoteItems.filter(qi => qi.quote_id === q.id);
             return { ...q, items };
           });
-          setQuotes(reconstructed as any);
+          setQuotes(reconstructed);
         }
 
         if (ordersData) {
-          const reconstructed = (filterByCompany(ordersData as any) as any[]).map(o => {
-            const items = orderItemsData ? orderItemsData.filter(oi => oi.order_id === o.id) : [];
+          const orderItems = (orderItemsData || []) as OrderItemRow[];
+          const reconstructed: Order[] = filterByCompany(ordersData as Order[]).map(o => {
+            const items = orderItems.filter(oi => oi.order_id === o.id);
             return { ...o, items };
           });
-          setOrders(reconstructed as any);
+          setOrders(reconstructed);
         }
 
-        if (productionData) setProduction(filterByCompany(productionData as any) as any);
-        if (financialData) setFinancial(filterByCompany(financialData as any) as any);
-        if (shipmentsData) setShipments(filterByCompany(shipmentsData as any) as any);
-        if (stockMovementsData) setStockMovements(filterByCompany(stockMovementsData as any) as any);
-        if (pickupPointsData) setPickupPoints(filterByCompany(pickupPointsData as any) as any);
-        if (bannersData) setBanners(filterByCompany(bannersData as any) as any);
+        if (productionData) setProduction(filterByCompany(productionData as ProductionItem[]));
+        if (financialData) setFinancial(filterByCompany(financialData as FinancialTransaction[]));
+        if (shipmentsData) setShipments(filterByCompany(shipmentsData as Shipment[]));
+        if (stockMovementsData) setStockMovements(filterByCompany(stockMovementsData as StockMovement[]));
+        if (pickupPointsData) setPickupPoints(filterByCompany(pickupPointsData as PickupPoint[]));
+        if (bannersData) setBanners(filterByCompany(bannersData as StoreBannerRow[]));
         
         if (rolePermsData) {
           const perms: Record<string, string[]> = {};
@@ -523,8 +542,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           setRolePermissions(perms);
         }
 
-        if (sessionsData) setSessions(filterByCompany(sessionsData as any) as any);
-        if (regTransData) setRegisterTransactions(regTransData as any);
+        if (sessionsData) setSessions(filterByCompany(sessionsData as CashRegisterSession[]));
+        if (regTransData) setRegisterTransactions(regTransData as CashRegisterTransaction[]);
 
         setInitialized(true);
       } catch (err) {
@@ -651,7 +670,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isBrowser()) return;
+    if (!isBrowser() || !isDemoFallbackAllowed()) return;
 
     const handleQuoteStorageSync = (event: StorageEvent) => {
       if (event.key !== 'printflow_quotes' || !event.newValue) return;
@@ -674,20 +693,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_customers', JSON.stringify(customers));
-      supabase.from('customers').upsert(customers).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar clientes no Supabase:', error);
-      });
-      if (canShowToast) showToast('Clientes atualizados com sucesso!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar dados de clientes!', 'error');
-    }
-  }, [customers, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !isBrowser()) return;
-    try {
-      window.localStorage.setItem('printflow_suppliers', JSON.stringify(suppliers));
+      persistDemoSnapshot('suppliers', suppliers);
       supabase.from('suppliers').upsert(suppliers).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar fornecedores no Supabase:', error);
       });
@@ -700,7 +706,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_categories', JSON.stringify(categories));
+      persistDemoSnapshot('categories', categories);
       supabase.from('categories').upsert(categories).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar categorias no Supabase:', error);
       });
@@ -713,7 +719,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_products', JSON.stringify(products));
+      persistDemoSnapshot('products', products);
       supabase.from('products').upsert(products).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar produtos no Supabase:', error);
       });
@@ -726,9 +732,13 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_quotes', JSON.stringify(quotes));
+      persistDemoSnapshot('quotes', quotes);
       
-      const parentQuotes = quotes.map(({ items, ...q }) => q);
+      const parentQuotes = quotes.map((quote) => {
+        const { items, ...q } = quote;
+        void items;
+        return q;
+      });
       supabase.from('quotes').upsert(parentQuotes).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar orçamentos no Supabase:', error);
       });
@@ -751,9 +761,13 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_orders', JSON.stringify(orders));
+      persistDemoSnapshot('orders', orders);
       
-      const parentOrders = orders.map(({ items, ...o }) => o);
+      const parentOrders = orders.map((order) => {
+        const { items, ...o } = order;
+        void items;
+        return o;
+      });
       supabase.from('orders').upsert(parentOrders).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar pedidos no Supabase:', error);
       });
@@ -776,7 +790,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_production', JSON.stringify(production));
+      persistDemoSnapshot('production', production);
       supabase.from('production_queue').upsert(production).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar fila de produção no Supabase:', error);
       });
@@ -789,7 +803,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_financial', JSON.stringify(financial));
+      persistDemoSnapshot('financial', financial);
       supabase.from('financial_transactions').upsert(financial).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar financeiro no Supabase:', error);
       });
@@ -802,7 +816,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_shipments', JSON.stringify(shipments));
+      persistDemoSnapshot('shipments', shipments);
       supabase.from('shipments').upsert(shipments).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar expedição no Supabase:', error);
       });
@@ -815,7 +829,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_stockMovements', JSON.stringify(stockMovements));
+      persistDemoSnapshot('stockMovements', stockMovements);
       supabase.from('stock_movements').upsert(stockMovements).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar estoque no Supabase:', error);
       });
@@ -875,7 +889,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_pickupPoints', JSON.stringify(pickupPoints));
+      persistDemoSnapshot('pickupPoints', pickupPoints);
       supabase.from('pickup_points').upsert(pickupPoints).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar pontos de coleta no Supabase:', error);
       });
@@ -980,7 +994,7 @@ useEffect(() => {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_banners', JSON.stringify(banners));
+      persistDemoSnapshot('banners', banners);
       const formatted = banners.map(b => ({ company_id: company.id, ...b }));
       supabase.from('store_banners').upsert(formatted).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar banners no Supabase:', error);
@@ -994,7 +1008,7 @@ useEffect(() => {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_profiles', JSON.stringify(profiles));
+      persistDemoSnapshot('profiles', profiles);
       supabase.from('profiles').upsert(profiles).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar funcionários no Supabase:', error);
       });
@@ -1007,7 +1021,7 @@ useEffect(() => {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_role_permissions', JSON.stringify(rolePermissions));
+      persistDemoSnapshot('role_permissions', rolePermissions);
       const formatted = Object.entries(rolePermissions).map(([path, roles]) => ({
         company_id: company.id,
         path,
@@ -1030,7 +1044,7 @@ useEffect(() => {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_sessions', JSON.stringify(sessions));
+      persistDemoSnapshot('sessions', sessions);
       supabase.from('cash_register_sessions').upsert(sessions).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar sessões de caixa no Supabase:', error);
       });
@@ -1043,7 +1057,7 @@ useEffect(() => {
   useEffect(() => {
     if (!initialized || !isBrowser()) return;
     try {
-      window.localStorage.setItem('printflow_registerTransactions', JSON.stringify(registerTransactions));
+      persistDemoSnapshot('registerTransactions', registerTransactions);
       supabase.from('cash_register_transactions').upsert(registerTransactions).then(({ error }) => {
         if (error) warnCaught('Erro ao sincronizar transações de caixa no Supabase:', error);
       });
@@ -1115,7 +1129,7 @@ useEffect(() => {
     
     // Clear Supabase operational tables but KEEP companies, settings, profiles, and role_permissions
     Promise.all([
-      supabase.from('customers').delete().not('id', 'is', null),
+      deleteAllCustomers(),
       supabase.from('suppliers').delete().not('id', 'is', null),
       supabase.from('categories').delete().not('id', 'is', null),
       supabase.from('products').delete().not('id', 'is', null),
@@ -1142,29 +1156,34 @@ useEffect(() => {
   // ----------------------------------------------------
   // CRM API
   // ----------------------------------------------------
-  const addCustomer = (cust: Omit<Customer, 'id' | 'company_id' | 'created_at'>) => {
-    const customerIdPrefix = cust.tags?.includes('Catalogo Online') ? 'cust-web' : 'cust';
-    const newCust: Customer = {
-      ...cust,
-      id: `${customerIdPrefix}-${Date.now()}`,
-      company_id: currentCompanyId,
-      created_at: new Date().toISOString()
-    };
+  const addCustomer = (cust: NewCustomerInput) => {
+    const newCust = buildCustomerRecord(cust, currentCompanyId);
     setCustomers(prev => [newCust, ...prev]);
-    supabase.from('customers').insert(newCust).then(({ error }) => {
-      if (error) warnCaught('Erro ao sincronizar cliente criado no catálogo:', error);
+    persistDemoSnapshot('customers', [newCust, ...customers]);
+    createCustomer(newCust).catch((error) => {
+      warnCaught('Erro ao criar cliente no Supabase:', error);
+      if (canShowToast) showToast('Erro ao salvar cliente no Supabase!', 'error');
     });
     return newCust;
   };
 
   const updateCustomer = (cust: Customer) => {
-    setCustomers(prev => prev.map(c => (c.id === cust.id ? cust : c)));
+    const nextCustomers = customers.map(c => (c.id === cust.id ? cust : c));
+    setCustomers(nextCustomers);
+    persistDemoSnapshot('customers', nextCustomers);
+    updateCustomerRecord(cust).catch((error) => {
+      warnCaught('Erro ao atualizar cliente no Supabase:', error);
+      if (canShowToast) showToast('Erro ao atualizar cliente no Supabase!', 'error');
+    });
   };
 
   const deleteCustomer = (id: string) => {
-    setCustomers(prev => prev.filter(c => c.id !== id));
-    supabase.from('customers').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir cliente no Supabase:', error);
+    const nextCustomers = customers.filter(c => c.id !== id);
+    setCustomers(nextCustomers);
+    persistDemoSnapshot('customers', nextCustomers);
+    deleteCustomerRecord(id).catch((error) => {
+      warnCaught('Erro ao excluir cliente no Supabase:', error);
+      if (canShowToast) showToast('Erro ao excluir cliente no Supabase!', 'error');
     });
   };
 
@@ -1336,7 +1355,7 @@ useEffect(() => {
   const persistQuotesSnapshot = (nextQuotes: Quote[]) => {
     if (typeof window === 'undefined') return;
 
-    window.localStorage.setItem('printflow_quotes', JSON.stringify(nextQuotes));
+    persistDemoSnapshot('quotes', nextQuotes);
   };
 
   const addQuote = (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => {

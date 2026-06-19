@@ -7,13 +7,8 @@ import {
   Check, 
   ArrowRight, 
   MapPin, 
-  Package, 
-  ChevronRight, 
-  User, 
-  Printer,
-  Calendar,
-  X,
-  Plane
+  User,
+  X
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Shipment } from '@/lib/dummy-data';

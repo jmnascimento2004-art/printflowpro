@@ -9,7 +9,6 @@ import {
   MapPin, 
   Tag, 
   FileText, 
-  ChevronRight, 
   UserPlus, 
   FileQuestion,
   X,
@@ -462,7 +461,7 @@ export default function CRMPage() {
                       <label className="text-[10px] font-semibold text-muted-foreground">Tipo de Faturamento</label>
                       <select
                         value={billingType}
-                        onChange={(e: any) => setBillingType(e.target.value)}
+                        onChange={(e) => setBillingType(e.target.value as typeof billingType)}
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                       >
                         <option value="imediato">Imediato (A vista / Pix / Cartão)</option>
@@ -501,7 +500,7 @@ export default function CRMPage() {
                           <label className="text-[10px] font-semibold text-muted-foreground">Status do Crédito</label>
                           <select
                             value={creditStatus}
-                            onChange={(e: any) => setCreditStatus(e.target.value)}
+                            onChange={(e) => setCreditStatus(e.target.value as typeof creditStatus)}
                             className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none font-semibold text-emerald-400"
                           >
                             <option value="aprovado">Aprovado (Liberar faturamento)</option>
@@ -833,7 +832,7 @@ export default function CRMPage() {
                 {selectedCustomer.notes && (
                   <div className="p-3.5 rounded-xl bg-secondary/30 border border-border space-y-1">
                     <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Observações do Vendedor</h5>
-                    <p className="text-xs text-foreground font-medium leading-relaxed italic whitespace-pre-line">"{selectedCustomer.notes}"</p>
+                    <p className="text-xs text-foreground font-medium leading-relaxed italic whitespace-pre-line">&quot;{selectedCustomer.notes}&quot;</p>
                   </div>
                 )}
 

@@ -2,17 +2,11 @@
 
 import React, { useState } from 'react';
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
+   
   PlusCircle, 
   Search, 
-  Check, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  Filter,
+  Check,
   X,
-  CreditCard,
   Plus
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
@@ -166,7 +160,7 @@ export default function FinancialPage() {
           <div className="flex gap-2">
             <select
               value={typeFilter}
-              onChange={(e: any) => setTypeFilter(e.target.value)}
+              onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
               className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
             >
               <option value="todos">Receitas e Despesas</option>
@@ -175,7 +169,7 @@ export default function FinancialPage() {
             </select>
             <select
               value={statusFilter}
-              onChange={(e: any) => setStatusFilter(e.target.value)}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
               className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
             >
               <option value="todos">Todos os Status</option>
@@ -218,7 +212,7 @@ export default function FinancialPage() {
                 <label className="text-xs font-semibold text-muted-foreground">Tipo de Lançamento</label>
                 <select
                   value={type}
-                  onChange={(e: any) => setType(e.target.value)}
+                  onChange={(e) => setType(e.target.value as typeof type)}
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs font-semibold text-foreground focus:outline-none"
                 >
                   <option value="receita">Receita (Entrada)</option>
@@ -298,7 +292,7 @@ export default function FinancialPage() {
                 <label className="text-xs font-semibold text-muted-foreground">Forma de Pagamento</label>
                 <select
                   value={paymentMethod}
-                  onChange={(e: any) => setPaymentMethod(e.target.value)}
+                  onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 >
                   <option value="pix">Pix</option>
@@ -314,7 +308,7 @@ export default function FinancialPage() {
                 <label className="text-xs font-semibold text-muted-foreground">Situação Inicial</label>
                 <select
                   value={status}
-                  onChange={(e: any) => setStatus(e.target.value)}
+                  onChange={(e) => setStatus(e.target.value as typeof status)}
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs font-semibold text-foreground focus:outline-none"
                 >
                   <option value="pago">Confirmado (Pago / Recebido)</option>

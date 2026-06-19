@@ -153,14 +153,11 @@ export default function SettingsPage() {
   const [payMastercard, setPayMastercard] = useState(company.show_payments_mastercard !== false);
   const [payElo, setPayElo] = useState(company.show_payments_elo !== false);
   const [payHipercard, setPayHipercard] = useState(company.show_payments_hipercard !== false);
-  const [payDiners, setPayDiners] = useState(company.show_payments_diners === true);
-  const [payAmex, setPayAmex] = useState(company.show_payments_amex === true);
   const [payBoleto, setPayBoleto] = useState(company.show_payments_boleto === true);
   const [payTransferencia, setPayTransferencia] = useState(company.show_payments_transferencia === true);
   const [payPix, setPayPix] = useState(company.show_payments_pix !== false);
 
   const [delSedex, setDelSedex] = useState(company.show_delivery_sedex !== false);
-  const [delPac, setDelPac] = useState(company.show_delivery_pac === true);
   const [delCorreios, setDelCorreios] = useState(company.show_delivery_correios !== false);
   const [delJadlog, setDelJadlog] = useState(company.show_delivery_jadlog !== false);
   const [delMotoboy, setDelMotoboy] = useState(company.show_delivery_motoboy !== false);
@@ -473,13 +470,10 @@ export default function SettingsPage() {
     setPayMastercard(company.show_payments_mastercard !== false);
     setPayElo(company.show_payments_elo !== false);
     setPayHipercard(company.show_payments_hipercard !== false);
-    setPayDiners(company.show_payments_diners === true);
-    setPayAmex(company.show_payments_amex === true);
     setPayBoleto(company.show_payments_boleto === true);
     setPayTransferencia(company.show_payments_transferencia === true);
     setPayPix(company.show_payments_pix !== false);
     setDelSedex(company.show_delivery_sedex !== false);
-    setDelPac(company.show_delivery_pac === true);
     setDelCorreios(company.show_delivery_correios !== false);
     setDelJadlog(company.show_delivery_jadlog !== false);
     setDelMotoboy(company.show_delivery_motoboy !== false);

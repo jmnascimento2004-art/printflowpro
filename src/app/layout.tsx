@@ -3,7 +3,6 @@ import "./globals.css";
 import { DatabaseProvider } from "@/context/database-context";
 import { ThemeProvider } from "@/context/theme-context";
 import { AuthProvider } from "@/context/auth-context";
-import PWARegister from "@/components/pwa-register";
 import BrowserProtocolGuard from "@/components/browser-protocol-guard";
 import { CompanyThemeSync } from "@/components/company-theme-sync";
 

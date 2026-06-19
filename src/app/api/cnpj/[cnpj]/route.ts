@@ -15,42 +15,44 @@ type NormalizedCNPJResponse = {
   uf: string;
 };
 
+type CNPJApiRecord = Record<string, string | number | boolean | null | undefined>;
+
 const jsonHeaders = {
   Accept: 'application/json',
   'User-Agent': 'PrintFlowPRO/1.0',
 };
 
-function normalizeBrasilApi(data: any, cleanCNPJ: string): NormalizedCNPJResponse {
+function normalizeBrasilApi(data: CNPJApiRecord, cleanCNPJ: string): NormalizedCNPJResponse {
   return {
-    cnpj: data.cnpj || cleanCNPJ,
-    razao_social: data.razao_social || '',
-    nome_fantasia: data.nome_fantasia || '',
-    telefone: data.telefone || '',
-    email: data.email || '',
-    inscricao_estadual: data.inscricao_estadual || '',
-    cep: data.cep || '',
-    logradouro: data.logradouro || '',
-    numero: data.numero || '',
-    bairro: data.bairro || '',
-    municipio: data.municipio || '',
-    uf: data.uf || '',
+    cnpj: String(data.cnpj || cleanCNPJ),
+    razao_social: String(data.razao_social || ''),
+    nome_fantasia: String(data.nome_fantasia || ''),
+    telefone: String(data.telefone || ''),
+    email: String(data.email || ''),
+    inscricao_estadual: String(data.inscricao_estadual || ''),
+    cep: String(data.cep || ''),
+    logradouro: String(data.logradouro || ''),
+    numero: String(data.numero || ''),
+    bairro: String(data.bairro || ''),
+    municipio: String(data.municipio || ''),
+    uf: String(data.uf || ''),
   };
 }
 
-function normalizeReceitaWs(data: any, cleanCNPJ: string): NormalizedCNPJResponse {
+function normalizeReceitaWs(data: CNPJApiRecord, cleanCNPJ: string): NormalizedCNPJResponse {
   return {
-    cnpj: data.cnpj || cleanCNPJ,
-    razao_social: data.nome || '',
-    nome_fantasia: data.fantasia || '',
-    telefone: data.telefone || '',
-    email: data.email || '',
-    inscricao_estadual: data.inscricao_estadual || '',
-    cep: data.cep || '',
-    logradouro: data.logradouro || '',
-    numero: data.numero || '',
-    bairro: data.bairro || '',
-    municipio: data.municipio || '',
-    uf: data.uf || '',
+    cnpj: String(data.cnpj || cleanCNPJ),
+    razao_social: String(data.nome || ''),
+    nome_fantasia: String(data.fantasia || ''),
+    telefone: String(data.telefone || ''),
+    email: String(data.email || ''),
+    inscricao_estadual: String(data.inscricao_estadual || ''),
+    cep: String(data.cep || ''),
+    logradouro: String(data.logradouro || ''),
+    numero: String(data.numero || ''),
+    bairro: String(data.bairro || ''),
+    municipio: String(data.municipio || ''),
+    uf: String(data.uf || ''),
   };
 }
 

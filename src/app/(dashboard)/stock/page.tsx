@@ -4,11 +4,7 @@ import React, { useState } from 'react';
 import { 
   Package, 
   Search, 
-  TrendingUp, 
-  TrendingDown, 
   AlertTriangle, 
-  ArrowUpRight, 
-  ArrowDownRight, 
   PlusCircle, 
   Check, 
   X,
@@ -146,7 +142,7 @@ export default function StockPage() {
                 <label className="text-xs font-semibold text-muted-foreground">Tipo de Movimento</label>
                 <select
                   value={adjustType}
-                  onChange={(e: any) => setAdjustType(e.target.value)}
+              onChange={(e) => setAdjustType(e.target.value as typeof adjustType)}
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs font-semibold text-foreground focus:outline-none"
                 >
                   <option value="entrada">Entrada (+)</option>

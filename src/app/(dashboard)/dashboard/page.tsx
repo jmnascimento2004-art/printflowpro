@@ -8,11 +8,8 @@ import {
   Wrench, 
   AlertTriangle, 
   ArrowUpRight, 
-  ArrowDownRight, 
   DollarSign, 
   Plus, 
-  FileText, 
-  Users, 
   Calculator 
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
@@ -21,7 +18,7 @@ const CATALOG_INTERESTS_READ_KEY = 'printflow_catalog_interests_read_ids';
 const CATALOG_INTERESTS_READ_EVENT = 'printflow_catalog_interests_read_change';
 
 export default function DashboardPage() {
-  const { orders, financial, products, customers, quotes } = useDatabase();
+  const { orders, financial, customers, quotes } = useDatabase();
   const [readCatalogInterestIds, setReadCatalogInterestIds] = useState<string[]>([]);
 
   const loadReadCatalogInterestIds = () => {

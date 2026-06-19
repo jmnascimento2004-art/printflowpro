@@ -2,22 +2,14 @@
 
 import React, { useState } from 'react';
 import { 
-  ExternalLink, 
-  Search, 
-  DollarSign, 
-  ArrowRight, 
-  User, 
-  Truck, 
-  Check, 
-  Tag, 
-  Cpu, 
-  ShoppingBag,
+   
+  Search,
   Sparkles
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 
 export default function ResalePage() {
-  const { orders, suppliers } = useDatabase();
+  const { orders } = useDatabase();
   const [searchQuery, setSearchQuery] = useState('');
 
   // 1. Gather all items in orders that are marked as outsourced

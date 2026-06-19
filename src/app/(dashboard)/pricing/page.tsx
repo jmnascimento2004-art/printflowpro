@@ -5,11 +5,7 @@ import {
   Calculator, 
   Percent, 
   Clock, 
-  ShieldAlert, 
-  ArrowRight, 
-  Save, 
-  HelpCircle,
-  TrendingUp,
+  Save,
   Coins,
   Cpu
 } from 'lucide-react';
@@ -46,11 +42,9 @@ export default function PricingPage() {
   const [simQuantity, setSimQuantity] = useState(1);
 
   // Computed Outputs
-  const [directCost, setDirectCost] = useState(0);
   const [operationalCost, setOperationalCost] = useState(0);
   const [totalCost, setTotalCost] = useState(0);
   const [suggestedPrice, setSuggestedPrice] = useState(0);
-  const [grossProfit, setGrossProfit] = useState(0);
   const [netProfit, setNetProfit] = useState(0);
   const [taxAmount, setTaxAmount] = useState(0);
   const [commissionAmount, setCommissionAmount] = useState(0);
@@ -78,7 +72,6 @@ export default function PricingPage() {
   useEffect(() => {
     // 1. Direct Cost with waste
     const direct = rawMaterialCost * (1 + wastePercent / 100);
-    setDirectCost(direct);
 
     // 2. Operational Cost
     const operational = operatingCostMin * productionTime;
@@ -116,7 +109,6 @@ export default function PricingPage() {
     setTaxAmount(taxes);
     setCommissionAmount(commission);
     setNetProfit(profit);
-    setGrossProfit(price - baseCost);
   }, [
     rawMaterialCost,
     wastePercent,
@@ -228,7 +220,7 @@ export default function PricingPage() {
               <label className="text-xs font-semibold text-muted-foreground">Unidade de Medida</label>
               <select
                 value={pricingType}
-                onChange={(e: any) => setPricingType(e.target.value)}
+                onChange={(e) => setPricingType(e.target.value as typeof pricingType)}
                 className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-medium"
               >
                 <option value="unidade">Por Unidade</option>
