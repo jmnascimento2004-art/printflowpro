@@ -101,7 +101,7 @@ interface DatabaseContextType {
     notes?: string;
   }) => Order;
 
-  // CRM
+  // Clientes
   addCustomer: (cust: NewCustomerInput) => Customer;
   updateCustomer: (cust: Customer) => void;
   deleteCustomer: (id: string) => void;
@@ -1154,7 +1154,7 @@ useEffect(() => {
   };
 
   // ----------------------------------------------------
-  // CRM API
+  // Clientes API
   // ----------------------------------------------------
   const addCustomer = (cust: NewCustomerInput) => {
     const newCust = buildCustomerRecord(cust, currentCompanyId);

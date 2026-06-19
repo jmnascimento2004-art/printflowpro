@@ -98,7 +98,7 @@ export default function Header({
       id: customer.id,
       customerName: customer.name,
       createdAt: customer.created_at,
-      code: 'CRM',
+      code: 'Cliente',
       href: '/crm',
       description: 'Cliente do catalogo aguardando atendimento.'
     }));
@@ -115,7 +115,7 @@ export default function Header({
 
     const titles: Record<string, string> = {
       dashboard: 'Dashboard Executivo',
-      crm: 'CRM - Gestao de Clientes',
+      crm: 'Clientes',
       products: 'Catalogo de Produtos',
       quotes: 'Orcamentos & Propostas',
       pricing: 'Calculadora de Precificacao',

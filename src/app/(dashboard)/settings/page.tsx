@@ -44,7 +44,7 @@ type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionario
 const SYSTEM_MODULES = [
   { path: '/dashboard', label: 'Dashboard', desc: 'Resumo geral, estatísticas de vendas, status de produção e fluxo financeiro simplificado.' },
   { path: '/pos', label: 'PDV / Caixa', desc: 'Vendas rápidas presenciais, abertura e fechamento de caixa, sangrias e suprimentos.' },
-  { path: '/crm', label: 'CRM Clientes', desc: 'Gestão da carteira de clientes, histórico de compras e contatos.' },
+  { path: '/crm', label: 'Clientes', desc: 'Cadastro de clientes, histórico de compras e contatos.' },
   { path: '/products', label: 'Produtos e Serviços', desc: 'Catálogo de materiais, serviços de impressão, acabamentos e preços base.' },
   { path: '/quotes', label: 'Orçamentos', desc: 'Geração de propostas comerciais e conversão em pedidos de venda.' },
   { path: '/pricing', label: 'Precificação / Calculadora', desc: 'Simulador avançado de custos de impressão, m² e margens.' },

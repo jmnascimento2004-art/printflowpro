@@ -54,7 +54,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'PDV / Caixa', path: '/pos', icon: ShoppingBag },
-    { name: 'CRM Clientes', path: '/crm', icon: Users },
+    { name: 'Clientes', path: '/crm', icon: Users },
     { name: 'Produtos (Catálogo)', path: '/products', icon: Package },
     { name: 'Orçamentos', path: '/quotes', icon: FileText },
     { name: 'Precificação', path: '/pricing', icon: Calculator },

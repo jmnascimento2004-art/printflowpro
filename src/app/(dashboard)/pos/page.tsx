@@ -1225,7 +1225,7 @@ export default function POSPage() {
                         </div>
                       ) : matchCust?.billing_type !== 'faturado' ? (
                         <div className="text-rose-500 font-bold bg-rose-500/10 p-1.5 rounded">
-                          Cliente corporativo não está habilitado para Faturar no CRM!
+                          Cliente corporativo não está habilitado para faturamento.
                         </div>
                       ) : available < total ? (
                         <div className="text-rose-500 font-bold bg-rose-500/10 p-1.5 rounded">

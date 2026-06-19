@@ -24,7 +24,7 @@ export default function LandingPortalPage() {
   const features = [
     { title: 'Precificação por m² / Linear', description: 'Calculadora integrada considerando matéria-prima, comissão, desperdício, impostos e tempo operacional.', icon: Calculator },
     { title: 'Controle de Pedidos Kanban', description: 'Arraste os cartões de pedido em 10 status automatizados integrados com produção e estoque.', icon: LayoutGrid },
-    { title: 'CRM Clientes Integrado', description: 'Perfis de clientes com histórico de compras, etiquetas coloridas, notas comerciais e WhatsApp.', icon: Users },
+    { title: 'Cadastro de Clientes', description: 'Perfis de clientes com histórico de compras, etiquetas coloridas, notas comerciais e WhatsApp.', icon: Users },
     { title: 'Caixa & Fluxo Financeiro', description: 'Contas a receber, contas a pagar, parcelamentos, pagamentos parciais e Pix com QR Code demonstrativo.', icon: TrendingUp },
     { title: 'Orçamentos em PDF', description: 'Gere orçamentos com múltiplos itens de forma rápida e exporte faturas limpas e prontas para impressão.', icon: Layers },
     { title: 'Loja Virtual Integrada', description: 'Catálogo de produtos onde clientes podem simular preços por dimensões e enviar orçamentos direto para o ERP.', icon: ShoppingBag },

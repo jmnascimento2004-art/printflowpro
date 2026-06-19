@@ -1343,12 +1343,12 @@ export default function OrdersPage() {
                           </div>
                         ) : (
                           <div className="text-rose-500 font-bold bg-rose-500/10 p-2 rounded text-[10px] flex items-center gap-1 mt-1">
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Habilite o faturamento corporativo no CRM.
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Habilite o faturamento corporativo no cadastro de clientes.
                           </div>
                         )}
                       </>
                     ) : (
-                      <span className="text-rose-500">Cliente não localizado no CRM.</span>
+                      <span className="text-rose-500">Cliente não localizado no cadastro de clientes.</span>
                     )}
                   </div>
                 );

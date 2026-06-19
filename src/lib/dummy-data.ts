@@ -134,6 +134,7 @@ export interface Customer {
   address: {
     street: string;
     number: string;
+    complement?: string;
     neighborhood: string;
     city: string;
     state: string;
@@ -149,6 +150,10 @@ export interface Customer {
   corporate_additional_info?: {
     inscricao_estadual?: string;
     nome_fantasia?: string;
+    whatsapp?: string;
+    birth_date?: string;
+    person_type?: 'fisica' | 'juridica';
+    responsavel_nome?: string;
     responsavel_financeiro_nome?: string;
     responsavel_financeiro_phone?: string;
     responsavel_financeiro_email?: string;

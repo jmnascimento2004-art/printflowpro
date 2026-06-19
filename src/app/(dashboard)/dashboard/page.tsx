@@ -170,7 +170,7 @@ export default function DashboardPage() {
       customerName: customer.name,
       createdAt: customer.created_at,
       amount: null,
-      code: 'CRM',
+      code: 'Cliente',
       href: '/crm',
       description: 'Cliente do catalogo aguardando atendimento'
     }));
@@ -319,7 +319,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">{new Date(lead.createdAt).toLocaleDateString('pt-BR')}</span>
-                  <span className="font-bold text-foreground">{lead.amount !== null ? formatCurrency(lead.amount) : 'CRM'}</span>
+                  <span className="font-bold text-foreground">{lead.amount !== null ? formatCurrency(lead.amount) : 'Cliente'}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2 truncate">{lead.description}</p>
               </Link>
