@@ -7,6 +7,7 @@ import { Bell, ChevronDown, ChevronLeft, ChevronRight, FileText, LogOut, Menu, M
 import { useTheme } from '@/context/theme-context';
 import { useDatabase } from '@/context/database-context';
 import { UserProfile } from '@/lib/dummy-data';
+import { InstallAppButton } from '@/components/install-app-button';
 
 const CATALOG_INTERESTS_READ_KEY = 'printflow_catalog_interests_read_ids';
 const CATALOG_INTERESTS_READ_EVENT = 'printflow_catalog_interests_read_change';
@@ -293,6 +294,7 @@ export default function Header({
                   <div className="text-[10px] text-muted-foreground break-all">{activeProfile.email}</div>
                   <div className="mt-1 text-[10px] font-bold uppercase text-primary">{getRoleLabel(activeProfile.role)}</div>
                 </div>
+                <InstallAppButton onDone={() => setProfileDropdownOpen(false)} />
                 <button
                   onClick={async () => {
                     setActiveProfile(activeProfile);

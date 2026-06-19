@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/context/theme-context";
 import { AuthProvider } from "@/context/auth-context";
 import BrowserProtocolGuard from "@/components/browser-protocol-guard";
 import { CompanyThemeSync } from "@/components/company-theme-sync";
+import PWARegister from "@/components/pwa-register";
 
 const companyHeadBootScript = `
 (function () {
@@ -64,16 +65,28 @@ const companyHeadBootScript = `
 export const metadata: Metadata = {
   title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
   description: "O ERP definitivo para controle de custos, precificação m², ordens de produção Kanban e gestão financeira de gráficas, brindes, sublimação e comunicação visual.",
+  manifest: "/manifest.webmanifest",
+  applicationName: "PrintFlowPRO",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "PrintFlowPRO",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: "/printflowpro-mark.svg",
+    apple: "/icons/icon-192x192.png",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#5b3df4",
+  themeColor: "#1D35C9",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -87,7 +100,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: companyHeadBootScript }} />
       </head>
       <body className="antialiased" suppressHydrationWarning>
-        {/* <PWARegister /> */}
+        <PWARegister />
         <BrowserProtocolGuard />
         <ThemeProvider>
           <AuthProvider>
