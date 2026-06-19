@@ -39,7 +39,13 @@ export default function PWARegister() {
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 
     const registerServiceWorker = () => {
-      navigator.serviceWorker.register('/sw.js').then((registration) => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(async (registration) => {
+        await navigator.serviceWorker.ready;
+
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[PWA] Admin service worker ready', registration.scope);
+        }
+
         if (registration.waiting) {
           setWaitingWorker(registration.waiting);
           setShowUpdate(true);

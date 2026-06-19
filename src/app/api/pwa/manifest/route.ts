@@ -19,6 +19,12 @@ function safeHexColor(value: string, fallback: string) {
 
 function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: string | null) {
   const icon = resolvedIcon || request.nextUrl.searchParams.get('icon')?.trim();
+  const usePublicBrandingIcon = request.nextUrl.searchParams.get('public_icon') === '1';
+  if (usePublicBrandingIcon) {
+    const version = request.nextUrl.searchParams.get('v')?.trim() || request.nextUrl.searchParams.get('slug')?.trim() || 'branding';
+    return `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(version)}`;
+  }
+
   if (!icon) return `/icons/icon-${size}x${size}.png`;
 
   const absoluteIcon = new URL(icon, request.nextUrl.origin).href;
@@ -35,7 +41,8 @@ async function resolveServerBranding(request: NextRequest) {
       themeColor: safeHexColor(getParam(request, 'theme_color', DEFAULT_BRANDING.themeColor), DEFAULT_BRANDING.themeColor),
       backgroundColor: safeHexColor(getParam(request, 'background_color', DEFAULT_BRANDING.backgroundColor), DEFAULT_BRANDING.backgroundColor),
       slug: request.nextUrl.searchParams.get('slug')?.trim() || 'printflowpro',
-      iconUrl: request.nextUrl.searchParams.get('icon')?.trim() || null
+      iconUrl: request.nextUrl.searchParams.get('icon')?.trim() || null,
+      usePublicBrandingIcon: request.nextUrl.searchParams.get('public_icon') === '1'
     };
   }
 
@@ -49,7 +56,8 @@ async function resolveServerBranding(request: NextRequest) {
       themeColor: DEFAULT_BRANDING.themeColor,
       backgroundColor: DEFAULT_BRANDING.backgroundColor,
       slug: 'printflowpro',
-      iconUrl: DEFAULT_BRANDING.pwaIconUrl
+      iconUrl: DEFAULT_BRANDING.pwaIconUrl,
+      usePublicBrandingIcon: true
     };
   }
 
@@ -78,7 +86,8 @@ async function resolveServerBranding(request: NextRequest) {
       themeColor: safeHexColor(branding.themeColor, DEFAULT_BRANDING.themeColor),
       backgroundColor: safeHexColor(branding.backgroundColor, DEFAULT_BRANDING.backgroundColor),
       slug: branding.companySlug || 'printflowpro',
-      iconUrl: branding.pwaIconUrl || branding.logoUrl || branding.faviconUrl
+      iconUrl: branding.pwaIconUrl || branding.logoUrl || branding.faviconUrl,
+      usePublicBrandingIcon: true
     };
   } catch {
     return {
@@ -88,7 +97,8 @@ async function resolveServerBranding(request: NextRequest) {
       themeColor: DEFAULT_BRANDING.themeColor,
       backgroundColor: DEFAULT_BRANDING.backgroundColor,
       slug: 'printflowpro',
-      iconUrl: DEFAULT_BRANDING.pwaIconUrl
+      iconUrl: DEFAULT_BRANDING.pwaIconUrl,
+      usePublicBrandingIcon: true
     };
   }
 }
@@ -110,7 +120,9 @@ export async function GET(request: NextRequest) {
     categories: ['business', 'productivity'],
     lang: 'pt-BR',
     icons: ICON_SIZES.map((size) => ({
-      src: resolveIconSrc(request, size, branding.iconUrl),
+      src: branding.usePublicBrandingIcon
+        ? `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(branding.slug)}`
+        : resolveIconSrc(request, size, branding.iconUrl),
       sizes: `${size}x${size}`,
       type: 'image/png',
       purpose: size >= 192 ? 'any maskable' : 'any'

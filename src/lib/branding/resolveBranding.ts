@@ -52,6 +52,10 @@ function resolveAssetUrl(value?: string | null) {
   return asset;
 }
 
+function canUseManifestIconParam(value: string | null) {
+  return Boolean(value && !value.startsWith('data:image/'));
+}
+
 function normalizeThemeColor(value?: string | null) {
   const color = clean(value);
   if (!color) return PLATFORM_BRANDING.themeColor;
@@ -66,6 +70,12 @@ function createSlug(value: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 48) || null;
+}
+
+function resolveDisplayName(value: string) {
+  const [brandName = ''] = value.split(/\s[-–—]\s/);
+  const cleanBrandName = brandName.trim();
+  return value.length > 24 && cleanBrandName.length >= 3 ? cleanBrandName : value;
 }
 
 export function normalizeBrandDomain(value: string = '') {
@@ -111,18 +121,19 @@ export function resolveBranding(company?: Partial<Company> | null, settings?: Pa
     return PLATFORM_BRANDING;
   }
 
+  const displayName = resolveDisplayName(companyName);
   const logoUrl = resolveAssetUrl(company?.logo_light) || resolveAssetUrl(company?.logo_url) || resolveAssetUrl(company?.logo_dark);
   const faviconUrl = resolveAssetUrl(company?.favicon) || logoUrl;
   const description =
     stripHtml(settings?.catalog_header_message) ||
     stripHtml(settings?.catalog_footer_text) ||
     stripHtml(company?.refund_policy) ||
-    `${companyName} - gestao completa para graficas, pedidos e producao.`;
+    `${displayName} - gestao completa para graficas, pedidos e producao.`;
   const themeColor = normalizeThemeColor(company?.theme_color);
 
   return {
-    appName: companyName,
-    shortName: companyName.length > 18 ? companyName.slice(0, 18).trim() : companyName,
+    appName: displayName,
+    shortName: displayName.length > 18 ? displayName.slice(0, 18).trim() : displayName,
     description,
     logoUrl,
     faviconUrl,
@@ -130,7 +141,7 @@ export function resolveBranding(company?: Partial<Company> | null, settings?: Pa
     themeColor,
     backgroundColor: PLATFORM_BRANDING.backgroundColor,
     companyId: companyId || null,
-    companySlug: createSlug(companyName),
+    companySlug: createSlug(displayName),
     isPlatformFallback: false
   };
 }
@@ -144,9 +155,13 @@ export function createBrandManifestUrl(branding: ActiveBranding) {
   params.set('background_color', branding.backgroundColor);
   if (branding.companyId) params.set('company_id', branding.companyId);
   if (branding.companySlug) params.set('slug', branding.companySlug);
-  if (branding.pwaIconUrl) params.set('icon', branding.pwaIconUrl);
+  if (canUseManifestIconParam(branding.pwaIconUrl)) {
+    params.set('icon', branding.pwaIconUrl || '');
+  } else {
+    params.set('public_icon', '1');
+  }
 
-  return `/api/pwa/manifest?${params.toString()}`;
+  return `/manifest.webmanifest?${params.toString()}`;
 }
 
 export function createStoreBrandManifestUrl(branding: ActiveBranding) {
@@ -158,7 +173,11 @@ export function createStoreBrandManifestUrl(branding: ActiveBranding) {
   params.set('background_color', branding.backgroundColor);
   if (branding.companyId) params.set('company_id', branding.companyId);
   if (branding.companySlug) params.set('slug', branding.companySlug);
-  if (branding.pwaIconUrl) params.set('icon', branding.pwaIconUrl);
+  if (canUseManifestIconParam(branding.pwaIconUrl)) {
+    params.set('icon', branding.pwaIconUrl || '');
+  } else {
+    params.set('public_icon', '1');
+  }
 
   return `/store/manifest.webmanifest?${params.toString()}`;
 }

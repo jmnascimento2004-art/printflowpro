@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(new Uint8Array(png), {
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=86400'
+        'Cache-Control': 'no-store'
       }
     });
   } catch {
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(new Uint8Array(fallback), {
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=300'
+        'Cache-Control': 'no-store'
       }
     });
   }

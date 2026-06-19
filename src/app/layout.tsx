@@ -7,6 +7,7 @@ import BrowserProtocolGuard from "@/components/browser-protocol-guard";
 import { BrandingHeadSync } from "@/components/branding-head-sync";
 import { CompanyThemeSync } from "@/components/company-theme-sync";
 import PWARegister from "@/components/pwa-register";
+import { PWAInstallProvider } from "@/components/pwa-install-provider";
 
 const companyHeadBootScript = `
 (function () {
@@ -66,7 +67,7 @@ const companyHeadBootScript = `
 export const metadata: Metadata = {
   title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
   description: "O ERP definitivo para controle de custos, precificação m², ordens de produção Kanban e gestão financeira de gráficas, brindes, sublimação e comunicação visual.",
-  manifest: "/api/pwa/manifest",
+  manifest: "/manifest.webmanifest",
   applicationName: "PrintFlowPRO",
   appleWebApp: {
     capable: true,
@@ -101,17 +102,19 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: companyHeadBootScript }} />
       </head>
       <body className="antialiased" suppressHydrationWarning>
-        <PWARegister />
-        <BrowserProtocolGuard />
-        <ThemeProvider>
-          <AuthProvider>
-            <DatabaseProvider>
-              <CompanyThemeSync />
-              <BrandingHeadSync />
-              {children}
-            </DatabaseProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <PWAInstallProvider>
+          <PWARegister />
+          <BrowserProtocolGuard />
+          <ThemeProvider>
+            <AuthProvider>
+              <DatabaseProvider>
+                <CompanyThemeSync />
+                <BrandingHeadSync />
+                {children}
+              </DatabaseProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </PWAInstallProvider>
       </body>
     </html>
   );

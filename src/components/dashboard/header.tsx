@@ -185,6 +185,8 @@ export default function Header({
           {theme === 'dark' ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
         </button>
 
+        <InstallAppButton variant="header" />
+
         <div className="relative">
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
