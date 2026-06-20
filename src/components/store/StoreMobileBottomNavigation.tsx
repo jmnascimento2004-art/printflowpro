@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
   HelpCircle,
   Home,
@@ -230,73 +229,65 @@ export default function StoreMobileBottomNavigation({
                 <div className="space-y-1.5">
                   {isAuthenticated ? (
                     <>
-                      <Link
+                      <a
                         href={STORE_ROUTES.account}
-                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <UserRound className="h-4.5 w-4.5 text-slate-500" />
                         Minha conta
-                      </Link>
-                      <Link
+                      </a>
+                      <a
                         href={STORE_ROUTES.orders}
-                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
                         Meus pedidos
-                      </Link>
-                      <Link
+                      </a>
+                      <a
                         href={STORE_ROUTES.addresses}
-                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <MapPin className="h-4.5 w-4.5 text-slate-500" />
                         Enderecos
-                      </Link>
-                      <Link
+                      </a>
+                      <a
                         href={STORE_ROUTES.privacy}
-                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <Info className="h-4.5 w-4.5 text-slate-500" />
                         Privacidade
-                      </Link>
-                      <Link
+                      </a>
+                      <a
                         href={STORE_ROUTES.security}
-                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <LockKeyhole className="h-4.5 w-4.5 text-slate-500" />
                         Seguranca e senha
-                      </Link>
+                      </a>
                     </>
                   ) : (
                     <>
-                      <Link
+                      <a
                         href={STORE_ROUTES.login}
-                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <UserRound className="h-4.5 w-4.5 text-slate-500" />
                         Entrar
-                      </Link>
-                      <Link
+                      </a>
+                      <a
                         href={STORE_ROUTES.signup}
-                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-3 text-sm font-black text-white"
                         style={{ backgroundColor: primaryColor }}
                       >
                         Criar conta
-                      </Link>
-                      <Link
+                      </a>
+                      <a
                         href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.orders)}
-                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
                         Acompanhar pedido
-                      </Link>
+                      </a>
                     </>
                   )}
 
@@ -348,14 +339,13 @@ export default function StoreMobileBottomNavigation({
                     Politica de devolucao
                   </button>
 
-                  <Link
+                  <a
                     href="/store/privacidade"
-                    onClick={closeSheet}
                     className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
                   >
                     <Info className="h-4.5 w-4.5 text-slate-500" />
                     Politicas da loja
-                  </Link>
+                  </a>
 
                   {isAuthenticated && (
                     <button
