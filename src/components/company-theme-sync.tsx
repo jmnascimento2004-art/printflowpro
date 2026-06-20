@@ -126,7 +126,7 @@ export function CompanyThemeSync() {
     const isStoreHost = storeDomain && hostname === storeDomain;
     const isAdminHost = adminDomain && hostname === adminDomain;
 
-    if (isStoreHost && pathname !== '/store') {
+    if (isStoreHost && pathname !== '/store' && !pathname.startsWith('/store/')) {
       router.replace('/store');
       return;
     }

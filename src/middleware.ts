@@ -33,7 +33,7 @@ export function middleware(request: NextRequest) {
   const isAdminDomain = hostname.startsWith('admin.');
   const isStoreDomain = hostname.startsWith('store.');
 
-  if (isStoreDomain && pathname !== '/store') {
+  if (isStoreDomain && pathname !== '/store' && !pathname.startsWith('/store/')) {
     const url = request.nextUrl.clone();
     url.pathname = '/store';
     url.search = '';
