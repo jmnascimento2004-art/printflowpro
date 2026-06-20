@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { 
   ShoppingBag, 
   ShoppingCart, 
@@ -1479,6 +1480,9 @@ export default function StorefrontPage() {
               {cart.length > 0 && (
                 <form onSubmit={handleCheckout} className="border-t border-slate-100 pt-4 mt-2 space-y-3.5">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Preencha seus Dados para Contato</h4>
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-5 text-slate-500">
+                    Usaremos estes dados para processar o orcamento, pedido, pagamento, entrega e atendimento. Marketing e cookies nao essenciais dependem de consentimento separado.
+                  </p>
                   
                   <div className="space-y-1">
                     <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Nome Completo / Empresa *</label>
@@ -2048,8 +2052,23 @@ export default function StorefrontPage() {
               <button onClick={() => setRefundModalOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                 Política de devolução e reembolso
               </button>
+              <Link href="/store/privacidade" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                Politica de Privacidade
+              </Link>
+              <Link href="/store/cookies" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                Politica de Cookies
+              </Link>
+              <Link href="/store/termos" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                Termos de Uso
+              </Link>
+              <Link href="/store/privacidade#cookies" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                Gerenciar Cookies
+              </Link>
+              <Link href="/store/privacidade/solicitar" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                Solicitacoes de Privacidade
+              </Link>
               <a href={`https://wa.me/55${(company.phone || '51987654321').replace(/\D/g, '')}`} target="_blank" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Falar com Vendedor
+                Atendimento
               </a>
             </div>
           </div>

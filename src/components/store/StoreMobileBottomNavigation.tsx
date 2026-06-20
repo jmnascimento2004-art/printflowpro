@@ -245,6 +245,14 @@ export default function StoreMobileBottomNavigation({
                         <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
                         Meus pedidos
                       </Link>
+                      <Link
+                        href="/store/conta/privacidade"
+                        onClick={closeSheet}
+                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      >
+                        <Info className="h-4.5 w-4.5 text-slate-500" />
+                        Privacidade
+                      </Link>
                     </>
                   ) : (
                     <>

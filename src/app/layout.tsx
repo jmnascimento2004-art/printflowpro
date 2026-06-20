@@ -9,6 +9,8 @@ import { CompanyThemeSync } from "@/components/company-theme-sync";
 import PWARegister from "@/components/pwa-register";
 import { PWAInstallProvider } from "@/components/pwa-install-provider";
 import { StoreCustomerProvider } from "@/context/store-customer-context";
+import { StorePrivacyProvider } from "@/context/store-privacy-context";
+import { StoreCookieBanner } from "@/components/store/StoreCookieBanner";
 
 const companyHeadBootScript = `
 (function () {
@@ -123,9 +125,12 @@ export default function RootLayout({
             <AuthProvider>
               <DatabaseProvider>
                 <StoreCustomerProvider>
-                  <CompanyThemeSync />
-                  <BrandingHeadSync />
-                  {children}
+                  <StorePrivacyProvider>
+                    <CompanyThemeSync />
+                    <BrandingHeadSync />
+                    {children}
+                    <StoreCookieBanner />
+                  </StorePrivacyProvider>
                 </StoreCustomerProvider>
               </DatabaseProvider>
             </AuthProvider>

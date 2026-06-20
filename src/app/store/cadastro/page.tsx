@@ -8,6 +8,7 @@ import { StoreAuthPanel } from '@/components/store/StoreAccountShell';
 import { StoreField, storeInputClass } from '@/components/store/StoreFormFields';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { StoreCustomerType, StoreSignupInput, validateStoreSignup } from '@/lib/store-customer';
+import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/lib/privacy';
 import { formatCNPJ, formatCPF } from '@/lib/utils';
 
 export default function StoreSignupPage() {
@@ -24,7 +25,9 @@ export default function StoreSignupPage() {
     birthDate: '',
     contactPreference: 'whatsapp',
     privacyAccepted: false,
-    termsAccepted: false
+    termsAccepted: false,
+    marketingEmailAccepted: false,
+    marketingWhatsappAccepted: false
   });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -131,12 +134,28 @@ export default function StoreSignupPage() {
 
         <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
           <input type="checkbox" checked={form.privacyAccepted} onChange={(event) => setValue('privacyAccepted', event.target.checked)} className="mt-1" />
-          Autorizo o uso dos meus dados para cadastro, pedidos e atendimento conforme a politica de privacidade.
+          <span>
+            Li e aceito a <Link href="/store/privacidade" className="font-black text-slate-950 underline-offset-4 hover:underline">Politica de Privacidade</Link> para cadastro,
+            pedidos, entrega e atendimento. Versao {PRIVACY_POLICY_VERSION}.
+          </span>
         </label>
 
         <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
           <input type="checkbox" checked={form.termsAccepted} onChange={(event) => setValue('termsAccepted', event.target.checked)} className="mt-1" />
-          Li e aceito os termos de uso do catalogo online.
+          <span>
+            Li e aceito os <Link href="/store/termos" className="font-black text-slate-950 underline-offset-4 hover:underline">Termos de Uso</Link> do catalogo online.
+            Versao {TERMS_VERSION}.
+          </span>
+        </label>
+
+        <label className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs font-semibold leading-5 text-slate-600">
+          <input type="checkbox" checked={form.marketingEmailAccepted} onChange={(event) => setValue('marketingEmailAccepted', event.target.checked)} className="mt-1" />
+          Quero receber ofertas e campanhas por e-mail. Opcional, sem bloquear cadastro ou compra.
+        </label>
+
+        <label className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3 text-xs font-semibold leading-5 text-slate-600">
+          <input type="checkbox" checked={form.marketingWhatsappAccepted} onChange={(event) => setValue('marketingWhatsappAccepted', event.target.checked)} className="mt-1" />
+          Quero receber ofertas e campanhas por WhatsApp. Opcional e revogavel.
         </label>
 
         <button type="submit" disabled={submitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-sm font-black text-white disabled:opacity-60">

@@ -11,7 +11,8 @@ const navItems = [
   { href: '/store/conta', label: 'Minha conta', icon: Home },
   { href: '/store/conta/perfil', label: 'Meus dados', icon: UserRound },
   { href: '/store/conta/enderecos', label: 'Enderecos', icon: MapPin },
-  { href: '/store/conta/pedidos', label: 'Pedidos', icon: Package }
+  { href: '/store/conta/pedidos', label: 'Pedidos', icon: Package },
+  { href: '/store/conta/privacidade', label: 'Privacidade', icon: ShieldCheck }
 ];
 
 export function StoreAccountShell({

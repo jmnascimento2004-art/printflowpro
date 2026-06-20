@@ -1,4 +1,4 @@
-const VERSION = '2026-06-19-store-02';
+const VERSION = '2026-06-20-store-privacy-01';
 const STATIC_CACHE = `printflowpro-store-static-${VERSION}`;
 const IMAGE_CACHE = `printflowpro-store-images-${VERSION}`;
 const BRANDING_CACHE = `printflowpro-store-branding-${VERSION}`;
@@ -18,6 +18,11 @@ function isPrivateOrDynamicRequest(request) {
     request.method !== 'GET' ||
     request.headers.has('authorization') ||
     url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/store/conta') ||
+    url.pathname.startsWith('/store/login') ||
+    url.pathname.startsWith('/store/cadastro') ||
+    url.pathname.startsWith('/store/redefinir-senha') ||
+    url.pathname.startsWith('/store/recuperar-senha') ||
     url.pathname.includes('/rest/v1/') ||
     url.pathname.includes('/auth/v1/') ||
     isSupabaseRequest(url)

@@ -45,6 +45,8 @@ export interface StoreSignupInput {
   contactPreference?: 'whatsapp' | 'email' | 'telefone';
   privacyAccepted: boolean;
   termsAccepted: boolean;
+  marketingEmailAccepted?: boolean;
+  marketingWhatsappAccepted?: boolean;
 }
 
 export const cleanDigits = (value: string) => value.replace(/\D/g, '');

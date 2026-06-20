@@ -13,6 +13,7 @@ import {
   StoreCustomerQuote,
   StoreSignupInput
 } from '@/lib/store-customer';
+import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/lib/privacy';
 import { warnCaught } from '@/lib/safe-log';
 
 type StoreCustomerContextType = {
@@ -41,7 +42,6 @@ type StoreCustomerContextType = {
 
 const StoreCustomerContext = createContext<StoreCustomerContextType | undefined>(undefined);
 const STORE_SIGNUP_CACHE_KEY = 'printflow_store_signup_cache';
-const PRIVACY_POLICY_VERSION = '2026-06';
 
 const emptyAddressList: StoreCustomerAddress[] = [];
 
@@ -66,7 +66,9 @@ const setCachedSignup = (input: StoreSignupInput) => {
       phone: input.phone,
       tradeName: input.tradeName,
       birthDate: input.birthDate,
-      contactPreference: input.contactPreference
+      contactPreference: input.contactPreference,
+      marketingEmailAccepted: input.marketingEmailAccepted,
+      marketingWhatsappAccepted: input.marketingWhatsappAccepted
     };
     window.localStorage.setItem(STORE_SIGNUP_CACHE_KEY, JSON.stringify(cache));
   } catch {
@@ -103,7 +105,9 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       whatsapp: fallback?.phone || cached?.phone || metadata.whatsapp || metadata.phone || '',
       tradeName: fallback?.tradeName || cached?.tradeName || metadata.trade_name || '',
       birthDate: fallback?.birthDate || cached?.birthDate || metadata.birth_date || null,
-      contactPreference: fallback?.contactPreference || cached?.contactPreference || metadata.contact_preference || 'whatsapp'
+      contactPreference: fallback?.contactPreference || cached?.contactPreference || metadata.contact_preference || 'whatsapp',
+      marketingEmailAccepted: Boolean(fallback?.marketingEmailAccepted || cached?.marketingEmailAccepted || metadata.marketing_email_accepted),
+      marketingWhatsappAccepted: Boolean(fallback?.marketingWhatsappAccepted || cached?.marketingWhatsappAccepted || metadata.marketing_whatsapp_accepted)
     };
 
     if (!company.id || !data.document || !data.phone) return;
@@ -118,7 +122,10 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       p_trade_name: data.tradeName,
       p_birth_date: data.birthDate,
       p_contact_preference: data.contactPreference,
-      p_privacy_policy_version: PRIVACY_POLICY_VERSION
+      p_privacy_policy_version: PRIVACY_POLICY_VERSION,
+      p_terms_version: TERMS_VERSION,
+      p_marketing_email_granted: data.marketingEmailAccepted,
+      p_marketing_whatsapp_granted: data.marketingWhatsappAccepted
     });
 
     if (rpcError) throw rpcError;
@@ -256,7 +263,9 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
           whatsapp: input.phone,
           trade_name: input.tradeName,
           birth_date: input.birthDate,
-          contact_preference: input.contactPreference || 'whatsapp'
+          contact_preference: input.contactPreference || 'whatsapp',
+          marketing_email_accepted: Boolean(input.marketingEmailAccepted),
+          marketing_whatsapp_accepted: Boolean(input.marketingWhatsappAccepted)
         }
       }
     });
@@ -285,6 +294,21 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem(STORE_SIGNUP_CACHE_KEY);
+        if ('caches' in window) {
+          const cacheNames = await window.caches.keys();
+          await Promise.all(
+            cacheNames
+              .filter((cacheName) => cacheName.includes('store-customer') || cacheName.includes('private'))
+              .map((cacheName) => window.caches.delete(cacheName))
+          );
+        }
+      } catch {
+        // Local cleanup should never block logout.
+      }
+    }
     setSession(null);
     setAccount(null);
     setCustomer(null);
