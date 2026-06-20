@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { 
   ShoppingBag, 
   ShoppingCart, 
@@ -35,9 +36,9 @@ import { formatCurrency } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
 import { buildWhatsAppOrderMessage, openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { BrandMark } from '@/components/brand';
-import { StoreInstallAppButton } from '@/components/store/StoreInstallAppButton';
 import { StorePWARegister } from '@/components/store/store-pwa-register';
 import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNavigation';
+import { StoreAccountMenu } from '@/components/store/StoreAccountMenu';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { formatStoreAddress } from '@/lib/store-customer';
 import {
@@ -115,6 +116,7 @@ function getThemeColorShade(hex: string, percent: number, opacity?: number) {
 }
 
 export default function StorefrontPage() {
+  const searchParams = useSearchParams();
   const { products, categories, orders, addQuote, addCustomer, pickupPoints, banners, company, settings } = useDatabase();
   const {
     isAuthenticated: storeCustomerAuthenticated,
@@ -317,6 +319,29 @@ export default function StorefrontPage() {
   const [deliveryState, setDeliveryState] = useState('');
   const [selectedStoreAddressId, setSelectedStoreAddressId] = useState('');
   const [orderCompleted, setOrderCompleted] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const storedCart = window.localStorage.getItem('printflow_store_cart');
+      if (storedCart) setCart(JSON.parse(storedCart) as CartItem[]);
+    } catch {
+      // Cart persistence is only used to preserve checkout across auth navigation.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('printflow_store_cart', JSON.stringify(cart));
+    } catch {
+      // Ignore unavailable storage.
+    }
+  }, [cart]);
+
+  useEffect(() => {
+    if (searchParams.get('checkout') === '1') setCartOpen(true);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!storeCustomerAuthenticated || !storeCustomer) return;
@@ -573,6 +598,7 @@ export default function StorefrontPage() {
 
     // Reset Cart
     setCart([]);
+    if (typeof window !== 'undefined') window.localStorage.removeItem('printflow_store_cart');
     setClientName('');
     setClientPhone('');
     setClientNotes('');
@@ -758,9 +784,7 @@ export default function StorefrontPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden md:block">
-              <StoreInstallAppButton />
-            </div>
+            <StoreAccountMenu primaryColor={primary} />
 
             {/* Theme Toggle Button */}
             <button
@@ -1480,6 +1504,22 @@ export default function StorefrontPage() {
               {cart.length > 0 && (
                 <form onSubmit={handleCheckout} className="border-t border-slate-100 pt-4 mt-2 space-y-3.5">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Preencha seus Dados para Contato</h4>
+                  {!storeCustomerAuthenticated && (
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+                      <p className="text-xs font-black text-slate-950">Ja possui uma conta?</p>
+                      <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-600">
+                        Crie sua conta para acompanhar pedidos, salvar enderecos e comprar com mais rapidez.
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <Link href="/store/login?redirect=/store?checkout=1" className="flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-700">
+                          Entrar
+                        </Link>
+                        <Link href="/store/cadastro?redirect=/store?checkout=1" className="flex min-h-10 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-black text-white">
+                          Criar conta
+                        </Link>
+                      </div>
+                    </div>
+                  )}
                   <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-5 text-slate-500">
                     Usaremos estes dados para processar o orcamento, pedido, pagamento, entrega e atendimento. Marketing e cookies nao essenciais dependem de consentimento separado.
                   </p>
@@ -2037,9 +2077,6 @@ export default function StorefrontPage() {
               <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Institucional</h4>
             </div>
             <div className="flex flex-col gap-2.5 font-semibold">
-              <div className="sm:hidden">
-                <StoreInstallAppButton />
-              </div>
               <button onClick={() => setCartOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                 Carrinho de Orçamentos
               </button>
@@ -2052,6 +2089,25 @@ export default function StorefrontPage() {
               <button onClick={() => setRefundModalOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                 Política de devolução e reembolso
               </button>
+              {storeCustomerAuthenticated ? (
+                <>
+                  <Link href="/store/conta" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                    Minha conta
+                  </Link>
+                  <Link href="/store/conta/pedidos" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                    Meus pedidos
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/store/login" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                    Entrar
+                  </Link>
+                  <Link href="/store/cadastro" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                    Criar conta
+                  </Link>
+                </>
+              )}
               <Link href="/store/privacidade" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                 Politica de Privacidade
               </Link>

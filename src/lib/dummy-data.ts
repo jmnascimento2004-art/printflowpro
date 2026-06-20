@@ -152,6 +152,7 @@ export interface Customer {
     nome_fantasia?: string;
     whatsapp?: string;
     birth_date?: string;
+    contact_preference?: string;
     person_type?: 'fisica' | 'juridica';
     responsavel_nome?: string;
     responsavel_financeiro_nome?: string;

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { UserPlus } from 'lucide-react';
 import { StoreAuthPanel } from '@/components/store/StoreAccountShell';
 import { StoreField, storeInputClass } from '@/components/store/StoreFormFields';
@@ -13,6 +13,7 @@ import { formatCNPJ, formatCPF } from '@/lib/utils';
 
 export default function StoreSignupPage() {
   const router = useRouter();
+  const params = useSearchParams();
   const { signUp } = useStoreCustomer();
   const [form, setForm] = useState<StoreSignupInput>({
     name: '',
@@ -67,7 +68,7 @@ export default function StoreSignupPage() {
     try {
       const result = await signUp(form);
       if (result === 'confirmed') {
-        router.push('/store/conta');
+        router.push(params.get('redirect') || '/store/conta');
       } else {
         setMessage('Conta criada. Confira seu e-mail para confirmar o cadastro antes de entrar.');
       }

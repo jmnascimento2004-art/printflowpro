@@ -8,12 +8,25 @@ import { formatCurrency } from '@/lib/pricing';
 import { getOrderStatusLabel } from '@/lib/store-customer';
 
 export default function StoreOrdersPage() {
-  const { orders } = useStoreCustomer();
+  const { orders, isLoading, error } = useStoreCustomer();
 
   return (
     <StoreAccountShell title="Meus pedidos" subtitle="Veja o andamento dos pedidos vinculados a sua conta.">
       <div className="space-y-3">
-        {orders.length > 0 ? orders.map((order) => (
+        {isLoading && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-slate-900" />
+            <p className="mt-3 text-sm font-bold text-slate-500">Carregando pedidos...</p>
+          </div>
+        )}
+
+        {!isLoading && error && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-600">
+            Erro ao carregar pedidos. Tente novamente em instantes.
+          </div>
+        )}
+
+        {!isLoading && !error && orders.length > 0 ? orders.map((order) => (
           <div key={order.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
@@ -32,12 +45,15 @@ export default function StoreOrdersPage() {
               </div>
             </div>
           </div>
-        )) : (
+        )) : !isLoading && !error ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
             <Package className="mx-auto h-10 w-10 text-slate-300" />
             <p className="mt-3 text-sm font-bold text-slate-500">Nenhum pedido encontrado para sua conta.</p>
+            <Link href="/store" className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-xs font-black text-white">
+              Continuar comprando
+            </Link>
           </div>
-        )}
+        ) : null}
       </div>
     </StoreAccountShell>
   );

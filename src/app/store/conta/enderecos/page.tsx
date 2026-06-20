@@ -5,7 +5,7 @@ import { MapPin, Plus, Save, Star, Trash2 } from 'lucide-react';
 import { StoreAccountShell } from '@/components/store/StoreAccountShell';
 import { StoreField, storeInputClass, storeTextareaClass } from '@/components/store/StoreFormFields';
 import { useStoreCustomer } from '@/context/store-customer-context';
-import { formatStoreAddress, StoreCustomerAddress } from '@/lib/store-customer';
+import { StoreCustomerAddress } from '@/lib/store-customer';
 import { formatCEP } from '@/lib/utils';
 
 const emptyForm: Partial<StoreCustomerAddress> = {
@@ -83,6 +83,15 @@ export default function StoreAddressesPage() {
     <StoreAccountShell title="Enderecos" subtitle="Cadastre enderecos para preencher o checkout mais rapido.">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-3">
+          <button
+            type="button"
+            onClick={resetForm}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white xl:hidden"
+          >
+            <Plus className="h-4 w-4" />
+            Adicionar novo endereco
+          </button>
+
           {addresses.length > 0 ? addresses.map((address) => (
             <div key={address.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -91,7 +100,13 @@ export default function StoreAddressesPage() {
                     <h2 className="text-sm font-black text-slate-950">{address.label}</h2>
                     {address.is_default && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">Principal</span>}
                   </div>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">{formatStoreAddress(address)}</p>
+                  <div className="mt-2 space-y-1 text-sm font-semibold leading-6 text-slate-600">
+                    <p>{address.recipient_name || customer?.name}</p>
+                    <p>{address.street}, {address.number}{address.complement ? ` - ${address.complement}` : ''}</p>
+                    <p>{address.neighborhood}</p>
+                    <p>{address.city}/{address.state} - CEP {address.zip_code}</p>
+                    {address.reference && <p className="text-xs text-slate-400">Ref.: {address.reference}</p>}
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setDefaultAddress(address.id)} className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2 text-xs font-black text-slate-500">
@@ -120,7 +135,7 @@ export default function StoreAddressesPage() {
             <h2 className="text-sm font-black uppercase text-slate-950">{editing ? 'Editar endereco' : 'Novo endereco'}</h2>
             <button type="button" onClick={resetForm} className="flex items-center gap-1 text-xs font-black text-slate-500">
               <Plus className="h-4 w-4" />
-              Limpar
+              Adicionar novo endereco
             </button>
           </div>
           {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">{message}</div>}

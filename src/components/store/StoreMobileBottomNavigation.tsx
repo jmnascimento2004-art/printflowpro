@@ -7,6 +7,7 @@ import {
   Home,
   Info,
   LayoutGrid,
+  LockKeyhole,
   MapPin,
   MessageCircle,
   PackageSearch,
@@ -15,7 +16,6 @@ import {
   UserRound,
   X
 } from 'lucide-react';
-import { StoreInstallAppButton } from '@/components/store/StoreInstallAppButton';
 import { useStoreCustomer } from '@/context/store-customer-context';
 
 type StoreCategory = {
@@ -246,12 +246,28 @@ export default function StoreMobileBottomNavigation({
                         Meus pedidos
                       </Link>
                       <Link
+                        href="/store/conta/enderecos"
+                        onClick={closeSheet}
+                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      >
+                        <MapPin className="h-4.5 w-4.5 text-slate-500" />
+                        Enderecos
+                      </Link>
+                      <Link
                         href="/store/conta/privacidade"
                         onClick={closeSheet}
                         className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
                       >
                         <Info className="h-4.5 w-4.5 text-slate-500" />
                         Privacidade
+                      </Link>
+                      <Link
+                        href="/store/conta/seguranca"
+                        onClick={closeSheet}
+                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      >
+                        <LockKeyhole className="h-4.5 w-4.5 text-slate-500" />
+                        Seguranca e senha
                       </Link>
                     </>
                   ) : (
@@ -267,15 +283,21 @@ export default function StoreMobileBottomNavigation({
                       <Link
                         href="/store/cadastro"
                         onClick={closeSheet}
+                        className="flex min-h-12 items-center justify-center gap-3 rounded-xl px-3 text-sm font-black text-white"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        Criar conta
+                      </Link>
+                      <Link
+                        href="/store/conta/pedidos"
+                        onClick={closeSheet}
                         className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
                       >
-                        <Info className="h-4.5 w-4.5 text-slate-500" />
-                        Criar conta
+                        <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
+                        Acompanhar pedido
                       </Link>
                     </>
                   )}
-
-                  <StoreInstallAppButton />
 
                   {whatsAppHref && (
                     <a
@@ -324,6 +346,15 @@ export default function StoreMobileBottomNavigation({
                     <HelpCircle className="h-4.5 w-4.5 text-slate-500" />
                     Politica de devolucao
                   </button>
+
+                  <Link
+                    href="/store/privacidade"
+                    onClick={closeSheet}
+                    className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                  >
+                    <Info className="h-4.5 w-4.5 text-slate-500" />
+                    Politicas da loja
+                  </Link>
 
                   {isAuthenticated && (
                     <button

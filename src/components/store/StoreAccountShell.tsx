@@ -3,15 +3,16 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeft, Home, LogOut, MapPin, Package, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, Home, LockKeyhole, LogOut, MapPin, Package, ShieldCheck, UserRound } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { useStoreCustomer } from '@/context/store-customer-context';
 
 const navItems = [
   { href: '/store/conta', label: 'Minha conta', icon: Home },
-  { href: '/store/conta/perfil', label: 'Meus dados', icon: UserRound },
+  { href: '/store/conta/pedidos', label: 'Meus pedidos', icon: Package },
   { href: '/store/conta/enderecos', label: 'Enderecos', icon: MapPin },
-  { href: '/store/conta/pedidos', label: 'Pedidos', icon: Package },
+  { href: '/store/conta/perfil', label: 'Dados cadastrais', icon: UserRound },
+  { href: '/store/conta/seguranca', label: 'Seguranca e senha', icon: LockKeyhole },
   { href: '/store/conta/privacidade', label: 'Privacidade', icon: ShieldCheck }
 ];
 
@@ -29,8 +30,10 @@ export function StoreAccountShell({
   const pathname = usePathname();
   const router = useRouter();
   const { company } = useDatabase();
-  const { isAuthenticated, isLoading, signOut } = useStoreCustomer();
+  const { isAuthenticated, isLoading, signOut, customer } = useStoreCustomer();
   const primaryColor = company.theme_color || '#5b3df4';
+  const logoSrc = company.logo_light || company.logo_dark || company.logo_url;
+  const storeName = company.name || 'Loja online';
 
   useEffect(() => {
     if (!requireAuth || isLoading || isAuthenticated) return;
@@ -52,30 +55,41 @@ export function StoreAccountShell({
   if (requireAuth && !isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-50 pb-[calc(5.75rem+env(safe-area-inset-bottom))] text-slate-900 md:pb-0">
-      <header className="border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-8">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 pb-[calc(6rem+env(safe-area-inset-bottom))] text-slate-900 md:pb-0">
+      <header className="border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-8">
           <Link href="/store" className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ backgroundColor: primaryColor }}>
-              <ShieldCheck className="h-5 w-5" />
-            </div>
+            {logoSrc ? (
+              <img src={logoSrc} alt={storeName} className="h-11 max-w-44 shrink-0 object-contain" />
+            ) : (
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white" style={{ backgroundColor: primaryColor }}>
+                {storeName.slice(0, 2).toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-black">{company.name || 'Loja online'}</p>
+              <p className="truncate text-sm font-black">{storeName}</p>
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Area do cliente</p>
             </div>
           </Link>
 
-          <Link href="/store" className="hidden items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 md:flex">
+          <Link href="/store" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600">
             <ArrowLeft className="h-4 w-4" />
-            Voltar ao catalogo
+            <span className="hidden sm:inline">Voltar ao catalogo</span>
+            <span className="sm:hidden">Catalogo</span>
           </Link>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-5 px-4 py-5 md:grid-cols-[240px_minmax(0,1fr)] md:px-8">
+      <main className={`mx-auto grid max-w-7xl gap-6 px-4 py-5 md:px-8 md:py-8 ${requireAuth ? 'md:grid-cols-[280px_minmax(0,1fr)]' : ''}`}>
         {requireAuth && (
-          <aside className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-            <nav className="grid grid-cols-2 gap-1 md:grid-cols-1">
+          <aside className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Cliente</p>
+              <p className="mt-1 truncate text-sm font-black text-slate-950">{customer?.name || 'Minha conta'}</p>
+              <p className="truncate text-xs font-semibold text-slate-500">{customer?.email || 'Dados do catalogo'}</p>
+            </div>
+
+            <nav className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm md:grid-cols-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href;
@@ -83,7 +97,7 @@ export function StoreAccountShell({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${
+                    className={`flex min-h-12 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${
                       active ? 'text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                     style={active ? { backgroundColor: primaryColor } : undefined}
@@ -96,7 +110,7 @@ export function StoreAccountShell({
               <button
                 type="button"
                 onClick={() => signOut()}
-                className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-left text-xs font-black text-rose-500 hover:bg-rose-50"
+                className="mt-1 flex min-h-12 items-center gap-2 rounded-xl border border-rose-100 bg-rose-50/70 px-3 text-left text-xs font-black text-rose-600 hover:bg-rose-50 md:mt-3"
               >
                 <LogOut className="h-4 w-4 shrink-0" />
                 Sair
@@ -106,8 +120,11 @@ export function StoreAccountShell({
         )}
 
         <section className="min-w-0 space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h1 className="text-2xl font-black tracking-tight text-slate-950">{title}</h1>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
+              Inicio / {title}
+            </p>
+            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{title}</h1>
             {subtitle && <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>}
           </div>
           {children}

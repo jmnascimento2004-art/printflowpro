@@ -13,7 +13,15 @@ export default function StoreAccountHomePage() {
   const openOrders = orders.filter((order) => !['entregue', 'finalizado', 'cancelado'].includes(order.status)).length;
 
   return (
-    <StoreAccountShell title={`Ola, ${customer?.name?.split(' ')[0] || 'cliente'}`} subtitle="Acompanhe seus pedidos e mantenha seus dados sempre atualizados.">
+    <StoreAccountShell title="Minha conta" subtitle="Gerencie seus dados, enderecos e pedidos.">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-wide text-slate-400">Bem-vindo</p>
+        <h2 className="mt-1 text-xl font-black text-slate-950">Ola, {customer?.name?.split(' ')[0] || 'cliente'}</h2>
+        <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+          Use o menu da conta para acompanhar pedidos, atualizar seus dados, gerenciar enderecos e revisar preferencias.
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-black uppercase text-slate-400">Pedidos</p>
