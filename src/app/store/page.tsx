@@ -41,6 +41,7 @@ import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNav
 import { StoreAccountMenu } from '@/components/store/StoreAccountMenu';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { formatStoreAddress } from '@/lib/store-customer';
+import { storeRoutes, withStoreRedirect } from '@/lib/store-routes';
 import {
   ProductConfiguratorModal,
   type ProductConfiguratorCartPayload
@@ -1511,10 +1512,10 @@ export default function StorefrontPage() {
                         Crie sua conta para acompanhar pedidos, salvar enderecos e comprar com mais rapidez.
                       </p>
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        <Link href="/store/login?redirect=/store?checkout=1" className="flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-700">
+                        <Link href={withStoreRedirect(storeRoutes.login, '/store?checkout=1')} className="flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-700">
                           Entrar
                         </Link>
-                        <Link href="/store/cadastro?redirect=/store?checkout=1" className="flex min-h-10 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-black text-white">
+                        <Link href={withStoreRedirect(storeRoutes.signup, '/store?checkout=1')} className="flex min-h-10 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-black text-white">
                           Criar conta
                         </Link>
                       </div>
@@ -2091,21 +2092,27 @@ export default function StorefrontPage() {
               </button>
               {storeCustomerAuthenticated ? (
                 <>
-                  <Link href="/store/conta" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  <a href={storeRoutes.account} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Minha conta
-                  </Link>
-                  <Link href="/store/conta/pedidos" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  </a>
+                  <a href={storeRoutes.orders} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Meus pedidos
-                  </Link>
+                  </a>
                 </>
               ) : (
                 <>
-                  <Link href="/store/login" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  <a href={storeRoutes.login} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Entrar
-                  </Link>
-                  <Link href="/store/cadastro" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  </a>
+                  <a href={storeRoutes.signup} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Criar conta
-                  </Link>
+                  </a>
+                  <a href={withStoreRedirect(storeRoutes.login, storeRoutes.account)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                    Minha conta
+                  </a>
+                  <a href={withStoreRedirect(storeRoutes.login, storeRoutes.orders)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                    Meus pedidos
+                  </a>
                 </>
               )}
               <Link href="/store/privacidade" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">

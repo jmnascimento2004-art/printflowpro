@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ChevronDown, LockKeyhole, LogIn, LogOut, MapPin, PackageSearch, ShieldCheck, UserRound } from 'lucide-react';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { storeRoutes, withStoreRedirect } from '@/lib/store-routes';
 
 type StoreAccountMenuProps = {
   primaryColor: string;
 };
 
 export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const { isAuthenticated, customer, orders, signOut } = useStoreCustomer();
   const firstName = customer?.name?.split(' ')[0] || 'cliente';
@@ -22,6 +24,10 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
     .toUpperCase();
 
   const close = () => setOpen(false);
+  const navigate = (href: string) => {
+    close();
+    router.push(href);
+  };
 
   return (
     <div className="relative hidden md:block">
@@ -71,11 +77,11 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
             <div className="p-2">
               {isAuthenticated ? (
                 <>
-                  <MenuLink href="/store/conta" icon={<UserRound className="h-4 w-4" />} onClick={close}>Minha conta</MenuLink>
-                  <MenuLink href="/store/conta/pedidos" icon={<PackageSearch className="h-4 w-4" />} onClick={close}>Meus pedidos</MenuLink>
-                  <MenuLink href="/store/conta/enderecos" icon={<MapPin className="h-4 w-4" />} onClick={close}>Enderecos</MenuLink>
-                  <MenuLink href="/store/conta/seguranca" icon={<LockKeyhole className="h-4 w-4" />} onClick={close}>Seguranca e senha</MenuLink>
-                  <MenuLink href="/store/conta/privacidade" icon={<ShieldCheck className="h-4 w-4" />} onClick={close}>Privacidade e preferencias</MenuLink>
+                  <MenuAction icon={<UserRound className="h-4 w-4" />} onClick={() => navigate(storeRoutes.account)}>Minha conta</MenuAction>
+                  <MenuAction icon={<PackageSearch className="h-4 w-4" />} onClick={() => navigate(storeRoutes.orders)}>Meus pedidos</MenuAction>
+                  <MenuAction icon={<MapPin className="h-4 w-4" />} onClick={() => navigate(storeRoutes.addresses)}>Enderecos</MenuAction>
+                  <MenuAction icon={<LockKeyhole className="h-4 w-4" />} onClick={() => navigate(storeRoutes.security)}>Seguranca e senha</MenuAction>
+                  <MenuAction icon={<ShieldCheck className="h-4 w-4" />} onClick={() => navigate(storeRoutes.privacy)}>Privacidade e preferencias</MenuAction>
                   <button
                     type="button"
                     onClick={() => {
@@ -90,16 +96,16 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
                 </>
               ) : (
                 <>
-                  <MenuLink href="/store/login" icon={<LogIn className="h-4 w-4" />} onClick={close}>Entrar na minha conta</MenuLink>
-                  <Link
-                    href="/store/cadastro"
-                    onClick={close}
+                  <MenuAction icon={<LogIn className="h-4 w-4" />} onClick={() => navigate(storeRoutes.login)}>Entrar na minha conta</MenuAction>
+                  <button
+                    type="button"
+                    onClick={() => navigate(storeRoutes.signup)}
                     className="mt-1 flex min-h-11 items-center justify-center rounded-xl text-sm font-black text-white"
                     style={{ backgroundColor: primaryColor }}
                   >
                     Criar minha conta
-                  </Link>
-                  <MenuLink href="/store/conta/pedidos" icon={<PackageSearch className="h-4 w-4" />} onClick={close}>Acompanhar meus pedidos</MenuLink>
+                  </button>
+                  <MenuAction icon={<PackageSearch className="h-4 w-4" />} onClick={() => navigate(withStoreRedirect(storeRoutes.login, storeRoutes.orders))}>Acompanhar meus pedidos</MenuAction>
                 </>
               )}
             </div>
@@ -110,25 +116,23 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
   );
 }
 
-function MenuLink({
-  href,
+function MenuAction({
   icon,
   children,
   onClick
 }: {
-  href: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   onClick: () => void;
 }) {
   return (
-    <Link
-      href={href}
+    <button
+      type="button"
       onClick={onClick}
-      className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+      className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"
     >
       <span className="text-slate-400">{icon}</span>
       {children}
-    </Link>
+    </button>
   );
 }

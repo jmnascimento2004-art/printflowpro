@@ -9,11 +9,13 @@ import { StoreField, storeInputClass } from '@/components/store/StoreFormFields'
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { StoreCustomerType, StoreSignupInput, validateStoreSignup } from '@/lib/store-customer';
 import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/lib/privacy';
+import { sanitizeStoreRedirect, storeRoutes } from '@/lib/store-routes';
 import { formatCNPJ, formatCPF } from '@/lib/utils';
 
 export default function StoreSignupPage() {
   const router = useRouter();
   const params = useSearchParams();
+  const redirect = sanitizeStoreRedirect(params.get('redirect'));
   const { signUp } = useStoreCustomer();
   const [form, setForm] = useState<StoreSignupInput>({
     name: '',
@@ -68,7 +70,7 @@ export default function StoreSignupPage() {
     try {
       const result = await signUp(form);
       if (result === 'confirmed') {
-        router.push(params.get('redirect') || '/store/conta');
+        router.push(redirect || storeRoutes.account);
       } else {
         setMessage('Conta criada. Confira seu e-mail para confirmar o cadastro antes de entrar.');
       }

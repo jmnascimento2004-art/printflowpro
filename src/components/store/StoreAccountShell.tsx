@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ArrowLeft, Home, LockKeyhole, LogOut, MapPin, Package, ShieldCheck, UserRound } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { storeRoutes, withStoreRedirect } from '@/lib/store-routes';
 
 const navItems = [
   { href: '/store/conta', label: 'Minha conta', icon: Home },
@@ -37,8 +38,7 @@ export function StoreAccountShell({
 
   useEffect(() => {
     if (!requireAuth || isLoading || isAuthenticated) return;
-    const redirect = encodeURIComponent(pathname || '/store/conta');
-    router.replace(`/store/login?redirect=${redirect}`);
+    router.replace(withStoreRedirect(storeRoutes.login, pathname || storeRoutes.account));
   }, [isAuthenticated, isLoading, pathname, requireAuth, router]);
 
   if (requireAuth && isLoading) {

@@ -7,12 +7,13 @@ import { LogIn } from 'lucide-react';
 import { StoreAuthPanel } from '@/components/store/StoreAccountShell';
 import { StoreField, storeInputClass } from '@/components/store/StoreFormFields';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { sanitizeStoreRedirect, storeRoutes, withStoreRedirect } from '@/lib/store-routes';
 
 export default function StoreLoginPage() {
   const router = useRouter();
   const params = useSearchParams();
   const { signIn } = useStoreCustomer();
-  const redirect = params.get('redirect') || '';
+  const redirect = sanitizeStoreRedirect(params.get('redirect'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -25,7 +26,7 @@ export default function StoreLoginPage() {
 
     try {
       await signIn(email, password);
-      router.push(redirect || '/store/conta');
+      router.push(redirect || storeRoutes.account);
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Nao foi possivel entrar. Confira e-mail e senha.');
     } finally {
@@ -60,7 +61,7 @@ export default function StoreLoginPage() {
 
         <div className="flex flex-col gap-2 text-center text-xs font-bold text-slate-500 sm:flex-row sm:justify-between">
           <Link href="/store/recuperar-senha" className="hover:text-slate-900">Esqueci minha senha</Link>
-          <Link href={redirect ? `/store/cadastro?redirect=${encodeURIComponent(redirect)}` : '/store/cadastro'} className="hover:text-slate-900">Criar conta</Link>
+          <Link href={withStoreRedirect(storeRoutes.signup, redirect)} className="hover:text-slate-900">Criar conta</Link>
         </div>
       </form>
     </StoreAuthPanel>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   HelpCircle,
   Home,
@@ -17,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { storeRoutes, withStoreRedirect } from '@/lib/store-routes';
 
 type StoreCategory = {
   id: string;
@@ -57,6 +59,7 @@ export default function StoreMobileBottomNavigation({
   onOpenPickupPoints,
   onOpenRefundPolicy
 }: StoreMobileBottomNavigationProps) {
+  const router = useRouter();
   const [sheet, setSheet] = useState<'categories' | 'search' | 'account' | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { isAuthenticated, customer, orders, signOut } = useStoreCustomer();
@@ -75,6 +78,10 @@ export default function StoreMobileBottomNavigation({
   const homeActive = !selectedCategory && !searchQuery.trim() && !sheet;
 
   const closeSheet = () => setSheet(null);
+  const navigate = (href: string) => {
+    closeSheet();
+    router.push(href);
+  };
 
   const handleCategoryClick = (categoryId: string | null) => {
     onSelectCategory(categoryId);
@@ -229,73 +236,73 @@ export default function StoreMobileBottomNavigation({
                 <div className="space-y-1.5">
                   {isAuthenticated ? (
                     <>
-                      <Link
-                        href="/store/conta"
-                        onClick={closeSheet}
-                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      <button
+                        type="button"
+                        onClick={() => navigate(storeRoutes.account)}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <UserRound className="h-4.5 w-4.5 text-slate-500" />
                         Minha conta
-                      </Link>
-                      <Link
-                        href="/store/conta/pedidos"
-                        onClick={closeSheet}
-                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(storeRoutes.orders)}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
                         Meus pedidos
-                      </Link>
-                      <Link
-                        href="/store/conta/enderecos"
-                        onClick={closeSheet}
-                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(storeRoutes.addresses)}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <MapPin className="h-4.5 w-4.5 text-slate-500" />
                         Enderecos
-                      </Link>
-                      <Link
-                        href="/store/conta/privacidade"
-                        onClick={closeSheet}
-                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(storeRoutes.privacy)}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <Info className="h-4.5 w-4.5 text-slate-500" />
                         Privacidade
-                      </Link>
-                      <Link
-                        href="/store/conta/seguranca"
-                        onClick={closeSheet}
-                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(storeRoutes.security)}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <LockKeyhole className="h-4.5 w-4.5 text-slate-500" />
                         Seguranca e senha
-                      </Link>
+                      </button>
                     </>
                   ) : (
                     <>
-                      <Link
-                        href="/store/login"
-                        onClick={closeSheet}
-                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      <button
+                        type="button"
+                        onClick={() => navigate(storeRoutes.login)}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <UserRound className="h-4.5 w-4.5 text-slate-500" />
                         Entrar
-                      </Link>
-                      <Link
-                        href="/store/cadastro"
-                        onClick={closeSheet}
-                        className="flex min-h-12 items-center justify-center gap-3 rounded-xl px-3 text-sm font-black text-white"
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(storeRoutes.signup)}
+                        className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-3 text-sm font-black text-white"
                         style={{ backgroundColor: primaryColor }}
                       >
                         Criar conta
-                      </Link>
-                      <Link
-                        href="/store/conta/pedidos"
-                        onClick={closeSheet}
-                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(withStoreRedirect(storeRoutes.login, storeRoutes.orders))}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
                         Acompanhar pedido
-                      </Link>
+                      </button>
                     </>
                   )}
 
