@@ -71,6 +71,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const userId = currentSession.user.id;
     const userEmail = currentSession.user.email || '';
+    const isStoreCustomer = currentSession.user.user_metadata?.store_customer === true;
+
+    if (isStoreCustomer) {
+      setActiveProfileState({
+        ...EMPTY_PROFILE,
+        auth_user_id: userId,
+        email: userEmail,
+        name: currentSession.user.user_metadata?.name || 'Cliente do catalogo',
+      });
+      setAuthError(null);
+      return;
+    }
 
     const { data, error } = await supabase
       .from('profiles')

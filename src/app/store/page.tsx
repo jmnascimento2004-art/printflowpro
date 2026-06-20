@@ -37,6 +37,8 @@ import { BrandMark } from '@/components/brand';
 import { StoreInstallAppButton } from '@/components/store/StoreInstallAppButton';
 import { StorePWARegister } from '@/components/store/store-pwa-register';
 import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNavigation';
+import { useStoreCustomer } from '@/context/store-customer-context';
+import { formatStoreAddress } from '@/lib/store-customer';
 import {
   ProductConfiguratorModal,
   type ProductConfiguratorCartPayload
@@ -113,6 +115,12 @@ function getThemeColorShade(hex: string, percent: number, opacity?: number) {
 
 export default function StorefrontPage() {
   const { products, categories, orders, addQuote, addCustomer, pickupPoints, banners, company, settings } = useDatabase();
+  const {
+    isAuthenticated: storeCustomerAuthenticated,
+    customer: storeCustomer,
+    addresses: storeCustomerAddresses,
+    defaultAddress: storeDefaultAddress
+  } = useStoreCustomer();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<'all' | 'promo' | 'highlight'>('all');
   const [showcaseTab, setShowcaseTab] = useState<'bestsellers' | 'promo' | 'highlight'>('bestsellers');
@@ -306,7 +314,38 @@ export default function StorefrontPage() {
   const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
   const [deliveryCity, setDeliveryCity] = useState('');
   const [deliveryState, setDeliveryState] = useState('');
+  const [selectedStoreAddressId, setSelectedStoreAddressId] = useState('');
   const [orderCompleted, setOrderCompleted] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!storeCustomerAuthenticated || !storeCustomer) return;
+
+    setClientName((current) => current || storeCustomer.name || '');
+    setClientPhone((current) => current || storeCustomer.phone || '');
+
+    if (storeDefaultAddress) {
+      setSelectedStoreAddressId((current) => current || storeDefaultAddress.id);
+      setDeliveryZipCode((current) => current || storeDefaultAddress.zip_code || '');
+      setDeliveryStreet((current) => current || storeDefaultAddress.street || '');
+      setDeliveryNumber((current) => current || storeDefaultAddress.number || '');
+      setDeliveryNeighborhood((current) => current || storeDefaultAddress.neighborhood || '');
+      setDeliveryCity((current) => current || storeDefaultAddress.city || '');
+      setDeliveryState((current) => current || storeDefaultAddress.state || '');
+    }
+  }, [storeCustomerAuthenticated, storeCustomer, storeDefaultAddress]);
+
+  const applyStoreAddress = (addressId: string) => {
+    setSelectedStoreAddressId(addressId);
+    const address = storeCustomerAddresses.find((item) => item.id === addressId);
+    if (!address) return;
+    setDeliveryZipCode(address.zip_code || '');
+    setDeliveryStreet(address.street || '');
+    setDeliveryNumber(address.number || '');
+    setDeliveryNeighborhood(address.neighborhood || '');
+    setDeliveryCity(address.city || '');
+    setDeliveryState(address.state || '');
+    setDeliveryMethod('motoboy');
+  };
 
   // 1. Filter active points and auto-select first active point
   const activePickupPoints = (pickupPoints || []).filter(p => p && p.active);
@@ -494,7 +533,7 @@ export default function StorefrontPage() {
 
     const checkoutNotes = clientNotes.trim() || 'Sem observacoes.';
 
-    const webCustomer = addCustomer({
+    const webCustomer = storeCustomerAuthenticated && storeCustomer ? storeCustomer : addCustomer({
       name: clientName.trim(),
       document: '',
       phone: clientPhone.trim(),
@@ -518,7 +557,7 @@ export default function StorefrontPage() {
 
     const nextQuote = addQuote({
       customer_id: webCustomer.id,
-      customer_name: `${clientName} (Web)`,
+      customer_name: storeCustomerAuthenticated ? clientName.trim() : `${clientName} (Web)`,
       status: 'pendente',
       total_amount: getCartTotal(),
       discount: 0,
@@ -1517,6 +1556,24 @@ export default function StorefrontPage() {
                         <MapPin className="h-3.5 w-3.5 text-emerald-600" />
                         <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Endereco completo para entrega *</label>
                       </div>
+
+                      {storeCustomerAuthenticated && storeCustomerAddresses.length > 0 && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Enderecos salvos</label>
+                          <select
+                            value={selectedStoreAddressId}
+                            onChange={(event) => applyStoreAddress(event.target.value)}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500"
+                          >
+                            <option value="">Selecionar endereco salvo...</option>
+                            {storeCustomerAddresses.map((address) => (
+                              <option key={address.id} value={address.id}>
+                                {address.label} - {formatStoreAddress(address)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div className="space-y-1">

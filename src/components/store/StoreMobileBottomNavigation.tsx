@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   HelpCircle,
   Home,
@@ -15,6 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { StoreInstallAppButton } from '@/components/store/StoreInstallAppButton';
+import { useStoreCustomer } from '@/context/store-customer-context';
 
 type StoreCategory = {
   id: string;
@@ -57,6 +59,7 @@ export default function StoreMobileBottomNavigation({
 }: StoreMobileBottomNavigationProps) {
   const [sheet, setSheet] = useState<'categories' | 'search' | 'account' | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const { isAuthenticated, customer, orders, signOut } = useStoreCustomer();
 
   useEffect(() => {
     if (sheet === 'search') {
@@ -213,13 +216,57 @@ export default function StoreMobileBottomNavigation({
             {sheet === 'account' && (
               <div className="max-h-[58dvh] overflow-y-auto p-3">
                 <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-black text-slate-900">Atendimento da loja</p>
+                  <p className="text-xs font-black text-slate-900">
+                    {isAuthenticated ? `Ola, ${customer?.name?.split(' ')[0] || 'cliente'}` : 'Conta do cliente'}
+                  </p>
                   <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                    Acompanhe seu pedido e tire duvidas diretamente com a equipe comercial.
+                    {isAuthenticated
+                      ? `${orders.length} pedido(s) vinculados a sua conta.`
+                      : 'Entre ou crie sua conta para acompanhar pedidos e salvar enderecos.'}
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
+                  {isAuthenticated ? (
+                    <>
+                      <Link
+                        href="/store/conta"
+                        onClick={closeSheet}
+                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      >
+                        <UserRound className="h-4.5 w-4.5 text-slate-500" />
+                        Minha conta
+                      </Link>
+                      <Link
+                        href="/store/conta/pedidos"
+                        onClick={closeSheet}
+                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      >
+                        <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
+                        Meus pedidos
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/store/login"
+                        onClick={closeSheet}
+                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      >
+                        <UserRound className="h-4.5 w-4.5 text-slate-500" />
+                        Entrar
+                      </Link>
+                      <Link
+                        href="/store/cadastro"
+                        onClick={closeSheet}
+                        className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
+                      >
+                        <Info className="h-4.5 w-4.5 text-slate-500" />
+                        Criar conta
+                      </Link>
+                    </>
+                  )}
+
                   <StoreInstallAppButton />
 
                   {whatsAppHref && (
@@ -269,6 +316,19 @@ export default function StoreMobileBottomNavigation({
                     <HelpCircle className="h-4.5 w-4.5 text-slate-500" />
                     Politica de devolucao
                   </button>
+
+                  {isAuthenticated && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeSheet();
+                        signOut();
+                      }}
+                      className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-rose-200 px-3 text-left text-sm font-bold text-rose-500"
+                    >
+                      Sair da conta
+                    </button>
+                  )}
                 </div>
               </div>
             )}
