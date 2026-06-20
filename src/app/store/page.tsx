@@ -390,11 +390,22 @@ export default function StorefrontPage() {
     const parent = (categories || []).find((item) => item.id === category.parent_id);
     return parent?.show_in_catalog !== false;
   });
-  const catalogCategoryIds = new Set(catalogCategories.map((category) => category.id));
+  const isProductCategoryVisible = (product: Product) => {
+    if (!product.category_id) return true;
+    if (!categories || categories.length === 0) return true;
+
+    const category = categories.find((item) => item.id === product.category_id);
+    if (!category) return true;
+    if (category.show_in_catalog === false) return false;
+
+    if (!category.parent_id) return true;
+    const parent = categories.find((item) => item.id === category.parent_id);
+    return parent?.show_in_catalog !== false;
+  };
   const activeProducts = (products || []).filter((product) => {
     if (!product || product.active === false) return false;
     if (!product || product.catalog_active === false) return false;
-    return !product.category_id || catalogCategoryIds.has(product.category_id);
+    return isProductCategoryVisible(product);
   });
   const searchedProducts = searchQuery.trim() !== ''
     ? activeProducts.filter(p => 
@@ -416,6 +427,7 @@ export default function StorefrontPage() {
     if (selectedTagFilter === 'highlight') return product.is_highlight;
     return true;
   });
+
   const soldQuantityByProductId = (orders || []).reduce<Record<string, number>>((acc, order) => {
     (order.items || []).forEach((item) => {
       acc[item.product_id] = (acc[item.product_id] || 0) + item.quantity;

@@ -480,8 +480,25 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           isStoreRoute ? skipPrivateData : supabase.from('cash_register_transactions').select('*')
         ]);
 
-        const activeCompany = companies && companies.length > 0 ? resolveCompanyForHostname(companies as Company[]) : null;
-        const activeCompanyId = activeCompany?.id || companies?.[0]?.id;
+        let activeCompany = companies && companies.length > 0 ? resolveCompanyForHostname(companies as Company[]) : null;
+        let activeCompanyId = activeCompany?.id || companies?.[0]?.id;
+
+        if (isStoreRoute && productsData && activeCompanyId) {
+          const publicProductsByCompany = (productsData as Product[]).reduce<Record<string, number>>((acc, product) => {
+            if (product?.company_id && product.active !== false && product.catalog_active !== false) {
+              acc[product.company_id] = (acc[product.company_id] || 0) + 1;
+            }
+            return acc;
+          }, {});
+          const currentCompanyProductCount = publicProductsByCompany[activeCompanyId] || 0;
+          const companyIdsWithPublicProducts = Object.keys(publicProductsByCompany);
+
+          if (currentCompanyProductCount === 0 && companyIdsWithPublicProducts.length === 1) {
+            activeCompanyId = companyIdsWithPublicProducts[0];
+            activeCompany = (companies as Company[]).find((item) => item.id === activeCompanyId) || activeCompany;
+          }
+        }
+
         const filterByCompany = <T extends { company_id?: string }>(items: T[] | null) =>
           activeCompanyId ? (items || []).filter((item) => item.company_id === activeCompanyId) : (items || []);
 
