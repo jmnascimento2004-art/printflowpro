@@ -182,6 +182,15 @@ export interface StoreBanner {
 type QuoteItemRow = QuoteItem & { quote_id: string };
 type OrderItemRow = OrderItem & { order_id: string };
 type StoreBannerRow = StoreBanner & { company_id?: string };
+type PublicStoreDataResponse = {
+  debug?: Record<string, unknown>;
+  company: Company | null;
+  settings: (Partial<typeof DUMMY_SETTINGS> & { company_id?: string }) | null;
+  categories: Category[];
+  products: Product[];
+  pickupPoints: PickupPoint[];
+  banners: StoreBannerRow[];
+};
 
 const DEFAULT_BANNERS: StoreBanner[] = [
   {
@@ -251,8 +260,8 @@ const isBrowser = () => typeof window !== 'undefined';
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
 const isPublicStoreRoute = () => isBrowser() && window.location.pathname.startsWith('/store');
 
-const normalizeDomain = (value: string = '') => {
-  const trimmed = value.trim().toLowerCase();
+const normalizeDomain = (value?: string | null) => {
+  const trimmed = String(value || '').trim().toLowerCase();
   if (!trimmed) return '';
 
   const withoutProtocol = trimmed.replace(/^https?:\/\//, '');
@@ -269,6 +278,19 @@ const normalizeDomainSlug = (value: string = '') =>
 const getCurrentHostname = () => {
   if (!isBrowser()) return '';
   return normalizeDomain(window.location.hostname);
+};
+
+const isStoreDebugEnabled = () => {
+  if (!isBrowser()) return false;
+  return (
+    window.location.search.includes('debugStore=1') ||
+    window.localStorage.getItem('printflow_store_debug') === 'true'
+  );
+};
+
+const logStoreDebug = (label: string, payload: Record<string, unknown>) => {
+  if (!isStoreDebugEnabled()) return;
+  console.log(`[STORE DEBUG] ${label}`, payload);
 };
 
 const resolveCompanyForHostname = (companies: Company[]) => {
@@ -383,6 +405,87 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         const publicSelect = async <T,>(table: string) =>
           isStoreRoute ? publicStoreSelect<T>(table) : supabase.from(table).select('*');
         const skipPrivateData = Promise.resolve({ data: null });
+
+        if (isStoreRoute) {
+          const hostname = getCurrentHostname();
+          const storeResponse = await fetch('/api/store/public-data', { cache: 'no-store' });
+
+          if (!storeResponse.ok) {
+            const errorBody = await storeResponse.text().catch(() => '');
+            throw new Error(`Public store loader failed: ${storeResponse.status} ${errorBody}`);
+          }
+
+          const storeData = (await storeResponse.json()) as PublicStoreDataResponse;
+          const activeCompany = storeData.company;
+          const activeCompanyId = activeCompany?.id || null;
+          const scopedProducts = storeData.products || [];
+          const scopedCategories = (storeData.categories || []).map((category) => ({
+            ...category,
+            show_in_catalog: category.show_in_catalog ?? true
+          }));
+          const activeProductCount = scopedProducts.filter((product) => product.active !== false).length;
+          const catalogProductCount = scopedProducts.filter(
+            (product) => product.active !== false && product.catalog_active !== false
+          ).length;
+
+          logStoreDebug('context-load', {
+            hostname,
+            pathname: window.location.pathname,
+            companiesCount: storeData.debug?.companies_count || null,
+            resolvedCompany: activeCompany
+              ? {
+                  id: activeCompany.id,
+                  name: activeCompany.name,
+                  admin_domain: activeCompany.admin_domain,
+                  store_domain: activeCompany.store_domain,
+                  custom_domain: activeCompany.custom_domain
+                }
+              : null,
+            resolvedCompanyId: activeCompanyId,
+            loader: storeData.debug || null,
+            productsRawCount: scopedProducts.length,
+            productsCompanyCount: scopedProducts.length,
+            productsActiveCount: activeProductCount,
+            productsCatalogActiveCount: catalogProductCount,
+            categoriesRawCount: scopedCategories.length,
+            categoriesCompanyCount: scopedCategories.length
+          });
+
+          if (!activeCompany || !activeCompanyId) {
+            warnCaught('[STORE DEBUG] Empresa da loja nao resolvida para o dominio:', {
+              hostname,
+              companiesCount: storeData.debug?.companies_count || null
+            });
+          }
+
+          setCompany(activeCompany || { ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
+
+          if (storeData.settings) {
+            setSettings(mergeSettingsWithDefaults(storeData.settings as Partial<typeof DUMMY_SETTINGS>));
+          } else {
+            setSettings(DUMMY_SETTINGS);
+          }
+
+          setCustomers([]);
+          setSuppliers([]);
+          setCategories(scopedCategories);
+          setProducts(scopedProducts);
+          setQuotes([]);
+          setOrders([]);
+          setProduction([]);
+          setFinancial([]);
+          setShipments([]);
+          setStockMovements([]);
+          setPickupPoints(storeData.pickupPoints || []);
+          setBanners(storeData.banners || []);
+          setProfiles([]);
+          setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+          setSessions([]);
+          setRegisterTransactions([]);
+          setInitialized(true);
+          return;
+        }
+
         const companiesResponse = await publicSelect<Company>('companies');
         const companies = companiesResponse.data;
         const error = 'error' in companiesResponse ? companiesResponse.error : null;
@@ -480,24 +583,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           isStoreRoute ? skipPrivateData : supabase.from('cash_register_transactions').select('*')
         ]);
 
-        let activeCompany = companies && companies.length > 0 ? resolveCompanyForHostname(companies as Company[]) : null;
-        let activeCompanyId = activeCompany?.id || companies?.[0]?.id;
-
-        if (isStoreRoute && productsData && activeCompanyId) {
-          const publicProductsByCompany = (productsData as Product[]).reduce<Record<string, number>>((acc, product) => {
-            if (product?.company_id && product.active !== false && product.catalog_active !== false) {
-              acc[product.company_id] = (acc[product.company_id] || 0) + 1;
-            }
-            return acc;
-          }, {});
-          const currentCompanyProductCount = publicProductsByCompany[activeCompanyId] || 0;
-          const companyIdsWithPublicProducts = Object.keys(publicProductsByCompany);
-
-          if (currentCompanyProductCount === 0 && companyIdsWithPublicProducts.length === 1) {
-            activeCompanyId = companyIdsWithPublicProducts[0];
-            activeCompany = (companies as Company[]).find((item) => item.id === activeCompanyId) || activeCompany;
-          }
-        }
+        const activeCompany = companies && companies.length > 0 ? resolveCompanyForHostname(companies as Company[]) : null;
+        const activeCompanyId = activeCompany?.id || companies?.[0]?.id;
 
         const filterByCompany = <T extends { company_id?: string }>(items: T[] | null) =>
           activeCompanyId ? (items || []).filter((item) => item.company_id === activeCompanyId) : (items || []);

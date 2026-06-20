@@ -66,6 +66,15 @@ function getStoreInitials(name: string) {
   const words = name.split(/\s+/).map((word) => word.replace(/[^a-z0-9]/gi, '')).filter(Boolean);
   return (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0]?.slice(0, 2) || 'LO').toUpperCase();
 }
+
+const isStoreDebugEnabled = () => {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.location.search.includes('debugStore=1') ||
+    window.localStorage.getItem('printflow_store_debug') === 'true'
+  );
+};
+
 const getProductBadge = (name: string): 'favorito' | 'novo' | null => {
   const lowerName = name.toLowerCase();
   if (
@@ -427,6 +436,46 @@ export default function StorefrontPage() {
     if (selectedTagFilter === 'highlight') return product.is_highlight;
     return true;
   });
+
+  useEffect(() => {
+    if (!isStoreDebugEnabled()) return;
+
+    const productsAfterActive = (products || []).filter((product) => product && product.active !== false);
+    const productsAfterCatalog = productsAfterActive.filter((product) => product.catalog_active !== false);
+    const productsAfterCategory = productsAfterCatalog.filter((product) => isProductCategoryVisible(product));
+
+    console.log('[STORE DEBUG] page-filters', {
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      company: company
+        ? {
+            id: company.id,
+            name: company.name,
+            admin_domain: company.admin_domain,
+            store_domain: company.store_domain,
+            custom_domain: company.custom_domain
+          }
+        : null,
+      companyId: company?.id || null,
+      productsRawCount: (products || []).length,
+      productsAfterActiveCount: productsAfterActive.length,
+      productsAfterCatalogActiveCount: productsAfterCatalog.length,
+      productsAfterCategoryCount: productsAfterCategory.length,
+      categoriesCount: (categories || []).length,
+      searchTerm: searchQuery,
+      selectedCategory,
+      selectedTagFilter,
+      finalRenderedCount: taggedProducts.length,
+      finalRenderedProducts: taggedProducts.map((product) => ({
+        id: product.id,
+        name: product.name,
+        company_id: product.company_id,
+        category_id: product.category_id,
+        active: product.active,
+        catalog_active: product.catalog_active
+      }))
+    });
+  }, [products, categories, company, searchQuery, selectedCategory, selectedTagFilter, taggedProducts]);
 
   const soldQuantityByProductId = (orders || []).reduce<Record<string, number>>((acc, order) => {
     (order.items || []).forEach((item) => {
