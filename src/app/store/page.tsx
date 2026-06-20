@@ -36,6 +36,7 @@ import { buildWhatsAppOrderMessage, openWhatsAppWithMessage } from '@/lib/whatsa
 import { BrandMark } from '@/components/brand';
 import { StoreInstallAppButton } from '@/components/store/StoreInstallAppButton';
 import { StorePWARegister } from '@/components/store/store-pwa-register';
+import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNavigation';
 import {
   ProductConfiguratorModal,
   type ProductConfiguratorCartPayload
@@ -264,6 +265,27 @@ export default function StorefrontPage() {
     }, 100);
   };
 
+  const handleStoreHome = () => {
+    setSelectedCategory(null);
+    setSelectedTagFilter('all');
+    setSearchQuery('');
+    setMegaMenuOpen(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleMobileSearchChange = (query: string) => {
+    setSearchQuery(query);
+    if (query.trim() && typeof window !== 'undefined') {
+      const element = window.document.getElementById('products-showcase');
+      if (element) {
+        const y = element.getBoundingClientRect().top + window.pageYOffset - 96;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }
+  };
+
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -410,6 +432,7 @@ export default function StorefrontPage() {
   const getCartTotal = () => {
     return cart.reduce((sum, item) => sum + (item.quantity * item.calculatedPrice), 0);
   };
+  const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = (e: React.FormEvent) => {
     e.preventDefault();
@@ -577,7 +600,7 @@ export default function StorefrontPage() {
 };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200/70 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans antialiased flex flex-col justify-between">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200/70 pb-[calc(5.75rem+env(safe-area-inset-bottom))] text-slate-800 antialiased dark:bg-zinc-950 dark:text-zinc-100 md:pb-0 font-sans flex flex-col justify-between">
       <StorePWARegister />
       <style dangerouslySetInnerHTML={{ __html: `
         .bg-emerald-600 { background-color: ${primary} !important; }
@@ -695,7 +718,7 @@ export default function StorefrontPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden sm:block">
+            <div className="hidden md:block">
               <StoreInstallAppButton />
             </div>
 
@@ -714,12 +737,12 @@ export default function StorefrontPage() {
 
             <button
               onClick={() => setCartOpen(true)}
-              className="flex items-center gap-2 p-2.5 px-3 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white relative transition-all shadow-md shadow-emerald-600/10"
+              className="hidden md:flex items-center gap-2 p-2.5 px-3 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white relative transition-all shadow-md shadow-emerald-600/10"
             >
               <ShoppingCart className="h-4.5 w-4.5" />
-              {cart.length > 0 && (
+              {cartItemCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center shadow-md animate-bounce">
-                  {cart.length}
+                  {cartItemCount}
                 </span>
               )}
               <span className="hidden sm:inline text-xs font-bold">Carrinho</span>
@@ -729,7 +752,7 @@ export default function StorefrontPage() {
       </header>
 
       {/* Mobile Search Field */}
-      <div className="bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 md:hidden py-3">
+      <div className="hidden bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 md:hidden py-3">
         <div className="max-w-7xl mx-auto px-4 w-full flex relative items-center">
           <Search className="h-4 w-4 text-slate-400 absolute left-8" />
           <input
@@ -748,7 +771,7 @@ export default function StorefrontPage() {
       </div>
 
       {/* Category Menu Bar */}
-      <div className="bg-white dark:bg-zinc-900 sticky top-20 z-20 shadow-sm border-b border-slate-200 dark:border-zinc-800 w-full select-none">
+      <div className="hidden md:block bg-white dark:bg-zinc-900 sticky top-20 z-20 shadow-sm border-b border-slate-200 dark:border-zinc-800 w-full select-none">
         <div ref={menuBarRef} className="max-w-7xl mx-auto w-full px-4 md:px-8 relative">
           <div className="w-full flex items-center overflow-x-auto no-scrollbar">
             <div className="flex items-center w-full min-w-max h-12">
@@ -1166,7 +1189,7 @@ export default function StorefrontPage() {
         <main id="products-showcase" className="max-w-7xl w-full mx-auto px-4 md:px-8 space-y-6">
           {/* Dynamic products list grid */}
           {taggedProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {taggedProducts.map(p => {
                 const hasVolumeTiers = p.volume_pricing && p.volume_pricing.length > 0;
                 const deliveryTime = p.delivery_time || p.pricing_details?.delivery_time;
@@ -1264,7 +1287,7 @@ export default function StorefrontPage() {
                     </div>
 
                     {/* Price card footer */}
-                    <div className="border-t border-slate-100 p-3 pt-3 mt-1 flex items-center justify-between gap-2">
+                    <div className="border-t border-slate-100 p-3 pt-3 mt-1 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                           {hasVolumeTiers ? 'A partir de' : 'Preço'}
@@ -1287,7 +1310,7 @@ export default function StorefrontPage() {
                       
                       <button
                         onClick={() => handleOpenProductConfig(p)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
                       >
                         <ShoppingBag className="h-3.5 w-3.5" />
                         Comprar
@@ -1343,7 +1366,7 @@ export default function StorefrontPage() {
       {/* 8. Cart Drawer Panel */}
       {cartOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex justify-end">
-          <div className="bg-white w-full max-w-md border-l border-slate-200 h-full flex flex-col justify-between shadow-2xl p-4 sm:p-6 overflow-y-auto animate-in slide-in-from-right duration-200 text-slate-800">
+          <div className="bg-white w-full max-w-md border-l border-slate-200 h-full flex flex-col justify-between shadow-2xl p-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-6 overflow-y-auto animate-in slide-in-from-right duration-200 text-slate-800">
             
             <div className="space-y-5">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -1604,7 +1627,7 @@ export default function StorefrontPage() {
 
                   <button
                     type="submit"
-                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all flex items-center justify-center gap-1.5 mt-3"
+                    className="sticky bottom-0 z-10 w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all flex items-center justify-center gap-1.5 mt-3"
                   >
                     Enviar Pedido de Orçamento <ArrowRight className="h-4.5 w-4.5" />
                   </button>
@@ -1678,7 +1701,7 @@ export default function StorefrontPage() {
             </div>
 
             {showcaseProducts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {showcaseProducts.map((product) => {
                   const hasVolumeTiers = product.volume_pricing && product.volume_pricing.length > 0;
                   const deliveryTime = product.delivery_time || product.pricing_details?.delivery_time;
@@ -1769,7 +1792,7 @@ export default function StorefrontPage() {
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 p-3 pt-3 mt-1 flex items-center justify-between gap-2">
+                      <div className="border-t border-slate-100 p-3 pt-3 mt-1 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                             {hasVolumeTiers ? 'A partir de' : 'Preço'}
@@ -1793,7 +1816,7 @@ export default function StorefrontPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenProductConfig(product)}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
                         >
                           <ShoppingBag className="h-3.5 w-3.5" />
                           Comprar
@@ -2131,7 +2154,7 @@ export default function StorefrontPage() {
         <a
           href={`https://wa.me/55${(company.phone || '51987654321').replace(/\D/g, '')}`}
           target="_blank"
-          className="fixed bottom-6 right-6 z-40 bg-[#25D366] hover:bg-[#20ba5a] text-white p-3.5 rounded-full shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center group"
+          className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-4 z-40 bg-[#25D366] hover:bg-[#20ba5a] text-white p-3.5 rounded-full shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center group md:bottom-6 md:right-6"
           title="Fale Conosco no WhatsApp"
         >
           <svg className="h-6 w-6 fill-current" viewBox="0 0 24 24">
@@ -2139,6 +2162,25 @@ export default function StorefrontPage() {
           </svg>
         </a>
       </footer>
+
+      {!cartOpen && !activeAdvancedConfigProduct && !orderCompleted && !pickupModalOpen && !refundModalOpen && (
+        <StoreMobileBottomNavigation
+          categories={catalogCategories}
+          selectedCategory={selectedCategory}
+          searchQuery={searchQuery}
+          cartItemCount={cartItemCount}
+          companyName={company.name || 'Loja online'}
+          companyPhone={company.phone}
+          companyEmail={company.email}
+          primaryColor={primary}
+          onGoHome={handleStoreHome}
+          onSelectCategory={handleCategorySelect}
+          onSearchChange={handleMobileSearchChange}
+          onOpenCart={() => setCartOpen(true)}
+          onOpenPickupPoints={() => setPickupModalOpen(true)}
+          onOpenRefundPolicy={() => setRefundModalOpen(true)}
+        />
+      )}
 
       {/* Pickup points list modal */}
       {pickupModalOpen && (
