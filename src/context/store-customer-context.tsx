@@ -44,6 +44,7 @@ const StoreCustomerContext = createContext<StoreCustomerContextType | undefined>
 const STORE_SIGNUP_CACHE_KEY = 'printflow_store_signup_cache';
 
 const emptyAddressList: StoreCustomerAddress[] = [];
+type EnsuredStoreAccount = { account_id: string; customer_id: string };
 
 const getCachedSignup = (email: string): Partial<StoreSignupInput> | null => {
   if (typeof window === 'undefined') return null;
@@ -93,7 +94,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     [addresses]
   );
 
-  const ensureAccount = async (currentSession: Session, fallback?: Partial<StoreSignupInput>) => {
+  const ensureAccount = async (currentSession: Session, fallback?: Partial<StoreSignupInput>): Promise<EnsuredStoreAccount | null> => {
     const email = currentSession.user.email?.trim().toLowerCase() || '';
     const cached = email ? getCachedSignup(email) : null;
     const metadata = currentSession.user.user_metadata || {};
@@ -110,9 +111,9 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       marketingWhatsappAccepted: Boolean(fallback?.marketingWhatsappAccepted || cached?.marketingWhatsappAccepted || metadata.marketing_whatsapp_accepted)
     };
 
-    if (!company.id || !data.document || !data.phone) return;
+    if (!company.id || !data.document || !data.phone) return null;
 
-    const { error: rpcError } = await supabase.rpc('ensure_store_customer_account', {
+    const { data: ensuredData, error: rpcError } = await supabase.rpc('ensure_store_customer_account', {
       p_company_id: company.id,
       p_name: data.name,
       p_customer_type: data.customerType,
@@ -129,6 +130,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     });
 
     if (rpcError) throw rpcError;
+    return (ensuredData?.[0] as EnsuredStoreAccount | undefined) || null;
   };
 
   const loadStoreCustomer = async (nextSession = session) => {
@@ -146,8 +148,11 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     setError(null);
 
     try {
-      await ensureAccount(nextSession).catch((accountError) => {
+      let ensureAccountError = '';
+      const ensuredAccount = await ensureAccount(nextSession).catch((accountError) => {
         warnCaught('Conta de cliente final ainda incompleta:', accountError);
+        ensureAccountError = accountError instanceof Error ? accountError.message : 'Nao foi possivel vincular sua conta do catalogo.';
+        return null;
       });
 
       const { data: accountData, error: accountError } = await supabase
@@ -160,22 +165,49 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
 
       if (accountError) throw accountError;
 
-      if (!accountData) {
+      const accountCustomerId = accountData?.customer_id || ensuredAccount?.customer_id || '';
+      let nextAccount = (accountData as StoreCustomerAccount | null) || null;
+      let nextCustomer = nextAccount?.customer || null;
+
+      if (!nextCustomer && accountCustomerId) {
+        const { data: customerData, error: customerError } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('company_id', company.id)
+          .eq('id', accountCustomerId)
+          .maybeSingle();
+
+        if (customerError) throw customerError;
+        nextCustomer = customerData as Customer | null;
+      }
+
+      if (!nextAccount && ensuredAccount) {
+        nextAccount = {
+          id: ensuredAccount.account_id,
+          company_id: company.id,
+          customer_id: ensuredAccount.customer_id,
+          auth_user_id: nextSession.user.id,
+          status: 'active',
+          customer: nextCustomer || undefined
+        };
+      }
+
+      if (!nextAccount) {
         setAccount(null);
         setCustomer(null);
         setAddresses(emptyAddressList);
         setOrders([]);
         setQuotes([]);
+        setError(ensureAccountError || 'Nao encontramos um cadastro de cliente vinculado a este login.');
         setIsLoading(false);
         return;
       }
 
-      const nextAccount = accountData as StoreCustomerAccount;
-      const nextCustomer = nextAccount.customer || null;
       setAccount(nextAccount);
       setCustomer(nextCustomer || null);
 
       if (!nextCustomer?.id) {
+        setError(ensureAccountError || 'Nao foi possivel carregar os dados cadastrais deste cliente.');
         setIsLoading(false);
         return;
       }
