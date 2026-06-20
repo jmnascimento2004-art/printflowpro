@@ -33,7 +33,6 @@ export default function StoreSignupPage() {
     marketingWhatsappAccepted: false
   });
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -50,10 +49,17 @@ export default function StoreSignupPage() {
     setForm((current) => ({ ...current, customerType: nextType, document: '' }));
   };
 
+  const createSignupSuccessUrl = () => {
+    const successParams = new URLSearchParams();
+    if (form.email.trim()) successParams.set('email', form.email.trim().toLowerCase());
+    if (redirect) successParams.set('redirect', redirect);
+    const query = successParams.toString();
+    return query ? `${STORE_ROUTES.signupSuccess}?${query}` : STORE_ROUTES.signupSuccess;
+  };
+
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
-    setMessage('');
 
     const validation = validateStoreSignup(form);
     if (validation) {
@@ -72,7 +78,7 @@ export default function StoreSignupPage() {
       if (result === 'confirmed') {
         router.push(redirect || STORE_ROUTES.account);
       } else {
-        setMessage('Conta criada. Confira seu e-mail para confirmar o cadastro antes de entrar.');
+        router.replace(createSignupSuccessUrl());
       }
     } catch (signupError) {
       setError(signupError instanceof Error ? signupError.message : 'Nao foi possivel criar sua conta.');
@@ -88,7 +94,6 @@ export default function StoreSignupPage() {
     >
       <form onSubmit={submit} className="space-y-4">
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600">{error}</div>}
-        {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">{message}</div>}
 
         <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1">
           {(['fisica', 'juridica'] as StoreCustomerType[]).map((type) => (
