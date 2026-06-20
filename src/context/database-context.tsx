@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { publicSupabase } from '@/lib/publicSupabaseClient';
 import { warnCaught } from '@/lib/safe-log';
 import {
   buildCustomerRecord,
@@ -377,7 +378,9 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
     const init = async () => {
       try {
-    const { data: companies, error } = await supabase.from('companies').select('*');
+        const isStoreRoute = window.location.pathname.startsWith('/store');
+        const publicDataClient = isStoreRoute ? publicSupabase : supabase;
+        const { data: companies, error } = await publicDataClient.from('companies').select('*');
 
         if (error) {  warnCaught('Erro companies:', error);
           loadFromLocalStorage();
@@ -452,11 +455,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           { data: sessionsData },
           { data: regTransData }
         ] = await Promise.all([
-          supabase.from('settings').select('*'),
+          publicDataClient.from('settings').select('*'),
           supabase.from('profiles').select('*'),
           supabase.from('suppliers').select('*'),
-          supabase.from('categories').select('*'),
-          supabase.from('products').select('*'),
+          publicDataClient.from('categories').select('*'),
+          publicDataClient.from('products').select('*'),
           supabase.from('quotes').select('*'),
           supabase.from('quote_items').select('*'),
           supabase.from('orders').select('*'),
@@ -465,8 +468,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           supabase.from('financial_transactions').select('*'),
           supabase.from('shipments').select('*'),
           supabase.from('stock_movements').select('*'),
-          supabase.from('pickup_points').select('*'),
-          supabase.from('store_banners').select('*'),
+          publicDataClient.from('pickup_points').select('*'),
+          publicDataClient.from('store_banners').select('*'),
           supabase.from('role_permissions').select('*'),
           supabase.from('cash_register_sessions').select('*'),
           supabase.from('cash_register_transactions').select('*')
