@@ -9,7 +9,7 @@ import { StoreField, storeInputClass } from '@/components/store/StoreFormFields'
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { StoreCustomerType, StoreSignupInput, validateStoreSignup } from '@/lib/store-customer';
 import { PRIVACY_POLICY_VERSION, TERMS_VERSION } from '@/lib/privacy';
-import { sanitizeStoreRedirect, storeRoutes } from '@/lib/store-routes';
+import { sanitizeStoreRedirect, STORE_ROUTES } from '@/lib/store-routes';
 import { formatCNPJ, formatCPF } from '@/lib/utils';
 
 export default function StoreSignupPage() {
@@ -70,7 +70,7 @@ export default function StoreSignupPage() {
     try {
       const result = await signUp(form);
       if (result === 'confirmed') {
-        router.push(redirect || storeRoutes.account);
+        router.push(redirect || STORE_ROUTES.account);
       } else {
         setMessage('Conta criada. Confira seu e-mail para confirmar o cadastro antes de entrar.');
       }
@@ -138,7 +138,7 @@ export default function StoreSignupPage() {
         <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
           <input type="checkbox" checked={form.privacyAccepted} onChange={(event) => setValue('privacyAccepted', event.target.checked)} className="mt-1" />
           <span>
-            Li e aceito a <Link href="/store/privacidade" className="font-black text-slate-950 underline-offset-4 hover:underline">Politica de Privacidade</Link> para cadastro,
+            Li e aceito a <Link href={STORE_ROUTES.publicPrivacy} className="font-black text-slate-950 underline-offset-4 hover:underline">Politica de Privacidade</Link> para cadastro,
             pedidos, entrega e atendimento. Versao {PRIVACY_POLICY_VERSION}.
           </span>
         </label>
@@ -167,7 +167,7 @@ export default function StoreSignupPage() {
         </button>
 
         <p className="text-center text-xs font-bold text-slate-500">
-          Ja tem conta? <Link href="/store/login" className="text-slate-950">Entrar</Link>
+          Ja tem conta? <Link href={STORE_ROUTES.login} className="text-slate-950">Entrar</Link>
         </p>
       </form>
     </StoreAuthPanel>

@@ -6,15 +6,15 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ArrowLeft, Home, LockKeyhole, LogOut, MapPin, Package, ShieldCheck, UserRound } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { useStoreCustomer } from '@/context/store-customer-context';
-import { storeRoutes, withStoreRedirect } from '@/lib/store-routes';
+import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
 
 const navItems = [
-  { href: '/store/conta', label: 'Minha conta', icon: Home },
-  { href: '/store/conta/pedidos', label: 'Meus pedidos', icon: Package },
-  { href: '/store/conta/enderecos', label: 'Enderecos', icon: MapPin },
-  { href: '/store/conta/perfil', label: 'Dados cadastrais', icon: UserRound },
-  { href: '/store/conta/seguranca', label: 'Seguranca e senha', icon: LockKeyhole },
-  { href: '/store/conta/privacidade', label: 'Privacidade', icon: ShieldCheck }
+  { href: STORE_ROUTES.account, label: 'Minha conta', icon: Home },
+  { href: STORE_ROUTES.orders, label: 'Meus pedidos', icon: Package },
+  { href: STORE_ROUTES.addresses, label: 'Enderecos', icon: MapPin },
+  { href: STORE_ROUTES.profile, label: 'Dados cadastrais', icon: UserRound },
+  { href: STORE_ROUTES.security, label: 'Seguranca e senha', icon: LockKeyhole },
+  { href: STORE_ROUTES.privacy, label: 'Privacidade', icon: ShieldCheck }
 ];
 
 export function StoreAccountShell({
@@ -38,7 +38,7 @@ export function StoreAccountShell({
 
   useEffect(() => {
     if (!requireAuth || isLoading || isAuthenticated) return;
-    router.replace(withStoreRedirect(storeRoutes.login, pathname || storeRoutes.account));
+    router.replace(withStoreRedirect(STORE_ROUTES.login, pathname || STORE_ROUTES.account));
   }, [isAuthenticated, isLoading, pathname, requireAuth, router]);
 
   if (requireAuth && isLoading) {
@@ -58,7 +58,7 @@ export function StoreAccountShell({
     <div className="min-h-screen overflow-x-hidden bg-slate-50 pb-[calc(6rem+env(safe-area-inset-bottom))] text-slate-900 md:pb-0">
       <header className="border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-8">
-          <Link href="/store" className="flex min-w-0 items-center gap-3">
+          <Link href={STORE_ROUTES.home} className="flex min-w-0 items-center gap-3">
             {logoSrc ? (
               <img src={logoSrc} alt={storeName} className="h-11 max-w-44 shrink-0 object-contain" />
             ) : (
@@ -72,7 +72,7 @@ export function StoreAccountShell({
             </div>
           </Link>
 
-          <Link href="/store" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600">
+          <Link href={STORE_ROUTES.home} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600">
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Voltar ao catalogo</span>
             <span className="sm:hidden">Catalogo</span>

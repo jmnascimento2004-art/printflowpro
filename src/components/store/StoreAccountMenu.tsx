@@ -1,17 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { ChevronDown, LockKeyhole, LogIn, LogOut, MapPin, PackageSearch, ShieldCheck, UserRound } from 'lucide-react';
 import { useStoreCustomer } from '@/context/store-customer-context';
-import { storeRoutes, withStoreRedirect } from '@/lib/store-routes';
+import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
 
 type StoreAccountMenuProps = {
   primaryColor: string;
 };
 
 export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const { isAuthenticated, customer, orders, signOut } = useStoreCustomer();
   const firstName = customer?.name?.split(' ')[0] || 'cliente';
@@ -24,10 +23,6 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
     .toUpperCase();
 
   const close = () => setOpen(false);
-  const navigate = (href: string) => {
-    close();
-    router.push(href);
-  };
 
   return (
     <div className="relative hidden md:block">
@@ -62,8 +57,8 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
             onClick={close}
             aria-label="Fechar menu de conta"
           />
-          <div className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
-            <div className="border-b border-slate-100 bg-slate-50 p-4">
+          <div className="absolute right-0 z-50 mt-2 w-[290px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 text-slate-900 shadow-2xl">
+            <div className="rounded-xl bg-slate-50 px-3 pb-3 pt-2">
               <p className="text-sm font-black text-slate-950">
                 {isAuthenticated ? `Ola, ${firstName}` : 'Ola, cliente!'}
               </p>
@@ -74,14 +69,14 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
               </p>
             </div>
 
-            <div className="p-2">
+            <div className="mt-2 space-y-1">
               {isAuthenticated ? (
                 <>
-                  <MenuAction icon={<UserRound className="h-4 w-4" />} onClick={() => navigate(storeRoutes.account)}>Minha conta</MenuAction>
-                  <MenuAction icon={<PackageSearch className="h-4 w-4" />} onClick={() => navigate(storeRoutes.orders)}>Meus pedidos</MenuAction>
-                  <MenuAction icon={<MapPin className="h-4 w-4" />} onClick={() => navigate(storeRoutes.addresses)}>Enderecos</MenuAction>
-                  <MenuAction icon={<LockKeyhole className="h-4 w-4" />} onClick={() => navigate(storeRoutes.security)}>Seguranca e senha</MenuAction>
-                  <MenuAction icon={<ShieldCheck className="h-4 w-4" />} onClick={() => navigate(storeRoutes.privacy)}>Privacidade e preferencias</MenuAction>
+                  <MenuLink href={STORE_ROUTES.account} icon={<UserRound className="h-4 w-4" />} onClick={close}>Minha conta</MenuLink>
+                  <MenuLink href={STORE_ROUTES.orders} icon={<PackageSearch className="h-4 w-4" />} onClick={close}>Meus pedidos</MenuLink>
+                  <MenuLink href={STORE_ROUTES.addresses} icon={<MapPin className="h-4 w-4" />} onClick={close}>Enderecos</MenuLink>
+                  <MenuLink href={STORE_ROUTES.security} icon={<LockKeyhole className="h-4 w-4" />} onClick={close}>Seguranca e senha</MenuLink>
+                  <MenuLink href={STORE_ROUTES.privacy} icon={<ShieldCheck className="h-4 w-4" />} onClick={close}>Privacidade e preferencias</MenuLink>
                   <button
                     type="button"
                     onClick={() => {
@@ -96,16 +91,16 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
                 </>
               ) : (
                 <>
-                  <MenuAction icon={<LogIn className="h-4 w-4" />} onClick={() => navigate(storeRoutes.login)}>Entrar na minha conta</MenuAction>
-                  <button
-                    type="button"
-                    onClick={() => navigate(storeRoutes.signup)}
-                    className="mt-1 flex min-h-11 items-center justify-center rounded-xl text-sm font-black text-white"
+                  <MenuLink href={STORE_ROUTES.login} icon={<LogIn className="h-4 w-4" />} onClick={close}>Entrar na minha conta</MenuLink>
+                  <Link
+                    href={STORE_ROUTES.signup}
+                    onClick={close}
+                    className="flex min-h-11 w-full items-center justify-center rounded-xl px-3 text-center text-sm font-black text-white"
                     style={{ backgroundColor: primaryColor }}
                   >
                     Criar minha conta
-                  </button>
-                  <MenuAction icon={<PackageSearch className="h-4 w-4" />} onClick={() => navigate(withStoreRedirect(storeRoutes.login, storeRoutes.orders))}>Acompanhar meus pedidos</MenuAction>
+                  </Link>
+                  <MenuLink href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.orders)} icon={<PackageSearch className="h-4 w-4" />} onClick={close}>Acompanhar meus pedidos</MenuLink>
                 </>
               )}
             </div>
@@ -116,23 +111,25 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
   );
 }
 
-function MenuAction({
+function MenuLink({
+  href,
   icon,
   children,
   onClick
 }: {
+  href: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <Link
+      href={href}
       onClick={onClick}
       className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"
     >
       <span className="text-slate-400">{icon}</span>
       {children}
-    </button>
+    </Link>
   );
 }

@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   HelpCircle,
   Home,
@@ -18,7 +17,7 @@ import {
   X
 } from 'lucide-react';
 import { useStoreCustomer } from '@/context/store-customer-context';
-import { storeRoutes, withStoreRedirect } from '@/lib/store-routes';
+import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
 
 type StoreCategory = {
   id: string;
@@ -59,7 +58,6 @@ export default function StoreMobileBottomNavigation({
   onOpenPickupPoints,
   onOpenRefundPolicy
 }: StoreMobileBottomNavigationProps) {
-  const router = useRouter();
   const [sheet, setSheet] = useState<'categories' | 'search' | 'account' | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { isAuthenticated, customer, orders, signOut } = useStoreCustomer();
@@ -78,10 +76,6 @@ export default function StoreMobileBottomNavigation({
   const homeActive = !selectedCategory && !searchQuery.trim() && !sheet;
 
   const closeSheet = () => setSheet(null);
-  const navigate = (href: string) => {
-    closeSheet();
-    router.push(href);
-  };
 
   const handleCategoryClick = (categoryId: string | null) => {
     onSelectCategory(categoryId);
@@ -236,73 +230,73 @@ export default function StoreMobileBottomNavigation({
                 <div className="space-y-1.5">
                   {isAuthenticated ? (
                     <>
-                      <button
-                        type="button"
-                        onClick={() => navigate(storeRoutes.account)}
+                      <Link
+                        href={STORE_ROUTES.account}
+                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <UserRound className="h-4.5 w-4.5 text-slate-500" />
                         Minha conta
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(storeRoutes.orders)}
+                      </Link>
+                      <Link
+                        href={STORE_ROUTES.orders}
+                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
                         Meus pedidos
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(storeRoutes.addresses)}
+                      </Link>
+                      <Link
+                        href={STORE_ROUTES.addresses}
+                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <MapPin className="h-4.5 w-4.5 text-slate-500" />
                         Enderecos
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(storeRoutes.privacy)}
+                      </Link>
+                      <Link
+                        href={STORE_ROUTES.privacy}
+                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <Info className="h-4.5 w-4.5 text-slate-500" />
                         Privacidade
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(storeRoutes.security)}
+                      </Link>
+                      <Link
+                        href={STORE_ROUTES.security}
+                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <LockKeyhole className="h-4.5 w-4.5 text-slate-500" />
                         Seguranca e senha
-                      </button>
+                      </Link>
                     </>
                   ) : (
                     <>
-                      <button
-                        type="button"
-                        onClick={() => navigate(storeRoutes.login)}
+                      <Link
+                        href={STORE_ROUTES.login}
+                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <UserRound className="h-4.5 w-4.5 text-slate-500" />
                         Entrar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(storeRoutes.signup)}
+                      </Link>
+                      <Link
+                        href={STORE_ROUTES.signup}
+                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-3 text-sm font-black text-white"
                         style={{ backgroundColor: primaryColor }}
                       >
                         Criar conta
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(withStoreRedirect(storeRoutes.login, storeRoutes.orders))}
+                      </Link>
+                      <Link
+                        href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.orders)}
+                        onClick={closeSheet}
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <PackageSearch className="h-4.5 w-4.5 text-slate-500" />
                         Acompanhar pedido
-                      </button>
+                      </Link>
                     </>
                   )}
 

@@ -7,7 +7,7 @@ import { LogIn } from 'lucide-react';
 import { StoreAuthPanel } from '@/components/store/StoreAccountShell';
 import { StoreField, storeInputClass } from '@/components/store/StoreFormFields';
 import { useStoreCustomer } from '@/context/store-customer-context';
-import { sanitizeStoreRedirect, storeRoutes, withStoreRedirect } from '@/lib/store-routes';
+import { sanitizeStoreRedirect, STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
 
 export default function StoreLoginPage() {
   const router = useRouter();
@@ -26,7 +26,7 @@ export default function StoreLoginPage() {
 
     try {
       await signIn(email, password);
-      router.push(redirect || storeRoutes.account);
+      router.push(redirect || STORE_ROUTES.account);
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Nao foi possivel entrar. Confira e-mail e senha.');
     } finally {
@@ -60,8 +60,8 @@ export default function StoreLoginPage() {
         </button>
 
         <div className="flex flex-col gap-2 text-center text-xs font-bold text-slate-500 sm:flex-row sm:justify-between">
-          <Link href="/store/recuperar-senha" className="hover:text-slate-900">Esqueci minha senha</Link>
-          <Link href={withStoreRedirect(storeRoutes.signup, redirect)} className="hover:text-slate-900">Criar conta</Link>
+          <Link href={STORE_ROUTES.resetPassword} className="hover:text-slate-900">Esqueci minha senha</Link>
+          <Link href={withStoreRedirect(STORE_ROUTES.signup, redirect)} className="hover:text-slate-900">Criar conta</Link>
         </div>
       </form>
     </StoreAuthPanel>

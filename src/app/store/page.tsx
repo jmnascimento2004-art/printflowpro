@@ -41,7 +41,7 @@ import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNav
 import { StoreAccountMenu } from '@/components/store/StoreAccountMenu';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { formatStoreAddress } from '@/lib/store-customer';
-import { storeRoutes, withStoreRedirect } from '@/lib/store-routes';
+import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
 import {
   ProductConfiguratorModal,
   type ProductConfiguratorCartPayload
@@ -1512,10 +1512,10 @@ export default function StorefrontPage() {
                         Crie sua conta para acompanhar pedidos, salvar enderecos e comprar com mais rapidez.
                       </p>
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        <Link href={withStoreRedirect(storeRoutes.login, '/store?checkout=1')} className="flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-700">
+                        <Link href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.checkout)} className="flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-700">
                           Entrar
                         </Link>
-                        <Link href={withStoreRedirect(storeRoutes.signup, '/store?checkout=1')} className="flex min-h-10 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-black text-white">
+                        <Link href={withStoreRedirect(STORE_ROUTES.signup, STORE_ROUTES.checkout)} className="flex min-h-10 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-black text-white">
                           Criar conta
                         </Link>
                       </div>
@@ -2092,25 +2092,25 @@ export default function StorefrontPage() {
               </button>
               {storeCustomerAuthenticated ? (
                 <>
-                  <a href={storeRoutes.account} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  <a href={STORE_ROUTES.account} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Minha conta
                   </a>
-                  <a href={storeRoutes.orders} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  <a href={STORE_ROUTES.orders} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Meus pedidos
                   </a>
                 </>
               ) : (
                 <>
-                  <a href={storeRoutes.login} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  <a href={STORE_ROUTES.login} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Entrar
                   </a>
-                  <a href={storeRoutes.signup} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  <a href={STORE_ROUTES.signup} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Criar conta
                   </a>
-                  <a href={withStoreRedirect(storeRoutes.login, storeRoutes.account)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  <a href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.account)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Minha conta
                   </a>
-                  <a href={withStoreRedirect(storeRoutes.login, storeRoutes.orders)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
+                  <a href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.orders)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
                     Meus pedidos
                   </a>
                 </>

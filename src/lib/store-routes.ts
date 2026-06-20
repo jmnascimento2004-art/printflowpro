@@ -17,7 +17,9 @@ const ALLOWED_STORE_REDIRECTS = [
   '/store/privacidade/solicitar'
 ];
 
-export const storeRoutes = {
+export const STORE_ROUTES = {
+  home: '/store',
+  checkout: '/store?checkout=1',
   login: '/store/login',
   signup: '/store/cadastro',
   account: '/store/conta',
@@ -25,8 +27,13 @@ export const storeRoutes = {
   addresses: '/store/conta/enderecos',
   orders: '/store/conta/pedidos',
   security: '/store/conta/seguranca',
-  privacy: '/store/conta/privacidade'
+  privacy: '/store/conta/privacidade',
+  publicPrivacy: '/store/privacidade',
+  resetPassword: '/store/recuperar-senha',
+  updatePassword: '/store/redefinir-senha'
 } as const;
+
+export const storeRoutes = STORE_ROUTES;
 
 export const withStoreRedirect = (target: string, redirect: string) => {
   const safeRedirect = sanitizeStoreRedirect(redirect);
