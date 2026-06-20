@@ -43,7 +43,6 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     const handleResize = () => {
       if (window.innerWidth < 768) {
         setIsMobile(true);
-        setIsOpen(false);
       } else {
         setIsMobile(false);
         setIsOpen(true);
@@ -86,13 +85,13 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
       {/* Mobile menu overlay */}
       {isMobile && isOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+          className="hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       <aside 
-        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-card border-r border-border transition-all duration-300 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 hidden flex-col bg-card border-r border-border transition-all duration-300 md:flex ${
           isOpen ? 'w-64' : 'w-16'
         } ${isMobile && !isOpen ? '-translate-x-full' : 'translate-x-0'}`}
       >

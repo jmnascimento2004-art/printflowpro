@@ -86,6 +86,11 @@
     font-family: 'Inter', sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', sans-serif;
   }
@@ -172,6 +177,31 @@
   .rich-text-description u,
   .rich-text-content u {
     text-decoration: underline;
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    overscroll-behavior-x: none;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  main :where(.overflow-hidden:has(table)) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main table:not(.print-items-table) {
+    min-width: 640px;
+  }
+
+  main .print-items-table {
+    min-width: 680px;
   }
 }
 

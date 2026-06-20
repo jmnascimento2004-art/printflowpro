@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, ChevronDown, ChevronLeft, ChevronRight, FileText, LogOut, Menu, Moon, Sun } from 'lucide-react';
+import { Bell, ChevronDown, ChevronLeft, ChevronRight, FileText, LogOut, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/context/theme-context';
 import { useDatabase } from '@/context/database-context';
 import { UserProfile } from '@/lib/dummy-data';
@@ -156,14 +156,6 @@ export default function Header({
           title={sidebarOpen ? 'Recolher Menu' : 'Expandir Menu'}
         >
           {sidebarOpen ? <ChevronLeft className="h-4.5 w-4.5" /> : <ChevronRight className="h-4.5 w-4.5" />}
-        </button>
-
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-primary md:hidden"
-          title="Abrir menu"
-        >
-          <Menu className="h-5 w-5" />
         </button>
 
         <div className="min-w-0">

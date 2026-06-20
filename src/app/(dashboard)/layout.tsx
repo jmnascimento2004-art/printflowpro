@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Sidebar from '@/components/dashboard/sidebar';
 import Header from '@/components/dashboard/header';
+import MobileBottomNav from '@/components/dashboard/mobile-bottom-nav';
 import { BrandLogo, BrandMark } from '@/components/brand';
 import { useAuth } from '@/context/auth-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
@@ -84,7 +85,7 @@ export default function DashboardLayout({
           logout={logout}
         />
 
-        <main className="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto min-w-0 animate-in fade-in duration-300 flex flex-col">
+        <main className="flex-1 w-full max-w-7xl min-w-0 mx-auto animate-in fade-in duration-300 flex flex-col overflow-x-hidden px-3 py-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-4 md:p-6">
           {hasAccess ? (
             children
           ) : (
@@ -132,6 +133,7 @@ export default function DashboardLayout({
           )}
         </main>
       </div>
+      <MobileBottomNav />
     </div>
   );
 }
