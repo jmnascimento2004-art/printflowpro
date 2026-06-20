@@ -499,7 +499,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           setSettings(mergeSettingsWithDefaults(activeSettings as Partial<typeof DUMMY_SETTINGS>, storedSettings));
         }
         if (profilesData) setProfiles(filterByCompany(profilesData as UserProfile[]));
-        setCustomers(await listCustomers(activeCompanyId));
+        setCustomers(isStoreRoute ? [] : await listCustomers(activeCompanyId));
         if (suppliersData) setSuppliers(filterByCompany(suppliersData as Supplier[]));
         if (categoriesData) {
           let storedCategories: Category[] = [];

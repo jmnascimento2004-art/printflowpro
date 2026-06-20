@@ -392,6 +392,7 @@ export default function StorefrontPage() {
   });
   const catalogCategoryIds = new Set(catalogCategories.map((category) => category.id));
   const activeProducts = (products || []).filter((product) => {
+    if (!product || product.active === false) return false;
     if (!product || product.catalog_active === false) return false;
     return !product.category_id || catalogCategoryIds.has(product.category_id);
   });
