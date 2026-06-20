@@ -59,7 +59,8 @@ export default function StoreMobileBottomNavigation({
 }: StoreMobileBottomNavigationProps) {
   const [sheet, setSheet] = useState<'categories' | 'search' | 'account' | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const { isAuthenticated, customer, orders, signOut } = useStoreCustomer();
+  const { session, customer, orders, signOut } = useStoreCustomer();
+  const hasStoreSession = Boolean(session?.user);
 
   useEffect(() => {
     if (sheet === 'search') {
@@ -217,17 +218,17 @@ export default function StoreMobileBottomNavigation({
               <div className="max-h-[58dvh] overflow-y-auto p-3">
                 <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-black text-slate-900">
-                    {isAuthenticated ? `Ola, ${customer?.name?.split(' ')[0] || 'cliente'}` : 'Conta do cliente'}
+                    {hasStoreSession ? `Ola, ${customer?.name?.split(' ')[0] || session?.user?.email?.split('@')[0] || 'cliente'}` : 'Conta do cliente'}
                   </p>
                   <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                    {isAuthenticated
+                    {hasStoreSession
                       ? `${orders.length} pedido(s) vinculados a sua conta.`
                       : 'Entre ou crie sua conta para acompanhar pedidos e salvar enderecos.'}
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  {isAuthenticated ? (
+                  {hasStoreSession ? (
                     <>
                       <a
                         href={STORE_ROUTES.account}
@@ -347,7 +348,7 @@ export default function StoreMobileBottomNavigation({
                     Politicas da loja
                   </a>
 
-                  {isAuthenticated && (
+                  {hasStoreSession && (
                     <button
                       type="button"
                       onClick={() => {

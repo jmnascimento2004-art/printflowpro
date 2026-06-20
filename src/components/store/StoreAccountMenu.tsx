@@ -11,9 +11,11 @@ type StoreAccountMenuProps = {
 
 export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
   const [open, setOpen] = useState(false);
-  const { isAuthenticated, customer, orders, signOut } = useStoreCustomer();
-  const firstName = customer?.name?.split(' ')[0] || 'cliente';
-  const initials = (customer?.name || 'Cliente')
+  const { session, customer, orders, signOut } = useStoreCustomer();
+  const hasStoreSession = Boolean(session?.user);
+  const displayName = customer?.name || session?.user?.email || 'Cliente';
+  const firstName = displayName.split('@')[0]?.split(' ')[0] || 'cliente';
+  const initials = displayName
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
@@ -35,14 +37,14 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black text-white"
           style={{ backgroundColor: primaryColor }}
         >
-          {isAuthenticated ? initials : <UserRound className="h-4 w-4" />}
+          {hasStoreSession ? initials : <UserRound className="h-4 w-4" />}
         </span>
         <span className="min-w-0">
           <span className="block max-w-28 truncate text-xs font-black">
-            {isAuthenticated ? firstName : 'Entrar'}
+            {hasStoreSession ? firstName : 'Entrar'}
           </span>
           <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-            {isAuthenticated ? 'Minha conta' : 'Criar conta'}
+            {hasStoreSession ? 'Minha conta' : 'Criar conta'}
           </span>
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
@@ -59,17 +61,17 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
           <div className="absolute right-0 z-50 mt-2 w-[290px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 text-slate-900 shadow-2xl">
             <div className="rounded-xl bg-slate-50 px-3 pb-3 pt-2">
               <p className="text-sm font-black text-slate-950">
-                {isAuthenticated ? `Ola, ${firstName}` : 'Ola, cliente!'}
+                {hasStoreSession ? `Ola, ${firstName}` : 'Ola, cliente!'}
               </p>
               <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                {isAuthenticated
+                {hasStoreSession
                   ? `${orders.length} pedido(s) vinculados a sua conta.`
                   : 'Entre ou crie sua conta para acompanhar pedidos e salvar enderecos.'}
               </p>
             </div>
 
             <div className="mt-2 space-y-1">
-              {isAuthenticated ? (
+              {hasStoreSession ? (
                 <>
                   <MenuLink href={STORE_ROUTES.account} icon={<UserRound className="h-4 w-4" />}>Minha conta</MenuLink>
                   <MenuLink href={STORE_ROUTES.orders} icon={<PackageSearch className="h-4 w-4" />}>Meus pedidos</MenuLink>

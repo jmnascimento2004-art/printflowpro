@@ -283,13 +283,22 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
 
   const signIn = async (email: string, password: string) => {
     setError(null);
+    setIsLoading(true);
     const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password
     });
 
-    if (signInError) throw signInError;
-    if (data.session) await loadStoreCustomer(data.session);
+    if (signInError) {
+      setIsLoading(false);
+      throw signInError;
+    }
+    if (data.session) {
+      setSession(data.session);
+      await loadStoreCustomer(data.session);
+    } else {
+      setIsLoading(false);
+    }
   };
 
   const signOut = async () => {

@@ -31,15 +31,16 @@ export function StoreAccountShell({
   const pathname = usePathname();
   const router = useRouter();
   const { company } = useDatabase();
-  const { isAuthenticated, isLoading, signOut, customer } = useStoreCustomer();
+  const { session, isAuthenticated, isLoading, signOut, customer, error, refresh } = useStoreCustomer();
+  const hasStoreSession = Boolean(session?.user);
   const primaryColor = company.theme_color || '#5b3df4';
   const logoSrc = company.logo_light || company.logo_dark || company.logo_url;
   const storeName = company.name || 'Loja online';
 
   useEffect(() => {
-    if (!requireAuth || isLoading || isAuthenticated) return;
+    if (!requireAuth || isLoading || isAuthenticated || hasStoreSession) return;
     router.replace(withStoreRedirect(STORE_ROUTES.login, pathname || STORE_ROUTES.account));
-  }, [isAuthenticated, isLoading, pathname, requireAuth, router]);
+  }, [hasStoreSession, isAuthenticated, isLoading, pathname, requireAuth, router]);
 
   if (requireAuth && isLoading) {
     return (
@@ -52,7 +53,7 @@ export function StoreAccountShell({
     );
   }
 
-  if (requireAuth && !isAuthenticated) return null;
+  if (requireAuth && !isAuthenticated && !hasStoreSession) return null;
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-50 pb-[calc(6rem+env(safe-area-inset-bottom))] text-slate-900 md:pb-0">
@@ -127,6 +128,15 @@ export function StoreAccountShell({
             <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{title}</h1>
             {subtitle && <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>}
           </div>
+          {requireAuth && hasStoreSession && !isAuthenticated && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 shadow-sm">
+              Sua sessao foi iniciada. Estamos finalizando o vinculo com seus dados do catalogo.
+              {error && <span className="block pt-1 text-xs font-semibold">{error}</span>}
+              <button type="button" onClick={() => refresh()} className="mt-2 text-xs font-black underline underline-offset-4">
+                Tentar carregar novamente
+              </button>
+            </div>
+          )}
           {children}
         </section>
       </main>
