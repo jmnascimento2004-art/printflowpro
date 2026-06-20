@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { publicSupabase } from '@/lib/publicSupabaseClient';
+import { publicStoreSelect } from '@/lib/publicSupabaseClient';
 import { warnCaught } from '@/lib/safe-log';
 import {
   buildCustomerRecord,
@@ -249,6 +249,7 @@ const SETTINGS_LOCAL_FALLBACK_KEYS = [
 ] as const;
 const isBrowser = () => typeof window !== 'undefined';
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+const isPublicStoreRoute = () => isBrowser() && window.location.pathname.startsWith('/store');
 
 const normalizeDomain = (value: string = '') => {
   const trimmed = value.trim().toLowerCase();
@@ -379,8 +380,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     const init = async () => {
       try {
         const isStoreRoute = window.location.pathname.startsWith('/store');
-        const publicDataClient = isStoreRoute ? publicSupabase : supabase;
-        const { data: companies, error } = await publicDataClient.from('companies').select('*');
+        const publicSelect = async <T,>(table: string) =>
+          isStoreRoute ? publicStoreSelect<T>(table) : supabase.from(table).select('*');
+        const skipPrivateData = Promise.resolve({ data: null });
+        const companiesResponse = await publicSelect<Company>('companies');
+        const companies = companiesResponse.data;
+        const error = 'error' in companiesResponse ? companiesResponse.error : null;
 
         if (error) {  warnCaught('Erro companies:', error);
           loadFromLocalStorage();
@@ -455,24 +460,24 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           { data: sessionsData },
           { data: regTransData }
         ] = await Promise.all([
-          publicDataClient.from('settings').select('*'),
-          supabase.from('profiles').select('*'),
-          supabase.from('suppliers').select('*'),
-          publicDataClient.from('categories').select('*'),
-          publicDataClient.from('products').select('*'),
-          supabase.from('quotes').select('*'),
-          supabase.from('quote_items').select('*'),
-          supabase.from('orders').select('*'),
-          supabase.from('order_items').select('*'),
-          supabase.from('production_queue').select('*'),
-          supabase.from('financial_transactions').select('*'),
-          supabase.from('shipments').select('*'),
-          supabase.from('stock_movements').select('*'),
-          publicDataClient.from('pickup_points').select('*'),
-          publicDataClient.from('store_banners').select('*'),
-          supabase.from('role_permissions').select('*'),
-          supabase.from('cash_register_sessions').select('*'),
-          supabase.from('cash_register_transactions').select('*')
+          publicSelect<typeof DUMMY_SETTINGS>('settings'),
+          isStoreRoute ? skipPrivateData : supabase.from('profiles').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('suppliers').select('*'),
+          publicSelect<Category>('categories'),
+          publicSelect<Product>('products'),
+          isStoreRoute ? skipPrivateData : supabase.from('quotes').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('quote_items').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('orders').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('order_items').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('production_queue').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('financial_transactions').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('shipments').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('stock_movements').select('*'),
+          publicSelect<PickupPoint>('pickup_points'),
+          publicSelect<StoreBannerRow>('store_banners'),
+          isStoreRoute ? skipPrivateData : supabase.from('role_permissions').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('cash_register_sessions').select('*'),
+          isStoreRoute ? skipPrivateData : supabase.from('cash_register_transactions').select('*')
         ]);
 
         const activeCompany = companies && companies.length > 0 ? resolveCompanyForHostname(companies as Company[]) : null;
@@ -694,7 +699,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   // Save triggers mapped to both localStorage and Supabase
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('suppliers', suppliers);
       supabase.from('suppliers').upsert(suppliers).then(({ error }) => {
@@ -707,7 +712,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [suppliers, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('categories', categories);
       supabase.from('categories').upsert(categories).then(({ error }) => {
@@ -720,7 +725,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [categories, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('products', products);
       supabase.from('products').upsert(products).then(({ error }) => {
@@ -733,7 +738,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [products, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('quotes', quotes);
       
@@ -762,7 +767,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [quotes, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('orders', orders);
       
@@ -791,7 +796,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [orders, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('production', production);
       supabase.from('production_queue').upsert(production).then(({ error }) => {
@@ -804,7 +809,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [production, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('financial', financial);
       supabase.from('financial_transactions').upsert(financial).then(({ error }) => {
@@ -817,7 +822,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [financial, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('shipments', shipments);
       supabase.from('shipments').upsert(shipments).then(({ error }) => {
@@ -830,7 +835,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [shipments, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('stockMovements', stockMovements);
       supabase.from('stock_movements').upsert(stockMovements).then(({ error }) => {
@@ -843,7 +848,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [stockMovements, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || !company?.id) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute() || !company?.id) return;
     try {
       window.localStorage.setItem('printflow_settings', JSON.stringify(settings));
       supabase.from('settings').upsert({
@@ -890,7 +895,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 }, [settings, company?.id, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('pickupPoints', pickupPoints);
       supabase.from('pickup_points').upsert(pickupPoints).then(({ error }) => {
@@ -903,7 +908,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [pickupPoints, initialized, canShowToast]);
 
 useEffect(() => {
-  if (!initialized || !isBrowser()) return;
+  if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
 
   try {
     window.localStorage.setItem('printflow_company', JSON.stringify(company));
@@ -995,7 +1000,7 @@ useEffect(() => {
 }, [company, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('banners', banners);
       const formatted = banners.map(b => ({ company_id: company.id, ...b }));
@@ -1009,7 +1014,7 @@ useEffect(() => {
   }, [banners, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('profiles', profiles);
       supabase.from('profiles').upsert(profiles).then(({ error }) => {
@@ -1022,7 +1027,7 @@ useEffect(() => {
   }, [profiles, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('role_permissions', rolePermissions);
       const formatted = Object.entries(rolePermissions).map(([path, roles]) => ({
@@ -1045,7 +1050,7 @@ useEffect(() => {
   }, [rolePermissions, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('sessions', sessions);
       supabase.from('cash_register_sessions').upsert(sessions).then(({ error }) => {
@@ -1058,7 +1063,7 @@ useEffect(() => {
   }, [sessions, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser()) return;
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('registerTransactions', registerTransactions);
       supabase.from('cash_register_transactions').upsert(registerTransactions).then(({ error }) => {

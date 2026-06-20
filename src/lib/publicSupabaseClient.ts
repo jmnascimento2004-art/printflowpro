@@ -9,6 +9,8 @@ if (!supabaseUrl || !supabasePublishableKey) {
   );
 }
 
+const supabasePublicKey = supabasePublishableKey;
+
 export const publicSupabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
     autoRefreshToken: false,
@@ -16,3 +18,21 @@ export const publicSupabase = createClient(supabaseUrl, supabasePublishableKey, 
     persistSession: false
   }
 });
+
+export async function publicStoreSelect<T>(table: string, query = 'select=*') {
+  const separator = query.startsWith('?') ? '' : '?';
+  const response = await fetch(`${supabaseUrl}/rest/v1/${table}${separator}${query}`, {
+    headers: {
+      apikey: supabasePublicKey,
+      Authorization: `Bearer ${supabasePublicKey}`
+    },
+    cache: 'no-store'
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => '');
+    throw new Error(`Public Supabase select failed for ${table}: ${response.status} ${message}`);
+  }
+
+  return { data: (await response.json()) as T[] };
+}

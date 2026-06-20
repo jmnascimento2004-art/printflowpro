@@ -94,6 +94,57 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     [addresses]
   );
 
+  const createSessionCustomer = (currentSession: Session): Customer => {
+    const metadata = currentSession.user.user_metadata || {};
+    const email = currentSession.user.email?.trim().toLowerCase() || '';
+    const cached = email ? getCachedSignup(email) : null;
+    const customerType = cached?.customerType || metadata.customer_type || 'fisica';
+
+    return {
+      id: currentSession.user.id,
+      company_id: company.id,
+      name: cached?.name || metadata.name || email || 'Cliente',
+      document: cached?.document || metadata.document || '',
+      phone: cached?.phone || metadata.phone || '',
+      email,
+      address: {
+        street: '',
+        number: '',
+        neighborhood: '',
+        city: '',
+        state: '',
+        zip_code: ''
+      },
+      tags: ['Catalogo Online'],
+      notes: 'Perfil carregado pela sessao do cliente final.',
+      corporate_additional_info: {
+        nome_fantasia: cached?.tradeName || metadata.trade_name || '',
+        whatsapp: cached?.phone || metadata.whatsapp || metadata.phone || '',
+        birth_date: cached?.birthDate || metadata.birth_date || '',
+        contact_preference: cached?.contactPreference || metadata.contact_preference || 'whatsapp',
+        person_type: customerType === 'juridica' ? 'juridica' : 'fisica'
+      },
+      created_at: currentSession.user.created_at || new Date().toISOString()
+    };
+  };
+
+  const applySessionCustomerFallback = (currentSession: Session) => {
+    const fallbackCustomer = createSessionCustomer(currentSession);
+    setAccount({
+      id: `session-${currentSession.user.id}`,
+      company_id: company.id,
+      customer_id: fallbackCustomer.id,
+      auth_user_id: currentSession.user.id,
+      status: 'active',
+      customer: fallbackCustomer
+    });
+    setCustomer(fallbackCustomer);
+    setAddresses(emptyAddressList);
+    setOrders([]);
+    setQuotes([]);
+    setError(null);
+  };
+
   const ensureAccount = async (currentSession: Session, fallback?: Partial<StoreSignupInput>): Promise<EnsuredStoreAccount | null> => {
     const email = currentSession.user.email?.trim().toLowerCase() || '';
     const cached = email ? getCachedSignup(email) : null;
@@ -193,12 +244,16 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       }
 
       if (!nextAccount) {
-        setAccount(null);
-        setCustomer(null);
-        setAddresses(emptyAddressList);
-        setOrders([]);
-        setQuotes([]);
-        setError(ensureAccountError || 'Nao encontramos um cadastro de cliente vinculado a este login.');
+        if (company.id) {
+          applySessionCustomerFallback(nextSession);
+        } else {
+          setAccount(null);
+          setCustomer(null);
+          setAddresses(emptyAddressList);
+          setOrders([]);
+          setQuotes([]);
+          setError(ensureAccountError || 'Nao encontramos um cadastro de cliente vinculado a este login.');
+        }
         setIsLoading(false);
         return;
       }
@@ -207,7 +262,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       setCustomer(nextCustomer || null);
 
       if (!nextCustomer?.id) {
-        setError(ensureAccountError || 'Nao foi possivel carregar os dados cadastrais deste cliente.');
+        applySessionCustomerFallback(nextSession);
         setIsLoading(false);
         return;
       }
@@ -247,7 +302,11 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       setQuotes((quotesData || []) as StoreCustomerQuote[]);
     } catch (loadError) {
       warnCaught('Erro ao carregar area do cliente:', loadError);
-      setError('Nao foi possivel carregar sua conta agora.');
+      if (nextSession?.user && company.id) {
+        applySessionCustomerFallback(nextSession);
+      } else {
+        setError('Nao foi possivel carregar sua conta agora.');
+      }
     } finally {
       setIsLoading(false);
     }
