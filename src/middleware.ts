@@ -10,14 +10,23 @@ function isInternalPath(pathname: string) {
   return (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
-    pathname === '/favicon.ico' ||
-    pathname === '/icon.svg' ||
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/store/manifest.webmanifest' ||
     PUBLIC_FILE.test(pathname)
   );
 }
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname === '/favicon.ico' || pathname === '/icon.svg' || pathname === '/apple-touch-icon.png') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/api/public/branding/icon';
+    url.searchParams.set('size', pathname === '/icon.svg' ? '512' : '192');
+    url.searchParams.set('v', pathname.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'icon');
+    return NextResponse.rewrite(url);
+  }
+
   if (isInternalPath(pathname)) return NextResponse.next();
 
   const hostname = normalizeHostname(request.headers.get('host') || '');
@@ -42,5 +51,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg).*)']
+  matcher: ['/((?!_next/static|_next/image).*)']
 };
