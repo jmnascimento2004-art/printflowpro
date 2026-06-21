@@ -6,6 +6,18 @@
 
 @layer base {
   :root {
+    --pf-font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --pf-blue: #1D35C9;
+    --pf-placeholder: #94A3B8;
+    --pf-radius: 10px;
+    --pf-control-height: 44px;
+    --pf-space-1: 4px;
+    --pf-space-2: 8px;
+    --pf-space-3: 12px;
+    --pf-space-4: 16px;
+    --pf-space-6: 24px;
+    --pf-space-8: 32px;
+
     --background: 214 32% 96%;
     --foreground: 224 54% 13%;
 
@@ -15,7 +27,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 224 71.4% 4.1%;
 
-    --primary: 251 89% 60%;
+    --primary: 231 75% 45%;
     --primary-foreground: 210 20% 98%;
 
     --secondary: 220 27% 94%;
@@ -35,7 +47,7 @@
 
     --border: 217 26% 88%;
     --input: 217 26% 88%;
-    --ring: 251 89% 60%;
+    --ring: 231 75% 45%;
 
     --brand-indigo: #5b3df4;
     --brand-violet: #7c3aed;
@@ -83,7 +95,10 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--pf-font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 400;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
   html,
@@ -92,12 +107,46 @@
     overflow-x: hidden;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--pf-font-sans);
+    letter-spacing: 0;
+  }
+  h1 {
+    font-size: 32px;
+    line-height: 1.15;
+    font-weight: 700;
+  }
+  h2 {
+    font-size: 24px;
+    line-height: 1.2;
+    font-weight: 700;
+  }
+  h3 {
+    font-size: 20px;
+    line-height: 1.25;
+    font-weight: 700;
   }
   input::placeholder,
-  textarea::placeholder {
-    color: rgb(148 163 184);
+  textarea::placeholder,
+  select::placeholder {
+    color: var(--pf-placeholder) !important;
     opacity: 1;
+    font-size: 13px;
+    font-weight: 400;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select {
+    min-height: var(--pf-control-height);
+    border-radius: var(--pf-radius);
+    font-family: var(--pf-font-sans);
+  }
+  textarea {
+    border-radius: var(--pf-radius);
+    font-family: var(--pf-font-sans);
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
   }
   select:required:invalid {
     color: rgb(148 163 184);
@@ -118,15 +167,39 @@
 
 @layer components {
   .pf-card {
-    @apply rounded-lg border border-border bg-card shadow-sm shadow-slate-200/40 dark:shadow-black/20;
+    @apply rounded-lg border border-border bg-card p-4 shadow-sm shadow-slate-200/40 dark:shadow-black/20;
+  }
+
+  .pf-card-compact {
+    @apply rounded-lg border border-border bg-card p-3 shadow-sm shadow-slate-200/30 dark:shadow-black/20;
+  }
+
+  .pf-input {
+    @apply h-11 w-full rounded-lg border border-input bg-white px-3 text-sm font-normal text-foreground outline-none transition placeholder:text-slate-400 placeholder:font-normal focus:border-primary focus:ring-2 focus:ring-primary/15 dark:bg-card;
+  }
+
+  .pf-textarea {
+    @apply min-h-24 w-full rounded-lg border border-input bg-white px-3 py-2 text-sm font-normal text-foreground outline-none transition placeholder:text-slate-400 placeholder:font-normal focus:border-primary focus:ring-2 focus:ring-primary/15 dark:bg-card;
   }
 
   .pf-button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-extrabold text-white shadow-md shadow-primary/20 transition hover:bg-primary/95;
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/95 disabled:pointer-events-none disabled:opacity-60;
   }
 
   .pf-button-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-extrabold text-slate-900 shadow-sm transition hover:border-primary/30 hover:text-primary dark:bg-card dark:text-foreground;
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-primary/30 hover:text-primary disabled:pointer-events-none disabled:opacity-60 dark:bg-card dark:text-foreground;
+  }
+
+  .pf-button-danger {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 disabled:pointer-events-none disabled:opacity-60;
+  }
+
+  .pf-card-title {
+    @apply text-base font-semibold leading-snug text-foreground;
+  }
+
+  .pf-helper-text {
+    @apply text-[13px] font-normal leading-snug text-muted-foreground;
   }
 
   .pf-brand-gradient {

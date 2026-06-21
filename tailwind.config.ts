@@ -9,6 +9,26 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        h1: ["32px", { lineHeight: "1.15", fontWeight: "700" }],
+        h2: ["24px", { lineHeight: "1.2", fontWeight: "700" }],
+        h3: ["20px", { lineHeight: "1.25", fontWeight: "700" }],
+        card: ["16px", { lineHeight: "1.35", fontWeight: "600" }],
+        body: ["14px", { lineHeight: "1.5", fontWeight: "400" }],
+        helper: ["13px", { lineHeight: "1.45", fontWeight: "400" }],
+        small: ["12px", { lineHeight: "1.35", fontWeight: "400" }],
+      },
+      spacing: {
+        "ds-1": "4px",
+        "ds-2": "8px",
+        "ds-3": "12px",
+        "ds-4": "16px",
+        "ds-6": "24px",
+        "ds-8": "32px",
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",

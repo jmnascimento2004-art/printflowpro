@@ -92,7 +92,7 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 space-y-4">
+    <div className="pf-card space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wide text-foreground">Serviços Adicionais</h3>
@@ -100,7 +100,7 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <select
-            className="h-10 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground outline-none"
+            className="pf-input text-xs"
             defaultValue=""
             onChange={(event) => {
               addService(event.target.value, false);
@@ -117,12 +117,12 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
               value={customName}
               onChange={(event) => setCustomName(event.target.value)}
               placeholder="+ Serviço personalizado"
-              className="h-10 min-w-0 rounded-xl border border-border bg-background px-3 text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-primary"
+              className="pf-input min-w-0 text-xs"
             />
             <button
               type="button"
               onClick={() => addService(customName, true)}
-              className="flex h-10 items-center gap-1 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground"
+              className="pf-button-primary px-3 text-xs"
             >
               <Plus className="h-3.5 w-3.5" /> Adicionar
             </button>
@@ -133,13 +133,13 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
       {services.length > 0 ? (
         <div className="space-y-3">
           {services.map((service) => (
-            <div key={service.id} className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-secondary/20 p-3 lg:grid-cols-[minmax(180px,1fr)_100px_140px_140px_1.3fr_40px] lg:items-end">
+            <div key={service.id} className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-secondary/20 p-3 lg:grid-cols-[minmax(180px,1fr)_100px_140px_140px_1.3fr_44px] lg:items-end">
               <label className="space-y-1">
                 <span className="text-[10px] font-bold uppercase text-muted-foreground">Nome</span>
                 <input
                   value={service.name}
                   onChange={(event) => updateService(service.id, { name: event.target.value, is_custom: true })}
-                  className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-semibold outline-none"
+                  className="pf-input text-xs"
                 />
               </label>
               <label className="space-y-1">
@@ -150,7 +150,7 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
                   step="0.01"
                   value={service.quantity}
                   onChange={(event) => updateService(service.id, { quantity: Number(event.target.value) })}
-                  className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-semibold outline-none"
+                  className="pf-input text-xs"
                 />
               </label>
               <label className="space-y-1">
@@ -158,12 +158,12 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
                 <input
                   value={formatCurrencyInput(service.unit_price)}
                   onChange={(event) => updateService(service.id, { unit_price: parseCurrencyInputToNumber(event.target.value) })}
-                  className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-semibold outline-none"
+                  className="pf-input text-xs"
                 />
               </label>
               <div className="space-y-1">
                 <span className="text-[10px] font-bold uppercase text-muted-foreground">Total</span>
-                <div className="flex h-9 items-center rounded-lg border border-border bg-background px-3 text-xs font-black text-primary">
+                <div className="flex h-11 items-center rounded-lg border border-border bg-background px-3 text-xs font-semibold text-primary">
                   {formatCurrencyInput(service.total_price)}
                 </div>
               </div>
@@ -172,7 +172,7 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
                 <input
                   value={service.notes || ''}
                   onChange={(event) => updateService(service.id, { notes: event.target.value })}
-                  className="h-9 w-full rounded-lg border border-border bg-background px-3 text-xs font-semibold outline-none"
+                  className="pf-input text-xs"
                 />
                 {service.is_custom && (
                   <label className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
@@ -188,7 +188,7 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
               <button
                 type="button"
                 onClick={() => removeService(service.id)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-rose-500/20 text-rose-500 hover:bg-rose-500/10"
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-rose-500/20 text-rose-500 hover:bg-rose-500/10"
                 title="Remover serviço"
               >
                 <Trash2 className="h-4 w-4" />
