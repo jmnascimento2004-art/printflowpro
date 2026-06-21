@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import {
   ArrowRight,
-  ClipboardList,
   FileText,
   LockKeyhole,
   MapPin,
@@ -91,71 +90,71 @@ export default function StoreAccountHomePage() {
 
   return (
     <StoreAccountShell title="Minha conta" subtitle="Gerencie seus dados, enderecos e pedidos." hidePageHeader>
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-center">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
           <div>
-            <p className="text-xs font-black uppercase tracking-wider text-slate-400">Area do Cliente</p>
-            <h1 className="mt-2 text-3xl font-black leading-tight tracking-tight text-slate-950 md:text-4xl">
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Area do Cliente</p>
+            <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-slate-950 md:text-3xl">
               Olá, {firstName} 👋
             </h1>
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
+            <p className="mt-2 max-w-2xl text-sm font-semibold leading-5 text-slate-500">
               Bem-vindo à sua área do cliente.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-black uppercase tracking-wider text-slate-400">Atalho principal</p>
-            <p className="mt-2 text-lg font-black text-slate-950">Continue comprando</p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Atalho principal</p>
+            <p className="mt-1 text-base font-black text-slate-950">Continue comprando</p>
+            <p className="mt-1 text-xs font-semibold leading-4 text-slate-500">
               Explore produtos personalizados, acompanhe seus pedidos e solicite novos orcamentos com facilidade.
             </p>
             <Link
               href={STORE_ROUTES.home}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-black text-white transition hover:brightness-95"
+              className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg text-xs font-black text-white transition hover:brightness-95"
               style={{ backgroundColor: primaryColor }}
             >
-              Voltar ao catalogo <ArrowRight className="h-4 w-4" />
+              Voltar ao catalogo <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div key={card.label} className="h-[96px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-black uppercase tracking-wide text-slate-400">{card.label}</p>
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50">
-                  <Icon className="h-4 w-4" style={{ color: primaryColor }} />
+                <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">{card.label}</p>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-50">
+                  <Icon className="h-3.5 w-3.5" style={{ color: primaryColor }} />
                 </span>
               </div>
-              <p className="mt-3 text-3xl font-black text-slate-950">{card.value}</p>
+              <p className="mt-2 text-2xl font-black text-slate-950">{card.value}</p>
             </div>
           );
         })}
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
         {actionCards.map((card) => {
           const Icon = card.icon;
           return (
             <Link
               key={card.title}
               href={card.href}
-              className={`group rounded-2xl border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                card.featured ? 'border-blue-200 lg:col-span-2' : 'border-slate-200 lg:col-span-1'
+              className={`group h-[118px] overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                card.featured ? 'border-blue-200' : 'border-slate-200'
               }`}
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ backgroundColor: card.featured ? primaryColor : '#0f172a' }}>
-                <Icon className="h-5 w-5" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={{ backgroundColor: card.featured ? primaryColor : '#0f172a' }}>
+                <Icon className="h-4 w-4" />
               </div>
-              <h2 className="mt-4 text-base font-black text-slate-950">{card.title}</h2>
-              <p className="mt-2 min-h-12 text-sm font-semibold leading-6 text-slate-500">{card.description}</p>
-              <span className="mt-4 inline-flex items-center gap-2 text-xs font-black text-slate-950">
+              <h2 className="mt-2 text-sm font-black text-slate-950">{card.title}</h2>
+              <p className="mt-1 text-xs font-semibold leading-4 text-slate-500">{card.description}</p>
+              <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-black text-slate-950">
                 {card.action}
-                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
               </span>
             </Link>
           );
@@ -163,56 +162,42 @@ export default function StoreAccountHomePage() {
       </section>
 
       {lastOrder ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-wide text-slate-400">Ultimo pedido</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">Pedido {lastOrder.number}</h2>
-              <p className="mt-1 text-sm font-semibold text-slate-500">
+              <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Ultimo pedido</p>
+              <h2 className="mt-1 text-lg font-black text-slate-950">Pedido {lastOrder.number}</h2>
+              <p className="mt-0.5 text-sm font-semibold text-slate-500">
                 {getOrderStatusLabel(lastOrder.status)} - {formatCurrency(lastOrder.total_amount)}
               </p>
             </div>
             <Link
               href={`/store/conta/pedidos/${lastOrder.id}`}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-xs font-black text-white"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg px-4 text-xs font-black text-white"
               style={{ backgroundColor: primaryColor }}
             >
-              Ver detalhes <ArrowRight className="h-4 w-4" />
+              Ver detalhes <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </section>
       ) : (
-        <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50">
-            <ShoppingBag className="h-7 w-7 text-slate-400" />
+        <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-center shadow-sm">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
+            <ShoppingBag className="h-5 w-5 text-slate-400" />
           </div>
-          <h2 className="mt-4 text-xl font-black text-slate-950">Voce ainda nao possui pedidos.</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm font-semibold leading-6 text-slate-500">
+          <h2 className="mt-3 text-lg font-black text-slate-950">Voce ainda nao possui pedidos.</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm font-semibold leading-5 text-slate-500">
             Quando realizar uma compra ou solicitacao, ela aparecera aqui.
           </p>
           <Link
             href={STORE_ROUTES.home}
-            className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-xs font-black text-white"
+            className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-lg px-4 text-xs font-black text-white"
             style={{ backgroundColor: primaryColor }}
           >
-            Ver produtos <ArrowRight className="h-4 w-4" />
+            Ver produtos <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </section>
       )}
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50">
-            <ClipboardList className="h-5 w-5" style={{ color: primaryColor }} />
-          </span>
-          <div>
-            <h2 className="text-base font-black text-slate-950">Tudo pronto para o proximo pedido</h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
-              Use os cards acima para acessar rapidamente pedidos, orcamentos, dados cadastrais, enderecos e seguranca.
-            </p>
-          </div>
-        </div>
-      </section>
     </StoreAccountShell>
   );
 }

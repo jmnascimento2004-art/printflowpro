@@ -98,16 +98,16 @@ export function StoreAccountShell({
         </div>
       </header>
 
-      <main className={`mx-auto grid max-w-7xl gap-6 px-4 py-5 md:px-8 md:py-8 ${requireAuth ? 'md:grid-cols-[260px_minmax(0,1fr)]' : ''}`}>
+      <main className={`mx-auto grid max-w-7xl gap-4 px-4 py-4 md:px-8 md:py-5 ${requireAuth ? 'md:grid-cols-[230px_minmax(0,1fr)]' : ''}`}>
         {requireAuth && (
-          <aside className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-white/90 p-4">
-              <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Cliente</p>
-              <p className="mt-1 truncate text-sm font-black text-slate-950">{customer?.name || 'Minha conta'}</p>
+          <aside className="space-y-2">
+            <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Cliente</p>
+              <p className="mt-0.5 truncate text-sm font-black text-slate-950">{customer?.name || 'Minha conta'}</p>
               <p className="truncate text-xs font-semibold text-slate-500">{customer?.email || 'Dados do catalogo'}</p>
             </div>
 
-            <nav className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white/90 p-2 md:grid-cols-1">
+            <nav className="grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200 bg-white/90 p-1.5 md:grid-cols-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href;
@@ -115,12 +115,12 @@ export function StoreAccountShell({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${
+                    className={`flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-black transition ${
                       active ? 'text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                     style={active ? { backgroundColor: primaryColor } : undefined}
                   >
-                    <Icon className="h-4 w-4 shrink-0" />
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">{item.label}</span>
                   </Link>
                 );
@@ -128,16 +128,16 @@ export function StoreAccountShell({
               <button
                 type="button"
                 onClick={() => signOut()}
-                className="mt-1 flex min-h-11 items-center gap-2 rounded-xl border border-rose-100 bg-rose-50/70 px-3 text-left text-xs font-black text-rose-600 hover:bg-rose-50 md:mt-3"
+                className="mt-1 flex min-h-9 items-center gap-2 rounded-lg border border-rose-100 bg-rose-50/70 px-2.5 text-left text-xs font-black text-rose-600 hover:bg-rose-50 md:mt-2"
               >
-                <LogOut className="h-4 w-4 shrink-0" />
+                <LogOut className="h-3.5 w-3.5 shrink-0" />
                 Sair
               </button>
             </nav>
           </aside>
         )}
 
-        <section className="min-w-0 space-y-5">
+        <section className="min-w-0 space-y-3">
           {!hidePageHeader && (
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
               <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
