@@ -17,23 +17,40 @@ const navItems = [
   { href: STORE_ROUTES.privacy, label: 'Privacidade', icon: ShieldCheck }
 ];
 
+const normalizeAccountColor = (color?: string) => {
+  if (!color) return '#1d35c9';
+  if (/^#[0-9a-f]{3,8}$/i.test(color)) return color;
+  const palette: Record<string, string> = {
+    blue: '#1d35c9',
+    violet: '#5b3df4',
+    purple: '#5b3df4',
+    emerald: '#059669',
+    green: '#059669',
+    red: '#dc2626',
+    orange: '#ea580c'
+  };
+  return palette[color.toLowerCase()] || '#1d35c9';
+};
+
 export function StoreAccountShell({
   title,
   subtitle,
   children,
-  requireAuth = true
+  requireAuth = true,
+  hidePageHeader = false
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   requireAuth?: boolean;
+  hidePageHeader?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const { company } = useDatabase();
   const { session, isAuthenticated, isLoading, signOut, customer, error, refresh } = useStoreCustomer();
   const hasStoreSession = Boolean(session?.user);
-  const primaryColor = company.theme_color || '#5b3df4';
+  const primaryColor = normalizeAccountColor(company.theme_color);
   const logoSrc = company.logo_light || company.logo_dark || company.logo_url;
   const storeName = company.name || 'Loja online';
 
@@ -81,16 +98,16 @@ export function StoreAccountShell({
         </div>
       </header>
 
-      <main className={`mx-auto grid max-w-7xl gap-6 px-4 py-5 md:px-8 md:py-8 ${requireAuth ? 'md:grid-cols-[280px_minmax(0,1fr)]' : ''}`}>
+      <main className={`mx-auto grid max-w-7xl gap-6 px-4 py-5 md:px-8 md:py-8 ${requireAuth ? 'md:grid-cols-[260px_minmax(0,1fr)]' : ''}`}>
         {requireAuth && (
-          <aside className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <aside className="space-y-3">
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-4">
               <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Cliente</p>
               <p className="mt-1 truncate text-sm font-black text-slate-950">{customer?.name || 'Minha conta'}</p>
               <p className="truncate text-xs font-semibold text-slate-500">{customer?.email || 'Dados do catalogo'}</p>
             </div>
 
-            <nav className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm md:grid-cols-1">
+            <nav className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white/90 p-2 md:grid-cols-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href;
@@ -98,8 +115,8 @@ export function StoreAccountShell({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex min-h-12 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${
-                      active ? 'text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                    className={`flex min-h-11 items-center gap-2 rounded-xl px-3 text-xs font-black transition ${
+                      active ? 'text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-950'
                     }`}
                     style={active ? { backgroundColor: primaryColor } : undefined}
                   >
@@ -111,7 +128,7 @@ export function StoreAccountShell({
               <button
                 type="button"
                 onClick={() => signOut()}
-                className="mt-1 flex min-h-12 items-center gap-2 rounded-xl border border-rose-100 bg-rose-50/70 px-3 text-left text-xs font-black text-rose-600 hover:bg-rose-50 md:mt-3"
+                className="mt-1 flex min-h-11 items-center gap-2 rounded-xl border border-rose-100 bg-rose-50/70 px-3 text-left text-xs font-black text-rose-600 hover:bg-rose-50 md:mt-3"
               >
                 <LogOut className="h-4 w-4 shrink-0" />
                 Sair
@@ -121,13 +138,15 @@ export function StoreAccountShell({
         )}
 
         <section className="min-w-0 space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-            <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
-              Inicio / {title}
-            </p>
-            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{title}</h1>
-            {subtitle && <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>}
-          </div>
+          {!hidePageHeader && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+              <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
+                Inicio / {title}
+              </p>
+              <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{title}</h1>
+              {subtitle && <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>}
+            </div>
+          )}
           {requireAuth && hasStoreSession && !isAuthenticated && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 shadow-sm">
               Sua sessao foi iniciada. Estamos finalizando o vinculo com seus dados do catalogo.
