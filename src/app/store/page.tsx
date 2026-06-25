@@ -8,7 +8,6 @@ import {
   ShoppingCart, 
   Trash2, 
   MapPin, 
-  Phone, 
   CheckCircle2, 
   X,
   ArrowRight,
@@ -23,7 +22,6 @@ import {
   HelpCircle,
   Heart,
   Menu,
-  Mail,
   Tag,
   Star,
   Sun,
@@ -35,10 +33,10 @@ import { formatCEP, normalizeRichTextHtml } from '@/lib/utils';
 import { formatCurrency } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
 import { buildWhatsAppOrderMessage, openWhatsAppWithMessage } from '@/lib/whatsapp-order';
-import { BrandMark } from '@/components/brand';
 import { StorePWARegister } from '@/components/store/store-pwa-register';
 import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNavigation';
 import { StoreAccountMenu } from '@/components/store/StoreAccountMenu';
+import { StoreFooter } from '@/components/store/StoreFooter';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { formatStoreAddress } from '@/lib/store-customer';
 import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
@@ -132,12 +130,16 @@ export default function StorefrontPage() {
     isAuthenticated: storeCustomerAuthenticated,
     customer: storeCustomer,
     addresses: storeCustomerAddresses,
-    defaultAddress: storeDefaultAddress
+    defaultAddress: storeDefaultAddress,
+    favoriteProductIds,
+    toggleProductFavorite
   } = useStoreCustomer();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<'all' | 'promo' | 'highlight'>('all');
   const [showcaseTab, setShowcaseTab] = useState<'bestsellers' | 'promo' | 'highlight'>('bestsellers');
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
+  const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
+  const [favoriteSavingProductId, setFavoriteSavingProductId] = useState<string | null>(null);
 
   // Local store theme state (catalog defaults to light mode!)
   const [storeTheme, setStoreTheme] = useState<'light' | 'dark'>('light');
@@ -175,6 +177,34 @@ export default function StorefrontPage() {
     setStoreTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
+  const favoriteProductIdSet = useMemo(() => new Set(favoriteProductIds), [favoriteProductIds]);
+
+  useEffect(() => {
+    if (!favoriteNotice) return;
+
+    const timeout = window.setTimeout(() => setFavoriteNotice(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [favoriteNotice]);
+
+  const handleProductFavorite = async (productId: string) => {
+    if (!storeCustomerAuthenticated) {
+      setFavoriteNotice('Entre ou crie sua conta para salvar favoritos.');
+      return;
+    }
+
+    if (favoriteSavingProductId) return;
+
+    setFavoriteSavingProductId(productId);
+    try {
+      const favorited = await toggleProductFavorite(productId);
+      setFavoriteNotice(favorited ? 'Produto salvo nos favoritos.' : 'Produto removido dos favoritos.');
+    } catch {
+      setFavoriteNotice('Nao foi possivel atualizar seus favoritos agora.');
+    } finally {
+      setFavoriteSavingProductId(null);
+    }
+  };
+
   const [megaMenuCategory, setMegaMenuCategory] = useState<string | null>(null);
   const [openedFromAllProducts, setOpenedFromAllProducts] = useState(false);
 
@@ -207,6 +237,7 @@ export default function StorefrontPage() {
   };
 
   const handleTopCategoryClick = (categoryId: string | null, event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
     const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
     if (isMobile) {
       setMegaMenuOpen(false);
@@ -223,7 +254,6 @@ export default function StorefrontPage() {
         setMegaMenuCategory(categoryId);
         setOpenedFromAllProducts(categoryId === null);
         setMegaMenuOpen(true);
-        handleCategorySelect(categoryId);
       }
     }
   };
@@ -785,6 +815,25 @@ export default function StorefrontPage() {
         .bg-emerald-50\\/30 { background-color: ${opacity5} !important; }
         .bg-emerald-500\\/10 { background-color: ${opacity10} !important; }
       `}} />
+
+      {favoriteNotice && (
+        <div
+          role="status"
+          className="fixed right-4 top-4 z-[70] max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 shadow-2xl md:right-6 md:top-6"
+        >
+          <p>{favoriteNotice}</p>
+          {favoriteNotice.startsWith('Entre') && (
+            <div className="mt-2 flex gap-2">
+              <Link href={STORE_ROUTES.login} className="rounded-lg border border-slate-200 px-2.5 py-1 text-slate-700 hover:bg-slate-50">
+                Entrar
+              </Link>
+              <Link href={STORE_ROUTES.signup} className="rounded-lg bg-emerald-600 px-2.5 py-1 text-white">
+                Criar conta
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
       
       {/* 1. Header Top Info Bar */}
       <div className="bg-white/75 dark:bg-zinc-950 text-slate-600 dark:text-zinc-300 text-xs py-2 border-b border-slate-200 dark:border-zinc-800 backdrop-blur">
@@ -931,6 +980,7 @@ export default function StorefrontPage() {
             <div className="flex items-center w-full min-w-max h-12">
               {/* Todos os Serviços button styled as hamburger menu */}
               <button
+                type="button"
                 onClick={(e) => handleTopCategoryClick(null, e)}
                 className={`flex items-center gap-2 h-full pl-0 pr-6 text-xs font-bold uppercase tracking-wider transition-colors shrink-0 border-r border-slate-200 dark:border-zinc-800 mr-4 relative ${
                   (megaMenuOpen ? megaMenuCategory === null : selectedCategory === null)
@@ -946,6 +996,7 @@ export default function StorefrontPage() {
               <div className="flex items-center gap-6 md:gap-8 h-full">
                 {catalogCategories.filter(c => !c.parent_id).map(cat => (
                   <button
+                    type="button"
                     key={cat.id}
                     onClick={(e) => handleTopCategoryClick(cat.id, e)}
                     className={`text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors shrink-0 h-full relative flex items-center ${
@@ -1373,13 +1424,28 @@ export default function StorefrontPage() {
                         )}
 
                         {/* Floating Heart Icon Button (Moved to top-left) */}
-                        <button 
-                          type="button"
-                          className="absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm text-slate-400 hover:text-rose-500 shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10"
-                          onClick={(e) => { e.stopPropagation(); alert("Adicionado aos favoritos!"); }}
-                        >
-                          <Heart className="h-4 w-4" />
-                        </button>
+                        {(() => {
+                          const isFavorite = favoriteProductIdSet.has(p.id);
+                          const isSaving = favoriteSavingProductId === p.id;
+
+                          return (
+                            <button
+                              type="button"
+                              className={`absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10 disabled:cursor-wait disabled:opacity-70 ${
+                                isFavorite ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleProductFavorite(p.id);
+                              }}
+                              disabled={isSaving}
+                              aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                              title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                            >
+                              <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+                            </button>
+                          );
+                        })()}
 
                         {/* Floating Promo / Highlight tags (Top-right) */}
                         <div className="absolute top-2.5 right-2.5 flex flex-col gap-1 items-end z-10">
@@ -1920,13 +1986,28 @@ export default function StorefrontPage() {
                             </div>
                           )}
 
-                          <button
-                            type="button"
-                            className="absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm text-slate-400 hover:text-rose-500 shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10"
-                            onClick={(e) => { e.stopPropagation(); alert("Adicionado aos favoritos!"); }}
-                          >
-                            <Heart className="h-4 w-4" />
-                          </button>
+                          {(() => {
+                            const isFavorite = favoriteProductIdSet.has(product.id);
+                            const isSaving = favoriteSavingProductId === product.id;
+
+                            return (
+                              <button
+                                type="button"
+                                className={`absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10 disabled:cursor-wait disabled:opacity-70 ${
+                                  isFavorite ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleProductFavorite(product.id);
+                                }}
+                                disabled={isSaving}
+                                aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                                title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                              >
+                                <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+                              </button>
+                            );
+                          })()}
 
                           <div className="absolute top-2.5 right-2.5 flex flex-col gap-1 items-end z-10">
                             {product.is_promo && (
@@ -2027,370 +2108,15 @@ export default function StorefrontPage() {
       )}
 
       {/* 10. Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-[15px] border-t border-slate-800 text-xs select-none">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-16">
-          
-          {/* Contatos */}
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Contatos</h4>
-            </div>
-            <div className="space-y-3.5">
-              <div className="space-y-1">
-                <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest block">WhatsApp Vendas</span>
-                <a href={`https://wa.me/55${(company.phone || '51987654321').replace(/\D/g, '')}`} target="_blank" className="flex items-center gap-2 text-slate-200 hover:text-emerald-400 font-semibold transition-colors">
-                  <svg className="h-3.5 w-3.5 fill-current text-emerald-500 shrink-0" viewBox="0 0 24 24">
-                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.863-9.864.001-2.63-1.023-5.101-2.883-6.963C16.588 1.843 14.116.822 11.5.822 6.066.822 1.641 5.242 1.638 10.682c-.001 1.666.436 3.292 1.267 4.724L1.878 20.1l4.769-1.25zM17.51 14.86c-.3-.149-1.772-.875-2.046-.975-.276-.1-.476-.149-.676.15-.2.3-.777.975-.951 1.174-.176.2-.351.224-.651.075-.3-.149-1.268-.467-2.417-1.493-.892-.796-1.495-1.78-1.67-2.079-.176-.3-.019-.462.13-.611.134-.133.3-.35.45-.525.15-.175.2-.299.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.582-.491-.504-.676-.513-.175-.008-.375-.01-.575-.01-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.494 1.707.632.716.227 1.368.195 1.884.118.574-.085 1.772-.724 2.022-1.424.25-.7.25-1.299.175-1.424-.075-.125-.275-.199-.575-.349z"/>
-                  </svg>
-                  <span>{company.phone || '(51) 98765-4321'}</span>
-                </a>
-              </div>
-              <div className="space-y-1">
-                <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest block">Telefone Comercial</span>
-                <div className="flex items-center gap-2 text-slate-200 font-semibold">
-                  <Phone className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  <span>{company.phone || '(51) 3785-3525'}</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest block">E-mail Vendas</span>
-                <a href={`mailto:${company.email || 'comercial@printflowpro.com.br'}`} className="flex items-center gap-2 text-slate-200 hover:text-emerald-400 font-semibold transition-colors break-all">
-                  <Mail className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  <span>{company.email || 'comercial@printflowpro.com.br'}</span>
-                </a>
-              </div>
-              
-              {/* Redes Sociais */}
-              {(company.instagram_url || company.facebook_url || company.youtube_url) && (
-                <div className="pt-2 flex items-center gap-3">
-                  {company.instagram_url && (
-                    <a href={socialUrl('instagram', company.instagram_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="Instagram">
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                      </svg>
-                    </a>
-                  )}
-                  {company.facebook_url && (
-                    <a href={socialUrl('facebook', company.facebook_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="Facebook">
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
-                      </svg>
-                    </a>
-                  )}
-                  {company.youtube_url && (
-                    <a href={socialUrl('youtube', company.youtube_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="YouTube">
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
-                        <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
-                      </svg>
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Endereço */}
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Endereço</h4>
-            </div>
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest block">Sede / Matriz</span>
-                {settings?.footer_show_address !== false ? (
-                  <p className="text-slate-200 font-medium leading-relaxed">
-                    {company.street ? (
-                      <>
-                        {company.street}, {company.number}<br />
-                        {company.neighborhood} - {company.city}/{company.state}<br />
-                        CEP {company.cep}
-                      </>
-                    ) : (
-                      <>
-                        Avenida das Indústrias, 1200 - Igara<br />
-                        Porto Alegre - RS | CEP 90200-290
-                      </>
-                    )}
-                  </p>
-                ) : (
-                  <p className="text-slate-200 font-medium leading-relaxed italic">
-                    Atendimento apenas online
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Horário de Atendimento */}
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Horário de Atendimento</h4>
-            </div>
-            <div className="space-y-3.5 text-slate-200 font-medium leading-relaxed">
-              {settings?.footer_hours_message && (
-                <div className="p-2 bg-slate-800/40 border border-slate-800 rounded-xl text-[10px] text-slate-400 italic">
-                  {settings.footer_hours_message}
-                </div>
-              )}
-              <div className="space-y-2">
-                <div className="space-y-0.5">
-                  <p className="flex items-center gap-2 text-slate-200 font-semibold">
-                    <Clock className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                    <span>{settings?.footer_hours_week || '8h às 12h / 13h30 às 18h'}</span>
-                  </p>
-                  <p className="text-slate-400 text-[10px] uppercase font-bold pl-5.5">{settings?.footer_hours_sat || 'Segunda à Sexta-feira'}</p>
-                </div>
-                {settings?.footer_hours_sat_time && (
-                  <div className="space-y-0.5">
-                    <p className="flex items-center gap-2 text-slate-200 font-semibold">
-                      <Clock className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                      <span>{settings.footer_hours_sat_time}</span>
-                    </p>
-                    <p className="text-slate-400 text-[10px] uppercase font-bold pl-5.5">{settings?.footer_hours_sat_desc || 'Sábado'}</p>
-                  </div>
-                )}
-              </div>
-              {settings?.footer_show_address !== false && (
-                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                  LOJA FÍSICA | MATRIZ {company.city || 'PORTO ALEGRE'} - {company.state || 'RS'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Institucional */}
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Institucional</h4>
-            </div>
-            <div className="flex flex-col gap-2.5 font-semibold">
-              <button onClick={() => setCartOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Carrinho de Orçamentos
-              </button>
-              <button onClick={() => setSelectedCategory(null)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Todos os Serviços
-              </button>
-              <button onClick={() => setPickupModalOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Balcões de Retirada
-              </button>
-              <button onClick={() => setRefundModalOpen(true)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Política de devolução e reembolso
-              </button>
-              {storeCustomerAuthenticated ? (
-                <>
-                  <a href={STORE_ROUTES.account} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                    Minha conta
-                  </a>
-                  <a href={STORE_ROUTES.orders} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                    Meus pedidos
-                  </a>
-                </>
-              ) : (
-                <>
-                  <a href={STORE_ROUTES.login} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                    Entrar
-                  </a>
-                  <a href={STORE_ROUTES.signup} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                    Criar conta
-                  </a>
-                  <a href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.account)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                    Minha conta
-                  </a>
-                  <a href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.orders)} className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                    Meus pedidos
-                  </a>
-                </>
-              )}
-              <Link href="/store/privacidade" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Politica de Privacidade
-              </Link>
-              <Link href="/store/cookies" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Politica de Cookies
-              </Link>
-              <Link href="/store/termos" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Termos de Uso
-              </Link>
-              <Link href="/store/privacidade#cookies" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Gerenciar Cookies
-              </Link>
-              <Link href="/store/privacidade/solicitar" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Solicitacoes de Privacidade
-              </Link>
-              <a href={`https://wa.me/55${(company.phone || '51987654321').replace(/\D/g, '')}`} target="_blank" className="text-left text-slate-300 hover:text-emerald-400 transition-colors">
-                Atendimento
-              </a>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Dynamic Badges: Payment, Delivery, Security */}
-        <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-[15px] mt-[15px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-16">
-          {/* FORMAS DE PAGAMENTO */}
-          <div className="space-y-3.5 lg:col-span-2">
-            <h4 className="font-extrabold text-emerald-500 text-xs uppercase tracking-wider">Formas de Pagamento</h4>
-            <div className="flex flex-wrap gap-2">
-              {company.show_payments_visa !== false && (
-                company.img_payments_visa ? (
-                  <img src={company.img_payments_visa} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Visa" title="Visa" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Visa</span>
-                )
-              )}
-              {company.show_payments_mastercard !== false && (
-                company.img_payments_mastercard ? (
-                  <img src={company.img_payments_mastercard} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Mastercard" title="Mastercard" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Mastercard</span>
-                )
-              )}
-              {company.show_payments_elo !== false && (
-                company.img_payments_elo ? (
-                  <img src={company.img_payments_elo} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Elo" title="Elo" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Elo</span>
-                )
-              )}
-              {company.show_payments_hipercard !== false && (
-                company.img_payments_hipercard ? (
-                  <img src={company.img_payments_hipercard} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Hipercard" title="Hipercard" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Hipercard</span>
-                )
-              )}
-              {false && company.show_payments_diners !== false && (
-                company.img_payments_diners ? (
-                  <img src={company.img_payments_diners} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Diners Club" title="Diners Club" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Diners</span>
-                )
-              )}
-              {false && company.show_payments_amex !== false && (
-                company.img_payments_amex ? (
-                  <img src={company.img_payments_amex} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="American Express" title="American Express" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Amex</span>
-                )
-              )}
-              {false && company.show_payments_boleto !== false && (
-                company.img_payments_boleto ? (
-                  <img src={company.img_payments_boleto} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Boleto Bancário" title="Boleto Bancário" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Boleto</span>
-                )
-              )}
-              {false && company.show_payments_transferencia !== false && (
-                company.img_payments_transferencia ? (
-                  <img src={company.img_payments_transferencia} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Transferência" title="Transferência" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Transferência</span>
-                )
-              )}
-              {company.show_payments_pix !== false && (
-                company.img_payments_pix ? (
-                  <img src={company.img_payments_pix} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="PIX" title="PIX" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">PIX</span>
-                )
-              )}
-            </div>
-          </div>
- 
-          {/* FORMAS DE ENTREGA */}
-          <div className="space-y-3.5">
-            <h4 className="font-extrabold text-emerald-500 text-xs uppercase tracking-wider">Formas de Entrega</h4>
-            <div className="flex flex-wrap gap-2">
-              {company.show_delivery_sedex !== false && (
-                company.img_delivery_sedex ? (
-                  <img src={company.img_delivery_sedex} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="SEDEX" title="SEDEX" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">SEDEX</span>
-                )
-              )}
-              {false && company.show_delivery_pac !== false && (
-                company.img_delivery_pac ? (
-                  <img src={company.img_delivery_pac} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="PAC" title="PAC" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">PAC</span>
-                )
-              )}
-              {company.show_delivery_correios !== false && (
-                company.img_delivery_correios ? (
-                  <img src={company.img_delivery_correios} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Correios" title="Correios" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Correios</span>
-                )
-              )}
-              {company.show_delivery_jadlog !== false && (
-                company.img_delivery_jadlog ? (
-                  <img src={company.img_delivery_jadlog} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Jadlog" title="Jadlog" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Jadlog</span>
-                )
-              )}
-              {company.show_delivery_motoboy !== false && (
-                company.img_delivery_motoboy ? (
-                  <img src={company.img_delivery_motoboy} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Motoboy" title="Motoboy" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Motoboy</span>
-                )
-              )}
-            </div>
-          </div>
- 
-          {/* SEGURANÇA */}
-          <div className="space-y-3.5">
-            <h4 className="font-extrabold text-emerald-500 text-xs uppercase tracking-wider">Segurança</h4>
-            <div className="flex flex-wrap gap-2">
-              {company.show_security_letsencrypt !== false && (
-                company.img_security_letsencrypt ? (
-                  <img src={company.img_security_letsencrypt} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Let's Encrypt" title="Let's Encrypt" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">SSL Seguro</span>
-                )
-              )}
-              {company.show_security_google !== false && (
-                company.img_security_google ? (
-                  <img src={company.img_security_google} className="h-8 w-auto object-contain select-none rounded-none shadow-sm hover:scale-[1.03] transition-transform bg-white" alt="Google Safe" title="Google Safe" />
-                ) : (
-                  <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">Google Safe</span>
-                )
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Bar */}
-        <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-[15px] mt-[15px] text-center text-[10px] md:text-xs text-slate-500 font-medium flex flex-col items-center gap-4">
-          <p>
-            {new Date().getFullYear()} - Copyright © - {company.name || 'PrintFlowPRO'}
-            {company.document ? ` - CNPJ: ${company.document}` : ''} | Desenvolvido para Alta Lucratividade de Gráficas e Comunicação Visual.
-          </p>
-
-          <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-600 bg-slate-950/40 px-3 py-1.5 rounded-full border border-slate-800/60 select-none">
-            <span>Desenvolvido e Hospedado por</span>
-            <BrandMark className="h-4 w-4 rounded-md" />
-            <span className="font-extrabold uppercase tracking-widest text-emerald-400">PrintFlowPRO</span>
-            <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold">SaaS v1.0</span>
-          </div>
-        </div>
-
-        {/* Floating WhatsApp Badge */}
-        <a
-          href={`https://wa.me/55${(company.phone || '51987654321').replace(/\D/g, '')}`}
-          target="_blank"
-          className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] right-4 z-40 bg-[#25D366] hover:bg-[#20ba5a] text-white p-3.5 rounded-full shadow-lg hover:shadow-xl hover:scale-110 active:scale-95 transition-all flex items-center justify-center group md:bottom-6 md:right-6"
-          title="Fale Conosco no WhatsApp"
-        >
-          <svg className="h-6 w-6 fill-current" viewBox="0 0 24 24">
-            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.863-9.864.001-2.63-1.023-5.101-2.883-6.963C16.588 1.843 14.116.822 11.5.822 6.066.822 1.641 5.242 1.638 10.682c-.001 1.666.436 3.292 1.267 4.724L1.878 20.1l4.769-1.25zM17.51 14.86c-.3-.149-1.772-.875-2.046-.975-.276-.1-.476-.149-.676.15-.2.3-.777.975-.951 1.174-.176.2-.351.224-.651.075-.3-.149-1.268-.467-2.417-1.493-.892-.796-1.495-1.78-1.67-2.079-.176-.3-.019-.462.13-.611.134-.133.3-.35.45-.525.15-.175.2-.299.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.582-.491-.504-.676-.513-.175-.008-.375-.01-.575-.01-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.494 1.707.632.716.227 1.368.195 1.884.118.574-.085 1.772-.724 2.022-1.424.25-.7.25-1.299.175-1.424-.075-.125-.275-.199-.575-.349z"/>
-          </svg>
-        </a>
-      </footer>
-
+      <StoreFooter
+        company={company}
+        settings={settings}
+        storeCustomerAuthenticated={storeCustomerAuthenticated}
+        onOpenCart={() => setCartOpen(true)}
+        onShowAllServices={() => setSelectedCategory(null)}
+        onOpenPickupPoints={() => setPickupModalOpen(true)}
+        onOpenRefundPolicy={() => setRefundModalOpen(true)}
+      />
       {!cartOpen && !activeAdvancedConfigProduct && !orderCompleted && !pickupModalOpen && !refundModalOpen && (
         <StoreMobileBottomNavigation
           categories={catalogCategories}

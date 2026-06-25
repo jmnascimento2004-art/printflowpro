@@ -9,6 +9,7 @@ import type { Customer } from '@/lib/dummy-data';
 import {
   StoreCustomerAccount,
   StoreCustomerAddress,
+  StoreCustomerFavorite,
   StoreCustomerOrder,
   StoreCustomerQuote,
   StoreSignupInput
@@ -24,6 +25,7 @@ type StoreCustomerContextType = {
   addresses: StoreCustomerAddress[];
   orders: StoreCustomerOrder[];
   quotes: StoreCustomerQuote[];
+  favoriteProductIds: string[];
   defaultAddress: StoreCustomerAddress | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -38,6 +40,7 @@ type StoreCustomerContextType = {
   saveAddress: (address: Partial<StoreCustomerAddress>) => Promise<void>;
   deleteAddress: (id: string) => Promise<void>;
   setDefaultAddress: (id: string) => Promise<void>;
+  toggleProductFavorite: (productId: string) => Promise<boolean>;
 };
 
 const StoreCustomerContext = createContext<StoreCustomerContextType | undefined>(undefined);
@@ -86,6 +89,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
   const [addresses, setAddresses] = useState<StoreCustomerAddress[]>(emptyAddressList);
   const [orders, setOrders] = useState<StoreCustomerOrder[]>([]);
   const [quotes, setQuotes] = useState<StoreCustomerQuote[]>([]);
+  const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,6 +146,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     setAddresses(emptyAddressList);
     setOrders([]);
     setQuotes([]);
+    setFavoriteProductIds([]);
     setError(null);
   };
 
@@ -191,6 +196,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       setAddresses(emptyAddressList);
       setOrders([]);
       setQuotes([]);
+      setFavoriteProductIds([]);
       setIsLoading(false);
       return;
     }
@@ -252,6 +258,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
           setAddresses(emptyAddressList);
           setOrders([]);
           setQuotes([]);
+          setFavoriteProductIds([]);
           setError(ensureAccountError || 'Nao encontramos um cadastro de cliente vinculado a este login.');
         }
         setIsLoading(false);
@@ -270,7 +277,8 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       const [
         { data: addressesData, error: addressesError },
         { data: ordersData, error: ordersError },
-        { data: quotesData, error: quotesError }
+        { data: quotesData, error: quotesError },
+        { data: favoritesData, error: favoritesError }
       ] = await Promise.all([
         supabase
           .from('customer_addresses')
@@ -290,16 +298,24 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
           .select('*, items:quote_items(*)')
           .eq('company_id', company.id)
           .eq('customer_id', nextCustomer.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('store_customer_favorites')
+          .select('*')
+          .eq('company_id', company.id)
+          .eq('customer_id', nextCustomer.id)
           .order('created_at', { ascending: false })
       ]);
 
       if (addressesError) throw addressesError;
       if (ordersError) throw ordersError;
       if (quotesError) throw quotesError;
+      if (favoritesError) throw favoritesError;
 
       setAddresses((addressesData || []) as StoreCustomerAddress[]);
       setOrders((ordersData || []) as StoreCustomerOrder[]);
       setQuotes((quotesData || []) as StoreCustomerQuote[]);
+      setFavoriteProductIds(((favoritesData || []) as StoreCustomerFavorite[]).map((favorite) => favorite.product_id));
     } catch (loadError) {
       warnCaught('Erro ao carregar area do cliente:', loadError);
       if (nextSession?.user && company.id) {
@@ -415,6 +431,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     setAddresses(emptyAddressList);
     setOrders([]);
     setQuotes([]);
+    setFavoriteProductIds([]);
     router.push('/store');
   };
 
@@ -515,6 +532,40 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     await loadStoreCustomer();
   };
 
+  const toggleProductFavorite = async (productId: string) => {
+    if (!customer) throw new Error('Cliente nao autenticado.');
+
+    const isFavorite = favoriteProductIds.includes(productId);
+
+    if (isFavorite) {
+      const { error: deleteError } = await supabase
+        .from('store_customer_favorites')
+        .delete()
+        .eq('company_id', customer.company_id)
+        .eq('customer_id', customer.id)
+        .eq('product_id', productId);
+
+      if (deleteError) throw deleteError;
+      setFavoriteProductIds((current) => current.filter((id) => id !== productId));
+      return false;
+    }
+
+    const { error: insertError } = await supabase
+      .from('store_customer_favorites')
+      .upsert(
+        {
+          company_id: customer.company_id,
+          customer_id: customer.id,
+          product_id: productId
+        },
+        { onConflict: 'company_id,customer_id,product_id', ignoreDuplicates: true }
+      );
+
+    if (insertError) throw insertError;
+    setFavoriteProductIds((current) => (current.includes(productId) ? current : [...current, productId]));
+    return true;
+  };
+
   const value: StoreCustomerContextType = {
     session,
     user: session?.user || null,
@@ -523,6 +574,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     addresses,
     orders,
     quotes,
+    favoriteProductIds,
     defaultAddress,
     isAuthenticated: Boolean(session?.user && account?.status === 'active' && customer),
     isLoading,
@@ -536,7 +588,8 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     updateCustomerProfile,
     saveAddress,
     deleteAddress,
-    setDefaultAddress
+    setDefaultAddress,
+    toggleProductFavorite
   };
 
   return (

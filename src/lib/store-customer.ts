@@ -30,6 +30,14 @@ export interface StoreCustomerAccount {
   customer?: Customer;
 }
 
+export interface StoreCustomerFavorite {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  product_id: string;
+  created_at: string;
+}
+
 export type StoreCustomerOrder = Order & { items?: Order['items'] };
 export type StoreCustomerQuote = Quote & { items?: Quote['items'] };
 
