@@ -5,6 +5,26 @@ import { supabase } from '@/lib/supabaseClient';
 import { publicStoreSelect } from '@/lib/publicSupabaseClient';
 import { warnCaught } from '@/lib/safe-log';
 import {
+  clearOperationalDemoSnapshots,
+  getOrSetDemoSnapshot,
+  isDemoFallbackAllowed,
+  persistDemoSnapshot
+} from '@/context/database/demo-storage';
+import {
+  createUnprovisionedCompany,
+  mergeCategoriesWithStoredVisibility,
+  normalizeDemoFinancial,
+  normalizeDemoOrders,
+  normalizeDemoProduction,
+  normalizeDemoShipments
+} from '@/context/database/bootstrap';
+import {
+  reconstructOrdersWithItems,
+  reconstructQuotesWithItems,
+  type OrderItemRow,
+  type QuoteItemRow
+} from '@/context/database/reconstruct';
+import {
   buildCustomerRecord,
   createCustomer,
   deleteAllCustomers,
@@ -19,7 +39,6 @@ import {
   Category,
   Product,
   Quote,
-  QuoteItem,
   Order,
   ProductionItem,
   FinancialTransaction,
@@ -179,8 +198,6 @@ export interface StoreBanner {
   link?: string;
 }
 
-type QuoteItemRow = QuoteItem & { quote_id: string };
-type OrderItemRow = OrderItem & { order_id: string };
 type StoreBannerRow = StoreBanner & { company_id?: string };
 type PublicStoreDataResponse = {
   debug?: Record<string, unknown>;
@@ -313,16 +330,6 @@ const resolveCompanyForHostname = (companies: Company[]) => {
   return brandedDomainMatch || companies[0];
 };
 
-const isDemoFallbackAllowed = () => {
-  if (!isBrowser()) return false;
-  return process.env.NODE_ENV !== 'production' || window.localStorage.getItem('printflow_demo_mode') === 'true';
-};
-
-const persistDemoSnapshot = (key: string, value: unknown) => {
-  if (!isDemoFallbackAllowed()) return;
-  window.localStorage.setItem(`printflow_${key}`, JSON.stringify(value));
-};
-
 const hasSettingValue = (value: unknown) => value !== undefined && value !== null && value !== '';
 
 const mergeSettingsWithDefaults = (
@@ -395,7 +402,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const activeSession = sessions.find(s => s.status === 'aberto') || null;
   const currentCompanyId = company.id || DUMMY_COMPANY.id;
 
-  // Load from Supabase on mount, fallback to localStorage
+  // Load from Supabase on mount; demo/localStorage fallback is explicit opt-in only.
   useEffect(() => {
     if (!isBrowser()) return;
 
@@ -458,7 +465,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             });
           }
 
-          setCompany(activeCompany || { ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
+          setCompany(activeCompany || createUnprovisionedCompany(DUMMY_COMPANY));
 
           if (storeData.settings) {
             setSettings(mergeSettingsWithDefaults(storeData.settings as Partial<typeof DUMMY_SETTINGS>));
@@ -501,24 +508,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           // Initial production setup must be done through Supabase SQL Editor or a server-side service role.
           // The browser client must not seed tenant data with the public key.
           
-          // Clear operational data in localStorage to prevent loading dummy data locally
-          window.localStorage.setItem('printflow_customers', '[]');
-          window.localStorage.setItem('printflow_suppliers', '[]');
-          window.localStorage.setItem('printflow_categories', '[]');
-          window.localStorage.setItem('printflow_products', '[]');
-          window.localStorage.setItem('printflow_quotes', '[]');
-          window.localStorage.setItem('printflow_orders', '[]');
-          window.localStorage.setItem('printflow_production', '[]');
-          window.localStorage.setItem('printflow_financial', '[]');
-          window.localStorage.setItem('printflow_shipments', '[]');
-          window.localStorage.setItem('printflow_stockMovements', '[]');
-          window.localStorage.setItem('printflow_pickupPoints', '[]');
-          window.localStorage.setItem('printflow_banners', '[]');
-          window.localStorage.setItem('printflow_sessions', '[]');
-          window.localStorage.setItem('printflow_registerTransactions', '[]');
+          clearOperationalDemoSnapshots();
 
           // Keep public configuration empty/default until a real tenant is provisioned.
-          setCompany({ ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
+          setCompany(createUnprovisionedCompany(DUMMY_COMPANY));
           setSettings(DUMMY_SETTINGS);
           setProfiles([]);
           setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
@@ -595,10 +588,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             ? settingsData.find((item) => item.company_id === activeCompanyId) || settingsData[0]
             : settingsData[0];
           let storedSettings: Partial<typeof DUMMY_SETTINGS> | null = null;
-          try {
-            storedSettings = JSON.parse(window.localStorage.getItem('printflow_settings') || 'null');
-          } catch {
-            storedSettings = null;
+          if (isDemoFallbackAllowed()) {
+            try {
+              storedSettings = JSON.parse(window.localStorage.getItem('printflow_settings') || 'null');
+            } catch {
+              storedSettings = null;
+            }
           }
           setSettings(mergeSettingsWithDefaults(activeSettings as Partial<typeof DUMMY_SETTINGS>, storedSettings));
         }
@@ -607,36 +602,29 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         if (suppliersData) setSuppliers(filterByCompany(suppliersData as Supplier[]));
         if (categoriesData) {
           let storedCategories: Category[] = [];
-          try {
-            storedCategories = JSON.parse(window.localStorage.getItem('printflow_categories') || '[]');
-          } catch {
-            storedCategories = [];
+          if (isDemoFallbackAllowed()) {
+            try {
+              storedCategories = JSON.parse(window.localStorage.getItem('printflow_categories') || '[]');
+            } catch {
+              storedCategories = [];
+            }
           }
-          const storedVisibility = new Map(storedCategories.map((category) => [category.id, category.show_in_catalog]));
-          const mergedCategories = filterByCompany(categoriesData as Category[]).map((category) => ({
-            ...category,
-            show_in_catalog: category.show_in_catalog ?? storedVisibility.get(category.id) ?? true
-          }));
+          const mergedCategories = mergeCategoriesWithStoredVisibility(
+            filterByCompany(categoriesData as Category[]),
+            storedCategories
+          );
           setCategories(mergedCategories);
         }
         if (productsData) setProducts(filterByCompany(productsData as Product[]));
         
         if (quotesData) {
           const quoteItems = (quoteItemsData || []) as QuoteItemRow[];
-          const reconstructed: Quote[] = filterByCompany(quotesData as Quote[]).map(q => {
-            const items = quoteItems.filter(qi => qi.quote_id === q.id);
-            return { ...q, items };
-          });
-          setQuotes(reconstructed);
+          setQuotes(reconstructQuotesWithItems(filterByCompany(quotesData as Quote[]), quoteItems));
         }
 
         if (ordersData) {
           const orderItems = (orderItemsData || []) as OrderItemRow[];
-          const reconstructed: Order[] = filterByCompany(ordersData as Order[]).map(o => {
-            const items = orderItems.filter(oi => oi.order_id === o.id);
-            return { ...o, items };
-          });
-          setOrders(reconstructed);
+          setOrders(reconstructOrdersWithItems(filterByCompany(ordersData as Order[]), orderItems));
         }
 
         if (productionData) setProduction(filterByCompany(productionData as ProductionItem[]));
@@ -679,7 +667,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           setStockMovements([]);
           setSettings(DUMMY_SETTINGS);
           setPickupPoints([]);
-          setCompany({ ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
+          setCompany(createUnprovisionedCompany(DUMMY_COMPANY));
           setBanners([]);
           setProfiles([]);
           setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
@@ -689,50 +677,36 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const getOrSet = <T,>(key: string, defaultValue: T): T => {
-          const stored = window.localStorage.getItem(`printflow_${key}`);
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            if (parsed !== null && parsed !== undefined) return parsed as T;
-          }
-          window.localStorage.setItem(`printflow_${key}`, JSON.stringify(defaultValue));
-          return defaultValue;
-        };
+        setCustomers(getOrSetDemoSnapshot('customers', DUMMY_CUSTOMERS));
+        setSuppliers(getOrSetDemoSnapshot('suppliers', DUMMY_SUPPLIERS));
+        setCategories(getOrSetDemoSnapshot('categories', DUMMY_CATEGORIES));
+        setProducts(getOrSetDemoSnapshot('products', DUMMY_PRODUCTS));
+        setQuotes(getOrSetDemoSnapshot('quotes', DUMMY_QUOTES));
+        
+        const rawOrders = getOrSetDemoSnapshot('orders', DUMMY_ORDERS);
+        setOrders(normalizeDemoOrders(rawOrders));
+        
+        const rawProd = getOrSetDemoSnapshot('production', DUMMY_PRODUCTION_QUEUE);
+        setProduction(normalizeDemoProduction(rawProd));
+        
+        const rawFin = getOrSetDemoSnapshot('financial', DUMMY_FINANCIAL);
+        setFinancial(normalizeDemoFinancial(rawFin));
 
-        setCustomers(getOrSet('customers', DUMMY_CUSTOMERS));
-        setSuppliers(getOrSet('suppliers', DUMMY_SUPPLIERS));
-        setCategories(getOrSet('categories', DUMMY_CATEGORIES));
-        setProducts(getOrSet('products', DUMMY_PRODUCTS));
-        setQuotes(getOrSet('quotes', DUMMY_QUOTES));
+        const rawShips = getOrSetDemoSnapshot('shipments', DUMMY_SHIPMENTS);
+        setShipments(normalizeDemoShipments(rawShips));
         
-        const rawOrders = getOrSet('orders', DUMMY_ORDERS);
-        setOrders(rawOrders.map(o => ({ ...o, number: o.number.replace(/ORD-\d{4}-/, 'ORD-') })));
+        setStockMovements(getOrSetDemoSnapshot('stockMovements', []));
+        setSettings(mergeSettingsWithDefaults(null, getOrSetDemoSnapshot('settings', DUMMY_SETTINGS), true));
+        setPickupPoints(getOrSetDemoSnapshot('pickupPoints', DUMMY_PICKUP_POINTS));
         
-        const rawProd = getOrSet('production', DUMMY_PRODUCTION_QUEUE);
-        setProduction(rawProd.map(p => ({ ...p, order_number: p.order_number.replace(/ORD-\d{4}-/, 'ORD-') })));
-        
-        const rawFin = getOrSet('financial', DUMMY_FINANCIAL);
-        setFinancial(rawFin.map(f => ({
-          ...f,
-          order_number: f.order_number ? f.order_number.replace(/ORD-\d{4}-/, 'ORD-') : undefined,
-          description: f.description.replace(/ORD-\d{4}-/, 'ORD-')
-        })));
-
-        const rawShips = getOrSet('shipments', DUMMY_SHIPMENTS);
-        setShipments(rawShips.map(s => ({ ...s, order_number: s.order_number.replace(/ORD-\d{4}-/, 'ORD-') })));
-        
-        setStockMovements(getOrSet('stockMovements', []));
-        setSettings(mergeSettingsWithDefaults(null, getOrSet('settings', DUMMY_SETTINGS), true));
-        setPickupPoints(getOrSet('pickupPoints', DUMMY_PICKUP_POINTS));
-        
-        const loadedCompany = getOrSet('company', DUMMY_COMPANY);
+        const loadedCompany = getOrSetDemoSnapshot('company', DUMMY_COMPANY);
         setCompany(loadedCompany);
         
-        setBanners(getOrSet('banners', DEFAULT_BANNERS));
-        setProfiles(getOrSet('profiles', DUMMY_PROFILES));
-        setRolePermissions(getOrSet('role_permissions', DEFAULT_ROLE_PERMISSIONS));
-        setSessions(getOrSet('sessions', []));
-        setRegisterTransactions(getOrSet('registerTransactions', []));
+        setBanners(getOrSetDemoSnapshot('banners', DEFAULT_BANNERS));
+        setProfiles(getOrSetDemoSnapshot('profiles', DUMMY_PROFILES));
+        setRolePermissions(getOrSetDemoSnapshot('role_permissions', DEFAULT_ROLE_PERMISSIONS));
+        setSessions(getOrSetDemoSnapshot('sessions', []));
+        setRegisterTransactions(getOrSetDemoSnapshot('registerTransactions', []));
         
         setInitialized(true);
       } catch (e) {
@@ -750,7 +724,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           setStockMovements([]);
           setSettings(DUMMY_SETTINGS);
           setPickupPoints([]);
-          setCompany({ ...DUMMY_COMPANY, name: 'PrintFlowPRO', document: '' });
+          setCompany(createUnprovisionedCompany(DUMMY_COMPANY));
           setBanners([]);
           setProfiles([]);
           setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
@@ -1115,7 +1089,7 @@ useEffect(() => {
     } catch {
       if (canShowToast) showToast('Erro ao salvar banners!', 'error');
     }
-  }, [banners, initialized, canShowToast]);
+  }, [banners, company.id, initialized, canShowToast]);
 
   useEffect(() => {
     if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
@@ -1151,7 +1125,7 @@ useEffect(() => {
     } catch {
       if (canShowToast) showToast('Erro ao salvar permissões de acesso!', 'error');
     }
-  }, [rolePermissions, initialized, canShowToast]);
+  }, [rolePermissions, company.id, initialized, canShowToast]);
 
   useEffect(() => {
     if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
@@ -1223,21 +1197,7 @@ useEffect(() => {
   const resetDatabase = () => {
     if (!isBrowser()) return;
 
-    // Set operational data in localStorage to empty arrays to prevent falling back to dummy data on offline reload
-    window.localStorage.setItem('printflow_customers', '[]');
-    window.localStorage.setItem('printflow_suppliers', '[]');
-    window.localStorage.setItem('printflow_categories', '[]');
-    window.localStorage.setItem('printflow_products', '[]');
-    window.localStorage.setItem('printflow_quotes', '[]');
-    window.localStorage.setItem('printflow_orders', '[]');
-    window.localStorage.setItem('printflow_production', '[]');
-    window.localStorage.setItem('printflow_financial', '[]');
-    window.localStorage.setItem('printflow_shipments', '[]');
-    window.localStorage.setItem('printflow_stockMovements', '[]');
-    window.localStorage.setItem('printflow_pickupPoints', '[]');
-    window.localStorage.setItem('printflow_banners', '[]');
-    window.localStorage.setItem('printflow_sessions', '[]');
-    window.localStorage.setItem('printflow_registerTransactions', '[]');
+    clearOperationalDemoSnapshots();
     
     // Clear Supabase operational tables but KEEP companies, settings, profiles, and role_permissions
     Promise.all([

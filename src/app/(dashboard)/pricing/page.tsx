@@ -461,7 +461,7 @@ export default function PricingPage() {
           {/* Main suggested price gauge */}
           <div className="bg-gradient-to-br from-primary/15 to-indigo-500/10 border border-primary/20 rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center text-center relative overflow-hidden group">
             <span className="text-xs font-bold text-primary uppercase tracking-wider">Valor de Venda Sugerido</span>
-            <h2 className="text-4xl font-extrabold tracking-tight text-foreground mt-2">{formatCurrency(suggestedPrice)}</h2>
+            <h2 className="text-2xl font-extrabold tracking-tight text-foreground mt-2">{formatCurrency(suggestedPrice)}</h2>
             <span className="text-[10px] text-muted-foreground mt-1">Por {getPricingTypeLabel()}</span>
 
             {/* Micro details bar chart */}

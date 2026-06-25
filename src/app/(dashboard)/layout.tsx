@@ -193,7 +193,7 @@ function LoginScreen({
               <ShieldCheck className="h-3.5 w-3.5" />
               Acesso protegido com Supabase Auth
             </div>
-            <h1 className="mt-5 text-4xl font-black leading-tight text-slate-950">
+            <h1 className="mt-5 text-2xl font-black leading-tight text-slate-950">
               Controle producao, vendas e financeiro com uma sessao segura.
             </h1>
             <p className="mt-4 text-sm leading-6 text-slate-600">

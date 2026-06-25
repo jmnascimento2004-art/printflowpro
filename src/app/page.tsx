@@ -50,7 +50,7 @@ export default function LandingPortalPage() {
             Precificação Inteligente & Gestão Gráfica
           </div>
           
-          <h1 className="text-3xl md:text-4xl lg:text-[40px] xl:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-black text-slate-900 tracking-tight leading-tight">
             O ERP definitivo para <br />
             <span className="pf-brand-gradient">
               Comunicação Visual & Gráfica

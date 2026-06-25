@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, 
   DollarSign, 
@@ -78,7 +78,7 @@ export default function OrdersPage() {
   const [editDeliveryState, setEditDeliveryState] = useState('');
   const [editDeliveryZipCode, setEditDeliveryZipCode] = useState('');
 
-  const buildOrderOriginAddress = () => {
+  const buildOrderOriginAddress = useCallback(() => {
     const hasRegisteredAddress = Boolean(
       company?.street?.trim() &&
       company?.number?.trim() &&
@@ -90,7 +90,15 @@ export default function OrdersPage() {
     return hasRegisteredAddress
       ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}${company.cep ? `, CEP ${company.cep}` : ''}`
       : settings.company_address;
-  };
+  }, [
+    company?.street,
+    company?.number,
+    company?.neighborhood,
+    company?.city,
+    company?.state,
+    company?.cep,
+    settings.company_address
+  ]);
 
   // Helper para decodificar o endereço concatenado salvo no pedido
   const parseDeliveryAddress = (addrStr: string) => {
@@ -229,7 +237,7 @@ export default function OrdersPage() {
     }, 1000); // 1s de debounce
 
     return () => clearTimeout(timer);
-  }, [editDeliveryAddress, editDeliveryType, lastCalculatedAddress, settings, company]);
+  }, [editDeliveryAddress, editDeliveryType, lastCalculatedAddress, settings, buildOrderOriginAddress, editShipping]);
 
   const handleEditDistanceChange = (km: number) => {
     setEditDeliveryDistanceKm(km);

@@ -62,7 +62,7 @@ export default function StorePrivacyRequestPage() {
         </Link>
 
         <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Solicitacao de privacidade</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-950">Solicitacao de privacidade</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Envie uma solicitacao para {company.name || 'a loja'}. A resposta pode exigir confirmacao segura de identidade
             e nao informaremos por este formulario se determinado CPF ou e-mail possui cadastro.

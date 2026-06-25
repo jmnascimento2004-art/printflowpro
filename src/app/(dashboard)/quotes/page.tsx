@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Plus, 
   FileText, 
@@ -218,7 +218,7 @@ export default function QuotesPage() {
   const [deliveryState, setDeliveryState] = useState('');
   const [deliveryZipCode, setDeliveryZipCode] = useState('');
 
-  const buildQuoteOriginAddress = () => {
+  const buildQuoteOriginAddress = useCallback(() => {
     const hasRegisteredAddress = Boolean(
       company?.street?.trim() &&
       company?.number?.trim() &&
@@ -230,7 +230,15 @@ export default function QuotesPage() {
     return hasRegisteredAddress
       ? `${company.street}, ${company.number} - ${company.neighborhood}, ${company.city} - ${company.state}${company.cep ? `, CEP ${company.cep}` : ''}`
       : settings.company_address;
-  };
+  }, [
+    company?.street,
+    company?.number,
+    company?.neighborhood,
+    company?.city,
+    company?.state,
+    company?.cep,
+    settings.company_address
+  ]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -418,7 +426,7 @@ export default function QuotesPage() {
     }, 1000); // 1s de debounce
 
     return () => clearTimeout(timer);
-  }, [deliveryAddress, deliveryType, lastCalculatedAddress, settings, company]);
+  }, [deliveryAddress, deliveryType, lastCalculatedAddress, settings, buildQuoteOriginAddress]);
 
   const handleDistanceChange = (km: number) => {
     setDeliveryDistanceKm(km);

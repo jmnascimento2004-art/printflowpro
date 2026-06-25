@@ -277,7 +277,7 @@ export default function StoreLoginPage() {
         <section className="mx-auto w-full max-w-[580px] rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <div className="mb-6 text-center sm:text-left">
             <p className="text-xs font-black uppercase tracking-wider text-slate-400">Area do Cliente</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Entrar na sua conta</h1>
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Entrar na sua conta</h1>
             <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
               Acompanhe pedidos, pagamentos e aprovacoes de arte em um so lugar.
             </p>

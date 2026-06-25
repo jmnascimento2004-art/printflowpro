@@ -143,7 +143,7 @@ export function StoreAccountShell({
               <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
                 Inicio / {title}
               </p>
-              <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{title}</h1>
+              <h1 className="text-xl font-black tracking-tight text-slate-950 md:text-2xl">{title}</h1>
               {subtitle && <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>}
             </div>
           )}

@@ -429,7 +429,7 @@ export default function SettingsPage() {
     setSaasEnabled(settings.saas_enabled !== undefined ? settings.saas_enabled : true);
     setNfeEnabled(settings.nfe_enabled || false);
     setAiEnabled(settings.ai_enabled || false);
-  }, [settings]);
+  }, [settings, company.name]);
 
   useEffect(() => {
     setCompName(company.name || '');

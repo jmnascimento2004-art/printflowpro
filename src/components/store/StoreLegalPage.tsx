@@ -53,7 +53,7 @@ export function StoreLegalPage({ type }: StoreLegalPageProps) {
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Versao {version}
               </div>
-              <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">{pageTitle}</h1>
+              <h1 className="mt-3 text-2xl font-black tracking-tight text-slate-950">{pageTitle}</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                 Esta pagina descreve o funcionamento tecnico atual do catalogo de {storeName}. O texto e a configuracao
                 devem ser revisados pela loja e por profissional juridico antes da publicacao definitiva.

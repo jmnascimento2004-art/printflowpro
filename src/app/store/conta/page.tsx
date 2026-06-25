@@ -94,7 +94,7 @@ export default function StoreAccountHomePage() {
         <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
           <div>
             <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Area do Cliente</p>
-            <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-slate-950 md:text-3xl">
+            <h1 className="mt-1 text-xl font-black leading-tight tracking-tight text-slate-950 md:text-2xl">
               Olá, {firstName} 👋
             </h1>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-5 text-slate-500">

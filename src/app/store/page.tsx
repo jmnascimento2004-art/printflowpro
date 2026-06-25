@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { 
@@ -384,13 +384,16 @@ export default function StorefrontPage() {
   };
 
   // 1. Filter active points and auto-select first active point
-  const activePickupPoints = (pickupPoints || []).filter(p => p && p.active);
+  const activePickupPoints = useMemo(
+    () => (pickupPoints || []).filter(p => p && p.active),
+    [pickupPoints]
+  );
   
   useEffect(() => {
     if (activePickupPoints.length > 0 && !selectedPickupPoint) {
       setSelectedPickupPoint(activePickupPoints[0].name);
     }
-  }, [pickupPoints, selectedPickupPoint]);
+  }, [activePickupPoints, selectedPickupPoint]);
 
   // 2. Filter products based on active status, visible category, and search query
   const catalogCategories = (categories || []).filter((category) => {
@@ -399,7 +402,7 @@ export default function StorefrontPage() {
     const parent = (categories || []).find((item) => item.id === category.parent_id);
     return parent?.show_in_catalog !== false;
   });
-  const isProductCategoryVisible = (product: Product) => {
+  const isProductCategoryVisible = useCallback((product: Product) => {
     if (!product.category_id) return true;
     if (!categories || categories.length === 0) return true;
 
@@ -410,7 +413,7 @@ export default function StorefrontPage() {
     if (!category.parent_id) return true;
     const parent = categories.find((item) => item.id === category.parent_id);
     return parent?.show_in_catalog !== false;
-  };
+  }, [categories]);
   const activeProducts = (products || []).filter((product) => {
     if (!product || product.active === false) return false;
     if (!product || product.catalog_active === false) return false;
@@ -475,7 +478,7 @@ export default function StorefrontPage() {
         catalog_active: product.catalog_active
       }))
     });
-  }, [products, categories, company, searchQuery, selectedCategory, selectedTagFilter, taggedProducts]);
+  }, [products, categories, company, searchQuery, selectedCategory, selectedTagFilter, taggedProducts, isProductCategoryVisible]);
 
   const soldQuantityByProductId = (orders || []).reduce<Record<string, number>>((acc, order) => {
     (order.items || []).forEach((item) => {
@@ -1179,7 +1182,7 @@ export default function StorefrontPage() {
                       <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/30 to-transparent flex flex-col justify-center px-6 sm:px-12 md:px-20 text-white">
                         <div className="max-w-xl md:max-w-2xl space-y-2.5 md:space-y-4">
                           {banner.title && (
-                            <h2 className="text-xl sm:text-3xl md:text-5xl font-black uppercase tracking-tight leading-tight drop-shadow-sm">
+                            <h2 className="text-lg sm:text-2xl md:text-4xl font-black uppercase tracking-tight leading-tight drop-shadow-sm">
                               {banner.title}
                             </h2>
                           )}
@@ -1465,7 +1468,7 @@ export default function StorefrontPage() {
       {/* 6. Hero Copy Section (above footer) */}
       <section className="relative py-[15px] text-center bg-gradient-to-b from-white to-slate-50 px-4 border-t border-b border-slate-200">
         <div className="max-w-3xl mx-auto space-y-4">
-          <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+          <h2 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">
             Calcule as Medidas e <br />
             <span className="text-emerald-600">
               Encomende seus Materiais Online

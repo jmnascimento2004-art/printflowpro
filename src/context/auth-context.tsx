@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { UserProfile, DUMMY_PROFILES } from '@/lib/dummy-data';
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const applyProvisionedProfile = async () => {
+  const applyProvisionedProfile = useCallback(async () => {
     const provisionedProfile = await provisionCurrentAuthUser();
 
     if (provisionedProfile?.active) {
@@ -60,9 +60,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return false;
-  };
+  }, []);
 
-  const loadProfile = async (currentSession: Session | null) => {
+  const loadProfile = useCallback(async (currentSession: Session | null) => {
     if (!currentSession?.user) {
       setActiveProfileState(EMPTY_PROFILE);
       setAuthError(null);
@@ -134,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setActiveProfileState(data as UserProfile);
     setAuthError(null);
-  };
+  }, [applyProvisionedProfile]);
 
   useEffect(() => {
     let mounted = true;
@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile]);
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);

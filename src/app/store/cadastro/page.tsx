@@ -334,7 +334,7 @@ export default function StoreSignupPage() {
           <section className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-6">
               <p className="text-xs font-black uppercase tracking-wider text-slate-400">Area do Cliente</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Cadastre-se</h1>
+              <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Cadastre-se</h1>
               <p className="mt-2 text-sm font-medium leading-6 text-slate-500">Preencha os campos abaixo para criar sua conta</p>
             </div>
 
