@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, LockKeyhole, LogIn, LogOut, MapPin, PackageSearch, ShieldCheck, UserRound } from 'lucide-react';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
@@ -11,6 +11,7 @@ type StoreAccountMenuProps = {
 
 export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const { session, customer, orders, signOut } = useStoreCustomer();
   const hasStoreSession = Boolean(session?.user);
   const displayName = customer?.name || session?.user?.email || 'Cliente';
@@ -25,8 +26,31 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
 
   const close = () => setOpen(false);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div className="relative hidden md:block">
+    <div ref={menuRef} className="relative hidden md:block">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
@@ -51,14 +75,7 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
       </button>
 
       {open && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-default"
-            onClick={close}
-            aria-label="Fechar menu de conta"
-          />
-          <div className="absolute right-0 z-50 mt-2 w-[290px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 text-slate-900 shadow-2xl">
+        <div className="absolute right-0 z-50 mt-2 w-[290px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 text-slate-900 shadow-2xl">
             <div className="rounded-xl bg-slate-50 px-3 pb-3 pt-2">
               <p className="text-sm font-black text-slate-950">
                 {hasStoreSession ? `Ola, ${firstName}` : 'Ola, cliente!'}
@@ -105,7 +122,6 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
               )}
             </div>
           </div>
-        </>
       )}
     </div>
   );

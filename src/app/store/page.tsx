@@ -867,7 +867,9 @@ export default function StorefrontPage() {
 
             <button
               onClick={() => setCartOpen(true)}
-              className="hidden md:flex items-center gap-2 p-2.5 px-3 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white relative transition-all shadow-md shadow-emerald-600/10"
+              className="hidden md:flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white relative transition-all shadow-md shadow-emerald-600/10"
+              aria-label="Carrinho"
+              title="Carrinho"
             >
               <ShoppingCart className="h-4.5 w-4.5" />
               {cartItemCount > 0 && (
@@ -875,7 +877,6 @@ export default function StorefrontPage() {
                   {cartItemCount}
                 </span>
               )}
-              <span className="hidden sm:inline text-xs font-bold">Carrinho</span>
             </button>
           </div>
         </div>
