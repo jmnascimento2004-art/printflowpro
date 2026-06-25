@@ -7,7 +7,6 @@ import { Bell, ChevronDown, ChevronLeft, ChevronRight, FileText, LogOut, Moon, S
 import { useTheme } from '@/context/theme-context';
 import { useDatabase } from '@/context/database-context';
 import { UserProfile } from '@/lib/dummy-data';
-import { InstallAppButton } from '@/components/install-app-button';
 
 const CATALOG_INTERESTS_READ_KEY = 'printflow_catalog_interests_read_ids';
 const CATALOG_INTERESTS_READ_EVENT = 'printflow_catalog_interests_read_change';
@@ -177,8 +176,6 @@ export default function Header({
           {theme === 'dark' ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
         </button>
 
-        <InstallAppButton variant="header" />
-
         <div className="relative">
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
@@ -288,7 +285,6 @@ export default function Header({
                   <div className="text-[10px] text-muted-foreground break-all">{activeProfile.email}</div>
                   <div className="mt-1 text-[10px] font-bold uppercase text-primary">{getRoleLabel(activeProfile.role)}</div>
                 </div>
-                <InstallAppButton onDone={() => setProfileDropdownOpen(false)} />
                 <button
                   onClick={async () => {
                     setActiveProfile(activeProfile);
