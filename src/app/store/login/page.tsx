@@ -6,15 +6,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   CheckCircle2,
-  Clock,
-  LogIn,
-  Mail,
-  Phone
+  LogIn
 } from 'lucide-react';
+import { StoreFooter } from '@/components/store/StoreFooter';
 import { StoreField } from '@/components/store/StoreFormFields';
 import { useDatabase } from '@/context/database-context';
 import { useStoreCustomer } from '@/context/store-customer-context';
-import type { Company, Settings } from '@/lib/dummy-data';
+import type { Company } from '@/lib/dummy-data';
 import { sanitizeStoreRedirect, STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
 
 const loginInputClass =
@@ -37,8 +35,6 @@ const normalizePrimaryColor = (color?: string) => {
   return palette[color.toLowerCase()] || '#1d35c9';
 };
 
-const onlyDigits = (value?: string) => (value || '').replace(/\D/g, '');
-
 function getStoreInitials(name: string) {
   const words = name
     .split(/\s+/)
@@ -50,13 +46,6 @@ function getStoreInitials(name: string) {
 
 function getLogoSrc(company: Company) {
   return company.logo_light || company.logo_url || company.logo_dark || '';
-}
-
-function getWhatsAppHref(phone?: string) {
-  const digits = onlyDigits(phone);
-  if (!digits) return STORE_ROUTES.home;
-  const normalized = digits.startsWith('55') ? digits : `55${digits}`;
-  return `https://wa.me/${normalized}`;
 }
 
 function StoreLoginHeader({ company, primaryColor }: { company: Company; primaryColor: string }) {
@@ -90,154 +79,6 @@ function StoreLoginHeader({ company, primaryColor }: { company: Company; primary
         </Link>
       </div>
     </header>
-  );
-}
-
-function FooterBadge({ label, image }: { label: string; image?: string }) {
-  if (image) {
-    return <img src={image} alt={label} title={label} className="h-8 w-auto rounded bg-white object-contain shadow-sm" />;
-  }
-
-  return (
-    <span className="rounded-lg border border-slate-700/40 bg-slate-800 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-300">
-      {label}
-    </span>
-  );
-}
-
-function StoreLoginFooter({ company, settings, primaryColor }: { company: Company; settings: Settings; primaryColor: string }) {
-  const phone = company.phone || settings.catalog_whatsapp || settings.top_bar_phone || '';
-  const email = company.email || 'contato@printflowpro.com.br';
-  const whatsappHref = getWhatsAppHref(phone);
-  const showAddress = settings.footer_show_address !== false;
-  const hasAddress = Boolean(company.street || company.city || company.state || company.cep);
-  const paymentBadges = [
-    { label: 'Visa', visible: company.show_payments_visa !== false, image: company.img_payments_visa },
-    { label: 'Mastercard', visible: company.show_payments_mastercard !== false, image: company.img_payments_mastercard },
-    { label: 'Elo', visible: company.show_payments_elo !== false, image: company.img_payments_elo },
-    { label: 'Hipercard', visible: company.show_payments_hipercard !== false, image: company.img_payments_hipercard },
-    { label: 'PIX', visible: company.show_payments_pix !== false, image: company.img_payments_pix }
-  ];
-  const deliveryBadges = [
-    { label: 'SEDEX', visible: company.show_delivery_sedex !== false, image: company.img_delivery_sedex },
-    { label: 'Correios', visible: company.show_delivery_correios !== false, image: company.img_delivery_correios },
-    { label: 'Jadlog', visible: company.show_delivery_jadlog !== false, image: company.img_delivery_jadlog },
-    { label: 'Motoboy', visible: company.show_delivery_motoboy !== false, image: company.img_delivery_motoboy }
-  ];
-  const securityBadges = [
-    { label: 'SSL Seguro', visible: company.show_security_letsencrypt !== false, image: company.img_security_letsencrypt },
-    { label: 'Google Safe', visible: company.show_security_google !== false, image: company.img_security_google }
-  ];
-
-  return (
-    <footer className="border-t border-slate-800 bg-slate-900 py-8 text-xs text-slate-400">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 sm:grid-cols-2 lg:grid-cols-4 md:px-8">
-        <div className="space-y-4">
-          <h4 className="border-b border-slate-800/80 pb-2 text-sm font-extrabold uppercase tracking-wider text-white">Contatos</h4>
-          <div className="space-y-3.5">
-            <div>
-              <span className="block text-[9px] font-extrabold uppercase tracking-widest text-slate-500">WhatsApp vendas</span>
-              <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="mt-1 flex items-center gap-2 font-semibold text-slate-200 transition hover:text-emerald-400">
-                <Phone className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                <span>{phone || 'Atendimento online'}</span>
-              </a>
-            </div>
-            <div>
-              <span className="block text-[9px] font-extrabold uppercase tracking-widest text-slate-500">E-mail vendas</span>
-              <a href={`mailto:${email}`} className="mt-1 flex items-center gap-2 break-all font-semibold text-slate-200 transition hover:text-emerald-400">
-                <Mail className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                <span>{email}</span>
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h4 className="border-b border-slate-800/80 pb-2 text-sm font-extrabold uppercase tracking-wider text-white">Endereco</h4>
-          <div className="space-y-1.5">
-            <span className="block text-[9px] font-extrabold uppercase tracking-widest text-slate-500">Sede / Matriz</span>
-            {showAddress && hasAddress ? (
-              <p className="font-medium leading-relaxed text-slate-200">
-                {company.street ? `${company.street}, ${company.number || 's/n'}` : 'Endereco comercial'}
-                <br />
-                {[company.neighborhood, company.city && company.state ? `${company.city}/${company.state}` : company.city || company.state].filter(Boolean).join(' - ')}
-                {company.cep ? <><br />CEP {company.cep}</> : null}
-              </p>
-            ) : (
-              <p className="font-medium leading-relaxed text-slate-200">Atendimento pelo catalogo online</p>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h4 className="border-b border-slate-800/80 pb-2 text-sm font-extrabold uppercase tracking-wider text-white">Horario de Atendimento</h4>
-          <div className="space-y-3 font-medium leading-relaxed text-slate-200">
-            {settings.footer_hours_message && (
-              <p className="rounded-lg border border-slate-800 bg-slate-800/40 p-2 text-[10px] italic text-slate-400">{settings.footer_hours_message}</p>
-            )}
-            <div>
-              <p className="flex items-center gap-2 font-semibold">
-                <Clock className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                <span>{settings.footer_hours_week || '8h as 12h / 13h30 as 18h'}</span>
-              </p>
-              <p className="pl-5 text-[10px] font-bold uppercase text-slate-400">{settings.footer_hours_sat || 'Segunda a Sexta-feira'}</p>
-            </div>
-            {settings.footer_hours_sat_time && (
-              <div>
-                <p className="flex items-center gap-2 font-semibold">
-                  <Clock className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  <span>{settings.footer_hours_sat_time}</span>
-                </p>
-                <p className="pl-5 text-[10px] font-bold uppercase text-slate-400">{settings.footer_hours_sat_desc || 'Sabado'}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h4 className="border-b border-slate-800/80 pb-2 text-sm font-extrabold uppercase tracking-wider text-white">Institucional</h4>
-          <div className="flex flex-col gap-2.5 font-semibold">
-            <Link href={STORE_ROUTES.home} className="text-slate-300 transition hover:text-emerald-400">Todos os servicos</Link>
-            <Link href={STORE_ROUTES.login} className="text-slate-300 transition hover:text-emerald-400">Entrar</Link>
-            <Link href={STORE_ROUTES.account} className="text-slate-300 transition hover:text-emerald-400">Minha conta</Link>
-            <Link href={STORE_ROUTES.orders} className="text-slate-300 transition hover:text-emerald-400">Meus pedidos</Link>
-            <Link href={STORE_ROUTES.publicPrivacy} className="text-slate-300 transition hover:text-emerald-400">Politica de Privacidade</Link>
-            <Link href="/store/cookies" className="text-slate-300 transition hover:text-emerald-400">Politica de Cookies</Link>
-            <Link href="/store/termos" className="text-slate-300 transition hover:text-emerald-400">Termos de Uso</Link>
-            <Link href="/store/privacidade/solicitar" className="text-slate-300 transition hover:text-emerald-400">Solicitacoes de Privacidade</Link>
-            <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="text-slate-300 transition hover:text-emerald-400">Atendimento</a>
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto mt-8 grid max-w-7xl grid-cols-1 gap-8 border-t border-slate-800/80 px-4 pt-8 sm:grid-cols-2 lg:grid-cols-4 md:px-8">
-        <div className="space-y-3 lg:col-span-2">
-          <h4 className="text-xs font-extrabold uppercase tracking-wider" style={{ color: primaryColor }}>Formas de pagamento</h4>
-          <div className="flex flex-wrap gap-2">
-            {paymentBadges.filter((badge) => badge.visible).map((badge) => <FooterBadge key={badge.label} label={badge.label} image={badge.image} />)}
-          </div>
-        </div>
-        <div className="space-y-3">
-          <h4 className="text-xs font-extrabold uppercase tracking-wider" style={{ color: primaryColor }}>Formas de entrega</h4>
-          <div className="flex flex-wrap gap-2">
-            {deliveryBadges.filter((badge) => badge.visible).map((badge) => <FooterBadge key={badge.label} label={badge.label} image={badge.image} />)}
-          </div>
-        </div>
-        <div className="space-y-3">
-          <h4 className="text-xs font-extrabold uppercase tracking-wider" style={{ color: primaryColor }}>Seguranca</h4>
-          <div className="flex flex-wrap gap-2">
-            {securityBadges.filter((badge) => badge.visible).map((badge) => <FooterBadge key={badge.label} label={badge.label} image={badge.image} />)}
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto mt-8 flex max-w-7xl flex-col items-center gap-3 border-t border-slate-800/80 px-4 pt-6 text-center text-[10px] font-medium text-slate-500 md:px-8">
-        <p>
-          {new Date().getFullYear()} - Copyright © - {company.name || 'CibelePRINT'}
-          {company.document ? ` - CNPJ: ${company.document}` : ''}.
-        </p>
-      </div>
-    </footer>
   );
 }
 
@@ -366,7 +207,7 @@ export default function StoreLoginPage() {
         </section>
       </main>
 
-      <StoreLoginFooter company={company} settings={settings} primaryColor={primaryColor} />
+      <StoreFooter company={company} settings={settings} />
     </div>
   );
 }

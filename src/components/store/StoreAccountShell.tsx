@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ArrowLeft, Home, LockKeyhole, LogOut, MapPin, Package, ShieldCheck, UserRound } from 'lucide-react';
+import { StoreFooter } from '@/components/store/StoreFooter';
 import { useDatabase } from '@/context/database-context';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
@@ -47,7 +48,7 @@ export function StoreAccountShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { company } = useDatabase();
+  const { company, settings } = useDatabase();
   const { session, isAuthenticated, isLoading, signOut, customer, error, refresh } = useStoreCustomer();
   const hasStoreSession = Boolean(session?.user);
   const primaryColor = normalizeAccountColor(company.theme_color);
@@ -159,6 +160,8 @@ export function StoreAccountShell({
           {children}
         </section>
       </main>
+
+      <StoreFooter company={company} settings={settings} />
     </div>
   );
 }
