@@ -1284,11 +1284,50 @@ useEffect(() => {
       created_at: new Date().toISOString()
     };
     setCategories(prev => [...prev, newCat]);
+
+    supabase
+      .from('categories')
+      .insert({
+        id: newCat.id,
+        company_id: newCat.company_id,
+        name: newCat.name,
+        description: newCat.description,
+        parent_id: newCat.parent_id,
+        show_in_catalog: newCat.show_in_catalog,
+        created_at: newCat.created_at
+      })
+      .then(({ error }) => {
+        if (error) {
+          warnCaught('Erro ao salvar categoria no Supabase:', error);
+          showToast('Erro ao salvar categoria no Supabase.', 'error');
+        } else {
+          showToast('Categoria salva com sucesso.', 'success');
+        }
+      });
+
     return newCat;
   };
 
   const updateCategory = (id: string, name: string, description: string, parent_id?: string | null, show_in_catalog: boolean = true) => {
     setCategories(prev => prev.map(c => c.id === id ? { ...c, name, description, parent_id: parent_id || null, show_in_catalog } : c));
+
+    supabase
+      .from('categories')
+      .update({
+        name,
+        description,
+        parent_id: parent_id || null,
+        show_in_catalog
+      })
+      .eq('id', id)
+      .then(({ error }) => {
+        if (error) {
+          warnCaught('Erro ao atualizar categoria no Supabase:', error);
+          showToast('Erro ao atualizar categoria no Supabase.', 'error');
+        } else {
+          showToast('Categoria atualizada com sucesso.', 'success');
+        }
+      });
   };
 
   const deleteCategory = (id: string) => {

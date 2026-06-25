@@ -247,6 +247,29 @@ export default function StorefrontPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, [megaMenuOpen, activeButton, openedFromAllProducts]);
 
+  useEffect(() => {
+    if (!megaMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (menuBarRef.current?.contains(event.target as Node)) return;
+      setMegaMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMegaMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [megaMenuOpen]);
+
   // Pickup Points Modal State
   const [pickupModalOpen, setPickupModalOpen] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
