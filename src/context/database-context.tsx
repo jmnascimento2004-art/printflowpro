@@ -1094,19 +1094,6 @@ useEffect(() => {
   useEffect(() => {
     if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
-      persistDemoSnapshot('profiles', profiles);
-      supabase.from('profiles').upsert(profiles).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar funcionários no Supabase:', error);
-      });
-      if (canShowToast) showToast('Funcionários atualizados com sucesso!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar funcionários!', 'error');
-    }
-  }, [profiles, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
-    try {
       persistDemoSnapshot('role_permissions', rolePermissions);
       const formatted = Object.entries(rolePermissions).map(([path, roles]) => ({
         company_id: company.id,
@@ -2258,12 +2245,26 @@ useEffect(() => {
       id: `u-${Date.now()}`,
       company_id: currentCompanyId
     };
-    setProfiles(prev => [...prev, newProfile]);
+    setProfiles(prev => {
+      const nextProfiles = [...prev, newProfile];
+      persistDemoSnapshot('profiles', nextProfiles);
+      return nextProfiles;
+    });
+    supabase.from('profiles').insert(newProfile).then(({ error }) => {
+      if (error) warnCaught('Erro ao criar funcionário no Supabase:', error);
+    });
     return newProfile;
   };
 
   const updateProfile = (profile: UserProfile) => {
-    setProfiles(prev => prev.map(p => p.id === profile.id ? profile : p));
+    setProfiles(prev => {
+      const nextProfiles = prev.map(p => p.id === profile.id ? profile : p);
+      persistDemoSnapshot('profiles', nextProfiles);
+      return nextProfiles;
+    });
+    supabase.from('profiles').update(profile).eq('id', profile.id).then(({ error }) => {
+      if (error) warnCaught('Erro ao atualizar funcionário no Supabase:', error);
+    });
   };
 
   const deleteProfile = (id: string) => {
