@@ -14,8 +14,8 @@ const THEME_PRESETS: Record<string, string> = {
 
 const DEFAULT_THEME_COLOR = '#5b3df4';
 
-function normalizeThemeColor(themeColor?: string) {
-  const color = themeColor || DEFAULT_THEME_COLOR;
+function normalizeThemeColor(themeColor?: string | null) {
+  const color = String(themeColor ?? '').trim() || DEFAULT_THEME_COLOR;
   return THEME_PRESETS[color] || color;
 }
 
@@ -77,8 +77,8 @@ function getReadableForeground(r: number, g: number, b: number) {
   return luminance > 0.62 ? '224 71% 4%' : '210 20% 98%';
 }
 
-function normalizeDomain(value: string = '') {
-  const trimmed = value.trim().toLowerCase();
+function normalizeDomain(value?: string | null) {
+  const trimmed = String(value ?? '').trim().toLowerCase();
   if (!trimmed) return '';
   return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/^www\./, '');
 }
