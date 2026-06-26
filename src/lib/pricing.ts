@@ -48,6 +48,20 @@ export interface PriceBreakdown {
   formattedUnitPrice: string;
 }
 
+export interface NormalizedVolumePriceTier {
+  min_qty: number;
+  price: number;
+  total: number;
+}
+
+export interface CatalogPricePresentation {
+  hasVolumeTiers: boolean;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  tier: NormalizedVolumePriceTier | null;
+}
+
 type ProductLike = Partial<Product> & {
   sales_price?: number | string | null;
   base_cost?: number | string | null;
@@ -59,11 +73,71 @@ type ProductLike = Partial<Product> & {
 };
 
 const toFiniteNumber = (value: unknown, fallback = 0): number => {
-  const numeric = typeof value === 'number' ? value : Number(value);
+  if (value === null || value === undefined || value === '') return fallback;
+  const normalized = typeof value === 'number'
+    ? value
+    : (() => {
+        const cleaned = String(value).trim().replace(/[^\d,.-]/g, '');
+        return cleaned.includes(',')
+          ? cleaned.replace(/\./g, '').replace(',', '.')
+          : cleaned.replace(/,/g, '');
+      })();
+  const numeric = typeof normalized === 'number' ? normalized : Number(normalized);
   return Number.isFinite(numeric) ? numeric : fallback;
 };
 
 const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+
+export function getNormalizedVolumePricing(product: ProductLike | null | undefined): NormalizedVolumePriceTier[] {
+  const salesPrice = toFiniteNumber(product?.sales_price, NaN);
+  const fallbackPrice = Number.isFinite(salesPrice)
+    ? salesPrice
+    : toFiniteNumber(product?.base_cost, 0);
+  const tiers = Array.isArray(product?.volume_pricing) ? product.volume_pricing : [];
+
+  return tiers
+    .map((tier) => {
+      const minQty = Math.max(0, toFiniteNumber((tier as { min_qty?: unknown }).min_qty, 0));
+      const price = toFiniteNumber((tier as { price?: unknown }).price, fallbackPrice);
+      return {
+        min_qty: minQty,
+        price,
+        total: roundMoney(minQty * price)
+      };
+    })
+    .filter((tier) => tier.min_qty > 0 && tier.price >= 0)
+    .sort((a, b) => a.min_qty - b.min_qty);
+}
+
+export function getInitialVolumePricingTier(product: ProductLike | null | undefined): NormalizedVolumePriceTier | null {
+  return getNormalizedVolumePricing(product)[0] || null;
+}
+
+export function getCatalogPricePresentation(product: ProductLike | null | undefined): CatalogPricePresentation {
+  const initialTier = getInitialVolumePricingTier(product);
+  if (initialTier) {
+    return {
+      hasVolumeTiers: true,
+      quantity: initialTier.min_qty,
+      unitPrice: initialTier.price,
+      totalPrice: initialTier.total,
+      tier: initialTier
+    };
+  }
+
+  const salesPrice = toFiniteNumber(product?.sales_price, NaN);
+  const unitPrice = Number.isFinite(salesPrice)
+    ? salesPrice
+    : toFiniteNumber(product?.base_cost, 0);
+
+  return {
+    hasVolumeTiers: false,
+    quantity: 1,
+    unitPrice,
+    totalPrice: unitPrice,
+    tier: null
+  };
+}
 
 const hasConfiguratorContent = (configurator: ProductConfiguratorSettings): boolean => {
   return Boolean(
@@ -127,16 +201,10 @@ export function getProductUnitPrice(product: ProductLike | null | undefined, qua
     : toFiniteNumber(product.base_cost, 0);
 
   const safeQuantity = Math.max(1, toFiniteNumber(quantity, 1));
-  const tiers = Array.isArray(product.volume_pricing) ? product.volume_pricing : [];
+  const tiers = getNormalizedVolumePricing(product);
   if (tiers.length === 0) return fallbackPrice;
 
-  const sortedTiers = tiers
-    .map((tier) => ({
-      min_qty: Math.max(0, toFiniteNumber((tier as { min_qty?: unknown }).min_qty, 0)),
-      price: toFiniteNumber((tier as { price?: unknown }).price, fallbackPrice)
-    }))
-    .filter((tier) => tier.min_qty > 0 && tier.price >= 0)
-    .sort((a, b) => b.min_qty - a.min_qty);
+  const sortedTiers = [...tiers].sort((a, b) => b.min_qty - a.min_qty);
 
   const matchingTier = sortedTiers.find((tier) => safeQuantity >= tier.min_qty);
   return matchingTier ? matchingTier.price : fallbackPrice;

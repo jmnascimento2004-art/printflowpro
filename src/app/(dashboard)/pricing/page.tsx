@@ -12,7 +12,6 @@ import {
   Trash2
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
-import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
 
 type OutsourcedChargeType = 'fixed' | 'm2' | 'hour' | 'day';
 
@@ -48,6 +47,42 @@ const OUTSOURCED_CHARGE_LABELS: Record<OutsourcedChargeType, string> = {
   day: 'Diaria'
 };
 
+const toNumberOrZero = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined || value === '') return 0;
+  const normalized = typeof value === 'number'
+    ? value
+    : (() => {
+        const cleaned = value.trim().replace(/[^\d,.-]/g, '');
+        return cleaned.includes(',')
+          ? cleaned.replace(/\./g, '').replace(',', '.')
+          : cleaned.replace(/,/g, '');
+      })();
+  const parsed = typeof normalized === 'number' ? normalized : Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const numberInputValue = (value: number, decimals?: number) => {
+  if (!value) return '';
+  return decimals === undefined ? value : Number(value.toFixed(decimals));
+};
+
+const formatCurrencyPrecisionInput = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return '';
+  const roundedCents = Math.round(value * 100) / 100;
+  const decimals = Math.abs(value - roundedCents) > Number.EPSILON ? 4 : 2;
+
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: 4
+  }).format(value);
+};
+
+const parsePricingCurrencyInput = (value: string) => toNumberOrZero(value);
+
+const currencyInputValue = (value: number) => formatCurrencyPrecisionInput(value);
+
 export default function PricingPage() {
   const { addProduct, categories, settings } = useDatabase();
 
@@ -59,23 +94,23 @@ export default function PricingPage() {
   const [deliveryTime, setDeliveryTime] = useState('');
   
   // Cost & Operational states
-  const [rawMaterialCost, setRawMaterialCost] = useState(15.00);
+  const [rawMaterialCost, setRawMaterialCost] = useState(0);
   const [wastePercent, setWastePercent] = useState(10);
-  const [operatingCostMin, setOperatingCostMin] = useState(0.30); // e.g. R$0.30/min
+  const [operatingCostMin, setOperatingCostMin] = useState(0); // R$/min
   const [productionTime, setProductionTime] = useState(15); // minutes
   
   // Margins & Shares
   const [marginType, setMarginType] = useState<'percent' | 'markup'>('percent');
   const [profitMargin, setProfitMargin] = useState(40); // 40% margin
-  const [markupMultiplier, setMarkupMultiplier] = useState(2.2); // 2.2x multiplier
+  const [markupMultiplier, setMarkupMultiplier] = useState(0);
   const [pricingDefaultsTouched, setPricingDefaultsTouched] = useState(false);
   const [commissionPercent, setCommissionPercent] = useState(settings.commission_rate ?? 5);
   const [taxPercent, setTaxPercent] = useState(settings.tax_rate ?? 6);
 
   // Simulation variables
-  const [simWidth, setSimWidth] = useState(1.0);
-  const [simHeight, setSimHeight] = useState(1.0);
-  const [simQuantity, setSimQuantity] = useState(1);
+  const [simWidth, setSimWidth] = useState(0);
+  const [simHeight, setSimHeight] = useState(0);
+  const [simQuantity, setSimQuantity] = useState(0);
 
   // Computed Outputs
   const [operationalCost, setOperationalCost] = useState(0);
@@ -90,11 +125,11 @@ export default function PricingPage() {
   // Advanced visual communication calculator - local simulation only.
   const [visualServiceType, setVisualServiceType] = useState(VISUAL_SERVICE_TYPES[0]);
   const [visualDescription, setVisualDescription] = useState('');
-  const [visualWidth, setVisualWidth] = useState(1);
-  const [visualHeight, setVisualHeight] = useState(1);
-  const [visualQuantity, setVisualQuantity] = useState(1);
+  const [visualWidth, setVisualWidth] = useState(0);
+  const [visualHeight, setVisualHeight] = useState(0);
+  const [visualQuantity, setVisualQuantity] = useState(0);
   const [visualWastePercent, setVisualWastePercent] = useState(12);
-  const [mainMaterialCostM2, setMainMaterialCostM2] = useState(35);
+  const [mainMaterialCostM2, setMainMaterialCostM2] = useState(0);
   const [vinylCostM2, setVinylCostM2] = useState(0);
   const [maskCostM2, setMaskCostM2] = useState(0);
   const [structureMaterialCostM2, setStructureMaterialCostM2] = useState(0);
@@ -105,18 +140,18 @@ export default function PricingPage() {
       active: false,
       name: 'Recorte terceirizado',
       chargeType: 'm2',
-      quantity: 1,
+      quantity: 0,
       unitValue: 0
     }
   ]);
-  const [artMinutes, setArtMinutes] = useState(20);
-  const [finishingMinutes, setFinishingMinutes] = useState(30);
+  const [artMinutes, setArtMinutes] = useState(0);
+  const [finishingMinutes, setFinishingMinutes] = useState(0);
   const [maskMinutes, setMaskMinutes] = useState(0);
-  const [internalHourlyCost, setInternalHourlyCost] = useState(45);
+  const [internalHourlyCost, setInternalHourlyCost] = useState(0);
   const [installationEnabled, setInstallationEnabled] = useState(false);
-  const [installerCount, setInstallerCount] = useState(1);
-  const [installationHours, setInstallationHours] = useState(2);
-  const [installerHourlyCost, setInstallerHourlyCost] = useState(55);
+  const [installerCount, setInstallerCount] = useState(0);
+  const [installationHours, setInstallationHours] = useState(0);
+  const [installerHourlyCost, setInstallerHourlyCost] = useState(0);
   const [travelCost, setTravelCost] = useState(0);
   const [otherInstallationCost, setOtherInstallationCost] = useState(0);
   const [difficultyPercent, setDifficultyPercent] = useState(0);
@@ -305,7 +340,7 @@ export default function PricingPage() {
         active: true,
         name: 'Outro servico terceirizado',
         chargeType: 'fixed',
-        quantity: 1,
+        quantity: 0,
         unitValue: 0
       }
     ]);
@@ -393,8 +428,9 @@ export default function PricingPage() {
                 </div>
                 <input
                   type="text"
-                  value={formatCurrencyInput(rawMaterialCost)}
-                  onChange={(e) => setRawMaterialCost(parseCurrencyInputToNumber(e.target.value))}
+                  value={currencyInputValue(rawMaterialCost)}
+                  onChange={(e) => setRawMaterialCost(parsePricingCurrencyInput(e.target.value))}
+                  placeholder="Ex: R$ 35,00"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground"
                 />
               </div>
@@ -423,8 +459,9 @@ export default function PricingPage() {
                 </div>
                 <input
                   type="text"
-                  value={formatCurrencyInput(operatingCostMin * 60)}
-                  onChange={(e) => setOperatingCostMin(parseCurrencyInputToNumber(e.target.value) / 60)}
+                  value={currencyInputValue(operatingCostMin * 60)}
+                  onChange={(e) => setOperatingCostMin(parsePricingCurrencyInput(e.target.value) / 60)}
+                  placeholder="Ex: R$ 45,00"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground"
                 />
               </div>
@@ -502,8 +539,9 @@ export default function PricingPage() {
                     type="number"
                     step="0.1"
                     min="1.1"
-                    value={markupMultiplier}
-                    onChange={(e) => setMarkupMultiplier(Math.max(1.1, parseFloat(e.target.value) || 1.1))}
+                    value={numberInputValue(markupMultiplier, 1)}
+                    onChange={(e) => setMarkupMultiplier(toNumberOrZero(e.target.value))}
+                    placeholder="Ex: 2.0"
                     className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-bold"
                   />
                 </div>
@@ -663,9 +701,10 @@ export default function PricingPage() {
                       <input
                         type="number"
                         step="1"
-                        min="1"
-                        value={Number((simWidth * 100).toFixed(2))}
-                        onChange={(e) => setSimWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
+                        min="0"
+                        value={simWidth > 0 ? Number((simWidth * 100).toFixed(2)) : ''}
+                        onChange={(e) => setSimWidth(toNumberOrZero(e.target.value) / 100)}
+                        placeholder="Ex: 100"
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                       />
                     </div>
@@ -674,9 +713,10 @@ export default function PricingPage() {
                       <input
                         type="number"
                         step="1"
-                        min="1"
-                        value={Number((simHeight * 100).toFixed(2))}
-                        onChange={(e) => setSimHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
+                        min="0"
+                        value={simHeight > 0 ? Number((simHeight * 100).toFixed(2)) : ''}
+                        onChange={(e) => setSimHeight(toNumberOrZero(e.target.value) / 100)}
+                        placeholder="Ex: 100"
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                       />
                     </div>
@@ -687,9 +727,10 @@ export default function PricingPage() {
                     <input
                       type="number"
                       step="1"
-                      min="1"
-                      value={Number((simWidth * 100).toFixed(2))}
-                      onChange={(e) => setSimWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
+                      min="0"
+                      value={simWidth > 0 ? Number((simWidth * 100).toFixed(2)) : ''}
+                      onChange={(e) => setSimWidth(toNumberOrZero(e.target.value) / 100)}
+                      placeholder="Ex: 100"
                       className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                     />
                   </div>
@@ -699,9 +740,10 @@ export default function PricingPage() {
                   <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
                   <input
                     type="number"
-                    min="1"
-                    value={simQuantity}
-                    onChange={(e) => setSimQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    min="0"
+                    value={numberInputValue(simQuantity)}
+                    onChange={(e) => setSimQuantity(toNumberOrZero(e.target.value))}
+                    placeholder="Ex: 1"
                     className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                   />
                 </div>
@@ -783,8 +825,9 @@ export default function PricingPage() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={visualWidth}
-                    onChange={(e) => setVisualWidth(Math.max(0, parseFloat(e.target.value) || 0))}
+                    value={numberInputValue(visualWidth)}
+                    onChange={(e) => setVisualWidth(toNumberOrZero(e.target.value))}
+                    placeholder="Ex: 1"
                     className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
                   />
                 </div>
@@ -794,8 +837,9 @@ export default function PricingPage() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={visualHeight}
-                    onChange={(e) => setVisualHeight(Math.max(0, parseFloat(e.target.value) || 0))}
+                    value={numberInputValue(visualHeight)}
+                    onChange={(e) => setVisualHeight(toNumberOrZero(e.target.value))}
+                    placeholder="Ex: 1"
                     className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
                   />
                 </div>
@@ -803,9 +847,10 @@ export default function PricingPage() {
                   <label className="text-xs font-semibold text-muted-foreground">Quantidade</label>
                   <input
                     type="number"
-                    min="1"
-                    value={visualQuantity}
-                    onChange={(e) => setVisualQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    min="0"
+                    value={numberInputValue(visualQuantity)}
+                    onChange={(e) => setVisualQuantity(toNumberOrZero(e.target.value))}
+                    placeholder="Ex: 1"
                     className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
                   />
                 </div>
@@ -831,7 +876,7 @@ export default function PricingPage() {
                 <Cpu className="h-4 w-4 text-primary" /> 2. Materiais e insumos
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <CurrencyField label="Material principal por m2" value={mainMaterialCostM2} onChange={setMainMaterialCostM2} />
+                <CurrencyField label="Material principal por m2" value={mainMaterialCostM2} onChange={setMainMaterialCostM2} placeholder="Ex: R$ 35,00" />
                 <CurrencyField label="Adesivo/vinil por m2" value={vinylCostM2} onChange={setVinylCostM2} />
                 <CurrencyField label="Mascara de aplicacao por m2" value={maskCostM2} onChange={setMaskCostM2} />
                 <CurrencyField label="Lona/PVC/ACM/madeira/ferragem por m2" value={structureMaterialCostM2} onChange={setStructureMaterialCostM2} />
@@ -898,8 +943,9 @@ export default function PricingPage() {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={service.quantity}
-                          onChange={(e) => updateOutsourcedService(service.id, { quantity: Math.max(0, parseFloat(e.target.value) || 0) })}
+                          value={numberInputValue(service.quantity)}
+                          onChange={(e) => updateOutsourcedService(service.id, { quantity: toNumberOrZero(e.target.value) })}
+                          placeholder="Ex: 1"
                           className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground outline-none"
                         />
                       </div>
@@ -927,10 +973,10 @@ export default function PricingPage() {
                   <Clock className="h-4 w-4 text-primary" /> 4. Mao de obra interna
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <NumberField label="Arte/preparacao (min)" value={artMinutes} onChange={setArtMinutes} />
-                  <NumberField label="Acabamento (min)" value={finishingMinutes} onChange={setFinishingMinutes} />
-                  <NumberField label="Mascara (min)" value={maskMinutes} onChange={setMaskMinutes} />
-                  <CurrencyField label="Custo interno/hora" value={internalHourlyCost} onChange={setInternalHourlyCost} />
+                  <NumberField label="Arte/preparacao (min)" value={artMinutes} onChange={setArtMinutes} placeholder="Ex: 20" />
+                  <NumberField label="Acabamento (min)" value={finishingMinutes} onChange={setFinishingMinutes} placeholder="Ex: 30" />
+                  <NumberField label="Mascara (min)" value={maskMinutes} onChange={setMaskMinutes} placeholder="Ex: 15" />
+                  <CurrencyField label="Custo interno/hora" value={internalHourlyCost} onChange={setInternalHourlyCost} placeholder="Ex: R$ 45,00" />
                 </div>
               </div>
 
@@ -950,10 +996,10 @@ export default function PricingPage() {
                   </label>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <NumberField label="Aplicadores" value={installerCount} onChange={setInstallerCount} min={1} />
-                  <NumberField label="Horas estimadas" value={installationHours} onChange={setInstallationHours} />
-                  <CurrencyField label="Custo/hora aplicador" value={installerHourlyCost} onChange={setInstallerHourlyCost} />
-                  <CurrencyField label="Deslocamento" value={travelCost} onChange={setTravelCost} />
+                  <NumberField label="Aplicadores" value={installerCount} onChange={setInstallerCount} placeholder="Ex: 1" />
+                  <NumberField label="Horas estimadas" value={installationHours} onChange={setInstallationHours} placeholder="Ex: 2" />
+                  <CurrencyField label="Custo/hora aplicador" value={installerHourlyCost} onChange={setInstallerHourlyCost} placeholder="Ex: R$ 55,00" />
+                  <CurrencyField label="Deslocamento" value={travelCost} onChange={setTravelCost} placeholder="Ex: R$ 30,00" />
                   <CurrencyField label="Outros custos" value={otherInstallationCost} onChange={setOtherInstallationCost} />
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground">Dificuldade</label>
@@ -1057,20 +1103,23 @@ function CurrencyField({
   label,
   value,
   onChange,
-  compact = false
+  compact = false,
+  placeholder = 'Ex: R$ 0,00'
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   compact?: boolean;
+  placeholder?: string;
 }) {
   return (
     <div className="space-y-1">
       <label className={`${compact ? 'text-[10px]' : 'text-xs'} font-semibold text-muted-foreground`}>{label}</label>
       <input
         type="text"
-        value={formatCurrencyInput(value)}
-        onChange={(e) => onChange(parseCurrencyInputToNumber(e.target.value))}
+        value={currencyInputValue(value)}
+        onChange={(e) => onChange(parsePricingCurrencyInput(e.target.value))}
+        placeholder={placeholder}
         className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
       />
     </div>
@@ -1081,12 +1130,14 @@ function NumberField({
   label,
   value,
   onChange,
-  min = 0
+  min = 0,
+  placeholder = 'Ex: 1'
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   min?: number;
+  placeholder?: string;
 }) {
   return (
     <div className="space-y-1">
@@ -1095,8 +1146,9 @@ function NumberField({
         type="number"
         min={min}
         step="0.01"
-        value={value}
-        onChange={(e) => onChange(Math.max(min, parseFloat(e.target.value) || min))}
+        value={numberInputValue(value)}
+        onChange={(e) => onChange(Math.max(min, toNumberOrZero(e.target.value)))}
+        placeholder={placeholder}
         className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
       />
     </div>
