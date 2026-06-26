@@ -270,6 +270,7 @@ export default function FinancialPage() {
                   required
                   value={formatCurrencyInput(amount)}
                   onChange={(e) => setAmount(parseCurrencyInputToNumber(e.target.value))}
+                  placeholder="R$ 0,00"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs font-bold text-foreground focus:outline-none"
                 />
               </div>
@@ -283,6 +284,7 @@ export default function FinancialPage() {
                   max="12"
                   value={installments}
                   onChange={(e) => setInstallments(Math.max(1, parseInt(e.target.value) || 1))}
+                  placeholder="Ex: 1"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                 />
               </div>
@@ -323,6 +325,7 @@ export default function FinancialPage() {
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
+                  placeholder="dd/mm/aaaa"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 />
               </div>

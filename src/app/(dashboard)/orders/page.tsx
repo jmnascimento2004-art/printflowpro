@@ -48,7 +48,10 @@ export default function OrdersPage() {
   const [activePrintMode, setActivePrintMode] = useState<'order' | 'receipt'>('receipt');
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentKind, setPaymentKind] = useState<'adiantamento' | 'parcial' | 'saldo' | 'total'>('saldo');
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado'>('pix');
+  const [paymentDateInput, setPaymentDateInput] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentNotesInput, setPaymentNotesInput] = useState('');
   const [showPixCode, setShowPixCode] = useState(false);
   const [activeTab, setActiveTab] = useState<'todos' | 'orcamento' | 'producao' | 'finalizado' | 'cancelado'>('todos');
 
@@ -355,8 +358,8 @@ export default function OrdersPage() {
       notes: editNotes,
       total_amount: nextTotal,
       shipping_cost: editShipping,
-      paid_amount: Math.min(editPaid, nextTotal),
-      payment_status: editPaid >= nextTotal ? 'pago' : editPaid > 0 ? 'parcial' : 'pendente',
+      paid_amount: Math.min(editingOrder.paid_amount || 0, nextTotal),
+      payment_status: (editingOrder.paid_amount || 0) >= nextTotal ? 'pago' : (editingOrder.paid_amount || 0) > 0 ? 'parcial' : 'pendente',
       additional_services: editAdditionalServices,
       delivery_type: editDeliveryType,
       delivery_address: editDeliveryType !== 'retirada' ? editDeliveryAddress : undefined,
@@ -413,6 +416,11 @@ export default function OrdersPage() {
   const handleRegisterPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder || paymentAmount <= 0) return;
+    const currentBalance = Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount);
+    if (paymentAmount > currentBalance) {
+      alert(`O valor recebido nao pode ser maior que o saldo pendente (${formatCurrency(currentBalance)}).`);
+      return;
+    }
 
     if (paymentMethod === 'pix' && !showPixCode) {
       setShowPixCode(true);
@@ -449,10 +457,17 @@ export default function OrdersPage() {
           : 'parcial'
     };
 
-    payOrder(selectedOrder.id, paymentAmount, paymentMethod);
+    payOrder(selectedOrder.id, paymentAmount, paymentMethod, {
+      payment_type: paymentKind,
+      paid_at: `${paymentDateInput || new Date().toISOString().split('T')[0]}T12:00:00.000Z`,
+      notes: paymentNotesInput
+    });
     setSelectedOrder(updatedSelectedOrder);
 
     setPaymentAmount(0);
+    setPaymentKind('saldo');
+    setPaymentDateInput(new Date().toISOString().split('T')[0]);
+    setPaymentNotesInput('');
     setIsAddingPayment(false);
     setShowPixCode(false);
   };
@@ -596,6 +611,9 @@ export default function OrdersPage() {
   const printDiscountAmount = activePrintOrder
     ? Math.max(0, printGrossProductsTotal + printServicesTotal + (activePrintOrder.shipping_cost || 0) - activePrintOrder.total_amount)
     : 0;
+  const selectedOrderTransactions = selectedOrder
+    ? financial.filter((transaction) => transaction.order_id === selectedOrder.id || transaction.order_number === selectedOrder.number)
+    : [];
   
   const companyName = company?.name || 'PrintFlowPRO - ERP SAAS';
   const companyDocument = company?.document || '12.345.678/0001-90';
@@ -646,6 +664,7 @@ export default function OrdersPage() {
                   type="text"
                   disabled
                   value={editingOrder.customer_name}
+                  placeholder="Cliente do pedido"
                   className="w-full px-3 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs text-muted-foreground font-semibold cursor-not-allowed"
                 />
               </div>
@@ -680,6 +699,7 @@ export default function OrdersPage() {
                   required
                   value={editDeadline}
                   onChange={(e) => setEditDeadline(e.target.value)}
+                  placeholder="dd/mm/aaaa"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 />
               </div>
@@ -692,20 +712,20 @@ export default function OrdersPage() {
                   required
                   value={formatCurrencyInput(editTotal)}
                   onChange={(e) => setEditTotal(parseCurrencyInputToNumber(e.target.value))}
+                  placeholder="R$ 0,00"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none font-bold"
                 />
               </div>
 
               {/* Paid Amount */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Valor Pago (R$) *</label>
-                <input
-                  type="text"
-                  required
-                  value={formatCurrencyInput(editPaid)}
-                  onChange={(e) => setEditPaid(Math.min(editTotal, parseCurrencyInputToNumber(e.target.value)))}
-                  className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none font-bold text-emerald-500"
-                />
+                <label className="text-xs font-semibold text-muted-foreground">Total pago registrado</label>
+                <div className="w-full rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-500">
+                  {formatCurrency(editPaid)}
+                </div>
+                <p className="text-[10px] font-semibold text-muted-foreground">
+                  Use Registrar Pagamento para adicionar baixa sem sobrescrever historico.
+                </p>
               </div>
 
               {/* Opções de Entrega e Frete */}
@@ -1292,24 +1312,34 @@ export default function OrdersPage() {
               </div>
               
               <div className="p-4 rounded-xl bg-secondary/20 border border-border text-xs space-y-2.5">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Valor Total:</span>
-                  <span className="font-semibold text-foreground">{formatCurrency(selectedOrder.total_amount)}</span>
-                </div>
-                <div className="flex justify-between text-emerald-500">
-                  <span>Total Pago:</span>
-                  <span className="font-bold">{formatCurrency(selectedOrder.paid_amount)}</span>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="rounded-lg border border-border bg-card p-2">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Total do pedido</span>
+                    <p className="mt-1 font-black text-foreground">{formatCurrency(selectedOrder.total_amount)}</p>
+                  </div>
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2">
+                    <span className="text-[10px] font-bold uppercase text-emerald-600">Total pago</span>
+                    <p className="mt-1 font-black text-emerald-500">{formatCurrency(selectedOrder.paid_amount)}</p>
+                  </div>
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
+                    <span className="text-[10px] font-bold uppercase text-amber-600">Saldo pendente</span>
+                    <p className="mt-1 font-black text-amber-500">{formatCurrency(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount))}</p>
+                  </div>
                 </div>
 
                 {selectedOrder.payment_status !== 'pago' && !isAddingPayment && (
                   <button
                     onClick={() => {
-                      setPaymentAmount(selectedOrder.total_amount - selectedOrder.paid_amount);
+                      const balance = Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount);
+                      setPaymentAmount(balance);
+                      setPaymentKind(selectedOrder.paid_amount > 0 ? 'saldo' : 'adiantamento');
+                      setPaymentDateInput(new Date().toISOString().split('T')[0]);
+                      setPaymentNotesInput('');
                       setIsAddingPayment(true);
                     }}
                     className="w-full flex items-center justify-center gap-1 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow shadow-primary/10 transition-all mt-2"
                   >
-                    <DollarSign className="h-4 w-4" /> Registrar Recebimento
+                    <DollarSign className="h-4 w-4" /> Registrar Pagamento
                   </button>
                 )}
 
@@ -1323,12 +1353,27 @@ export default function OrdersPage() {
                           value={formatCurrencyInput(paymentAmount)}
                           onChange={(e) => {
                             const val = parseCurrencyInputToNumber(e.target.value);
-                            setPaymentAmount(Math.min(selectedOrder.total_amount - selectedOrder.paid_amount, val));
+                            setPaymentAmount(Math.min(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount), val));
                           }}
+                          placeholder="R$ 0,00"
                           className="w-full px-2.5 py-1.5 bg-card border border-border rounded-lg text-xs font-bold text-foreground"
                         />
                       </div>
                       
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground block">Tipo</label>
+                        <select
+                          value={paymentKind}
+                          onChange={(e) => setPaymentKind(e.target.value as typeof paymentKind)}
+                          className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs text-foreground font-semibold"
+                        >
+                          <option value="adiantamento">Adiantamento</option>
+                          <option value="parcial">Parcial</option>
+                          <option value="saldo">Saldo</option>
+                          <option value="total">Total</option>
+                        </select>
+                      </div>
+
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground block">Meio de Pagamento</label>
                         <select
@@ -1344,6 +1389,28 @@ export default function OrdersPage() {
                           <option value="faturado">Faturado Corporativo (B2B)</option>
                         </select>
                       </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground block">Data do pagamento</label>
+                        <input
+                          type="date"
+                          value={paymentDateInput}
+                          onChange={(e) => setPaymentDateInput(e.target.value)}
+                          placeholder="dd/mm/aaaa"
+                          className="w-full px-2.5 py-1.5 bg-card border border-border rounded-lg text-xs font-semibold text-foreground"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-muted-foreground block">Observacao</label>
+                      <input
+                        type="text"
+                        value={paymentNotesInput}
+                        onChange={(e) => setPaymentNotesInput(e.target.value)}
+                        placeholder="Ex: Pagamento parcial do pedido"
+                        className="w-full px-2.5 py-1.5 bg-card border border-border rounded-lg text-xs text-foreground"
+                      />
                     </div>
 
                     <div className="flex gap-2">
@@ -1366,6 +1433,36 @@ export default function OrdersPage() {
                     </div>
                   </form>
                 )}
+
+                <div className="border-t border-border/60 pt-3">
+                  <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Pagamentos registrados</h5>
+                  <div className="mt-2 space-y-2">
+                    {selectedOrderTransactions.length > 0 ? (
+                      selectedOrderTransactions.map((transaction) => (
+                        <div key={transaction.id} className="rounded-lg border border-border bg-card px-3 py-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-bold text-foreground">{transaction.description}</p>
+                              <p className="mt-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                                {transaction.payment_method.replace('_', ' ')} - {transaction.status === 'pago' ? 'Confirmado' : 'Pendente'}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className="text-xs font-black text-emerald-500">{formatCurrency(transaction.amount)}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {new Date(transaction.paid_at || transaction.due_date || transaction.created_at).toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="rounded-lg border border-dashed border-border bg-card px-3 py-3 text-center text-[11px] font-semibold text-muted-foreground">
+                        Nenhum pagamento registrado para este pedido.
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -149,7 +149,16 @@ interface DatabaseContextType {
   addOrder: (order: Omit<Order, 'id' | 'company_id' | 'number' | 'created_at'>) => Order;
   updateOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: Order['status']) => void;
-  payOrder: (id: string, amount: number, method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado') => void;
+  payOrder: (
+    id: string,
+    amount: number,
+    method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado',
+    options?: {
+      payment_type?: 'adiantamento' | 'parcial' | 'saldo' | 'total';
+      paid_at?: string;
+      notes?: string;
+    }
+  ) => void;
 
   // Production
   updateProductionStatus: (id: string, status: ProductionItem['status']) => void;
@@ -1686,12 +1695,39 @@ useEffect(() => {
     }
   };
 
-  const payOrder = (id: string, amount: number, method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado') => {
+  const payOrder = (
+    id: string,
+    amount: number,
+    method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado',
+    options?: {
+      payment_type?: 'adiantamento' | 'parcial' | 'saldo' | 'total';
+      paid_at?: string;
+      notes?: string;
+    }
+  ) => {
     setOrders(prev =>
       prev.map(o => {
         if (o.id === id) {
-          const newPaid = Math.min(o.total_amount, o.paid_amount + amount);
+          const currentBalance = Math.max(0, o.total_amount - o.paid_amount);
+          const paymentAmount = Math.min(currentBalance, Math.max(0, amount));
+          if (paymentAmount <= 0) return o;
+
+          const newPaid = Math.min(o.total_amount, o.paid_amount + paymentAmount);
           const payment_status = newPaid >= o.total_amount ? 'pago' : 'parcial';
+          const paidAt = options?.paid_at || new Date().toISOString();
+          const dueDate = paidAt.split('T')[0] || new Date().toISOString().split('T')[0];
+          const paymentTypeLabel: Record<'adiantamento' | 'parcial' | 'saldo' | 'total', string> = {
+            adiantamento: 'Adiantamento',
+            parcial: 'Pagamento parcial',
+            saldo: 'Pagamento do saldo',
+            total: 'Pagamento total'
+          };
+          const descriptionBase = method === 'faturado'
+            ? `Faturamento B2B do Pedido ${o.number}`
+            : `${paymentTypeLabel[options?.payment_type || (payment_status === 'pago' ? 'saldo' : 'parcial')]} do Pedido ${o.number}`;
+          const description = options?.notes?.trim()
+            ? `${descriptionBase} - ${options.notes.trim()}`
+            : descriptionBase;
           
           // Look up B2B term days for the customer
           const matchCust = customers.find(c => c.name === o.customer_name);
@@ -1710,16 +1746,14 @@ useEffect(() => {
             order_number: o.number,
             type: 'receita',
             category: 'Vendas',
-            amount: amount,
-            description: method === 'faturado'
-              ? `Faturamento B2B do Pedido ${o.number} (${dueDays} dias)`
-              : `Pagamento ${payment_status === 'pago' ? 'Total' : 'Parcial'} do Pedido ${o.number}`,
+            amount: paymentAmount,
+            description: method === 'faturado' ? `${description} (${dueDays} dias)` : description,
             payment_method: method,
             status: method === 'faturado' ? 'pendente' : 'pago',
             due_date: method === 'faturado' 
               ? dueDateObj.toISOString().split('T')[0] 
-              : new Date().toISOString().split('T')[0],
-            paid_at: method === 'faturado' ? undefined : new Date().toISOString(),
+              : dueDate,
+            paid_at: method === 'faturado' ? undefined : paidAt,
             created_at: new Date().toISOString()
           };
           
@@ -1732,7 +1766,7 @@ useEffect(() => {
               id: `crt-ord-pay-${Date.now()}`,
               session_id: activeReg.id,
               type: 'venda',
-              amount: amount,
+              amount: paymentAmount,
               description: `Rec. Pedido ${o.number}`,
               payment_method: method,
               created_at: new Date().toISOString()
@@ -1743,7 +1777,7 @@ useEffect(() => {
               setSessions(prev =>
                 prev.map(s =>
                   s.id === activeReg.id
-                    ? { ...s, expected_cash: s.expected_cash + amount }
+                    ? { ...s, expected_cash: s.expected_cash + paymentAmount }
                     : s
                 )
               );
@@ -1755,7 +1789,7 @@ useEffect(() => {
             const currentUsed = matchCust.credit_used || 0;
             updateCustomer({
               ...matchCust,
-              credit_used: currentUsed + amount
+              credit_used: currentUsed + paymentAmount
             });
           }
 
@@ -1863,22 +1897,24 @@ useEffect(() => {
   };
 
   const updateTransactionStatus = (id: string, status: 'pendente' | 'pago') => {
-    // If B2B faturado is transitioning to paid, restore customer credit!
     const trans = financial.find(f => f.id === id);
-    if (trans && trans.payment_method === 'faturado' && status === 'pago' && trans.status === 'pendente') {
+    if (trans && trans.type === 'receita' && trans.order_id && status === 'pago' && trans.status === 'pendente') {
       const ord = orders.find(o => o.id === trans.order_id);
       if (ord) {
-        const matchCust = customers.find(c => c.name === ord.customer_name);
-        if (matchCust) {
-          const currentUsed = matchCust.credit_used || 0;
-          setCustomers(prev =>
-            prev.map(c =>
-              c.id === matchCust.id
-                ? { ...c, credit_used: Math.max(0, currentUsed - trans.amount) }
-                : c
-            )
-          );
+        if (trans.payment_method === 'faturado') {
+          const matchCust = customers.find(c => c.name === ord.customer_name);
+          if (matchCust) {
+            const currentUsed = matchCust.credit_used || 0;
+            setCustomers(prev =>
+              prev.map(c =>
+                c.id === matchCust.id
+                  ? { ...c, credit_used: Math.max(0, currentUsed - trans.amount) }
+                  : c
+              )
+            );
+          }
         }
+
         setOrders(prev =>
           prev.map(o => {
             if (o.id === ord.id) {
