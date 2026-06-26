@@ -24,6 +24,7 @@ import {
 import { useDatabase } from '@/context/database-context';
 import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductSaleMode } from '@/lib/dummy-data';
 import { formatCurrencyInput, parseCurrencyInputToNumber, sanitizeRichTextHtml, stripRichTextHtml } from '@/lib/utils';
+import { formatUnitCurrency } from '@/lib/pricing';
 import { RichTextEditor } from '@/components/rich-text-editor';
 
 function ProductDescriptionEditor({
@@ -122,16 +123,18 @@ void ProductDescriptionEditor;
 
 const saleModeOptions: Array<{ value: ProductSaleMode; label: string; pricingType: Product['pricing_type'] }> = [
   { value: 'unidade', label: 'Unidade Simples', pricingType: 'unidade' },
+  { value: 'volume', label: 'Preco por Quantidade / Lote', pricingType: 'unidade' },
   { value: 'm2', label: 'Metro Quadrado (m²)', pricingType: 'm2' },
   { value: 'linear', label: 'Metro Linear', pricingType: 'linear' },
   { value: 'width_height', label: 'Largura x Altura', pricingType: 'm2' },
   { value: 'pacote', label: 'Pacote / Kit', pricingType: 'pacote' },
-  { value: 'size_grid', label: 'Grade de Tamanhos', pricingType: 'unidade' },
+  { value: 'size_grid', label: 'Produto com Variacoes', pricingType: 'unidade' },
   { value: 'custom', label: 'Produto Personalizado', pricingType: 'unidade' }
 ];
 
 const saleModeDescriptions: Record<ProductSaleMode, string> = {
-  unidade: 'Use para cartões, panfletos, talões, brindes e produtos vendidos por quantidade.',
+  unidade: 'Use para produtos vendidos por unidade, sem tabela de tiragem ou lote.',
+  volume: 'Use para panfletos, cartoes, taloes, folders e impressos vendidos por quantidade/lote.',
   m2: 'Use para banners, lonas, adesivos, placas, ACM, fachadas e comunicação visual por área.',
   linear: 'Use para adesivos em rolo, faixas e materiais vendidos por metro.',
   width_height: 'Use para produtos que precisam de largura e altura com limites mínimos, máximos ou área mínima cobrada.',
@@ -147,6 +150,58 @@ type ConfiguratorInterfaceField = {
   kind?: 'input' | 'toggle' | 'chip';
 };
 
+const saleModeOperatorGuidance: Record<ProductSaleMode, {
+  title: string;
+  impact: string;
+  catalog: string;
+}> = {
+  unidade: {
+    title: 'Unidade simples',
+    impact: 'Use quando o cliente compra uma unidade ou uma quantidade livre pelo mesmo preco unitario.',
+    catalog: 'No catalogo aparece o preco unitario informado no campo Preco Final de Venda.'
+  },
+  volume: {
+    title: 'Preco por quantidade/lote',
+    impact: 'Use para panfletos, cartoes, taloes, folders e impressos por tiragem.',
+    catalog: 'No catalogo aparece A partir de, quantidade minima, preco por unidade e total do lote.'
+  },
+  m2: {
+    title: 'Sob medida por m2',
+    impact: 'Use para banners, placas, adesivos, lonas e materiais calculados por largura x altura.',
+    catalog: 'No catalogo o cliente informa medidas e o sistema calcula pela area.'
+  },
+  linear: {
+    title: 'Metro linear',
+    impact: 'Use para produtos vendidos por comprimento, como adesivos em rolo e faixas.',
+    catalog: 'No catalogo o cliente informa a metragem e o sistema calcula pelo comprimento.'
+  },
+  width_height: {
+    title: 'Largura x altura',
+    impact: 'Use quando o produto precisa de limites minimos, maximos ou area minima cobrada.',
+    catalog: 'No catalogo o cliente informa largura e altura dentro das regras configuradas.'
+  },
+  pacote: {
+    title: 'Pacote / kit',
+    impact: 'Use para combos fechados com itens inclusos e preco fixo.',
+    catalog: 'No catalogo aparece o preco do kit e a composicao descrita.'
+  },
+  kit: {
+    title: 'Pacote / kit',
+    impact: 'Use para combos fechados com itens inclusos e preco fixo.',
+    catalog: 'No catalogo aparece o preco do kit e a composicao descrita.'
+  },
+  size_grid: {
+    title: 'Produto com variacoes',
+    impact: 'Use quando o cliente precisa escolher tamanho, cor, acabamento ou outro atributo.',
+    catalog: 'No catalogo aparecem as opcoes configuradas antes de adicionar ao carrinho.'
+  },
+  custom: {
+    title: 'Produto personalizado',
+    impact: 'Use para produtos sob consulta ou projetos que precisam de analise comercial.',
+    catalog: 'No catalogo o cliente envia a solicitacao com a mensagem configurada.'
+  }
+};
+
 const configuratorInterfaceFields: Record<ProductSaleMode, ConfiguratorInterfaceField[]> = {
   unidade: [
     { label: 'Material', placeholder: 'Ex: Couchê, Offset, PVC' },
@@ -154,6 +209,12 @@ const configuratorInterfaceFields: Record<ProductSaleMode, ConfiguratorInterface
     { label: 'Impressão', placeholder: 'Ex: 4x0, 4x4, PB' },
     { label: 'Acabamento', placeholder: 'Ex: Verniz, laminação, corte' },
     { label: 'Extras', placeholder: 'Ex: Arte, embalagem, urgência' }
+  ],
+  volume: [
+    { label: 'Quantidade minima', placeholder: 'Ex: 1000 un' },
+    { label: 'Preco unitario', placeholder: 'Ex: R$ 0,13' },
+    { label: 'Preco total do lote', placeholder: 'Ex: R$ 130,00' },
+    { label: 'Prazo por tiragem', placeholder: 'Ex: Ate 3 dias uteis' }
   ],
   m2: [
     { label: 'Preço por m²', placeholder: 'R$ 0,00' },
@@ -614,7 +675,10 @@ export default function ProductsCRUDPage() {
     setVariantOptions(prod.variant_options || []);
     setColorOptions(prod.color_options || []);
     const configurator = prod.pricing_details?.configurator_options;
-    setSaleMode(configurator?.sale_mode || prod.pricing_type);
+    setSaleMode(configurator?.sale_mode === 'unidade' && (prod.volume_pricing?.length || 0) > 0
+      ? 'volume'
+      : configurator?.sale_mode || ((prod.volume_pricing?.length || 0) > 0 ? 'volume' : prod.pricing_type)
+    );
     setAllowCustomMeasure(configurator?.allow_custom_measure !== false);
     setMinWidth(configurator?.min_width || 0);
     setMinHeight(configurator?.min_height || 0);
@@ -679,12 +743,12 @@ export default function ProductsCRUDPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const usesRequiredVolumePricing = saleMode === 'unidade';
-    const productVolumePricing = usesRequiredVolumePricing ? volumePricing : (volumePricing.length > 0 ? volumePricing : undefined);
+    const usesRequiredVolumePricing = saleMode === 'volume';
+    const productVolumePricing = volumePricing.length > 0 ? volumePricing : undefined;
     const cleanDeliveryTime = deliveryTime.trim();
 
     if (usesRequiredVolumePricing && volumePricing.length === 0) {
-      alert('Adicione pelo menos uma opcao de quantidade para este produto.');
+      alert('Adicione pelo menos uma opcao de quantidade para produtos vendidos por quantidade/lote.');
       return;
     }
     const cleanDescription = sanitizeRichTextHtml(description);
@@ -769,6 +833,9 @@ export default function ProductsCRUDPage() {
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
+
+  const initialVolumeTier = [...volumePricing].sort((a, b) => a.min_qty - b.min_qty)[0];
+  const selectedCategoryName = categories.find((category) => category.id === categoryId)?.name || 'Sem categoria';
 
   return (    <div className="space-y-6 animate-in fade-in duration-300">
       {!isFormOpen ? (
@@ -1666,27 +1733,55 @@ export default function ProductsCRUDPage() {
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
-                    <p className="rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
-                      {saleModeDescriptions[saleMode]}
-                    </p>
+                    <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-[11px] leading-relaxed">
+                      <span className="block text-xs font-black text-foreground">
+                        {saleModeOperatorGuidance[saleMode].title}
+                      </span>
+                      <span className="mt-1 block text-muted-foreground">
+                        {saleModeOperatorGuidance[saleMode].impact}
+                      </span>
+                      <span className="mt-1 block font-semibold text-primary">
+                        {saleModeOperatorGuidance[saleMode].catalog}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-border bg-secondary/10 p-3 space-y-3">
                     {saleMode === 'unidade' && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px]">
                         <div className="rounded-lg bg-white border border-border p-3">
-                          <span className="font-bold text-foreground block">Preço de venda</span>
-                          <span className="text-muted-foreground">Usa o preço final sugerido e a tabela por quantidade.</span>
+                          <span className="font-bold text-foreground block">Preco unitario direto</span>
+                          <span className="text-muted-foreground">O cliente ve o preco final de venda e escolhe a quantidade livremente.</span>
                         </div>
                         <div className="rounded-lg bg-white border border-border p-3">
-                          <span className="font-bold text-foreground block">Atacado, variações e cores</span>
-                          <span className="text-muted-foreground">Configure abaixo as faixas, variações simples e cores.</span>
+                          <span className="font-bold text-foreground block">Sem tabela de lote</span>
+                          <span className="text-muted-foreground">Para tiragem fixa ou atacado, troque para Preco por Quantidade / Lote.</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {saleMode === 'volume' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                        <div className="rounded-lg bg-white border border-emerald-500/20 p-3">
+                          <span className="font-bold text-foreground block">Tabela de tiragens obrigatoria</span>
+                          <span className="text-muted-foreground">Cadastre pelo menos uma faixa com quantidade, preco unitario e total do lote.</span>
+                        </div>
+                        <div className="rounded-lg bg-white border border-primary/20 p-3">
+                          <span className="font-bold text-foreground block">Como o cliente vai ver</span>
+                          <span className="text-muted-foreground">
+                            {initialVolumeTier
+                              ? `A partir de ${initialVolumeTier.min_qty} un - ${formatUnitCurrency(initialVolumeTier.price)} /un - ${formatCurrency(initialVolumeTier.price * initialVolumeTier.min_qty)} total`
+                              : 'Adicione uma faixa para exibir A partir de, valor por unidade e total do lote.'}
+                          </span>
                         </div>
                       </div>
                     )}
 
                     {(saleMode === 'm2' || saleMode === 'width_height') && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <p className="sm:col-span-2 lg:col-span-3 rounded-lg border border-blue-500/15 bg-blue-500/5 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
+                          O cliente informa largura e altura no catalogo. O preco final usa area em m2 e respeita a area minima, quando configurada.
+                        </p>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura mínima (cm)</label>
                           <input type="number" min="0" value={minWidth} onChange={(e) => setMinWidth(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
@@ -1720,6 +1815,9 @@ export default function ProductsCRUDPage() {
 
                     {saleMode === 'linear' && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <p className="sm:col-span-2 rounded-lg border border-blue-500/15 bg-blue-500/5 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
+                          O cliente informa o comprimento no catalogo. Use este modelo para produtos vendidos por metro linear.
+                        </p>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Metragem mínima (m)</label>
                           <input type="number" min="0" step="0.01" value={minLength} onChange={(e) => setMinLength(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
@@ -1859,6 +1957,39 @@ export default function ProductsCRUDPage() {
                   />
                   <span>Marcar como DESTAQUE (tag no catálogo)</span>
                 </label>
+              </div>
+              <div className="md:col-span-2 rounded-xl border border-primary/15 bg-secondary/10 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border bg-background flex items-center justify-center">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt="Previa do produto" className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[9px] font-black uppercase tracking-wide text-primary">Previa no catalogo</span>
+                      {isPromo && <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-black uppercase text-emerald-600">Promocao</span>}
+                      {isHighlight && <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[8px] font-black uppercase text-blue-600">Destaque</span>}
+                      {!catalogActive && <span className="rounded bg-muted px-1.5 py-0.5 text-[8px] font-black uppercase text-muted-foreground">Fora do catalogo</span>}
+                    </div>
+                    <h4 className="truncate text-sm font-black uppercase tracking-wide text-foreground">
+                      {name.trim() || 'Nome do produto'}
+                    </h4>
+                    <p className="text-[10px] font-semibold text-muted-foreground">
+                      {selectedCategoryName}{deliveryTime.trim() ? ` | Prazo: ${deliveryTime.trim()}` : ''}
+                    </p>
+                    <p className="text-xs font-black text-primary">
+                      {initialVolumeTier
+                        ? `A partir de ${initialVolumeTier.min_qty} un - ${formatUnitCurrency(initialVolumeTier.price)} /un - ${formatCurrency(initialVolumeTier.price * initialVolumeTier.min_qty)} total`
+                        : `${formatCurrency(salesPrice)} /${pricingType}`}
+                    </p>
+                    <p className="text-[10px] font-medium text-muted-foreground">
+                      Esta previa usa a mesma regra de exibicao do card publico da loja.
+                    </p>
+                  </div>
+                </div>
               </div>
                 </div>
               </section>
@@ -2012,11 +2143,12 @@ export default function ProductsCRUDPage() {
               </div>
 
               {/* Volume pricing tiers */}
-              <div className="md:col-span-2 border-t border-border/60 pt-3 space-y-3">
+              {saleMode === 'volume' && (
+              <div className="md:col-span-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-3">
                 <div>
                   <span className="font-bold text-xs text-foreground block">Preço por Quantidade (Tabela de Volume / Atacado)</span>
                   <span className="text-[9px] text-muted-foreground mt-0.5 block">
-                    Defina descontos progressivos para compras em maior volume. Digite o preço unitário ou o preço total do lote para converter automaticamente.
+                    Estas faixas alimentam o card publico do catalogo. Digite o preco unitario ou o total do lote para converter automaticamente.
                   </span>
                 </div>
                 
@@ -2076,7 +2208,7 @@ export default function ProductsCRUDPage() {
                           <tr key={tier.min_qty} className="hover:bg-secondary/10">
                             <td className="px-3 py-2 text-center text-foreground font-bold">A partir de {tier.min_qty} un</td>
                             <td className="px-3 py-2 text-right text-foreground font-bold">
-                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(tier.price)} /un
+                              {formatUnitCurrency(tier.price)} /un
                             </td>
                             <td className="px-3 py-2 text-right text-foreground font-bold">
                               {formatCurrency(tier.price * tier.min_qty)} total
@@ -2098,6 +2230,7 @@ export default function ProductsCRUDPage() {
                   </div>
                 )}
               </div>
+              )}
                 </div>
               </section>
 

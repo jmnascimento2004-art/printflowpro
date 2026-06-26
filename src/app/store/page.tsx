@@ -30,7 +30,7 @@ import {
 import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
 import { formatCEP, normalizeRichTextHtml } from '@/lib/utils';
-import { formatCurrency } from '@/lib/pricing';
+import { formatCurrency, formatUnitCurrency, getCatalogPricePresentation } from '@/lib/pricing';
 import { safeHref } from '@/lib/safe-url';
 import { buildWhatsAppOrderMessage, openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { StorePWARegister } from '@/components/store/store-pwa-register';
@@ -258,9 +258,34 @@ export default function StorefrontPage() {
     }
   };
 
-  const handleMenuCategoryClick = (categoryId: string | null) => {
-    setMegaMenuCategory(categoryId);
-    handleCategorySelect(categoryId);
+  const runWithoutScrollJump = (action: () => void) => {
+    if (typeof window === 'undefined') {
+      action();
+      return;
+    }
+
+    const previousScrollY = window.scrollY;
+    action();
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: previousScrollY, behavior: 'auto' });
+    });
+  };
+
+  const handleMenuCategoryClick = (categoryId: string | null, event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
+    runWithoutScrollJump(() => {
+      setMegaMenuCategory(categoryId);
+      setSelectedCategory(categoryId);
+      setMegaMenuOpen(false);
+    });
+  };
+
+  const handleMegaMenuProductClick = (product: Product, event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
+    runWithoutScrollJump(() => {
+      setMegaMenuOpen(false);
+      handleOpenProductConfig(product);
+    });
   };
 
   useEffect(() => {
@@ -1032,7 +1057,8 @@ export default function StorefrontPage() {
                   <div className="bg-slate-50/80 dark:bg-zinc-950/80 p-5 space-y-1.5 border-r border-slate-150 dark:border-zinc-850 h-[380px] overflow-y-auto no-scrollbar col-span-1">
                     {/* Option "Todos os Produtos" in sidebar */}
                     <button
-                      onClick={() => handleMenuCategoryClick(null)}
+                      type="button"
+                      onClick={(event) => handleMenuCategoryClick(null, event)}
                       className={`w-full text-left px-3.5 py-2.5 rounded-xl transition-all flex items-center justify-between group text-xs font-bold uppercase tracking-wide ${
                         megaMenuCategory === null
                           ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white font-extrabold'
@@ -1072,7 +1098,8 @@ export default function StorefrontPage() {
                       return items.map(cat => (
                         <button
                           key={cat.id}
-                          onClick={() => handleMenuCategoryClick(cat.id)}
+                          type="button"
+                          onClick={(event) => handleMenuCategoryClick(cat.id, event)}
                           className={`w-full text-left py-2.5 rounded-xl transition-all flex items-center justify-between group uppercase tracking-wide ${
                             cat.isChild 
                               ? 'pl-7 pr-3.5 text-[11px] font-medium normal-case' 
@@ -1129,7 +1156,8 @@ export default function StorefrontPage() {
                               return (
                                 <button
                                   key={p.id}
-                                  onClick={() => { setMegaMenuOpen(false); handleOpenProductConfig(p); }}
+                                  type="button"
+                                  onClick={(event) => handleMegaMenuProductClick(p, event)}
                                   className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
                                 >
                                   <span className="truncate">{p.name}</span>
@@ -1164,7 +1192,8 @@ export default function StorefrontPage() {
                               return (
                                 <button
                                   key={p.id}
-                                  onClick={() => { setMegaMenuOpen(false); handleOpenProductConfig(p); }}
+                                  type="button"
+                                  onClick={(event) => handleMegaMenuProductClick(p, event)}
                                   className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
                                 >
                                   <span className="truncate">{p.name}</span>
@@ -1199,7 +1228,8 @@ export default function StorefrontPage() {
                               return (
                                 <button
                                   key={p.id}
-                                  onClick={() => { setMegaMenuOpen(false); handleOpenProductConfig(p); }}
+                                  type="button"
+                                  onClick={(event) => handleMegaMenuProductClick(p, event)}
                                   className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
                                 >
                                   <span className="truncate">{p.name}</span>
@@ -1396,11 +1426,10 @@ export default function StorefrontPage() {
           {taggedProducts.length > 0 ? (
             <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {taggedProducts.map(p => {
-                const hasVolumeTiers = p.volume_pricing && p.volume_pricing.length > 0;
                 const deliveryTime = p.delivery_time || p.pricing_details?.delivery_time;
-                const displayPrice = p.volume_pricing && p.volume_pricing.length > 0
-                  ? Math.min(...p.volume_pricing.map(v => v.price))
-                  : p.sales_price;
+                const pricePresentation = getCatalogPricePresentation(p);
+                const { hasVolumeTiers } = pricePresentation;
+                const displayPrice = pricePresentation.unitPrice;
 
                 return (
                   <div 
@@ -1512,10 +1541,20 @@ export default function StorefrontPage() {
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                           {hasVolumeTiers ? 'A partir de' : 'Preço'}
                         </span>
+                        {hasVolumeTiers && (
+                          <span className="mb-0.5 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                            {pricePresentation.quantity} un
+                          </span>
+                        )}
                         <span className="font-extrabold text-emerald-600 text-sm block leading-none">
-                          {formatCurrency(displayPrice)} 
-                          <span className="text-[10px] text-slate-400 font-normal">/{p.pricing_type}</span>
+                          {hasVolumeTiers ? formatUnitCurrency(displayPrice) : formatCurrency(displayPrice)} 
+                          <span className="text-[10px] text-slate-400 font-normal">/{hasVolumeTiers ? 'un' : p.pricing_type}</span>
                         </span>
+                        {hasVolumeTiers && (
+                          <span className="mt-1 block text-[10px] font-bold text-slate-500">
+                            {formatCurrency(pricePresentation.totalPrice)} total
+                          </span>
+                        )}
                         {company.show_payments_pix !== false && (
                           <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold">
                             <svg className="h-3.5 w-3.5 text-[#32BCAD] shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -1960,11 +1999,10 @@ export default function StorefrontPage() {
             {showcaseProducts.length > 0 ? (
               <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {showcaseProducts.map((product) => {
-                  const hasVolumeTiers = product.volume_pricing && product.volume_pricing.length > 0;
                   const deliveryTime = product.delivery_time || product.pricing_details?.delivery_time;
-                  const displayPrice = product.volume_pricing && product.volume_pricing.length > 0
-                    ? Math.min(...product.volume_pricing.map(v => v.price))
-                    : product.sales_price;
+                  const pricePresentation = getCatalogPricePresentation(product);
+                  const { hasVolumeTiers } = pricePresentation;
+                  const displayPrice = pricePresentation.unitPrice;
 
                   return (
                     <div
@@ -2069,10 +2107,20 @@ export default function StorefrontPage() {
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                             {hasVolumeTiers ? 'A partir de' : 'Preço'}
                           </span>
+                          {hasVolumeTiers && (
+                            <span className="mb-0.5 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                              {pricePresentation.quantity} un
+                            </span>
+                          )}
                           <span className="font-extrabold text-emerald-600 text-sm block leading-none">
-                            {formatCurrency(displayPrice)}
-                            <span className="text-[10px] text-slate-400 font-normal">/{product.pricing_type}</span>
+                            {hasVolumeTiers ? formatUnitCurrency(displayPrice) : formatCurrency(displayPrice)}
+                            <span className="text-[10px] text-slate-400 font-normal">/{hasVolumeTiers ? 'un' : product.pricing_type}</span>
                           </span>
+                          {hasVolumeTiers && (
+                            <span className="mt-1 block text-[10px] font-bold text-slate-500">
+                              {formatCurrency(pricePresentation.totalPrice)} total
+                            </span>
+                          )}
                           {company.show_payments_pix !== false && (
                             <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold">
                               <svg className="h-3.5 w-3.5 text-[#32BCAD] shrink-0" viewBox="0 0 24 24" fill="currentColor">

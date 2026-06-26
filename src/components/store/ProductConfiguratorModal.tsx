@@ -17,6 +17,9 @@ import {
 import type { Product, ProductConfiguratorSettings, ProductSaleMode } from '@/lib/dummy-data';
 import {
   formatCurrency,
+  formatUnitCurrency,
+  getInitialVolumePricingTier,
+  getNormalizedVolumePricing,
   getPriceBreakdown,
   getProductConfigurator,
   type PricingSelectedOption
@@ -56,6 +59,7 @@ interface ProductConfiguratorModalProps {
 
 const saleModeLabels: Record<ProductSaleMode, string> = {
   unidade: 'Unidade simples',
+  volume: 'Preco por quantidade',
   m2: 'Metro quadrado',
   linear: 'Metro linear',
   width_height: 'Largura x Altura',
@@ -65,7 +69,7 @@ const saleModeLabels: Record<ProductSaleMode, string> = {
   custom: 'Produto personalizado'
 };
 
-const supportedSaleModes = new Set<ProductSaleMode>(['unidade', 'm2', 'linear', 'pacote', 'kit', 'size_grid']);
+const supportedSaleModes = new Set<ProductSaleMode>(['unidade', 'volume', 'm2', 'linear', 'pacote', 'kit', 'size_grid']);
 const defaultPlaceholderSizeNames = new Set(['P', 'M', 'G', 'GG', 'XG']);
 
 const toPositiveNumber = (value: unknown, fallback = 0): number => {
@@ -108,15 +112,18 @@ export function ProductConfiguratorModal({
   categoryName
 }: ProductConfiguratorModalProps) {
   const savedConfigurator = getProductConfigurator(product);
+  const initialVolumeTier = useMemo(() => getInitialVolumePricingTier(product), [product]);
+  const volumeTiers = useMemo(() => getNormalizedVolumePricing(product), [product]);
   const configurator = useMemo<ProductConfiguratorSettings>(() => {
     return savedConfigurator || {
-      sale_mode: (product?.pricing_type || 'unidade') as ProductSaleMode,
-      min_quantity: product?.volume_pricing?.[0]?.min_qty || 1,
+      sale_mode: initialVolumeTier ? 'volume' : (product?.pricing_type || 'unidade') as ProductSaleMode,
+      min_quantity: initialVolumeTier?.min_qty || 1,
       option_groups: [],
       size_options: []
     };
-  }, [product, savedConfigurator]);
-  const saleMode = (configurator?.sale_mode || product?.pricing_type || 'unidade') as ProductSaleMode;
+  }, [product, savedConfigurator, initialVolumeTier]);
+  const savedSaleMode = (configurator?.sale_mode || product?.pricing_type || 'unidade') as ProductSaleMode;
+  const saleMode = savedSaleMode === 'unidade' && initialVolumeTier ? 'volume' : savedSaleMode;
   const optionGroups = useMemo(() => configurator?.option_groups || [], [configurator]);
   const sizeOptions = useMemo(() => configurator?.size_options || [], [configurator]);
   const shouldShowSizeGrid = saleMode === 'size_grid' || hasRealSizeConfiguration(sizeOptions);
@@ -135,8 +142,8 @@ export function ProductConfiguratorModal({
 
     const initialQuantity = Math.max(
       1,
+      (saleMode === 'volume' ? initialVolumeTier?.min_qty : configurator?.min_quantity) ||
       configurator?.min_quantity ||
-      product.volume_pricing?.[0]?.min_qty ||
       1
     );
 
@@ -164,7 +171,7 @@ export function ProductConfiguratorModal({
     setSelectedSize(defaultSize);
     setSelectedVariant(product.variant_options?.[0]?.name || '');
     setSelectedColor(product.color_options?.[0]?.name || '');
-  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid]);
+  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode]);
 
   const selectedOptions = useMemo(() => {
     const groupOptions = optionGroups.flatMap((group) => {
@@ -449,6 +456,46 @@ export function ProductConfiguratorModal({
               </div>
             </section>
 
+            {saleMode === 'volume' && volumeTiers.length > 0 && (
+              <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Faixas de quantidade</h3>
+                    <p className="mt-1 text-xs text-slate-600">Escolha a tiragem para aplicar o preço unitário correto.</p>
+                  </div>
+                  <Tag className="h-5 w-5 text-emerald-600" />
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {volumeTiers.map((tier) => {
+                    const selected = quantity === tier.min_qty;
+                    return (
+                      <button
+                        key={tier.min_qty}
+                        type="button"
+                        onClick={() => setQuantity(tier.min_qty)}
+                        className={`rounded-xl border p-3 text-left transition-all ${
+                          selected
+                            ? 'border-emerald-600 bg-white text-slate-900 ring-2 ring-emerald-600/10'
+                            : 'border-emerald-200 bg-white/80 text-slate-700 hover:border-emerald-500'
+                        }`}
+                      >
+                        <span className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+                          A partir de {tier.min_qty} un
+                        </span>
+                        <span className="mt-1 block text-sm font-black text-emerald-700">
+                          {formatUnitCurrency(tier.price)} /un
+                        </span>
+                        <span className="mt-0.5 block text-[11px] font-bold text-slate-500">
+                          {formatCurrency(tier.total)} total
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {shouldShowSizeGrid && sizeOptions.length > 0 && (
               <section className="rounded-2xl border border-slate-200 bg-white p-4">
                 <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Grade de tamanhos</h3>
@@ -646,7 +693,7 @@ export function ProductConfiguratorModal({
                     <span className="text-2xl font-black text-emerald-600">{breakdown.formattedTotal}</span>
                   </div>
                   <p className="mt-1 text-right text-[11px] font-semibold text-slate-500">
-                    Unitário estimado: {formatCurrency(unitPriceForCart)}
+                    Unitário estimado: {saleMode === 'volume' ? formatUnitCurrency(unitPriceForCart) : formatCurrency(unitPriceForCart)}
                   </p>
                 </div>
               </div>

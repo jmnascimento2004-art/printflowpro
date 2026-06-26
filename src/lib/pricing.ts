@@ -192,6 +192,15 @@ export function formatCurrency(value: number): string {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
+export function formatUnitCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4
+  }).format(Number.isFinite(value) ? value : 0);
+}
+
 export function getProductUnitPrice(product: ProductLike | null | undefined, quantity = 1): number {
   if (!product) return 0;
 
