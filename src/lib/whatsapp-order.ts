@@ -28,6 +28,7 @@ export interface BuildWhatsAppOrderMessageInput {
 
 const saleTypeLabels: Partial<Record<Product['pricing_type'] | ProductSaleMode, string>> = {
   unidade: 'Unidade',
+  volume: 'Preco por quantidade',
   m2: 'Metro quadrado',
   linear: 'Metro linear',
   width_height: 'Largura x Altura',

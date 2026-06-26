@@ -196,7 +196,7 @@ export interface PricingDetails {
   configurator_options?: ProductConfiguratorSettings;
 }
 
-export type ProductSaleMode = 'unidade' | 'm2' | 'linear' | 'width_height' | 'pacote' | 'kit' | 'size_grid' | 'custom';
+export type ProductSaleMode = 'unidade' | 'volume' | 'm2' | 'linear' | 'width_height' | 'pacote' | 'kit' | 'size_grid' | 'custom';
 
 export interface ProductConfiguratorOption {
   name: string;
