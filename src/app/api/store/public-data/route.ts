@@ -28,9 +28,17 @@ const normalizeDomainSlug = (value: string = '') =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '');
 
+const isPlaceholderCompanyName = (name?: string | null) => {
+  const slug = normalizeDomainSlug(name || '');
+  return !slug || slug === 'minhaempresa' || slug === 'printflowpro';
+};
+
+const resolveLocalCompany = (companies: Company[]) =>
+  companies.find((company) => !isPlaceholderCompanyName(company.name)) || companies[0] || null;
+
 const resolveStoreCompanyForHost = (companies: Company[], host: string) => {
   const hostname = normalizeDomain(host);
-  if (!hostname || LOCAL_HOSTNAMES.has(hostname)) return companies[0] || null;
+  if (!hostname || LOCAL_HOSTNAMES.has(hostname)) return resolveLocalCompany(companies);
 
   const exactDomainMatch = companies.find((company) => {
     const adminDomain = normalizeDomain(company.admin_domain);
