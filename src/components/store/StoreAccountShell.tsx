@@ -86,7 +86,6 @@ export function StoreAccountShell({
               </div>
             )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-black">{storeName}</p>
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Area do cliente</p>
             </div>
           </Link>

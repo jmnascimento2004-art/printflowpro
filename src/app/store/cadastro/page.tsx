@@ -71,7 +71,6 @@ function StoreSignupHeader({ company, primaryColor }: { company: Company; primar
             </div>
           )}
           <div className="min-w-0">
-            <p className="truncate text-sm font-black text-slate-950">{storeName}</p>
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Area do Cliente</p>
           </div>
         </Link>
