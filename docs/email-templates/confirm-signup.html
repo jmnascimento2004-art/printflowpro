@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirme seu cadastro</title>
+  </head>
+  <body style="margin:0; padding:0; background:#f6f7fb; font-family:Arial, Helvetica, sans-serif; color:#1f2937;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:#f6f7fb; margin:0; padding:0;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; max-width:600px; background:#ffffff; border-radius:18px; overflow:hidden; border:1px solid #e5e7eb;">
+            <tr>
+              <td align="center" style="padding:34px 32px 18px 32px;">
+                <a href="URL_DO_CATALOGO" style="text-decoration:none; display:inline-block;">
+                  <img src="LOGO_DA_EMPRESA" width="150" alt="NOME_DA_EMPRESA" style="display:block; max-width:150px; height:auto; border:0; outline:none; text-decoration:none;">
+                </a>
+                <div style="font-size:13px; line-height:20px; color:#6b7280; margin-top:12px;">
+                  Caso a logo nao carregue: <strong style="color:#111827;">NOME_DA_EMPRESA</strong>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:10px 36px 0 36px;">
+                <h1 style="margin:0; font-size:26px; line-height:34px; color:#111827; font-weight:800; text-align:center;">
+                  Confirme seu cadastro
+                </h1>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:22px 36px 0 36px;">
+                <p style="margin:0 0 14px 0; font-size:16px; line-height:26px; color:#374151;">
+                  Ola, seja bem-vindo(a)!
+                </p>
+                <p style="margin:0 0 14px 0; font-size:16px; line-height:26px; color:#374151;">
+                  Recebemos uma solicitacao de cadastro no catalogo online da <strong>NOME_DA_EMPRESA</strong>.
+                </p>
+                <p style="margin:0; font-size:16px; line-height:26px; color:#374151;">
+                  Para ativar sua conta e acompanhar seus pedidos, confirme seu e-mail clicando no botao abaixo.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td align="center" style="padding:30px 36px 28px 36px;">
+                <a href="{{ .ConfirmationURL }}" style="display:inline-block; background:COR_PRINCIPAL; color:#ffffff; text-decoration:none; font-size:15px; line-height:20px; font-weight:800; padding:15px 28px; border-radius:12px;">
+                  Confirmar meu cadastro
+                </a>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:0 36px 26px 36px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:#f9fafb; border:1px solid #e5e7eb; border-radius:14px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <p style="margin:0; font-size:13px; line-height:21px; color:#6b7280;">
+                        Se o botao nao funcionar, copie e cole este link no seu navegador:
+                      </p>
+                      <p style="margin:8px 0 0 0; font-size:12px; line-height:19px; color:#374151; word-break:break-all;">
+                        {{ .ConfirmationURL }}
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:0 36px 30px 36px;">
+                <p style="margin:0; font-size:14px; line-height:23px; color:#6b7280;">
+                  Se voce nao realizou este cadastro, ignore este e-mail.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:24px 36px; background:#f9fafb; border-top:1px solid #e5e7eb;">
+                <p style="margin:0 0 6px 0; font-size:14px; line-height:22px; color:#374151;">
+                  Atenciosamente,<br>
+                  <strong>Equipe NOME_DA_EMPRESA</strong>
+                </p>
+                <p style="margin:14px 0 0 0; font-size:12px; line-height:19px; color:#6b7280;">
+                  Este e um e-mail automatico. Nao responda esta mensagem.
+                </p>
+                <p style="margin:12px 0 0 0; font-size:12px; line-height:19px; color:#9ca3af;">
+                  Catalogo online desenvolvido com <strong style="color:#6b7280;">PrintFlowPRO</strong>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
