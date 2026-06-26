@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { useDatabase } from '@/context/database-context';
 import type { Customer } from '@/lib/dummy-data';
@@ -49,6 +49,10 @@ const STORE_SIGNUP_CACHE_KEY = 'printflow_store_signup_cache';
 const emptyAddressList: StoreCustomerAddress[] = [];
 type EnsuredStoreAccount = { account_id: string; customer_id: string };
 
+const isStoreCustomerSession = (currentSession?: Session | null) =>
+  currentSession?.user.user_metadata?.store_customer === true ||
+  currentSession?.user.app_metadata?.store_customer === true;
+
 const getCachedSignup = (email: string): Partial<StoreSignupInput> | null => {
   if (typeof window === 'undefined') return null;
   try {
@@ -82,7 +86,9 @@ const setCachedSignup = (input: StoreSignupInput) => {
 
 export function StoreCustomerProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { company } = useDatabase();
+  const isStoreRoute = pathname?.startsWith('/store') ?? false;
   const [session, setSession] = useState<Session | null>(null);
   const [account, setAccount] = useState<StoreCustomerAccount | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -97,6 +103,18 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     () => addresses.find((address) => address.is_default) || addresses[0] || null,
     [addresses]
   );
+
+  const resetStoreCustomerState = useCallback(() => {
+    setSession(null);
+    setAccount(null);
+    setCustomer(null);
+    setAddresses(emptyAddressList);
+    setOrders([]);
+    setQuotes([]);
+    setFavoriteProductIds([]);
+    setError(null);
+    setIsLoading(false);
+  }, []);
 
   const createSessionCustomer = (currentSession: Session): Customer => {
     const metadata = currentSession.user.user_metadata || {};
@@ -190,7 +208,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
   };
 
   const loadStoreCustomer = async (nextSession = session) => {
-    if (!nextSession?.user || !company.id) {
+    if (!nextSession?.user || !company.id || !isStoreCustomerSession(nextSession)) {
       setAccount(null);
       setCustomer(null);
       setAddresses(emptyAddressList);
@@ -332,6 +350,11 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     let mounted = true;
 
     const init = async () => {
+      if (!isStoreRoute) {
+        resetStoreCustomerState();
+        return;
+      }
+
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       setSession(data.session);
@@ -339,6 +362,12 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     };
 
     init();
+
+    if (!isStoreRoute) {
+      return () => {
+        mounted = false;
+      };
+    }
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
@@ -350,7 +379,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       listener.subscription.unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company.id]);
+  }, [company.id, isStoreRoute, resetStoreCustomerState]);
 
   const signUp = async (input: StoreSignupInput) => {
     setError(null);
