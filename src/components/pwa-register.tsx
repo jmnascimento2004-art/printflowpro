@@ -57,6 +57,17 @@ export default function PWARegister() {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
     if (pathname === '/store' || pathname.startsWith('/store/')) return;
 
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations
+          .filter((registration) => registration.scope === `${window.location.origin}/`)
+          .forEach((registration) => registration.unregister());
+      }).catch(() => {
+        // Development cleanup is best effort; production PWA behavior is unchanged.
+      });
+      return;
+    }
+
     let refreshing = false;
 
     const onControllerChange = () => {

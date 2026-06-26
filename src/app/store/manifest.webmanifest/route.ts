@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
     short_name: branding.shortName,
     description: branding.description,
     id: `/store/${branding.slug}`,
-    start_url: '/store',
+    start_url: '/store/',
     scope: '/store/',
     display: 'standalone',
     orientation: 'portrait-primary',

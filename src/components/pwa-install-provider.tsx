@@ -27,6 +27,7 @@ const PWAInstallContext = createContext<PWAInstallContextValue>({
   isInstalled: false,
   installApp: async () => 'unavailable'
 });
+const isCustomInstallPromptEnabled = process.env.NEXT_PUBLIC_ENABLE_CUSTOM_PWA_INSTALL === 'true';
 
 export function PWAInstallProvider({ children }: { children: React.ReactNode }) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -40,6 +41,8 @@ export function PWAInstallProvider({ children }: { children: React.ReactNode }) 
     setCanShowIOSHelpState(canShowIOSInstallHelp());
 
     const onBeforeInstallPrompt = (event: Event) => {
+      if (!isCustomInstallPromptEnabled) return;
+
       event.preventDefault();
       setDeferredPrompt(event as BeforeInstallPromptEvent);
     };
