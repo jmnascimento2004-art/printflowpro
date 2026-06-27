@@ -1270,27 +1270,6 @@ export default function OrdersPage() {
               >
                 <Edit3 className="h-4 w-4" /> Editar Pedido
               </button>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-1 border border-border"
-              >
-                <ChevronRight className="h-4 w-4 rotate-180" /> Voltar para Lista
-              </button>
-            </div>
-          </div>
-
-          {/* Order Status and Payment Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <div className="p-3 bg-secondary/35 border border-border rounded-xl">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase block">Status do Pedido</span>
-              <div className="font-bold text-xs text-foreground mt-1 flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-primary" />
-                {selectedOrder.status.toUpperCase().replace('_', ' ')}
-              </div>
-            </div>
-            <div className="p-3 bg-secondary/35 border border-border rounded-xl">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase block">Status do Pagamento</span>
-              <div className="mt-1">{getPaymentStatusBadge(selectedOrder.payment_status)}</div>
             </div>
           </div>
 
@@ -1526,8 +1505,11 @@ export default function OrdersPage() {
                   <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Pagamentos registrados</h5>
                   <div className="mt-2 space-y-2">
                     {selectedOrderTransactions.length > 0 ? (
-                      selectedOrderTransactions.map((transaction) => (
-                        <div key={transaction.id} className="rounded-lg border border-border bg-card px-3 py-2">
+                      selectedOrderTransactions.map((transaction, index) => (
+                        <div
+                          key={transaction.id || `${transaction.order_id || transaction.order_number || 'payment'}-${transaction.created_at || index}`}
+                          className="rounded-lg border border-border bg-card px-3 py-2"
+                        >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="truncate text-xs font-bold text-foreground">{transaction.description}</p>
