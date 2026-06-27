@@ -44,28 +44,28 @@ export default function StoreProfilePage() {
       });
       setMessage('Dados atualizados com sucesso.');
     } catch (profileError) {
-      setError(profileError instanceof Error ? profileError.message : 'Nao foi possivel atualizar seus dados.');
+      setError(profileError instanceof Error ? profileError.message : 'Não foi possível atualizar seus dados.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <StoreAccountShell title="Minha conta" subtitle="Gerencie seus dados, enderecos e pedidos.">
+    <StoreAccountShell title="Minha conta" subtitle="Gerencie seus dados, endereços e pedidos.">
       <form onSubmit={submit} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
         {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">{message}</div>}
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600">{error}</div>}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <StoreField label="Tipo de cadastro">
-            <input className={storeInputClass} value={personType === 'juridica' ? 'Pessoa Juridica' : 'Pessoa Fisica'} disabled />
+            <input className={storeInputClass} value={personType === 'juridica' ? 'Pessoa Jurídica' : 'Pessoa Física'} disabled />
           </StoreField>
           <StoreField label={personType === 'juridica' ? 'CNPJ protegido' : 'CPF protegido'}>
             <input className={storeInputClass} value={maskDocument(customer?.document || '')} disabled />
           </StoreField>
         </div>
 
-        <StoreField label={personType === 'juridica' ? 'Razao social' : 'Nome completo'}>
+        <StoreField label={personType === 'juridica' ? 'Razão social' : 'Nome completo'}>
           <input className={storeInputClass} value={name} onChange={(event) => setName(event.target.value)} required />
         </StoreField>
 
@@ -74,7 +74,7 @@ export default function StoreProfilePage() {
             <StoreField label="Nome fantasia">
               <input className={storeInputClass} value={tradeName} onChange={(event) => setTradeName(event.target.value)} />
             </StoreField>
-            <StoreField label="Responsavel">
+            <StoreField label="Responsável">
               <input className={storeInputClass} value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} />
             </StoreField>
           </div>
@@ -95,7 +95,7 @@ export default function StoreProfilePage() {
               <input className={storeInputClass} type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} />
             </StoreField>
           )}
-          <StoreField label="Preferencia de contato">
+          <StoreField label="Preferência de contato">
             <select className={storeInputClass} value={contactPreference} onChange={(event) => setContactPreference(event.target.value)}>
               <option value="whatsapp">WhatsApp</option>
               <option value="email">E-mail</option>
@@ -108,12 +108,12 @@ export default function StoreProfilePage() {
         </div>
 
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold leading-5 text-slate-500">
-          Para alterar CPF/CNPJ ou e-mail principal, fale com o atendimento da loja por seguranca.
+          Para alterar CPF/CNPJ ou e-mail principal, fale com o atendimento da loja por segurança.
         </p>
 
-        <button type="submit" disabled={submitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-sm font-black text-white disabled:opacity-60 sm:w-auto sm:px-6">
+        <button type="submit" disabled={submitting} className="pf-button-primary h-12 w-full sm:w-auto sm:px-6">
           <Save className="h-4 w-4" />
-          {submitting ? 'Salvando...' : 'Salvar alteracoes'}
+          {submitting ? 'Salvando...' : 'Salvar alterações'}
         </button>
       </form>
     </StoreAccountShell>

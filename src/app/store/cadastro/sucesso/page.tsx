@@ -15,7 +15,7 @@ export default function StoreSignupSuccessPage() {
   return (
     <StoreAuthPanel
       title="Conta criada"
-      subtitle="Seu cadastro foi recebido. Confirme o e-mail para liberar o acesso a area do cliente."
+      subtitle="Seu cadastro foi recebido. Confirme o e-mail para liberar o acesso à área do cliente."
     >
       <div className="space-y-5 text-center">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
@@ -29,8 +29,8 @@ export default function StoreSignupSuccessPage() {
               <p className="text-sm font-black text-emerald-800">Confira seu e-mail</p>
               <p className="mt-1 text-xs font-semibold leading-5 text-emerald-700">
                 {email
-                  ? `Enviamos a confirmacao para ${email}. Depois de confirmar, entre para acessar sua conta.`
-                  : 'Enviamos a confirmacao para o e-mail cadastrado. Depois de confirmar, entre para acessar sua conta.'}
+                  ? `Enviamos a confirmação para ${email}. Depois de confirmar, entre para acessar sua conta.`
+                  : 'Enviamos a confirmação para o e-mail cadastrado. Depois de confirmar, entre para acessar sua conta.'}
               </p>
             </div>
           </div>
@@ -38,13 +38,13 @@ export default function StoreSignupSuccessPage() {
 
         <Link
           href={loginHref}
-          className="flex h-12 w-full items-center justify-center rounded-xl bg-slate-950 text-sm font-black text-white"
+          className="pf-button-primary h-12 w-full"
         >
           Ir para login
         </Link>
 
         <Link href={STORE_ROUTES.home} className="inline-flex text-xs font-black text-slate-500 hover:text-slate-950">
-          Voltar ao catalogo
+          Voltar ao catálogo
         </Link>
       </div>
     </StoreAuthPanel>

@@ -64,7 +64,7 @@ function StoreLoginHeader({ company, primaryColor }: { company: Company; primary
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Area do Cliente</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Área do Cliente</p>
           </div>
         </Link>
 
@@ -116,7 +116,7 @@ export default function StoreLoginPage() {
       <main className="px-4 py-8 md:px-8 md:py-12">
         <section className="mx-auto w-full max-w-[580px] rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <div className="mb-6 text-center sm:text-left">
-            <p className="text-xs font-black uppercase tracking-wider text-slate-400">Area do Cliente</p>
+            <p className="text-xs font-black uppercase tracking-wider text-slate-400">Área do Cliente</p>
             <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Entrar na sua conta</h1>
             <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
               Acompanhe pedidos, pagamentos e aprovacoes de arte em um so lugar.
@@ -180,7 +180,7 @@ export default function StoreLoginPage() {
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
-              <p className="text-sm font-bold text-slate-600">Ainda nao possui cadastro?</p>
+              <p className="text-sm font-bold text-slate-600">Ainda não possui cadastro?</p>
               <Link
                 href={withStoreRedirect(STORE_ROUTES.signup, redirect)}
                 className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-900 transition hover:border-slate-300 hover:bg-slate-100"
@@ -195,7 +195,7 @@ export default function StoreLoginPage() {
               'Acompanhe seus pedidos',
               'Consulte pagamentos',
               'Aprove artes online',
-              'Historico completo de compras'
+              'Histórico completo de compras'
             ].map((benefit) => (
               <div key={benefit} className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-700">
                 <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: primaryColor }} />

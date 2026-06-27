@@ -48,10 +48,13 @@ const STORE_SIGNUP_CACHE_KEY = 'printflow_store_signup_cache';
 
 const emptyAddressList: StoreCustomerAddress[] = [];
 type EnsuredStoreAccount = { account_id: string; customer_id: string };
+type LinkedStoreCustomer = { companyId: string; customerId: string };
 
 const isStoreCustomerSession = (currentSession?: Session | null) =>
   currentSession?.user.user_metadata?.store_customer === true ||
-  currentSession?.user.app_metadata?.store_customer === true;
+  currentSession?.user.user_metadata?.store_customer === 'true' ||
+  currentSession?.user.app_metadata?.store_customer === true ||
+  currentSession?.user.app_metadata?.store_customer === 'true';
 
 const getCachedSignup = (email: string): Partial<StoreSignupInput> | null => {
   if (typeof window === 'undefined') return null;
@@ -81,6 +84,36 @@ const setCachedSignup = (input: StoreSignupInput) => {
     window.localStorage.setItem(STORE_SIGNUP_CACHE_KEY, JSON.stringify(cache));
   } catch {
     // Cache is only a convenience for confirmed-email flows.
+  }
+};
+
+const cleanAddressText = (value?: string | null) => (value || '').trim();
+
+const getAddressError = (payload: {
+  recipient_name: string;
+  zip_code: string;
+  street: string;
+  number: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+}) => {
+  if (!payload.recipient_name) return 'Informe o destinatário.';
+  if (payload.zip_code.replace(/\D/g, '').length !== 8) return 'Informe um CEP válido.';
+  if (!payload.street) return 'Informe a rua.';
+  if (!payload.number) return 'Informe o número.';
+  if (!payload.neighborhood) return 'Informe o bairro.';
+  if (!payload.city) return 'Informe a cidade.';
+  if (payload.state.length !== 2) return 'Informe a UF com 2 letras.';
+  return '';
+};
+
+const getStoreAccountLinkError = () =>
+  'Não foi possível confirmar o vínculo da sua conta com o cadastro do catálogo. Tente carregar novamente antes de salvar o endereço.';
+
+const warnStoreCustomerError = (message: string, error: unknown) => {
+  if (process.env.NODE_ENV !== 'production') {
+    warnCaught(message, error);
   }
 };
 
@@ -116,58 +149,6 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     setIsLoading(false);
   }, []);
 
-  const createSessionCustomer = (currentSession: Session): Customer => {
-    const metadata = currentSession.user.user_metadata || {};
-    const email = currentSession.user.email?.trim().toLowerCase() || '';
-    const cached = email ? getCachedSignup(email) : null;
-    const customerType = cached?.customerType || metadata.customer_type || 'fisica';
-
-    return {
-      id: currentSession.user.id,
-      company_id: company.id,
-      name: cached?.name || metadata.name || email || 'Cliente',
-      document: cached?.document || metadata.document || '',
-      phone: cached?.phone || metadata.phone || '',
-      email,
-      address: {
-        street: '',
-        number: '',
-        neighborhood: '',
-        city: '',
-        state: '',
-        zip_code: ''
-      },
-      tags: ['Catalogo Online'],
-      notes: 'Perfil carregado pela sessao do cliente final.',
-      corporate_additional_info: {
-        nome_fantasia: cached?.tradeName || metadata.trade_name || '',
-        whatsapp: cached?.phone || metadata.whatsapp || metadata.phone || '',
-        birth_date: cached?.birthDate || metadata.birth_date || '',
-        contact_preference: cached?.contactPreference || metadata.contact_preference || 'whatsapp',
-        person_type: customerType === 'juridica' ? 'juridica' : 'fisica'
-      },
-      created_at: currentSession.user.created_at || new Date().toISOString()
-    };
-  };
-
-  const applySessionCustomerFallback = (currentSession: Session) => {
-    const fallbackCustomer = createSessionCustomer(currentSession);
-    setAccount({
-      id: `session-${currentSession.user.id}`,
-      company_id: company.id,
-      customer_id: fallbackCustomer.id,
-      auth_user_id: currentSession.user.id,
-      status: 'active',
-      customer: fallbackCustomer
-    });
-    setCustomer(fallbackCustomer);
-    setAddresses(emptyAddressList);
-    setOrders([]);
-    setQuotes([]);
-    setFavoriteProductIds([]);
-    setError(null);
-  };
-
   const ensureAccount = async (currentSession: Session, fallback?: Partial<StoreSignupInput>): Promise<EnsuredStoreAccount | null> => {
     const email = currentSession.user.email?.trim().toLowerCase() || '';
     const cached = email ? getCachedSignup(email) : null;
@@ -185,7 +166,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       marketingWhatsappAccepted: Boolean(fallback?.marketingWhatsappAccepted || cached?.marketingWhatsappAccepted || metadata.marketing_whatsapp_accepted)
     };
 
-    if (!company.id || !data.document || !data.phone) return null;
+    if (!company.id || !email) return null;
 
     const { data: ensuredData, error: rpcError } = await supabase.rpc('ensure_store_customer_account', {
       p_company_id: company.id,
@@ -208,7 +189,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
   };
 
   const loadStoreCustomer = async (nextSession = session) => {
-    if (!nextSession?.user || !company.id || !isStoreCustomerSession(nextSession)) {
+    if (!nextSession?.user || !company.id) {
       setAccount(null);
       setCustomer(null);
       setAddresses(emptyAddressList);
@@ -223,26 +204,41 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     setError(null);
 
     try {
-      let ensureAccountError = '';
-      const ensuredAccount = await ensureAccount(nextSession).catch((accountError) => {
-        warnCaught('Conta de cliente final ainda incompleta:', accountError);
-        ensureAccountError = accountError instanceof Error ? accountError.message : 'Nao foi possivel vincular sua conta do catalogo.';
-        return null;
-      });
-
       const { data: accountData, error: accountError } = await supabase
         .from('store_customer_accounts')
         .select('*, customer:customers(*)')
         .eq('company_id', company.id)
         .eq('auth_user_id', nextSession.user.id)
-        .eq('status', 'active')
         .maybeSingle();
 
       if (accountError) throw accountError;
 
-      const accountCustomerId = accountData?.customer_id || ensuredAccount?.customer_id || '';
       let nextAccount = (accountData as StoreCustomerAccount | null) || null;
       let nextCustomer = nextAccount?.customer || null;
+      let ensuredAccount: EnsuredStoreAccount | null = null;
+      let ensureAccountError = '';
+
+      const email = nextSession.user.email?.trim().toLowerCase() || '';
+
+      if (!nextAccount && email) {
+        const cached = email ? getCachedSignup(email) : null;
+        const metadata = nextSession.user.user_metadata || {};
+        const canEnsureAccount =
+          isStoreCustomerSession(nextSession) ||
+          Boolean(email) ||
+          Boolean(cached?.document && cached?.phone) ||
+          Boolean(metadata.document && metadata.phone);
+
+        if (canEnsureAccount) {
+          ensuredAccount = await ensureAccount(nextSession).catch((accountError) => {
+            warnStoreCustomerError('Conta de cliente final ainda incompleta:', accountError);
+            ensureAccountError = 'Não foi possível concluir o vínculo da sua conta do catálogo.';
+            return null;
+          });
+        }
+      }
+
+      const accountCustomerId = nextAccount?.customer_id || ensuredAccount?.customer_id || '';
 
       if (!nextCustomer && accountCustomerId) {
         const { data: customerData, error: customerError } = await supabase
@@ -267,18 +263,26 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
         };
       }
 
+      if (nextAccount?.status && nextAccount.status !== 'active') {
+        setAccount(null);
+        setCustomer(null);
+        setAddresses(emptyAddressList);
+        setOrders([]);
+        setQuotes([]);
+        setFavoriteProductIds([]);
+        setError('Sua conta do catálogo não está ativa no momento.');
+        setIsLoading(false);
+        return;
+      }
+
       if (!nextAccount) {
-        if (company.id) {
-          applySessionCustomerFallback(nextSession);
-        } else {
-          setAccount(null);
-          setCustomer(null);
-          setAddresses(emptyAddressList);
-          setOrders([]);
-          setQuotes([]);
-          setFavoriteProductIds([]);
-          setError(ensureAccountError || 'Nao encontramos um cadastro de cliente vinculado a este login.');
-        }
+        setAccount(null);
+        setCustomer(null);
+        setAddresses(emptyAddressList);
+        setOrders([]);
+        setQuotes([]);
+        setFavoriteProductIds([]);
+        setError(ensureAccountError || 'Não encontramos um cadastro de cliente vinculado a este login.');
         setIsLoading(false);
         return;
       }
@@ -287,7 +291,13 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       setCustomer(nextCustomer || null);
 
       if (!nextCustomer?.id) {
-        applySessionCustomerFallback(nextSession);
+        setAccount(null);
+        setCustomer(null);
+        setAddresses(emptyAddressList);
+        setOrders([]);
+        setQuotes([]);
+        setFavoriteProductIds([]);
+        setError('Não foi possível carregar os dados do cliente vinculado a este login.');
         setIsLoading(false);
         return;
       }
@@ -325,22 +335,28 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
           .order('created_at', { ascending: false })
       ]);
 
-      if (addressesError) throw addressesError;
-      if (ordersError) throw ordersError;
-      if (quotesError) throw quotesError;
-      if (favoritesError) throw favoritesError;
+      if (addressesError) warnStoreCustomerError('Erro ao carregar enderecos do cliente:', addressesError);
+      if (ordersError) warnStoreCustomerError('Erro ao carregar pedidos do cliente:', ordersError);
+      if (quotesError) warnStoreCustomerError('Erro ao carregar orcamentos do cliente:', quotesError);
+      if (favoritesError) warnStoreCustomerError('Erro ao carregar favoritos do cliente:', favoritesError);
 
-      setAddresses((addressesData || []) as StoreCustomerAddress[]);
-      setOrders((ordersData || []) as StoreCustomerOrder[]);
-      setQuotes((quotesData || []) as StoreCustomerQuote[]);
-      setFavoriteProductIds(((favoritesData || []) as StoreCustomerFavorite[]).map((favorite) => favorite.product_id));
+      setAddresses(addressesError ? emptyAddressList : (addressesData || []) as StoreCustomerAddress[]);
+      setOrders(ordersError ? [] : (ordersData || []) as StoreCustomerOrder[]);
+      setQuotes(quotesError ? [] : (quotesData || []) as StoreCustomerQuote[]);
+      setFavoriteProductIds(
+        favoritesError
+          ? []
+          : ((favoritesData || []) as StoreCustomerFavorite[]).map((favorite) => favorite.product_id)
+      );
     } catch (loadError) {
-      warnCaught('Erro ao carregar area do cliente:', loadError);
-      if (nextSession?.user && company.id) {
-        applySessionCustomerFallback(nextSession);
-      } else {
-        setError('Nao foi possivel carregar sua conta agora.');
-      }
+      warnStoreCustomerError('Erro ao carregar area do cliente:', loadError);
+      setAccount(null);
+      setCustomer(null);
+      setAddresses(emptyAddressList);
+      setOrders([]);
+      setQuotes([]);
+      setFavoriteProductIds([]);
+      setError('Não foi possível carregar sua conta agora.');
     } finally {
       setIsLoading(false);
     }
@@ -502,62 +518,101 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     await loadStoreCustomer();
   };
 
+  const requireLinkedStoreCustomer = (): LinkedStoreCustomer => {
+    if (!session?.user || !account?.customer_id || !customer?.id || account.customer_id !== customer.id) {
+      throw new Error(getStoreAccountLinkError());
+    }
+
+    return {
+      companyId: account.company_id || customer.company_id,
+      customerId: account.customer_id
+    };
+  };
+
   const saveAddress = async (address: Partial<StoreCustomerAddress>) => {
-    if (!customer) throw new Error('Cliente nao autenticado.');
+    if (!customer) throw new Error('Cliente não autenticado.');
+    const linkedCustomer = requireLinkedStoreCustomer();
 
     const payload = {
-      company_id: customer.company_id,
-      customer_id: customer.id,
-      label: address.label || 'Casa',
-      recipient_name: address.recipient_name || customer.name,
-      zip_code: address.zip_code || '',
-      street: address.street || '',
-      number: address.number || '',
-      complement: address.complement || null,
-      neighborhood: address.neighborhood || '',
-      city: address.city || '',
-      state: (address.state || '').toUpperCase(),
-      reference: address.reference || null,
+      company_id: linkedCustomer.companyId,
+      customer_id: linkedCustomer.customerId,
+      label: cleanAddressText(address.label) || 'Casa',
+      recipient_name: cleanAddressText(address.recipient_name) || customer.name,
+      zip_code: cleanAddressText(address.zip_code),
+      street: cleanAddressText(address.street),
+      number: cleanAddressText(address.number),
+      complement: cleanAddressText(address.complement) || null,
+      neighborhood: cleanAddressText(address.neighborhood),
+      city: cleanAddressText(address.city),
+      state: cleanAddressText(address.state).toUpperCase(),
+      reference: cleanAddressText(address.reference) || null,
       is_default: address.is_default ?? addresses.length === 0
     };
+    const validationError = getAddressError(payload);
+    if (validationError) throw new Error(validationError);
 
     if (payload.is_default) {
-      await supabase
+      const { error: defaultError } = await supabase
         .from('customer_addresses')
         .update({ is_default: false })
-        .eq('company_id', customer.company_id)
-        .eq('customer_id', customer.id);
+        .eq('company_id', linkedCustomer.companyId)
+        .eq('customer_id', linkedCustomer.customerId);
+      if (defaultError) throw new Error('Não foi possível atualizar o endereço principal.');
     }
 
     const query = address.id
-      ? supabase.from('customer_addresses').update(payload).eq('id', address.id)
+      ? supabase
+        .from('customer_addresses')
+        .update(payload)
+        .eq('id', address.id)
+        .eq('company_id', linkedCustomer.companyId)
+        .eq('customer_id', linkedCustomer.customerId)
       : supabase.from('customer_addresses').insert(payload);
 
     const { error: saveError } = await query;
-    if (saveError) throw saveError;
+    if (saveError) {
+      warnStoreCustomerError('Erro ao salvar endereco do cliente:', saveError);
+      throw new Error('Não foi possível salvar o endereço. Verifique os dados e tente novamente.');
+    }
     await loadStoreCustomer();
   };
 
   const deleteAddress = async (id: string) => {
-    const { error: deleteError } = await supabase.from('customer_addresses').delete().eq('id', id);
-    if (deleteError) throw deleteError;
+    const linkedCustomer = requireLinkedStoreCustomer();
+    const { error: deleteError } = await supabase
+      .from('customer_addresses')
+      .delete()
+      .eq('id', id)
+      .eq('company_id', linkedCustomer.companyId)
+      .eq('customer_id', linkedCustomer.customerId);
+    if (deleteError) {
+      warnStoreCustomerError('Erro ao excluir endereco do cliente:', deleteError);
+      throw new Error('Não foi possível excluir o endereço.');
+    }
     await loadStoreCustomer();
   };
 
   const setDefaultAddress = async (id: string) => {
-    if (!customer) throw new Error('Cliente nao autenticado.');
-    await supabase
+    if (!customer) throw new Error('Cliente não autenticado.');
+    const linkedCustomer = requireLinkedStoreCustomer();
+    const { error: clearDefaultError } = await supabase
       .from('customer_addresses')
       .update({ is_default: false })
-      .eq('company_id', customer.company_id)
-      .eq('customer_id', customer.id);
+      .eq('company_id', linkedCustomer.companyId)
+      .eq('customer_id', linkedCustomer.customerId);
+    if (clearDefaultError) throw new Error('Não foi possível atualizar o endereço principal.');
 
     const { error: updateError } = await supabase
       .from('customer_addresses')
       .update({ is_default: true })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('company_id', linkedCustomer.companyId)
+      .eq('customer_id', linkedCustomer.customerId);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      warnStoreCustomerError('Erro ao definir endereco principal:', updateError);
+      throw new Error('Não foi possível definir o endereço principal.');
+    }
     await loadStoreCustomer();
   };
 

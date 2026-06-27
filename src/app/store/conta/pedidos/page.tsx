@@ -11,7 +11,7 @@ export default function StoreOrdersPage() {
   const { orders, isLoading, error } = useStoreCustomer();
 
   return (
-    <StoreAccountShell title="Meus pedidos" subtitle="Veja o andamento dos pedidos vinculados a sua conta.">
+    <StoreAccountShell title="Meus pedidos" subtitle="Veja o andamento dos pedidos vinculados à sua conta.">
       <div className="space-y-3">
         {isLoading && (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -38,7 +38,7 @@ export default function StoreOrdersPage() {
               </div>
               <div className="flex items-center justify-between gap-3 sm:justify-end">
                 <span className="text-sm font-black text-slate-950">{formatCurrency(order.total_amount)}</span>
-                <Link href={`/store/conta/pedidos/${order.id}`} className="flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-xs font-black text-white">
+                <Link href={`/store/conta/pedidos/${order.id}`} className="pf-button-primary h-10 px-3 text-xs">
                   <Eye className="h-4 w-4" />
                   Detalhes
                 </Link>
@@ -49,7 +49,7 @@ export default function StoreOrdersPage() {
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
             <Package className="mx-auto h-10 w-10 text-slate-300" />
             <p className="mt-3 text-sm font-bold text-slate-500">Nenhum pedido encontrado para sua conta.</p>
-            <Link href="/store" className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-slate-950 px-5 text-xs font-black text-white">
+            <Link href="/store" className="pf-button-primary mt-4 h-11 px-5 text-xs">
               Continuar comprando
             </Link>
           </div>

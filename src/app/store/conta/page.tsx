@@ -45,25 +45,25 @@ export default function StoreAccountHomePage() {
   const summaryCards = [
     { label: 'Pedidos realizados', value: orders.length, icon: Package },
     { label: 'Pedidos em andamento', value: openOrders, icon: PackageSearch },
-    { label: 'Orcamentos enviados', value: quotes.length, icon: FileText },
+    { label: 'Orçamentos enviados', value: quotes.length, icon: FileText },
     { label: 'Dados cadastrados', value: hasRegisteredData ? 'Sim' : 'Pendente', icon: UserRound }
   ];
 
   const actionCards = [
     {
       title: 'Meus pedidos',
-      description: 'Acompanhe producao, entrega e historico de compras.',
+      description: 'Acompanhe produção, entrega e histórico de compras.',
       href: STORE_ROUTES.orders,
       icon: PackageSearch,
       featured: true,
       action: 'Ver pedidos'
     },
     {
-      title: 'Meus orcamentos',
-      description: 'Consulte solicitacoes enviadas e faca novos pedidos.',
+      title: 'Meus orçamentos',
+      description: 'Consulte solicitações enviadas e faça novos pedidos.',
       href: STORE_ROUTES.home,
       icon: FileText,
-      action: 'Solicitar orcamento'
+      action: 'Solicitar orçamento'
     },
     {
       title: 'Meus dados',
@@ -73,27 +73,27 @@ export default function StoreAccountHomePage() {
       action: 'Editar dados'
     },
     {
-      title: 'Enderecos',
-      description: defaultAddress ? `${defaultAddress.city}/${defaultAddress.state}` : 'Cadastre enderecos para agilizar compras.',
+      title: 'Endereços',
+      description: defaultAddress ? `${defaultAddress.city}/${defaultAddress.state}` : 'Cadastre endereços para agilizar suas compras.',
       href: STORE_ROUTES.addresses,
       icon: MapPin,
       action: 'Gerenciar'
     },
     {
-      title: 'Seguranca',
-      description: 'Atualize sua senha e proteja o acesso a sua conta.',
+      title: 'Segurança',
+      description: 'Atualize sua senha e proteja o acesso à sua conta.',
       href: STORE_ROUTES.security,
       icon: LockKeyhole,
-      action: 'Ver seguranca'
+      action: 'Ver segurança'
     }
   ];
 
   return (
-    <StoreAccountShell title="Minha conta" subtitle="Gerencie seus dados, enderecos e pedidos." hidePageHeader>
+    <StoreAccountShell title="Minha conta" subtitle="Gerencie seus dados, endereços e pedidos." hidePageHeader>
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Area do Cliente</p>
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Área do Cliente</p>
             <h1 className="mt-1 text-xl font-black leading-tight tracking-tight text-slate-950 md:text-2xl">
               Olá, {firstName} 👋
             </h1>
@@ -106,14 +106,14 @@ export default function StoreAccountHomePage() {
             <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Atalho principal</p>
             <p className="mt-1 text-base font-black text-slate-950">Continue comprando</p>
             <p className="mt-1 text-xs font-semibold leading-4 text-slate-500">
-              Explore produtos personalizados, acompanhe seus pedidos e solicite novos orcamentos com facilidade.
+              Explore produtos personalizados, acompanhe seus pedidos e solicite novos orçamentos com facilidade.
             </p>
             <Link
               href={STORE_ROUTES.home}
               className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg text-xs font-black text-white transition hover:brightness-95"
               style={{ backgroundColor: primaryColor }}
             >
-              Voltar ao catalogo <ArrowRight className="h-3.5 w-3.5" />
+              Voltar ao catálogo <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>
@@ -136,14 +136,14 @@ export default function StoreAccountHomePage() {
         })}
       </section>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {actionCards.map((card) => {
           const Icon = card.icon;
           return (
             <Link
               key={card.title}
               href={card.href}
-              className={`group h-[118px] overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              className={`group min-h-[148px] rounded-2xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                 card.featured ? 'border-blue-200' : 'border-slate-200'
               }`}
             >
@@ -151,8 +151,8 @@ export default function StoreAccountHomePage() {
                 <Icon className="h-4 w-4" />
               </div>
               <h2 className="mt-2 text-sm font-black text-slate-950">{card.title}</h2>
-              <p className="mt-1 text-xs font-semibold leading-4 text-slate-500">{card.description}</p>
-              <span className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-black text-slate-950">
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{card.description}</p>
+              <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-black text-slate-950">
                 {card.action}
                 <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
               </span>
@@ -165,7 +165,7 @@ export default function StoreAccountHomePage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Ultimo pedido</p>
+              <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Último pedido</p>
               <h2 className="mt-1 text-lg font-black text-slate-950">Pedido {lastOrder.number}</h2>
               <p className="mt-0.5 text-sm font-semibold text-slate-500">
                 {getOrderStatusLabel(lastOrder.status)} - {formatCurrency(lastOrder.total_amount)}
@@ -185,9 +185,9 @@ export default function StoreAccountHomePage() {
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
             <ShoppingBag className="h-5 w-5 text-slate-400" />
           </div>
-          <h2 className="mt-3 text-lg font-black text-slate-950">Voce ainda nao possui pedidos.</h2>
+          <h2 className="mt-3 text-lg font-black text-slate-950">Você ainda não possui pedidos.</h2>
           <p className="mx-auto mt-1 max-w-md text-sm font-semibold leading-5 text-slate-500">
-            Quando realizar uma compra ou solicitacao, ela aparecera aqui.
+            Quando realizar uma compra ou solicitação, ela aparecerá aqui.
           </p>
           <Link
             href={STORE_ROUTES.home}

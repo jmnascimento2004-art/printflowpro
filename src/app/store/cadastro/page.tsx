@@ -71,7 +71,7 @@ function StoreSignupHeader({ company, primaryColor }: { company: Company; primar
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Area do Cliente</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Área do Cliente</p>
           </div>
         </Link>
 
@@ -173,7 +173,7 @@ export default function StoreSignupPage() {
         <div className="mx-auto grid max-w-6xl items-start justify-center gap-6 lg:grid-cols-[minmax(0,580px)_340px]">
           <section className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-6">
-              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Area do Cliente</p>
+              <p className="text-xs font-black uppercase tracking-wider text-slate-400">Área do Cliente</p>
               <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Cadastre-se</h1>
               <p className="mt-2 text-sm font-medium leading-6 text-slate-500">Preencha os campos abaixo para criar sua conta</p>
             </div>
@@ -277,16 +277,16 @@ export default function StoreSignupPage() {
               <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
                 <input type="checkbox" checked={form.privacyAccepted} onChange={(event) => setValue('privacyAccepted', event.target.checked)} className={checkboxClass} />
                 <span>
-                  Li e aceito a <Link href={STORE_ROUTES.publicPrivacy} className="font-black text-slate-950 underline-offset-4 hover:underline">Politica de Privacidade</Link> para cadastro,
-                  pedidos, entrega e atendimento. Versao {PRIVACY_POLICY_VERSION}.
+                  Li e aceito a <Link href={STORE_ROUTES.publicPrivacy} className="font-black text-slate-950 underline-offset-4 hover:underline">Política de Privacidade</Link> para cadastro,
+                  pedidos, entrega e atendimento. Versão {PRIVACY_POLICY_VERSION}.
                 </span>
               </label>
 
               <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
                 <input type="checkbox" checked={form.termsAccepted} onChange={(event) => setValue('termsAccepted', event.target.checked)} className={checkboxClass} />
                 <span>
-                  Li e aceito os <Link href="/store/termos" className="font-black text-slate-950 underline-offset-4 hover:underline">Termos de Uso</Link> do catalogo online.
-                  Versao {TERMS_VERSION}.
+                  Li e aceito os <Link href="/store/termos" className="font-black text-slate-950 underline-offset-4 hover:underline">Termos de Uso</Link> do catálogo online.
+                  Versão {TERMS_VERSION}.
                 </span>
               </label>
 
@@ -326,10 +326,10 @@ export default function StoreSignupPage() {
             </p>
             <div className="mt-5 space-y-3">
               {[
-                { icon: CheckCircle2, label: 'Acompanhe seus pedidos pelo catalogo' },
+                { icon: CheckCircle2, label: 'Acompanhe seus pedidos pelo catálogo' },
                 { icon: ShieldCheck, label: 'Seus dados ficam protegidos para proximas compras' },
                 { icon: Truck, label: 'Enderecos salvos agilizam novos pedidos' },
-                { icon: CreditCard, label: 'Orcamentos e compras em um fluxo mais rapido' }
+                { icon: CreditCard, label: 'Orçamentos e compras em um fluxo mais rápido' }
               ].map((item) => {
                 const Icon = item.icon;
                 return (

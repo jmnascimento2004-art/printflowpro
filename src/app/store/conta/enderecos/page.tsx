@@ -70,26 +70,26 @@ export default function StoreAddressesPage() {
 
     try {
       await saveAddress(form);
-      setMessage('Endereco salvo com sucesso.');
+      setMessage('Endereço salvo com sucesso.');
       resetForm();
     } catch (addressError) {
-      setError(addressError instanceof Error ? addressError.message : 'Nao foi possivel salvar o endereco.');
+      setError(addressError instanceof Error ? addressError.message : 'Não foi possível salvar o endereço.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <StoreAccountShell title="Enderecos" subtitle="Cadastre enderecos para preencher o checkout mais rapido.">
+    <StoreAccountShell title="Endereços" subtitle="Cadastre endereços para preencher o checkout mais rápido.">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-3">
           <button
             type="button"
             onClick={resetForm}
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white xl:hidden"
+            className="pf-button-primary min-h-12 w-full xl:hidden"
           >
             <Plus className="h-4 w-4" />
-            Adicionar novo endereco
+            Adicionar novo endereço
           </button>
 
           {addresses.length > 0 ? addresses.map((address) => (
@@ -125,17 +125,17 @@ export default function StoreAddressesPage() {
           )) : (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
               <MapPin className="mx-auto h-10 w-10 text-slate-300" />
-              <p className="mt-3 text-sm font-bold text-slate-500">Nenhum endereco cadastrado.</p>
+              <p className="mt-3 text-sm font-bold text-slate-500">Nenhum endereço cadastrado.</p>
             </div>
           )}
         </div>
 
         <form onSubmit={submit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-black uppercase text-slate-950">{editing ? 'Editar endereco' : 'Novo endereco'}</h2>
+            <h2 className="text-sm font-black uppercase text-slate-950">{editing ? 'Editar endereço' : 'Novo endereço'}</h2>
             <button type="button" onClick={resetForm} className="flex items-center gap-1 text-xs font-black text-slate-500">
               <Plus className="h-4 w-4" />
-              Adicionar novo endereco
+              Adicionar novo endereço
             </button>
           </div>
           {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">{message}</div>}
@@ -150,7 +150,7 @@ export default function StoreAddressesPage() {
             </select>
           </StoreField>
 
-          <StoreField label="Destinatario">
+          <StoreField label="Destinatário">
             <input className={storeInputClass} value={form.recipient_name || ''} onChange={(event) => setValue('recipient_name', event.target.value)} required />
           </StoreField>
 
@@ -163,7 +163,7 @@ export default function StoreAddressesPage() {
           </StoreField>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <StoreField label="Numero">
+            <StoreField label="Número">
               <input className={storeInputClass} value={form.number || ''} onChange={(event) => setValue('number', event.target.value)} required />
             </StoreField>
             <StoreField label="Complemento">
@@ -184,18 +184,18 @@ export default function StoreAddressesPage() {
             </StoreField>
           </div>
 
-          <StoreField label="Referencia">
+          <StoreField label="Referência">
             <textarea className={storeTextareaClass} value={form.reference || ''} onChange={(event) => setValue('reference', event.target.value)} />
           </StoreField>
 
           <label className="flex items-center gap-2 text-xs font-bold text-slate-500">
             <input type="checkbox" checked={Boolean(form.is_default)} onChange={(event) => setValue('is_default', event.target.checked)} />
-            Definir como endereco principal
+            Definir como endereço principal
           </label>
 
-          <button type="submit" disabled={submitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-sm font-black text-white disabled:opacity-60">
+          <button type="submit" disabled={submitting} className="pf-button-primary h-12 w-full">
             <Save className="h-4 w-4" />
-            {submitting ? 'Salvando...' : 'Salvar endereco'}
+            {submitting ? 'Salvando...' : 'Salvar endereço'}
           </button>
         </form>
       </div>

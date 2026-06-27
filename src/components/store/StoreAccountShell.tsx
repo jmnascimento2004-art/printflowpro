@@ -12,9 +12,9 @@ import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
 const navItems = [
   { href: STORE_ROUTES.account, label: 'Minha conta', icon: Home },
   { href: STORE_ROUTES.orders, label: 'Meus pedidos', icon: Package },
-  { href: STORE_ROUTES.addresses, label: 'Enderecos', icon: MapPin },
+  { href: STORE_ROUTES.addresses, label: 'Endereços', icon: MapPin },
   { href: STORE_ROUTES.profile, label: 'Dados cadastrais', icon: UserRound },
-  { href: STORE_ROUTES.security, label: 'Seguranca e senha', icon: LockKeyhole },
+  { href: STORE_ROUTES.security, label: 'Segurança e senha', icon: LockKeyhole },
   { href: STORE_ROUTES.privacy, label: 'Privacidade', icon: ShieldCheck }
 ];
 
@@ -65,7 +65,7 @@ export function StoreAccountShell({
       <div className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
         <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-slate-900" />
-          <p className="mt-4 text-sm font-bold text-slate-500">Carregando sua area...</p>
+          <p className="mt-4 text-sm font-bold text-slate-500">Carregando sua área...</p>
         </div>
       </div>
     );
@@ -86,14 +86,14 @@ export function StoreAccountShell({
               </div>
             )}
             <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Area do cliente</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Área do cliente</p>
             </div>
           </Link>
 
           <Link href={STORE_ROUTES.home} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600">
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Voltar ao catalogo</span>
-            <span className="sm:hidden">Catalogo</span>
+            <span className="hidden sm:inline">Voltar ao catálogo</span>
+            <span className="sm:hidden">Catálogo</span>
           </Link>
         </div>
       </header>
@@ -104,7 +104,7 @@ export function StoreAccountShell({
             <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
               <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">Cliente</p>
               <p className="mt-0.5 truncate text-sm font-black text-slate-950">{customer?.name || 'Minha conta'}</p>
-              <p className="truncate text-xs font-semibold text-slate-500">{customer?.email || 'Dados do catalogo'}</p>
+              <p className="truncate text-xs font-semibold text-slate-500">{customer?.email || 'Dados do catálogo'}</p>
             </div>
 
             <nav className="grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200 bg-white/90 p-1.5 md:grid-cols-1">
@@ -121,7 +121,7 @@ export function StoreAccountShell({
                     style={active ? { backgroundColor: primaryColor } : undefined}
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                    <span className="min-w-0 whitespace-normal leading-tight">{item.label}</span>
                   </Link>
                 );
               })}
@@ -147,16 +147,17 @@ export function StoreAccountShell({
               {subtitle && <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>}
             </div>
           )}
-          {requireAuth && hasStoreSession && !isAuthenticated && (
+          {requireAuth && hasStoreSession && !isAuthenticated ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 shadow-sm">
-              Sua sessao foi iniciada. Estamos finalizando o vinculo com seus dados do catalogo.
+              Não foi possível carregar os dados da sua conta do catálogo agora.
               {error && <span className="block pt-1 text-xs font-semibold">{error}</span>}
               <button type="button" onClick={() => refresh()} className="mt-2 text-xs font-black underline underline-offset-4">
                 Tentar carregar novamente
               </button>
             </div>
+          ) : (
+            children
           )}
-          {children}
         </section>
       </main>
 

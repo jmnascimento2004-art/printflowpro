@@ -22,23 +22,23 @@ export default function StoreRecoverPasswordPage() {
 
     try {
       await sendPasswordReset(email);
-      setMessage('Enviamos um link de redefinicao para seu e-mail.');
+      setMessage('Enviamos um link de redefinição para seu e-mail.');
     } catch (resetError) {
-      setError(resetError instanceof Error ? resetError.message : 'Nao foi possivel enviar a recuperacao.');
+      setError(resetError instanceof Error ? resetError.message : 'Não foi possível enviar a recuperação.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <StoreAuthPanel title="Recuperar senha" subtitle="Informe seu e-mail para receber um link seguro de redefinicao.">
+    <StoreAuthPanel title="Recuperar senha" subtitle="Informe seu e-mail para receber um link seguro de redefinição.">
       <form onSubmit={submit} className="space-y-4">
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600">{error}</div>}
         {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">{message}</div>}
         <StoreField label="E-mail">
           <input className={storeInputClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </StoreField>
-        <button type="submit" disabled={submitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-sm font-black text-white disabled:opacity-60">
+        <button type="submit" disabled={submitting} className="pf-button-primary h-12 w-full">
           <Mail className="h-4 w-4" />
           {submitting ? 'Enviando...' : 'Enviar link'}
         </button>

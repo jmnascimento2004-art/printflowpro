@@ -78,12 +78,12 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
         <div className="absolute right-0 z-50 mt-2 w-[290px] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 text-slate-900 shadow-2xl">
             <div className="rounded-xl bg-slate-50 px-3 pb-3 pt-2">
               <p className="text-sm font-black text-slate-950">
-                {hasStoreSession ? `Ola, ${firstName}` : 'Ola, cliente!'}
+                {hasStoreSession ? `Olá, ${firstName}` : 'Olá, cliente!'}
               </p>
               <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
                 {hasStoreSession
-                  ? `${orders.length} pedido(s) vinculados a sua conta.`
-                  : 'Entre ou crie sua conta para acompanhar pedidos e salvar enderecos.'}
+                  ? `${orders.length} pedido(s) vinculados à sua conta.`
+                  : 'Entre ou crie sua conta para acompanhar pedidos e salvar endereços.'}
               </p>
             </div>
 
@@ -92,9 +92,9 @@ export function StoreAccountMenu({ primaryColor }: StoreAccountMenuProps) {
                 <>
                   <MenuLink href={STORE_ROUTES.account} icon={<UserRound className="h-4 w-4" />}>Minha conta</MenuLink>
                   <MenuLink href={STORE_ROUTES.orders} icon={<PackageSearch className="h-4 w-4" />}>Meus pedidos</MenuLink>
-                  <MenuLink href={STORE_ROUTES.addresses} icon={<MapPin className="h-4 w-4" />}>Enderecos</MenuLink>
-                  <MenuLink href={STORE_ROUTES.security} icon={<LockKeyhole className="h-4 w-4" />}>Seguranca e senha</MenuLink>
-                  <MenuLink href={STORE_ROUTES.privacy} icon={<ShieldCheck className="h-4 w-4" />}>Privacidade e preferencias</MenuLink>
+                  <MenuLink href={STORE_ROUTES.addresses} icon={<MapPin className="h-4 w-4" />}>Endereços</MenuLink>
+                  <MenuLink href={STORE_ROUTES.security} icon={<LockKeyhole className="h-4 w-4" />}>Segurança e senha</MenuLink>
+                  <MenuLink href={STORE_ROUTES.privacy} icon={<ShieldCheck className="h-4 w-4" />}>Privacidade e preferências</MenuLink>
                   <button
                     type="button"
                     onClick={() => {
