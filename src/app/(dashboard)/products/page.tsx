@@ -28,7 +28,12 @@ import {
   sanitizeRichTextHtml,
   stripRichTextHtml
 } from '@/lib/utils';
-import { formatUnitCurrency } from '@/lib/pricing';
+import {
+  formatUnitCurrency,
+  getNormalizedVariantPricingMatrix,
+  getNormalizedVolumePricing,
+  NormalizedVolumePriceTier
+} from '@/lib/pricing';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { ProductBarcode } from '@/components/products/ProductBarcode';
 import { ProductLabelPreview, ProductLabelSize, productLabelSizes } from '@/components/products/ProductLabelPreview';
@@ -1022,9 +1027,14 @@ export default function ProductsCRUDPage() {
   };
 
   const getProductPriceLabel = (product: Product) => {
+    const firstVolumeTier = getNormalizedVolumePricing(product)[0];
+    if (firstVolumeTier) return `A partir de ${formatCurrency(firstVolumeTier.total)}`;
+
+    const firstMatrixTier = getNormalizedVariantPricingMatrix(product)[0]?.tiers[0];
+    if (firstMatrixTier) return `A partir de ${formatCurrency(firstMatrixTier.total)}`;
+
     if (!product.sales_price || product.sales_price <= 0) return 'Preço não definido';
-    const formattedPrice = formatCurrency(product.sales_price);
-    return (product.volume_pricing?.length || 0) > 0 ? `A partir de ${formattedPrice}` : formattedPrice;
+    return formatCurrency(product.sales_price);
   };
 
   const getProductStockInfo = (product: Product) => {
@@ -1043,6 +1053,27 @@ export default function ProductsCRUDPage() {
     return { label: `Em estoque: ${product.current_stock}`, dotClass: 'bg-emerald-500', textClass: 'text-emerald-600' };
   };
 
+  const formatQuantityTier = (tier: NormalizedVolumePriceTier) => ({
+    quantity: `${tier.min_qty} un`,
+    unit: `${formatUnitCurrency(tier.price)}/un`,
+    total: `${formatCurrency(tier.total)} total`
+  });
+
+  const getProductQuantityTiers = (product: Product) => {
+    const volumeTiers = getNormalizedVolumePricing(product);
+    if (volumeTiers.length > 0) return { tiers: volumeTiers, sourceLabel: 'Faixas de quantidade' };
+
+    const matrixRow = getNormalizedVariantPricingMatrix(product)[0];
+    if (matrixRow?.tiers.length) {
+      return {
+        tiers: matrixRow.tiers,
+        sourceLabel: [matrixRow.material, matrixRow.size, matrixRow.colors, matrixRow.finishing].filter(Boolean).join(' | ') || 'Matriz de configuração'
+      };
+    }
+
+    return { tiers: [], sourceLabel: '' };
+  };
+
   const getProductCategoryName = (product: Product) => {
     return categories.find((category) => category.id === product.category_id)?.name || 'Outros';
   };
@@ -1059,7 +1090,27 @@ export default function ProductsCRUDPage() {
   const labelLogoSettings = settings as typeof settings & { logo_url?: string; logo_light?: string; logo_dark?: string };
   const labelCompanyLogo = labelLogoSettings.logo_url || labelLogoSettings.logo_light || labelLogoSettings.logo_dark || null;
 
-  const initialVolumeTier = [...volumePricing].sort((a, b) => a.min_qty - b.min_qty)[0];
+  const normalizedVolumePricingPreview = volumePricing
+    .map((tier) => ({
+      min_qty: tier.min_qty,
+      price: tier.price,
+      total: Math.round(tier.min_qty * tier.price * 100) / 100
+    }))
+    .filter((tier) => tier.min_qty > 0 && tier.price >= 0)
+    .sort((a, b) => a.min_qty - b.min_qty);
+  const initialVolumeTier = normalizedVolumePricingPreview[0];
+  const firstMatrixPreviewRow = variantPricingMatrix.find((row) => row.tiers.length > 0);
+  const firstMatrixPreviewTier = firstMatrixPreviewRow
+    ? [...firstMatrixPreviewRow.tiers].sort((a, b) => a.quantity - b.quantity)[0]
+    : undefined;
+  const catalogPreviewTier = firstMatrixPreviewTier
+    ? {
+        min_qty: firstMatrixPreviewTier.quantity,
+        price: firstMatrixPreviewTier.unit_price,
+        total: Math.round((firstMatrixPreviewTier.total_price || firstMatrixPreviewTier.quantity * firstMatrixPreviewTier.unit_price) * 100) / 100,
+        matrixLabel: [firstMatrixPreviewRow?.material, firstMatrixPreviewRow?.size, firstMatrixPreviewRow?.colors, firstMatrixPreviewRow?.finishing].filter(Boolean).join(' | ')
+      }
+    : initialVolumeTier;
   const selectedCategoryName = categories.find((category) => category.id === categoryId)?.name || 'Sem categoria';
 
   return (    <div className="space-y-6 animate-in fade-in duration-300">
@@ -1226,6 +1277,9 @@ export default function ProductsCRUDPage() {
                         const priceLabel = getProductPriceLabel(prod);
                         const hasVolumePricing = (prod.volume_pricing?.length || 0) > 0;
                         const hasVariants = Boolean(prod.variant_options?.length || prod.color_options?.length || prod.pricing_details?.configurator_options?.variant_pricing_matrix?.length);
+                        const quantityTierSummary = getProductQuantityTiers(prod);
+                        const cardTiers = quantityTierSummary.tiers.slice(0, 3);
+                        const hiddenTierCount = quantityTierSummary.tiers.length - cardTiers.length;
 
                         return (
                           <article key={prod.id} className="group flex min-h-[318px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md">
@@ -1301,6 +1355,28 @@ export default function ProductsCRUDPage() {
                                   <span className={`h-2 w-2 rounded-full ${stockInfo.dotClass}`} />
                                   <span className={stockInfo.textClass}>{stockInfo.label}</span>
                                 </div>
+
+                                {cardTiers.length > 0 && (
+                                  <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 px-2 py-1.5">
+                                    <div className="mb-1 flex items-center justify-between gap-2">
+                                      <span className="text-[9px] font-black uppercase tracking-wide text-emerald-700">Faixas</span>
+                                      {hiddenTierCount > 0 && (
+                                        <span className="text-[9px] font-bold text-emerald-700">+ {hiddenTierCount} faixas</span>
+                                      )}
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      {cardTiers.map((tier) => {
+                                        const formattedTier = formatQuantityTier(tier);
+                                        return (
+                                          <div key={`${prod.id}-${tier.min_qty}-${tier.price}`} className="flex items-center justify-between gap-2 text-[9px] font-bold leading-tight">
+                                            <span className="text-foreground">{formattedTier.quantity}</span>
+                                            <span className="text-muted-foreground">{formattedTier.unit}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
 
                               <div className="mt-3 rounded-lg border border-border bg-secondary/15 px-2 py-1.5">
@@ -2223,10 +2299,15 @@ export default function ProductsCRUDPage() {
                       {selectedCategoryName}{deliveryTime.trim() ? ` | Prazo: ${deliveryTime.trim()}` : ''}
                     </p>
                     <p className="text-xs font-black text-primary">
-                      {initialVolumeTier
-                        ? `A partir de ${initialVolumeTier.min_qty} un - ${formatUnitCurrency(initialVolumeTier.price)} /un - ${formatCurrency(initialVolumeTier.price * initialVolumeTier.min_qty)} total`
+                      {catalogPreviewTier
+                        ? `A partir de ${catalogPreviewTier.min_qty} un — ${formatUnitCurrency(catalogPreviewTier.price)}/un — ${formatCurrency(catalogPreviewTier.total)} total`
                         : `${formatCurrency(salesPrice)} /${pricingType}`}
                     </p>
+                    {firstMatrixPreviewRow && catalogPreviewTier && (
+                      <p className="text-[10px] font-semibold text-muted-foreground">
+                        Matriz: {[firstMatrixPreviewRow.material, firstMatrixPreviewRow.size, firstMatrixPreviewRow.colors, firstMatrixPreviewRow.finishing].filter(Boolean).join(' | ')}
+                      </p>
+                    )}
                     <p className="text-[10px] font-medium text-muted-foreground">
                       Esta previa usa a mesma regra de exibicao do card publico da loja.
                     </p>
@@ -2439,41 +2520,40 @@ export default function ProductsCRUDPage() {
                   </button>
                 </div>
 
-                {volumePricing.length > 0 && (
-                  <div className="border border-border rounded-xl overflow-hidden text-[11px]">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-secondary/30 text-muted-foreground uppercase font-bold text-[9px] border-b border-border">
-                          <th className="px-3 py-2 text-center">Quantidade Mínima</th>
-                          <th className="px-3 py-2 text-right">Preço Unitário</th>
-                          <th className="px-3 py-2 text-right">Preço Total Lote</th>
-                          <th className="px-3 py-2 text-center">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border font-medium">
-                        {volumePricing.map((tier) => (
-                          <tr key={tier.min_qty} className="hover:bg-secondary/10">
-                            <td className="px-3 py-2 text-center text-foreground font-bold">A partir de {tier.min_qty} un</td>
-                            <td className="px-3 py-2 text-right text-foreground font-bold">
-                              {formatUnitCurrency(tier.price)} /un
-                            </td>
-                            <td className="px-3 py-2 text-right text-foreground font-bold">
-                              {formatCurrency(tier.price * tier.min_qty)} total
-                            </td>
-                            <td className="px-3 py-2 text-center">
+                {normalizedVolumePricingPreview.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                        {normalizedVolumePricingPreview.length} faixa(s) cadastrada(s)
+                      </span>
+                      <span className="text-[10px] font-semibold text-muted-foreground">
+                        Quantidade · unitário · total
+                      </span>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {normalizedVolumePricingPreview.map((tier) => {
+                        const formattedTier = formatQuantityTier(tier);
+                        return (
+                          <div key={tier.min_qty} className="rounded-xl border border-emerald-500/20 bg-white p-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <span className="block text-xs font-black text-foreground">A partir de {formattedTier.quantity}</span>
+                                <span className="mt-1 block text-[11px] font-bold text-primary">{formattedTier.unit}</span>
+                                <span className="mt-0.5 block text-[10px] font-semibold text-muted-foreground">{formattedTier.total}</span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => removeVolumeTier(tier.min_qty)}
-                                className="p-1 rounded bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 inline-flex items-center justify-center"
+                                className="shrink-0 rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20"
                                 title="Excluir Faixa"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -2596,12 +2676,20 @@ export default function ProductsCRUDPage() {
                           </div>
                           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                             {row.tiers.map((tier) => (
-                              <div key={tier.quantity} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-secondary/20 px-3 py-2">
-                                <div>
-                                  <span className="block font-black text-foreground">{tier.quantity} un</span>
-                                  <span className="text-[10px] font-semibold text-muted-foreground">
-                                    {formatUnitCurrency(tier.unit_price)} /un · {formatCurrency(tier.total_price || tier.quantity * tier.unit_price)} total
-                                  </span>
+                              <div key={tier.quantity} className="flex items-start justify-between gap-2 rounded-lg border border-sky-500/15 bg-sky-500/5 px-3 py-2">
+                                <div className="grid min-w-0 flex-1 grid-cols-3 gap-2">
+                                  <div>
+                                    <span className="block text-[9px] font-bold uppercase text-muted-foreground">Tiragem</span>
+                                    <span className="block font-black text-foreground">{tier.quantity} un</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-[9px] font-bold uppercase text-muted-foreground">Unitário</span>
+                                    <span className="block font-black text-primary">{formatUnitCurrency(tier.unit_price)}/un</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-[9px] font-bold uppercase text-muted-foreground">Total</span>
+                                    <span className="block font-black text-foreground">{formatCurrency(tier.total_price || tier.quantity * tier.unit_price)}</span>
+                                  </div>
                                 </div>
                                 <button
                                   type="button"
