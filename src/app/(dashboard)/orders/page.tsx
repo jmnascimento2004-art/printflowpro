@@ -373,7 +373,7 @@ export default function OrdersPage() {
 
   const handlePrintOrderPdf = (order: Order) => {
     if (typeof window === 'undefined') return;
-    window.open(`/api/pdf/order/${order.id}`, '_blank', 'noopener,noreferrer');
+    window.open(`/pdf-preview/order/${order.id}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleDownloadOrderPdf = (order: Order) => {

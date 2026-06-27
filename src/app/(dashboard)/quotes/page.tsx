@@ -792,7 +792,7 @@ export default function QuotesPage() {
 
   const openQuotePdf = (quote: Quote) => {
     if (typeof window === 'undefined') return;
-    window.open(`/api/pdf/quote/${quote.id}`, '_blank', 'noopener,noreferrer');
+    window.open(`/pdf-preview/quote/${quote.id}`, '_blank', 'noopener,noreferrer');
   };
 
   const downloadQuotePdf = (quote: Quote) => {
