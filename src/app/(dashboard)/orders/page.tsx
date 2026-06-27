@@ -643,6 +643,7 @@ export default function OrdersPage() {
     : [];
   
   const companyName = company?.name || 'PrintFlowPRO - ERP SAAS';
+  const companyDocument = company?.document || '12.345.678/0001-90';
   const companyLogo = company?.logo_light || company?.logo_url || company?.logo_dark || '';
   const companyAddressLine = [
     company?.street && company?.number ? `${company.street}, ${company.number}` : '',
