@@ -39,6 +39,10 @@ import {
 type ItemConfigurationSnapshot = NonNullable<QuoteItem['details']>['configuration_snapshot'];
 
 type MatrixSelectionField = 'material' | 'size' | 'colors' | 'finishing';
+type DraftQuoteItem = Omit<QuoteItem, 'id' | 'total_price'> & {
+  id?: string;
+  total_price?: number;
+};
 
 const formatQuoteMoney = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -158,10 +162,12 @@ export default function QuotesPage() {
     setNotes(resolvedQuote.notes || '');
     setAdditionalServices(resolvedQuote.additional_services || []);
     setItems(resolvedQuote.items.map(it => ({
+      id: it.id,
       product_id: it.product_id,
       product_name: it.product_name,
       quantity: it.quantity,
       unit_price: it.unit_price,
+      total_price: it.total_price,
       details: it.details
     })));
     setDeliveryType(resolvedQuote.delivery_type || 'retirada');
@@ -234,7 +240,7 @@ export default function QuotesPage() {
   const [discount, setDiscount] = useState(0);
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
-  const [items, setItems] = useState<Omit<QuoteItem, 'id' | 'total_price'>[]>([]);
+  const [items, setItems] = useState<DraftQuoteItem[]>([]);
   const [additionalServices, setAdditionalServices] = useState<AdditionalService[]>([]);
 
   // Delivery Form States
@@ -725,12 +731,16 @@ export default function QuotesPage() {
     const sub = getSubtotal();
     const servicesTotal = getServicesTotal();
     const finalItems: QuoteItem[] = items.map((it, idx) => ({
-      id: `qi-${idx}-${Date.now()}`,
       ...it,
+      id: it.id || `qi-${idx}-${Date.now()}`,
       total_price: it.quantity * it.unit_price
     }));
 
     const finalTotal = sub + servicesTotal + deliveryFee - discount;
+
+    const successMessage = status === 'pendente'
+      ? 'Proposta salva como enviada.'
+      : 'Orçamento salvo com sucesso.';
 
     if (editingQuoteId) {
       const match = quotes.find(q => q.id === editingQuoteId);
@@ -740,7 +750,7 @@ export default function QuotesPage() {
         customer_id: client.id,
         customer_name: client.name,
         number: match?.number || 0,
-        status: match?.status || status,
+        status,
         total_amount: finalTotal,
         discount,
         valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -771,6 +781,7 @@ export default function QuotesPage() {
       });
     }
 
+    alert(successMessage);
     resetForm();
   };
 
@@ -1692,18 +1703,21 @@ export default function QuotesPage() {
           {/* Actions buttons */}
           <div className="flex justify-end gap-2 border-t border-border pt-4 mt-4">
             <button
+              type="button"
               onClick={resetForm}
               className="px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold transition-all"
             >
               Cancelar
             </button>
             <button
+              type="button"
               onClick={() => handleSaveQuote('rascunho')}
               className="px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/85 text-foreground text-xs font-semibold transition-all border border-border"
             >
-              Salvar Rascunho
+              Salvar Orçamento
             </button>
             <button
+              type="button"
               onClick={() => handleSaveQuote('pendente')}
               className="px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all"
             >

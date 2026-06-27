@@ -57,6 +57,7 @@ import {
   DUMMY_COMPANY,
   Company,
   OrderItem,
+  QuoteItem,
   PickupPoint,
   DUMMY_PICKUP_POINTS,
   UserProfile,
@@ -208,6 +209,14 @@ export interface StoreBanner {
 }
 
 type StoreBannerRow = StoreBanner & { company_id?: string };
+type SavedQuotePayload = {
+  quote?: Omit<Quote, 'items'> | null;
+  items?: Array<QuoteItem & { quote_id?: string }> | null;
+};
+type SavedOrderPayload = {
+  order?: Omit<Order, 'items'> | null;
+  items?: Array<OrderItem & { order_id?: string }> | null;
+};
 type PublicStoreDataResponse = {
   debug?: Record<string, unknown>;
   company: Company | null;
@@ -428,7 +437,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         const isStoreRoute = window.location.pathname.startsWith('/store');
         const publicSelect = async <T,>(table: string) =>
           isStoreRoute ? publicStoreSelect<T>(table) : supabase.from(table).select('*');
-        const skipPrivateData = Promise.resolve({ data: null });
+        const skipPrivateData = Promise.resolve({ data: null, error: null });
 
         if (isStoreRoute) {
           const hostname = getCurrentHostname();
@@ -559,10 +568,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           { data: suppliersData },
           { data: categoriesData },
           { data: productsData },
-          { data: quotesData },
-          { data: quoteItemsData },
-          { data: ordersData },
-          { data: orderItemsData },
+          { data: quotesData, error: quotesError },
+          { data: quoteItemsData, error: quoteItemsError },
+          { data: ordersData, error: ordersError },
+          { data: orderItemsData, error: orderItemsError },
           { data: productionData },
           { data: financialData },
           { data: shipmentsData },
@@ -634,13 +643,17 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         }
         if (productsData) setProducts(filterByCompany(productsData as Product[]));
         
+        if (quotesError) warnCaught('Erro ao carregar orçamentos no Supabase:', quotesError);
+        if (quoteItemsError) warnCaught('Erro ao carregar itens de orçamentos no Supabase:', quoteItemsError);
         if (quotesData) {
-          const quoteItems = (quoteItemsData || []) as QuoteItemRow[];
+          const quoteItems = quoteItemsError ? [] : (quoteItemsData || []) as QuoteItemRow[];
           setQuotes(reconstructQuotesWithItems(filterByCompany(quotesData as Quote[]), quoteItems));
         }
 
+        if (ordersError) warnCaught('Erro ao carregar pedidos no Supabase:', ordersError);
+        if (orderItemsError) warnCaught('Erro ao carregar itens de pedidos no Supabase:', orderItemsError);
         if (ordersData) {
-          const orderItems = (orderItemsData || []) as OrderItemRow[];
+          const orderItems = orderItemsError ? [] : (orderItemsData || []) as OrderItemRow[];
           setOrders(reconstructOrdersWithItems(filterByCompany(ordersData as Order[]), orderItems));
         }
 
@@ -836,26 +849,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('quotes', quotes);
-      
-      const parentQuotes = quotes.map((quote) => {
-        const { items, ...q } = quote;
-        void items;
-        return q;
-      });
-      supabase.from('quotes').upsert(parentQuotes).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar orçamentos no Supabase:', error);
-      });
-      
-      const allItems = quotes.flatMap(q => 
-        q.items.map(item => ({ ...item, quote_id: q.id }))
-      );
-      if (allItems.length > 0) {
-        supabase.from('quote_items').upsert(allItems).then(({ error }) => {
-          if (error) warnCaught('Erro ao sincronizar itens do orçamento no Supabase:', error);
-        });
-      }
-      
-      if (canShowToast) showToast('Orçamentos atualizados com sucesso!', 'success');
     } catch {
       if (canShowToast) showToast('Erro ao salvar orçamentos!', 'error');
     }
@@ -865,26 +858,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('orders', orders);
-      
-      const parentOrders = orders.map((order) => {
-        const { items, ...o } = order;
-        void items;
-        return o;
-      });
-      supabase.from('orders').upsert(parentOrders).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar pedidos no Supabase:', error);
-      });
-      
-      const allItems = orders.flatMap(o => 
-        o.items.map(item => ({ ...item, order_id: o.id }))
-      );
-      if (allItems.length > 0) {
-        supabase.from('order_items').upsert(allItems).then(({ error }) => {
-          if (error) warnCaught('Erro ao sincronizar itens do pedido no Supabase:', error);
-        });
-      }
-      
-      if (canShowToast) showToast('Pedidos atualizados com sucesso!', 'success');
     } catch {
       if (canShowToast) showToast('Erro ao salvar pedidos!', 'error');
     }
@@ -1473,6 +1446,181 @@ useEffect(() => {
     persistDemoSnapshot('quotes', nextQuotes);
   };
 
+  const persistOrdersSnapshot = (nextOrders: Order[]) => {
+    if (typeof window === 'undefined') return;
+
+    persistDemoSnapshot('orders', nextOrders);
+  };
+
+  const normalizeQuotePayload = (payload: SavedQuotePayload | null): Quote | null => {
+    if (!payload?.quote) return null;
+
+    const items = (payload.items || []).map((item) => {
+      const cleanItem = { ...item };
+      delete (cleanItem as { quote_id?: string }).quote_id;
+
+      return {
+        ...cleanItem,
+        product_id: cleanItem.product_id || '',
+        quantity: Number(cleanItem.quantity || 0),
+        unit_price: Number(cleanItem.unit_price || 0),
+        total_price: Number(cleanItem.total_price || 0)
+      };
+    });
+
+    return {
+      ...payload.quote,
+      number: Number(payload.quote.number || 0),
+      total_amount: Number(payload.quote.total_amount || 0),
+      discount: Number(payload.quote.discount || 0),
+      delivery_distance_km: Number(payload.quote.delivery_distance_km || 0),
+      delivery_fee: Number(payload.quote.delivery_fee || 0),
+      additional_services: payload.quote.additional_services || [],
+      items
+    };
+  };
+
+  const normalizeOrderPayload = (payload: SavedOrderPayload | null): Order | null => {
+    if (!payload?.order) return null;
+
+    const items = (payload.items || []).map((item) => {
+      const cleanItem = { ...item };
+      delete (cleanItem as { order_id?: string }).order_id;
+
+      return {
+        ...cleanItem,
+        product_id: cleanItem.product_id || '',
+        quantity: Number(cleanItem.quantity || 0),
+        unit_price: Number(cleanItem.unit_price || 0),
+        total_price: Number(cleanItem.total_price || 0),
+        outsourced: Boolean(cleanItem.outsourced)
+      };
+    });
+
+    return {
+      ...payload.order,
+      total_amount: Number(payload.order.total_amount || 0),
+      paid_amount: Number(payload.order.paid_amount || 0),
+      shipping_cost: Number(payload.order.shipping_cost || 0),
+      delivery_distance_km: Number(payload.order.delivery_distance_km || 0),
+      additional_services: payload.order.additional_services || [],
+      items
+    };
+  };
+
+  const upsertQuoteState = (quote: Quote) => {
+    setQuotes(prev => {
+      const exists = prev.some(item => item.id === quote.id);
+      const nextQuotes = exists
+        ? prev.map(item => (item.id === quote.id ? quote : item))
+        : [quote, ...prev];
+      persistQuotesSnapshot(nextQuotes);
+      return nextQuotes;
+    });
+  };
+
+  const upsertOrderState = (order: Order) => {
+    setOrders(prev => {
+      const exists = prev.some(item => item.id === order.id);
+      const nextOrders = exists
+        ? prev.map(item => (item.id === order.id ? order : item))
+        : [order, ...prev];
+      persistOrdersSnapshot(nextOrders);
+      return nextOrders;
+    });
+  };
+
+  const saveQuoteWithItems = async (quote: Quote, errorContext: string) => {
+    const { items, ...parentQuote } = quote;
+    const p_quote = parentQuote;
+    const p_items = items;
+    const invalidItem = p_items.find(
+      item =>
+        !String(item.product_name || '').trim() ||
+        Number(item.quantity || 0) <= 0 ||
+        Number(item.unit_price || 0) < 0 ||
+        Number(item.total_price || 0) < 0
+    );
+
+    if (!String(p_quote.company_id || '').trim()) {
+      warnCaught(`Payload inválido ao salvar orçamento ${errorContext}:`, { reason: 'company_id vazio', p_quote, p_items });
+      showToast('Não foi possível salvar: empresa não identificada.', 'error');
+      return null;
+    }
+
+    if (!String(p_quote.customer_name || '').trim()) {
+      warnCaught(`Payload inválido ao salvar orçamento ${errorContext}:`, { reason: 'cliente vazio', p_quote, p_items });
+      showToast('Selecione um cliente antes de salvar o orçamento.', 'error');
+      return null;
+    }
+
+    if (!Number.isFinite(Number(p_quote.total_amount))) {
+      warnCaught(`Payload inválido ao salvar orçamento ${errorContext}:`, { reason: 'total inválido', p_quote, p_items });
+      showToast('O total do orçamento está inválido.', 'error');
+      return null;
+    }
+
+    if (p_items.length === 0 || invalidItem) {
+      warnCaught(`Payload inválido ao salvar orçamento ${errorContext}:`, {
+        reason: p_items.length === 0 ? 'sem itens' : 'item inválido',
+        invalidItem,
+        p_quote,
+        p_items
+      });
+      showToast('Inclua pelo menos um item válido antes de salvar o orçamento.', 'error');
+      return null;
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[save_quote_with_items payload]', { p_quote, p_items });
+    }
+
+    const { data, error } = await supabase.rpc('save_quote_with_items', {
+      p_quote,
+      p_items
+    });
+
+    if (error) {
+      warnCaught(`Erro ao salvar orçamento ${errorContext} no Supabase:`, { error, p_quote, p_items });
+      showToast('Não foi possível salvar o orçamento. Verifique os dados e tente novamente.', 'error');
+      return null;
+    }
+
+    const savedQuote = normalizeQuotePayload(data as SavedQuotePayload);
+    if (!savedQuote) {
+      warnCaught(`Resposta inválida ao salvar orçamento ${errorContext} no Supabase:`, data);
+      showToast('O orçamento foi enviado, mas a resposta do servidor veio incompleta.', 'error');
+      return null;
+    }
+
+    upsertQuoteState(savedQuote);
+    return savedQuote;
+  };
+
+  const saveOrderWithItems = async (order: Order, errorContext: string) => {
+    const { items, ...parentOrder } = order;
+    const { data, error } = await supabase.rpc('save_order_with_items', {
+      p_order: parentOrder,
+      p_items: items
+    });
+
+    if (error) {
+      warnCaught(`Erro ao salvar pedido ${errorContext} no Supabase:`, error);
+      showToast('Não foi possível salvar o pedido. Verifique os dados e tente novamente.', 'error');
+      return null;
+    }
+
+    const savedOrder = normalizeOrderPayload(data as SavedOrderPayload);
+    if (!savedOrder) {
+      warnCaught(`Resposta inválida ao salvar pedido ${errorContext} no Supabase:`, data);
+      showToast('O pedido foi enviado, mas a resposta do servidor veio incompleta.', 'error');
+      return null;
+    }
+
+    upsertOrderState(savedOrder);
+    return savedOrder;
+  };
+
   const addQuote = (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => {
     const nextNum = quotes.length > 0 ? Math.max(...quotes.map(q => q.number)) + 1 : 1001;
     const newQuote: Quote = {
@@ -1482,29 +1630,18 @@ useEffect(() => {
       number: nextNum,
       created_at: new Date().toISOString()
     };
-    setQuotes(prev => {
-      const nextQuotes = [newQuote, ...prev];
-      persistQuotesSnapshot(nextQuotes);
-      return nextQuotes;
-    });
-
-    const { items, ...parentQuote } = newQuote;
-    supabase.from('quotes').insert(parentQuote).then(({ error }) => {
-      if (error) warnCaught('Erro ao sincronizar orçamento criado no catálogo:', error);
-    });
-
-    if (items.length > 0) {
-      const quoteItems = items.map(item => ({ ...item, quote_id: newQuote.id }));
-      supabase.from('quote_items').insert(quoteItems).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar itens do orçamento criado no catálogo:', error);
-      });
-    }
+    void saveQuoteWithItems(newQuote, 'criado');
 
     return newQuote;
   };
 
   const updateQuote = (quote: Quote) => {
-    setQuotes(prev => prev.map(q => (q.id === quote.id ? quote : q)));
+    const nextQuote = {
+      ...quote,
+      company_id: quote.company_id || currentCompanyId
+    };
+
+    void saveQuoteWithItems(nextQuote, 'atualizado');
   };
 
   const deleteQuote = (id: string) => {
@@ -1535,42 +1672,50 @@ useEffect(() => {
     const match = quotes.find(q => q.id === id);
     if (!match) return;
 
-    // 1. Update quote status to approved
-    setQuotes(prev => prev.map(q => (q.id === id ? { ...q, status: 'aprovado' } : q)));
+    const approvedQuote: Quote = { ...match, status: 'aprovado' };
 
     // 2. Automatically generate an Order
     const orderNumber = getNextOrderNumber(orders);
-    const newOrder: Order = {
-      id: `order-${Date.now()}`,
-      company_id: currentCompanyId,
-      customer_id: match.customer_id,
-      customer_name: match.customer_name,
-      number: orderNumber,
-      status: 'aguardando_aprovacao',
-      total_amount: match.total_amount,
-      paid_amount: 0,
-      payment_status: 'pendente',
-      shipping_cost: match.delivery_fee || 0,
-      deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
-      notes: `Convertido do Orçamento #${match.number}. ${match.notes}`,
-      additional_services: match.additional_services || [],
-      items: match.items.map(i => ({
-        id: `oi-${Math.random().toString(36).substr(2, 9)}`,
-        product_id: i.product_id,
-        product_name: i.product_name,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        total_price: i.total_price,
-        details: i.details,
-        outsourced: false
-      })),
-      created_at: new Date().toISOString(),
-      delivery_type: match.delivery_type,
-      delivery_address: match.delivery_address,
-      delivery_distance_km: match.delivery_distance_km
-    };
+    void saveQuoteWithItems(approvedQuote, 'aprovado').then((savedQuote) => {
+      if (!savedQuote) return;
 
-    setOrders(prev => [newOrder, ...prev]);
+      const newOrder: Order = {
+        id: `order-${Date.now()}`,
+        company_id: currentCompanyId,
+        customer_id: savedQuote.customer_id,
+        customer_name: savedQuote.customer_name,
+        number: orderNumber,
+        status: 'aguardando_aprovacao',
+        total_amount: savedQuote.total_amount,
+        paid_amount: 0,
+        payment_status: 'pendente',
+        shipping_cost: savedQuote.delivery_fee || 0,
+        deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
+        notes: `Convertido do Orçamento #${savedQuote.number}. ${savedQuote.notes}`,
+        additional_services: savedQuote.additional_services || [],
+        items: savedQuote.items.map(i => ({
+          id: `oi-${Math.random().toString(36).substr(2, 9)}`,
+          product_id: i.product_id,
+          product_name: i.product_name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          total_price: i.total_price,
+          details: i.details,
+          outsourced: false
+        })),
+        created_at: new Date().toISOString(),
+        delivery_type: savedQuote.delivery_type,
+        delivery_origin_address: savedQuote.delivery_origin_address,
+        delivery_address: savedQuote.delivery_address,
+        delivery_distance_km: savedQuote.delivery_distance_km
+      };
+
+      void saveOrderWithItems(newOrder, 'convertido do orçamento').then((savedOrder) => {
+        if (savedOrder) {
+          showToast(`Pedido ${savedOrder.number} criado a partir do orçamento #${savedQuote.number}.`);
+        }
+      });
+    });
   };
 
   // ----------------------------------------------------
@@ -1586,18 +1731,24 @@ useEffect(() => {
       created_at: new Date().toISOString()
     };
 
-    setOrders(prev => [newOrder, ...prev]);
+    void saveOrderWithItems(newOrder, 'criado').then((savedOrder) => {
+      if (!savedOrder) return;
 
-    // Handle initial state production injection if order begins in production
-    if (newOrder.status === 'producao' || newOrder.status === 'impressao' || newOrder.status === 'acabamento') {
-      injectProductionQueue(newOrder);
-    }
+      // Handle initial state production injection if order begins in production
+      if (savedOrder.status === 'producao' || savedOrder.status === 'impressao' || savedOrder.status === 'acabamento') {
+        injectProductionQueue(savedOrder);
+      }
+    });
 
     return newOrder;
   };
 
   const updateOrder = (order: Order) => {
-    setOrders(prev => prev.map(o => (o.id === order.id ? order : o)));
+    const nextOrder = {
+      ...order,
+      company_id: order.company_id || currentCompanyId
+    };
+    void saveOrderWithItems(nextOrder, 'atualizado');
   };
 
   const injectProductionQueue = (order: Order) => {
@@ -1646,6 +1797,10 @@ useEffect(() => {
     );
 
     if (!orderMatch) return;
+
+    supabase.from('orders').update({ status }).eq('id', id).then(({ error }) => {
+      if (error) warnCaught('Erro ao atualizar status do pedido no Supabase:', error);
+    });
 
     // Trigger Production Queue on moving to 'producao'
     if (status === 'producao') {
