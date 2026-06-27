@@ -36,8 +36,8 @@ export default function StorePrivacyRequestPage() {
         body: JSON.stringify({ ...form, companyId: company.id })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Nao foi possivel registrar sua solicitacao.');
-      setMessage(data.message || 'Solicitacao registrada.');
+      if (!response.ok) throw new Error(data.error || 'Não foi possível registrar sua solicitação.');
+      setMessage(data.message || 'Solicitação registrada.');
       setForm({
         name: '',
         email: '',
@@ -47,7 +47,7 @@ export default function StorePrivacyRequestPage() {
         confirmation: false
       });
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Nao foi possivel registrar sua solicitacao.');
+      setError(requestError instanceof Error ? requestError.message : 'Não foi possível registrar sua solicitação.');
     } finally {
       setSubmitting(false);
     }
@@ -62,10 +62,10 @@ export default function StorePrivacyRequestPage() {
         </Link>
 
         <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-black tracking-tight text-slate-950">Solicitacao de privacidade</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-950">Solicitação de privacidade</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Envie uma solicitacao para {company.name || 'a loja'}. A resposta pode exigir confirmacao segura de identidade
-            e nao informaremos por este formulario se determinado CPF ou e-mail possui cadastro.
+            Envie uma solicitação para {company.name || 'a loja'}. A resposta pode exigir confirmação segura de identidade
+            e não informaremos por este formulário se determinado CPF ou e-mail possui cadastro.
           </p>
         </header>
 
@@ -86,11 +86,11 @@ export default function StorePrivacyRequestPage() {
               className={storeInputClass}
               value={form.identityHint}
               onChange={(event) => setForm((current) => ({ ...current, identityHint: event.target.value }))}
-              placeholder="Ex: ultimos 4 digitos ou outro dado combinado com a loja"
+              placeholder="Ex: últimos 4 dígitos ou outro dado combinado com a loja"
             />
           </StoreField>
 
-          <StoreField label="Tipo de solicitacao">
+          <StoreField label="Tipo de solicitação">
             <select
               className={storeInputClass}
               value={form.requestType}
@@ -102,7 +102,7 @@ export default function StorePrivacyRequestPage() {
             </select>
           </StoreField>
 
-          <StoreField label="Descricao">
+          <StoreField label="Descrição">
             <textarea
               className={storeTextareaClass}
               value={form.details}
@@ -120,13 +120,13 @@ export default function StorePrivacyRequestPage() {
               className="mt-1"
               required
             />
-            Confirmo que as informacoes enviadas sao verdadeiras e entendo que a loja pode solicitar confirmacao segura
+            Confirmo que as informações enviadas são verdadeiras e entendo que a loja pode solicitar confirmação segura
             de identidade antes de responder ou entregar dados pessoais.
           </label>
 
-          <button type="submit" disabled={submitting} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 text-sm font-black text-white disabled:opacity-60">
+          <button type="submit" disabled={submitting} className="pf-button-primary h-12 w-full">
             <Send className="h-4 w-4" />
-            {submitting ? 'Enviando...' : 'Enviar solicitacao'}
+            {submitting ? 'Enviando...' : 'Enviar solicitação'}
           </button>
         </form>
       </div>
