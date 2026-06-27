@@ -127,7 +127,10 @@ export function StorePrivacyProvider({ children }: { children: React.ReactNode }
       revoked_at: granted ? null : new Date().toISOString()
     });
 
-    if (error) warnCaught('Nao foi possivel registrar consentimento:', error);
+    if (error) {
+      warnCaught('Não foi possível registrar consentimento:', error);
+      throw new Error('Não foi possível salvar suas preferências de privacidade agora.');
+    }
   };
 
   const value = useMemo<StorePrivacyContextType>(() => ({

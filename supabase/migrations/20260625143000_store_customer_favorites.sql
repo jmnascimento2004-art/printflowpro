@@ -68,3 +68,5 @@ using (
       and a.status = 'active'
   )
 );
+
+select pg_notify('pgrst', 'reload schema');

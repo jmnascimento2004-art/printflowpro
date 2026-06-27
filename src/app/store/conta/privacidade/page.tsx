@@ -59,7 +59,10 @@ export default function StoreAccountPrivacyPage() {
   const loadPrivacyData = async () => {
     if (!company.id || !customer?.id) return;
 
-    const [{ data: consentData }, { data: requestData }] = await Promise.all([
+    const [
+      { data: consentData, error: consentError },
+      { data: requestData, error: requestError }
+    ] = await Promise.all([
       supabase
         .from('customer_consents')
         .select('id, consent_type, granted, policy_version, created_at')
@@ -74,7 +77,18 @@ export default function StoreAccountPrivacyPage() {
         .order('requested_at', { ascending: false })
     ]);
 
+    if (consentError || requestError) {
+      const privacyError = consentError || requestError;
+      setError(privacyError?.message || 'Não foi possível carregar seus dados de privacidade agora.');
+      setConsents([]);
+      setRequests([]);
+      setMarketingEmail(false);
+      setMarketingWhatsapp(false);
+      return;
+    }
+
     const nextConsents = (consentData || []) as ConsentRow[];
+    setError('');
     setConsents(nextConsents);
     setRequests((requestData || []) as RequestRow[]);
     setMarketingEmail(Boolean(nextConsents.find((item) => item.consent_type === 'marketing_email')?.granted));
@@ -94,9 +108,9 @@ export default function StoreAccountPrivacyPage() {
       await recordConsent('marketing_email', marketingEmail, 'store_account_privacy', PRIVACY_POLICY_VERSION);
       await recordConsent('marketing_whatsapp', marketingWhatsapp, 'store_account_privacy', PRIVACY_POLICY_VERSION);
       await loadPrivacyData();
-      setMessage('Preferencias de marketing atualizadas.');
+      setMessage('Preferências de marketing atualizadas.');
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Nao foi possivel salvar suas preferencias.');
+      setError(saveError instanceof Error ? saveError.message : 'Não foi possível salvar suas preferências.');
     } finally {
       setSaving(false);
     }
@@ -104,7 +118,7 @@ export default function StoreAccountPrivacyPage() {
 
   const submitRequest = async () => {
     if (!company.id || !customer?.id || !user?.id || requestDetails.trim().length < 10) {
-      setError('Descreva sua solicitacao com pelo menos 10 caracteres.');
+      setError('Descreva sua solicitação com pelo menos 10 caracteres.');
       return;
     }
 
@@ -124,10 +138,10 @@ export default function StoreAccountPrivacyPage() {
     });
 
     if (requestError) {
-      setError('Nao foi possivel registrar a solicitacao agora.');
+      setError('Não foi possível registrar a solicitação agora.');
     } else {
       setRequestDetails('');
-      setMessage('Solicitacao registrada. A loja avaliara o pedido e podera solicitar confirmacao adicional.');
+      setMessage('Solicitação registrada. A loja avaliará o pedido e poderá solicitar confirmação adicional.');
       await loadPrivacyData();
     }
     setSaving(false);
@@ -136,13 +150,13 @@ export default function StoreAccountPrivacyPage() {
   return (
     <StoreAccountShell
       title="Privacidade"
-      subtitle="Gerencie consentimentos, cookies e solicitacoes relacionadas aos seus dados pessoais."
+      subtitle="Gerencie consentimentos, cookies e solicitações relacionadas aos seus dados pessoais."
     >
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-600">{error}</div>}
       {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">{message}</div>}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-black text-slate-950">Dados basicos cadastrados</h2>
+        <h2 className="text-sm font-black text-slate-950">Dados básicos cadastrados</h2>
         <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div><span className="block text-xs font-bold text-slate-400">Nome</span><strong>{customer?.name || '-'}</strong></div>
           <div><span className="block text-xs font-bold text-slate-400">Documento</span><strong>{maskDocument(customer?.document || '')}</strong></div>
@@ -155,9 +169,9 @@ export default function StoreAccountPrivacyPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-black text-slate-950">Preferencias de marketing</h2>
+        <h2 className="text-sm font-black text-slate-950">Preferências de marketing</h2>
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          Comunicacoes sobre pedido, pagamento, entrega e suporte continuam sendo usadas quando necessarias ao atendimento.
+          Comunicações sobre pedido, pagamento, entrega e suporte continuam sendo usadas quando necessárias ao atendimento.
           Campanhas promocionais dependem de consentimento opcional.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -170,23 +184,23 @@ export default function StoreAccountPrivacyPage() {
             WhatsApp promocional
           </label>
         </div>
-        <button onClick={saveMarketing} disabled={saving} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-60">
+        <button onClick={saveMarketing} disabled={saving} className="pf-button-primary mt-4 min-h-10 px-4 text-xs">
           <Save className="h-4 w-4" />
-          Salvar preferencias
+          Salvar preferências
         </button>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-black text-slate-950">Cookies</h2>
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          Versao {COOKIE_POLICY_VERSION}. Analiticos: {cookiePreferences.analytics ? 'aceitos' : 'recusados'}.
+          Versão {COOKIE_POLICY_VERSION}. Analíticos: {cookiePreferences.analytics ? 'aceitos' : 'recusados'}.
           Marketing: {cookiePreferences.marketing ? 'aceito' : 'recusado'}.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button onClick={() => saveCookiePreferences({ necessary: true, preferences: false, analytics: false, marketing: false }, 'store_account_privacy')} className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-black text-slate-700">
-            Recusar nao essenciais
+            Recusar não essenciais
           </button>
-          <button onClick={() => saveCookiePreferences({ necessary: true, preferences: true, analytics: true, marketing: true }, 'store_account_privacy')} className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-black text-white">
+          <button onClick={() => saveCookiePreferences({ necessary: true, preferences: true, analytics: true, marketing: true }, 'store_account_privacy')} className="pf-button-primary min-h-10 px-4 py-2 text-xs">
             Aceitar todos
           </button>
         </div>
@@ -195,30 +209,30 @@ export default function StoreAccountPrivacyPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-black text-slate-950">Solicitar direitos do titular</h2>
         <p className="mt-2 text-xs leading-5 text-slate-500">
-          Pedidos de exclusao ou anonimizacao nao apagam automaticamente documentos fiscais, pedidos emitidos ou registros
-          necessarios por obrigacao legal, fiscal, contabil, defesa de direitos ou prevencao a fraude.
+          Pedidos de exclusão ou anonimização não apagam automaticamente documentos fiscais, pedidos emitidos ou registros
+          necessários por obrigação legal, fiscal, contábil, defesa de direitos ou prevenção à fraude.
         </p>
         <div className="mt-4 grid gap-4">
-          <StoreField label="Tipo de solicitacao">
+          <StoreField label="Tipo de solicitação">
             <select className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none" value={requestType} onChange={(event) => setRequestType(event.target.value as DataSubjectRequestType)}>
               {requestTypes.map((type) => <option key={type} value={type}>{dataSubjectRequestLabels[type]}</option>)}
             </select>
           </StoreField>
-          <StoreField label="Descricao">
+          <StoreField label="Descrição">
             <textarea className={storeTextareaClass} rows={4} value={requestDetails} onChange={(event) => setRequestDetails(event.target.value)} />
           </StoreField>
-          <button onClick={submitRequest} disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-black text-white disabled:opacity-60">
+          <button onClick={submitRequest} disabled={saving} className="pf-button-primary min-h-11 px-4 text-xs">
             <FileText className="h-4 w-4" />
-            Registrar solicitacao
+            Registrar solicitação
           </button>
         </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-black text-slate-950">Historico</h2>
+        <h2 className="text-sm font-black text-slate-950">Histórico</h2>
         <div className="mt-4 space-y-3">
           {requests.length === 0 ? (
-            <p className="text-xs font-semibold text-slate-400">Nenhuma solicitacao registrada.</p>
+            <p className="text-xs font-semibold text-slate-400">Nenhuma solicitação registrada.</p>
           ) : requests.map((item) => (
             <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -231,7 +245,7 @@ export default function StoreAccountPrivacyPage() {
           ))}
         </div>
         <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-500">
-          Politica de privacidade {PRIVACY_POLICY_VERSION}; termos {TERMS_VERSION}. Ultimos consentimentos registrados: {consents.length}.
+          Política de privacidade {PRIVACY_POLICY_VERSION}; termos {TERMS_VERSION}. Últimos consentimentos registrados: {consents.length}.
         </div>
       </section>
     </StoreAccountShell>
