@@ -30,6 +30,25 @@ function resolveSplashBranding(): SplashBranding {
   }
 }
 
+function cleanupDevelopmentPWA() {
+  const unregisterServiceWorkers = navigator.serviceWorker.getRegistrations()
+    .then((registrations) => Promise.all(
+      registrations
+        .filter((registration) => registration.scope.startsWith(`${window.location.origin}/`))
+        .map((registration) => registration.unregister())
+    ));
+
+  const deleteAppCaches = 'caches' in window
+    ? window.caches.keys().then((cacheNames) => Promise.all(
+      cacheNames.map((cacheName) => window.caches.delete(cacheName))
+    ))
+    : Promise.resolve([]);
+
+  Promise.all([unregisterServiceWorkers, deleteAppCaches]).catch((error) => {
+    console.warn('[PWA] Falha ao limpar service workers/caches em desenvolvimento.', error);
+  });
+}
+
 export default function PWARegister() {
   const pathname = usePathname();
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
@@ -55,18 +74,13 @@ export default function PWARegister() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
-    if (pathname === '/store' || pathname.startsWith('/store/')) return;
 
     if (process.env.NODE_ENV !== 'production') {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations
-          .filter((registration) => registration.scope === `${window.location.origin}/`)
-          .forEach((registration) => registration.unregister());
-      }).catch(() => {
-        // Development cleanup is best effort; production PWA behavior is unchanged.
-      });
+      cleanupDevelopmentPWA();
       return;
     }
+
+    if (pathname === '/store' || pathname.startsWith('/store/')) return;
 
     let refreshing = false;
 
@@ -102,8 +116,8 @@ export default function PWARegister() {
             }
           });
         });
-      }).catch(() => {
-        // PWA registration is progressive enhancement; keep the ERP usable if it fails.
+      }).catch((error) => {
+        console.warn('[PWA] Falha ao registrar service worker administrativo.', error);
       });
     };
 

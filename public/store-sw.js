@@ -8,6 +8,19 @@ const STATIC_ASSETS = [
   OFFLINE_URL
 ];
 
+function isNextAssetRequest(request) {
+  const url = new URL(request.url);
+  return url.origin === self.location.origin && url.pathname.startsWith('/_next/');
+}
+
+function isNonHtmlAssetRequest(request) {
+  const url = new URL(request.url);
+  return (
+    url.origin === self.location.origin &&
+    /\.(?:js|css|map|json|webmanifest|png|jpe?g|svg|webp|ico|woff2?|ttf|otf)$/i.test(url.pathname)
+  );
+}
+
 function isSupabaseRequest(url) {
   return url.hostname.includes('supabase.co') || url.hostname.includes('supabase.in');
 }
@@ -29,16 +42,14 @@ function isPrivateOrDynamicRequest(request) {
   );
 }
 
-function isBrandingRequest(request) {
+function isManifestRequest(request) {
   const url = new URL(request.url);
   return (
     request.method === 'GET' &&
     url.origin === self.location.origin &&
     (
       url.pathname === '/store/manifest.webmanifest' ||
-      url.pathname === '/favicon.ico' ||
-      url.pathname.startsWith('/api/public/branding/icon') ||
-      url.pathname.startsWith('/api/pwa/icon')
+      url.pathname === '/favicon.ico'
     )
   );
 }
@@ -48,13 +59,8 @@ function isStaticAssetRequest(request) {
   return (
     request.method === 'GET' &&
     url.origin === self.location.origin &&
-    (
-      url.pathname.startsWith('/_next/static/') ||
-      url.pathname.startsWith('/icons/') ||
-      request.destination === 'font' ||
-      request.destination === 'script' ||
-      request.destination === 'style'
-    )
+    url.pathname.startsWith('/icons/') &&
+    ['image', 'font'].includes(request.destination)
   );
 }
 
@@ -90,20 +96,12 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  if (isBrandingRequest(request)) {
-    event.respondWith(
-      caches.open(BRANDING_CACHE).then((cache) =>
-        fetch(request).then((networkResponse) => {
-          if (networkResponse.ok) cache.put(request, networkResponse.clone());
-          return networkResponse;
-        }).catch(() => cache.match(request))
-      )
-    );
-    return;
-  }
-
-  if (isPrivateOrDynamicRequest(request)) {
-    event.respondWith(fetch(request));
+  if (
+    isNextAssetRequest(request) ||
+    isNonHtmlAssetRequest(request) ||
+    isManifestRequest(request) ||
+    isPrivateOrDynamicRequest(request)
+  ) {
     return;
   }
 

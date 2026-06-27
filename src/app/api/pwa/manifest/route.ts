@@ -110,6 +110,34 @@ async function resolveServerBranding(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  if (process.env.NODE_ENV !== 'production') {
+    return NextResponse.json({
+      name: DEFAULT_BRANDING.appName,
+      short_name: DEFAULT_BRANDING.shortName,
+      description: DEFAULT_BRANDING.description,
+      id: '/printflowpro-dev',
+      start_url: '/',
+      scope: '/',
+      display: 'standalone',
+      orientation: 'portrait-primary',
+      theme_color: DEFAULT_BRANDING.themeColor,
+      background_color: DEFAULT_BRANDING.backgroundColor,
+      categories: ['business', 'productivity'],
+      lang: 'pt-BR',
+      icons: ICON_SIZES.map((size) => ({
+        src: `/icons/icon-${size}x${size}.png`,
+        sizes: `${size}x${size}`,
+        type: 'image/png',
+        purpose: size >= 192 ? 'any maskable' : 'any'
+      }))
+    }, {
+      headers: {
+        'Cache-Control': 'no-store',
+        'Content-Type': 'application/manifest+json; charset=utf-8'
+      }
+    });
+  }
+
   const branding = await resolveServerBranding(request);
 
   const manifest = {

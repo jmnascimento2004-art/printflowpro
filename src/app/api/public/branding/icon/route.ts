@@ -48,6 +48,16 @@ function createInitialsSvg(branding: ActiveBranding) {
   `);
 }
 
+function createSafeFallbackSvg(size: number) {
+  return Buffer.from(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <rect width="${size}" height="${size}" rx="${Math.round(size * 0.22)}" fill="#F7F9FC"/>
+      <rect x="${Math.round(size * 0.08)}" y="${Math.round(size * 0.08)}" width="${Math.round(size * 0.84)}" height="${Math.round(size * 0.84)}" rx="${Math.round(size * 0.18)}" fill="#1D35C9"/>
+      <text x="${size / 2}" y="${Math.round(size * 0.58)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${Math.round(size * 0.32)}" font-weight="800" fill="#FFFFFF">PF</text>
+    </svg>
+  `);
+}
+
 async function loadImageSource(src: string | null) {
   if (!src) return loadFallbackIcon();
 
@@ -123,16 +133,25 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch {
-    const fallback = await sharp(await loadFallbackIcon())
-      .resize(size, size)
-      .png()
-      .toBuffer();
+    try {
+      const fallback = await sharp(await loadFallbackIcon())
+        .resize(size, size)
+        .png()
+        .toBuffer();
 
-    return new NextResponse(new Uint8Array(fallback), {
-      headers: {
-        'Content-Type': 'image/png',
-        'Cache-Control': 'no-store'
-      }
-    });
+      return new NextResponse(new Uint8Array(fallback), {
+        headers: {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'no-store'
+        }
+      });
+    } catch {
+      return new NextResponse(new Uint8Array(createSafeFallbackSvg(size)), {
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'no-store'
+        }
+      });
+    }
   }
 }

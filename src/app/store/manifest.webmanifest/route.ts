@@ -108,6 +108,34 @@ async function resolveStoreBranding(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  if (process.env.NODE_ENV !== 'production') {
+    return NextResponse.json({
+      name: DEFAULT_BRANDING.appName,
+      short_name: DEFAULT_BRANDING.shortName,
+      description: DEFAULT_BRANDING.description,
+      id: '/store/catalogo-dev',
+      start_url: '/store/',
+      scope: '/store/',
+      display: 'standalone',
+      orientation: 'portrait-primary',
+      theme_color: DEFAULT_BRANDING.themeColor,
+      background_color: DEFAULT_BRANDING.backgroundColor,
+      categories: ['shopping', 'business'],
+      lang: 'pt-BR',
+      icons: ICON_SIZES.map((size) => ({
+        src: `/icons/icon-${size}x${size}.png`,
+        sizes: `${size}x${size}`,
+        type: 'image/png',
+        purpose: 'any maskable'
+      }))
+    }, {
+      headers: {
+        'Cache-Control': 'no-store',
+        'Content-Type': 'application/manifest+json; charset=utf-8'
+      }
+    });
+  }
+
   const branding = await resolveStoreBranding(request);
 
   return NextResponse.json({

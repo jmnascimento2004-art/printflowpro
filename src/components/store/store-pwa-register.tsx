@@ -2,24 +2,37 @@
 
 import { useEffect } from 'react';
 
+function cleanupDevelopmentStorePWA() {
+  const unregisterServiceWorkers = navigator.serviceWorker.getRegistrations()
+    .then((registrations) => Promise.all(
+      registrations
+        .filter((registration) => registration.scope.startsWith(`${window.location.origin}/`))
+        .map((registration) => registration.unregister())
+    ));
+
+  const deleteAppCaches = 'caches' in window
+    ? window.caches.keys().then((cacheNames) => Promise.all(
+      cacheNames.map((cacheName) => window.caches.delete(cacheName))
+    ))
+    : Promise.resolve([]);
+
+  Promise.all([unregisterServiceWorkers, deleteAppCaches]).catch((error) => {
+    console.warn('[PWA] Falha ao limpar service workers/caches da loja em desenvolvimento.', error);
+  });
+}
+
 export function StorePWARegister() {
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
 
     if (process.env.NODE_ENV !== 'production') {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations
-          .filter((registration) => registration.scope === `${window.location.origin}/store/`)
-          .forEach((registration) => registration.unregister());
-      }).catch(() => {
-        // Development cleanup is best effort; production Store PWA behavior is unchanged.
-      });
+      cleanupDevelopmentStorePWA();
       return;
     }
 
     const register = () => {
-      navigator.serviceWorker.register('/store-sw.js', { scope: '/store/' }).catch(() => {
-        // Store PWA is progressive enhancement; keep the catalog usable if registration fails.
+      navigator.serviceWorker.register('/store-sw.js', { scope: '/store/' }).catch((error) => {
+        console.warn('[PWA] Falha ao registrar service worker da loja.', error);
       });
     };
 
