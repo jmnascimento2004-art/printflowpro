@@ -11,9 +11,6 @@ import {
   Check,
   X,
   Layers,
-  LayoutGrid,
-  List as ListIcon,
-  AlertTriangle,
   Bold,
   Italic,
   Underline,
@@ -306,7 +303,6 @@ export default function ProductsCRUDPage() {
   const defaultTaxRate = settings.tax_rate ?? 6;
 
   const [viewMode, setViewMode] = useState<'products' | 'categories'>('products');
-  const [productViewMode, setProductViewMode] = useState<'list' | 'cards'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -991,6 +987,52 @@ export default function ProductsCRUDPage() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const getProductSaleMode = (product: Product): ProductSaleMode => {
+    const configuredMode = product.pricing_details?.configurator_options?.sale_mode;
+    if (configuredMode) return configuredMode;
+    if ((product.volume_pricing?.length || 0) > 0) return 'volume';
+    if (product.variant_options?.length || product.color_options?.length) return 'size_grid';
+    return product.pricing_type === 'm2' ? 'm2' : product.pricing_type;
+  };
+
+  const getSaleModeLabel = (product: Product) => {
+    const mode = getProductSaleMode(product);
+    const labels: Record<ProductSaleMode, string> = {
+      unidade: 'Unidade',
+      volume: 'Preço por lote',
+      m2: 'M²',
+      linear: 'Metro linear',
+      width_height: 'Sob medida',
+      pacote: 'Pacote',
+      kit: 'Kit',
+      size_grid: 'Com variações',
+      custom: 'Personalizado'
+    };
+    return labels[mode] || product.pricing_type;
+  };
+
+  const getProductPriceLabel = (product: Product) => {
+    if (!product.sales_price || product.sales_price <= 0) return 'Preço não definido';
+    const formattedPrice = formatCurrency(product.sales_price);
+    return (product.volume_pricing?.length || 0) > 0 ? `A partir de ${formattedPrice}` : formattedPrice;
+  };
+
+  const getProductStockInfo = (product: Product) => {
+    if (!product.stock_controlled) {
+      return { label: 'Sem controle', dotClass: 'bg-slate-400', textClass: 'text-muted-foreground' };
+    }
+
+    if (product.current_stock <= 0) {
+      return { label: 'Sem estoque', dotClass: 'bg-rose-500', textClass: 'text-rose-600' };
+    }
+
+    if (product.current_stock < product.min_stock) {
+      return { label: `Baixo: ${product.current_stock}`, dotClass: 'bg-amber-500', textClass: 'text-amber-600' };
+    }
+
+    return { label: `Em estoque: ${product.current_stock}`, dotClass: 'bg-emerald-500', textClass: 'text-emerald-600' };
+  };
+
   const initialVolumeTier = [...volumePricing].sort((a, b) => a.min_qty - b.min_qty)[0];
   const selectedCategoryName = categories.find((category) => category.id === categoryId)?.name || 'Sem categoria';
 
@@ -1129,317 +1171,152 @@ export default function ProductsCRUDPage() {
                 </button>
               </div>
 
-              {/* 3. Products List Table */}
+              {/* 3. Products Card Grid */}
               <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-border bg-secondary/10 flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
-                  <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Catalogo Geral de Produtos</h3>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center rounded-lg border border-border bg-background p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setProductViewMode('list')}
-                        title="Visualizar em lista"
-                        className={`h-7 w-8 rounded-md flex items-center justify-center transition-colors ${
-                          productViewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        <ListIcon className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setProductViewMode('cards')}
-                        title="Visualizar em cards"
-                        className={`h-7 w-8 rounded-md flex items-center justify-center transition-colors ${
-                          productViewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        <LayoutGrid className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <span className="text-[11px] text-muted-foreground font-semibold whitespace-nowrap">Exibindo {filteredProducts.length} registros</span>
+                <div className="px-5 py-4 border-b border-border bg-secondary/10 flex flex-col gap-1 md:flex-row md:justify-between md:items-center">
+                  <div>
+                    <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Catálogo Geral de Produtos</h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Visualização em cards para análise rápida do catálogo.</p>
                   </div>
+                  <span className="text-[11px] text-muted-foreground font-semibold whitespace-nowrap">Exibindo {filteredProducts.length} registros</span>
                 </div>
 
-                {productViewMode === 'list' ? (
-                <div className="w-full overflow-x-auto">
-                  <table className="w-full table-fixed text-left border-collapse text-xs">
-                    <colgroup>
-                      <col className="w-[8%]" />
-                      <col className="w-[28%]" />
-                      <col className="w-[10%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[10%]" />
-                      <col className="w-[10%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[7%]" />
-                      <col className="w-[13%]" />
-                    </colgroup>
-                    <thead>
-                      <tr className="bg-secondary/40 text-[9px] uppercase font-bold text-muted-foreground border-b border-border">
-                        <th className="px-3 py-3 truncate">SKU / Codigo</th>
-                        <th className="px-3 py-3">Produto / Servico</th>
-                        <th className="px-3 py-3">Categoria</th>
-                        <th className="px-3 py-3">Calculo</th>
-                        <th className="px-3 py-3 text-right">Custo Base</th>
-                        <th className="px-3 py-3 text-right">Preco de Venda</th>
-                        <th className="px-3 py-3 text-center">Estoque</th>
-                        <th className="px-3 py-3 text-center">Status</th>
-                        <th className="px-2 py-3 text-center">Acoes</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredProducts.length > 0 ? (
-                        filteredProducts.map((prod) => {
-                          const belowMin = prod.stock_controlled && prod.current_stock < prod.min_stock;
-                          const catName = categories.find(c => c.id === prod.category_id)?.name || 'Outros';
+                <div className="p-4">
+                  {filteredProducts.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+                      {filteredProducts.map((prod) => {
+                        const catName = categories.find(c => c.id === prod.category_id)?.name || 'Outros';
+                        const stockInfo = getProductStockInfo(prod);
+                        const priceLabel = getProductPriceLabel(prod);
+                        const hasVolumePricing = (prod.volume_pricing?.length || 0) > 0;
+                        const hasVariants = Boolean(prod.variant_options?.length || prod.color_options?.length || prod.pricing_details?.configurator_options?.variant_pricing_matrix?.length);
 
-                          return (
-                            <tr key={prod.id} className="hover:bg-secondary/15 transition-colors">
-                              {/* SKU */}
-                              <td className="px-3 py-3.5 font-bold text-foreground truncate" title={prod.sku}>{prod.sku}</td>
-
-                              {/* Name & Description */}
-                              <td className="px-3 py-3.5 min-w-0">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  {prod.image_url ? (
-                                    <img 
-                                      src={prod.image_url} 
-                                      alt={prod.name} 
-                                      className="h-9 w-9 rounded-lg object-cover border border-border bg-background"
-                                    />
-                                  ) : (
-                                    <div className="h-9 w-9 rounded-lg bg-secondary/50 flex items-center justify-center border border-border text-muted-foreground">
-                                      <Package className="h-4 w-4" />
-                                    </div>
-                                  )}
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
-                                      <span className="truncate">{prod.name}</span>
-                                      {prod.volume_pricing && prod.volume_pricing.length > 0 && (
-                                        <span className="px-1.5 py-0.2 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 text-[8px] font-bold rounded" title="Preço por volume ativo">
-                                          ATACADO
-                                        </span>
-                                      )}
-                                      {prod.is_promo && (
-                                        <span className="px-1.5 py-0.2 bg-amber-500/15 text-amber-500 border border-amber-500/25 text-[8px] font-bold rounded">
-                                          PROMOÇÃO
-                                        </span>
-                                      )}
-                                      {prod.is_highlight && (
-                                        <span className="px-1.5 py-0.2 bg-blue-500/15 text-blue-500 border border-blue-500/25 text-[8px] font-bold rounded">
-                                          DESTAQUE
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground truncate" title={stripRichTextHtml(prod.description)}>
-                                      {stripRichTextHtml(prod.description) || '-'}
-                                    </div>
-                                  </div>
+                        return (
+                          <article key={prod.id} className="group flex min-h-[318px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md">
+                            <div className="relative aspect-[1.28] overflow-hidden bg-secondary/30 border-b border-border">
+                              {prod.image_url ? (
+                                <img
+                                  src={prod.image_url}
+                                  alt={prod.name}
+                                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                                  <Package className="h-8 w-8" />
                                 </div>
-                              </td>
+                              )}
 
-                              {/* Category Badge */}
-                              <td className="px-3 py-3.5">
-                                <span className="inline-block max-w-full truncate px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold" title={catName}>
-                                  {catName}
-                                </span>
-                              </td>
-
-                              {/* Pricing Type */}
-                              <td className="px-3 py-3.5 text-muted-foreground font-semibold uppercase truncate">{prod.pricing_type}</td>
-
-                              {/* Cost */}
-                              <td className="px-3 py-3.5 text-right text-muted-foreground font-semibold whitespace-nowrap">
-                                {formatCurrency(prod.base_cost)}
-                              </td>
-
-                              {/* Sale Price */}
-                              <td className="px-3 py-3.5 text-right font-black text-foreground whitespace-nowrap">
-                                {formatCurrency(prod.sales_price)}
-                              </td>
-
-                              {/* Stock Level */}
-                              <td className="px-3 py-3.5 text-center">
-                                {!prod.stock_controlled ? (
-                                  <span className="text-[10px] text-zinc-400 font-semibold bg-zinc-500/5 px-2 py-0.5 rounded border border-zinc-500/10">
-                                    Sem Controle
-                                  </span>
-                                ) : (
-                                  <div className="flex flex-col items-center">
-                                    <span className={`font-bold ${belowMin ? 'text-rose-500' : 'text-foreground'}`}>
-                                      {prod.current_stock}
-                                    </span>
-                                    {belowMin && (
-                                      <span className="text-[8px] text-rose-500 font-bold flex items-center gap-0.5 mt-0.5">
-                                        <AlertTriangle className="h-2.5 w-2.5" /> Repor
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Active Status */}
-                              <td className="px-3 py-3.5 text-center">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border shadow-sm ${
                                   prod.catalog_active !== false
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                                    : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                    ? 'bg-emerald-500/95 text-white border-emerald-500'
+                                    : 'bg-slate-900/80 text-white border-slate-700'
                                 }`}>
-                                  {prod.catalog_active !== false ? 'CATALOGO' : 'SOMENTE SAAS'}
+                                  {prod.catalog_active !== false ? 'Catálogo' : 'Oculto'}
                                 </span>
-                              </td>
+                                {prod.is_highlight && (
+                                  <span className="px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-black shadow-sm">
+                                    Destaque
+                                  </span>
+                                )}
+                                {prod.is_promo && (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black shadow-sm">
+                                    Promoção
+                                  </span>
+                                )}
+                              </div>
+                            </div>
 
-                              {/* Actions */}
-                              <td className="px-2 py-3.5 text-center">
-                                <div className="flex items-center justify-center gap-1">
+                            <div className="flex flex-1 flex-col p-3">
+                              <div className="space-y-2">
+                                <div className="min-w-0">
+                                  <h4
+                                    className="min-h-[34px] text-[13px] font-black leading-snug text-foreground"
+                                    title={prod.name}
+                                    style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                  >
+                                    {prod.name}
+                                  </h4>
+                                  <p className={`mt-1 text-base font-black ${prod.sales_price > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                    {priceLabel}
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-1">
+                                  <span className="max-w-full truncate rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary" title={catName}>
+                                    {catName}
+                                  </span>
+                                  <span className="rounded-md bg-slate-500/10 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                                    {getSaleModeLabel(prod)}
+                                  </span>
+                                  {hasVolumePricing && (
+                                    <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600">
+                                      Lote
+                                    </span>
+                                  )}
+                                  {hasVariants && (
+                                    <span className="rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-bold text-violet-600">
+                                      Variações
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                                  <span className={`h-2 w-2 rounded-full ${stockInfo.dotClass}`} />
+                                  <span className={stockInfo.textClass}>{stockInfo.label}</span>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 rounded-lg border border-border bg-secondary/15 px-2 py-1.5">
+                                <span className="inline-flex max-w-full rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-black text-amber-900 dark:bg-amber-500/15 dark:text-amber-300">
+                                  SKU: {prod.sku}
+                                </span>
+                                <div className="mt-1.5 h-6 rounded bg-white border border-slate-200 bg-[repeating-linear-gradient(90deg,#111_0_1px,transparent_1px_3px,#111_3px_5px,transparent_5px_7px)] opacity-80" aria-hidden="true" />
+                                <p className="mt-0.5 truncate text-center font-mono text-[8px] tracking-tight text-muted-foreground">{prod.sku}</p>
+                              </div>
+
+                              <div className="mt-auto flex items-center gap-1.5 pt-3 border-t border-border/70">
+                                <button
+                                  onClick={() => handleOpenEdit(prod)}
+                                  className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-primary/10 bg-primary/10 px-2 text-[11px] font-bold text-primary hover:bg-primary/15"
+                                  title="Editar Produto"
+                                  aria-label={`Editar ${prod.name}`}
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                  Editar
+                                </button>
                                   <button
                                     onClick={() => handleDuplicateProduct(prod)}
-                                    className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/20"
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-secondary hover:text-foreground"
                                     title="Duplicar Produto"
+                                    aria-label={`Duplicar ${prod.name}`}
                                   >
                                     <Copy className="h-3.5 w-3.5" />
                                   </button>
-
-                                  <button
-                                    onClick={() => handleOpenEdit(prod)}
-                                    className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
-                                    title="Editar Produto"
-                                  >
-                                    <Edit3 className="h-3.5 w-3.5" />
-                                  </button>
-                                  
                                   <button
                                     onClick={() => {
                                       if (confirm(`Excluir o produto "${prod.name}" do catálogo do ERP?`)) {
                                         deleteProduct(prod.id);
                                       }
                                     }}
-                                    className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/25 border border-rose-500/20"
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"
                                     title="Excluir Produto"
+                                    aria-label={`Excluir ${prod.name}`}
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan={9} className="px-5 py-8 text-center text-muted-foreground italic">
-                            Nenhum produto encontrado.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                ) : (
-                  <div className="p-3">
-                    {filteredProducts.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-                        {filteredProducts.map((prod) => {
-                          const belowMin = prod.stock_controlled && prod.current_stock < prod.min_stock;
-                          const catName = categories.find(c => c.id === prod.category_id)?.name || 'Outros';
-
-                          return (
-                            <div key={prod.id} className="rounded-xl border border-border bg-background p-3 shadow-sm hover:border-primary/30 transition-colors">
-                              <div className="flex items-start gap-3">
-                                {prod.image_url ? (
-                                  <img
-                                    src={prod.image_url}
-                                    alt={prod.name}
-                                    className="h-12 w-12 rounded-lg object-cover border border-border bg-card shrink-0"
-                                  />
-                                ) : (
-                                  <div className="h-12 w-12 rounded-lg bg-secondary/50 flex items-center justify-center border border-border text-muted-foreground shrink-0">
-                                    <Package className="h-5 w-5" />
-                                  </div>
-                                )}
-
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0">
-                                      <h4 className="text-xs font-black text-foreground truncate" title={prod.name}>{prod.name}</h4>
-                                      <p className="text-[10px] text-muted-foreground truncate mt-0.5" title={stripRichTextHtml(prod.description)}>
-                                        {stripRichTextHtml(prod.description) || '-'}
-                                      </p>
-                                    </div>
-                                    <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[8px] font-black border ${
-                                      prod.catalog_active !== false
-                                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                                        : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                                    }`}>
-                                      {prod.catalog_active !== false ? 'CATALOGO' : 'SAAS'}
-                                    </span>
-                                  </div>
-
-                                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                    <span className="max-w-[120px] truncate px-2 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold" title={catName}>
-                                      {catName}
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground text-[9px] font-bold uppercase">
-                                      {prod.pricing_type}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px]">
-                                <div>
-                                  <span className="block text-muted-foreground font-bold uppercase">Custo</span>
-                                  <strong className="text-foreground">{formatCurrency(prod.base_cost)}</strong>
-                                </div>
-                                <div>
-                                  <span className="block text-muted-foreground font-bold uppercase">Venda</span>
-                                  <strong className="text-foreground">{formatCurrency(prod.sales_price)}</strong>
-                                </div>
-                                <div>
-                                  <span className="block text-muted-foreground font-bold uppercase">Estoque</span>
-                                  <strong className={belowMin ? 'text-rose-500' : 'text-foreground'}>
-                                    {prod.stock_controlled ? prod.current_stock : 'Sem'}
-                                  </strong>
-                                </div>
-                              </div>
-
-                              <div className="mt-3 flex items-center justify-end gap-1">
-                                <button
-                                  onClick={() => handleDuplicateProduct(prod)}
-                                  className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/20"
-                                  title="Duplicar Produto"
-                                >
-                                  <Copy className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleOpenEdit(prod)}
-                                  className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
-                                  title="Editar Produto"
-                                >
-                                  <Edit3 className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (confirm(`Excluir o produto "${prod.name}" do catalogo do ERP?`)) {
-                                      deleteProduct(prod.id);
-                                    }
-                                  }}
-                                  className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/25 border border-rose-500/20"
-                                  title="Excluir Produto"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="px-5 py-8 text-center text-muted-foreground italic text-xs">
-                        Nenhum produto encontrado.
-                      </div>
-                    )}
-                  </div>
-                )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="px-5 py-10 text-center text-muted-foreground italic text-xs">
+                      Nenhum produto encontrado.
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           ) : (
