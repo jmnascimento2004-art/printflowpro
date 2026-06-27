@@ -606,7 +606,7 @@ export default function StorefrontPage() {
   };
 
   const handleWhatsAppProductRequest = (payload: ProductConfiguratorCartPayload) => {
-    const companyWhatsAppPhone = settings.catalog_whatsapp || settings.top_bar_phone || company.phone || '';
+    const companyWhatsAppPhone = settings.catalog_whatsapp || '';
     if (!companyWhatsAppPhone.trim()) {
       alert('WhatsApp da empresa não configurado.');
       return;
@@ -717,7 +717,7 @@ export default function StorefrontPage() {
         zip_code: isMotoboyDelivery ? deliveryZipCode : ''
       },
       tags: ['Catalogo Online'],
-      notes: `Cliente criado pelo catalogo online.\nInteresse de compra:\n${purchaseInterest}\nObs cliente: ${checkoutNotes}`,
+      notes: `Cliente criado pelo catálogo online.\nInteresse de compra:\n${purchaseInterest}\nObs cliente: ${checkoutNotes}`,
       billing_type: 'imediato',
       credit_limit: 0,
       credit_used: 0,
@@ -1667,7 +1667,7 @@ export default function StorefrontPage() {
                             {item.configuration_summary}
                           </div>
                         )}
-                        <span className="text-[10px] text-slate-500 mt-0.5 block font-semibold">{item.quantity}x {formatCurrency(item.calculatedPrice)}</span>
+                        <span className="text-[10px] text-slate-500 mt-0.5 block font-semibold">{item.quantity}x {formatUnitCurrency(item.calculatedPrice)}</span>
                       </div>
                       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                         <span className="font-black text-slate-900 whitespace-nowrap">{formatCurrency(item.quantity * item.calculatedPrice)}</span>
@@ -1703,7 +1703,7 @@ export default function StorefrontPage() {
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
                       <p className="text-xs font-black text-slate-950">Ja possui uma conta?</p>
                       <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-600">
-                        Crie sua conta para acompanhar pedidos, salvar enderecos e comprar com mais rapidez.
+                        Crie sua conta para acompanhar pedidos, salvar endereços e comprar com mais rapidez.
                       </p>
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <Link href={withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.checkout)} className="flex min-h-10 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-700">
@@ -1716,7 +1716,7 @@ export default function StorefrontPage() {
                     </div>
                   )}
                   <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-5 text-slate-500">
-                    Usaremos estes dados para processar o orcamento, pedido, pagamento, entrega e atendimento. Marketing e cookies nao essenciais dependem de consentimento separado.
+                    Usaremos estes dados para processar o orçamento, pedido, pagamento, entrega e atendimento. Marketing e cookies não essenciais dependem de consentimento separado.
                   </p>
                   
                   <div className="space-y-1">
@@ -1804,7 +1804,7 @@ export default function StorefrontPage() {
                             onChange={(event) => applyStoreAddress(event.target.value)}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold focus:outline-none focus:border-emerald-500"
                           >
-                            <option value="">Selecionar endereco salvo...</option>
+                            <option value="">Selecionar endereço salvo...</option>
                             {storeCustomerAddresses.map((address) => (
                               <option key={address.id} value={address.id}>
                                 {address.label} - {formatStoreAddress(address)}
@@ -2160,10 +2160,8 @@ export default function StorefrontPage() {
         company={company}
         settings={settings}
         storeCustomerAuthenticated={storeCustomerAuthenticated}
-        onOpenCart={() => setCartOpen(true)}
         onShowAllServices={() => setSelectedCategory(null)}
         onOpenPickupPoints={() => setPickupModalOpen(true)}
-        onOpenRefundPolicy={() => setRefundModalOpen(true)}
       />
       {!cartOpen && !activeAdvancedConfigProduct && !orderCompleted && !pickupModalOpen && !refundModalOpen && (
         <StoreMobileBottomNavigation
@@ -2172,7 +2170,7 @@ export default function StorefrontPage() {
           searchQuery={searchQuery}
           cartItemCount={cartItemCount}
           companyName={company.name || 'Loja online'}
-          companyPhone={company.phone}
+          companyPhone={settings.catalog_whatsapp}
           companyEmail={company.email}
           primaryColor={primary}
           onGoHome={handleStoreHome}
@@ -2230,7 +2228,7 @@ export default function StorefrontPage() {
               <button
                 type="button"
                 onClick={() => setPickupModalOpen(false)}
-                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-md"
+                className="pf-button-primary px-5 py-2.5 text-xs shadow-md"
               >
                 Fechar Janela
               </button>
@@ -2271,7 +2269,7 @@ export default function StorefrontPage() {
               <button
                 type="button"
                 onClick={() => setRefundModalOpen(false)}
-                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-md"
+                className="pf-button-primary px-5 py-2.5 text-xs shadow-md"
               >
                 Entendido
               </button>

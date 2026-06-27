@@ -54,6 +54,22 @@ export interface NormalizedVolumePriceTier {
   total: number;
 }
 
+export interface NormalizedVariantPricingMatrixRow {
+  id: string;
+  material: string;
+  size: string;
+  colors: string;
+  finishing: string;
+  tiers: NormalizedVolumePriceTier[];
+}
+
+export interface VariantPricingSelection {
+  material?: string;
+  size?: string;
+  colors?: string;
+  finishing?: string;
+}
+
 export interface CatalogPricePresentation {
   hasVolumeTiers: boolean;
   quantity: number;
@@ -71,6 +87,8 @@ type ProductLike = Partial<Product> & {
     configurator_options?: ProductConfiguratorSettings | null;
   } | null;
 };
+
+const normalizeTextValue = (value: unknown): string => String(value ?? '').trim();
 
 const toFiniteNumber = (value: unknown, fallback = 0): number => {
   if (value === null || value === undefined || value === '') return fallback;
@@ -111,6 +129,68 @@ export function getNormalizedVolumePricing(product: ProductLike | null | undefin
 
 export function getInitialVolumePricingTier(product: ProductLike | null | undefined): NormalizedVolumePriceTier | null {
   return getNormalizedVolumePricing(product)[0] || null;
+}
+
+export function getNormalizedVariantPricingMatrix(product: ProductLike | null | undefined): NormalizedVariantPricingMatrixRow[] {
+  const matrix = product?.pricing_details?.configurator_options?.variant_pricing_matrix;
+  if (!Array.isArray(matrix)) return [];
+
+  return matrix
+    .map((row, index) => {
+      const rawTiers = Array.isArray(row.tiers) ? row.tiers : [];
+      const tiers = rawTiers
+        .map((tier) => {
+          const quantity = Math.max(0, toFiniteNumber((tier as { quantity?: unknown; min_qty?: unknown }).quantity ?? (tier as { min_qty?: unknown }).min_qty, 0));
+          const explicitTotal = toFiniteNumber((tier as { total_price?: unknown; total?: unknown }).total_price ?? (tier as { total?: unknown }).total, NaN);
+          const unitPrice = toFiniteNumber((tier as { unit_price?: unknown; price?: unknown }).unit_price ?? (tier as { price?: unknown }).price, Number.isFinite(explicitTotal) && quantity > 0 ? explicitTotal / quantity : 0);
+
+          return {
+            min_qty: quantity,
+            price: unitPrice,
+            total: Number.isFinite(explicitTotal) ? roundMoney(explicitTotal) : roundMoney(quantity * unitPrice)
+          };
+        })
+        .filter((tier) => tier.min_qty > 0 && tier.price >= 0)
+        .sort((a, b) => a.min_qty - b.min_qty);
+
+      return {
+        id: normalizeTextValue(row.id) || `matrix-${index}`,
+        material: normalizeTextValue(row.material),
+        size: normalizeTextValue(row.size),
+        colors: normalizeTextValue(row.colors),
+        finishing: normalizeTextValue(row.finishing),
+        tiers
+      };
+    })
+    .filter((row) => row.tiers.length > 0)
+    .sort((a, b) => [a.material, a.size, a.colors, a.finishing].join('|').localeCompare([b.material, b.size, b.colors, b.finishing].join('|')));
+}
+
+export function getVariantPricingOptions(
+  rows: NormalizedVariantPricingMatrixRow[],
+  field: keyof VariantPricingSelection,
+  selection: VariantPricingSelection = {}
+): string[] {
+  const matches = rows.filter((row) => {
+    return (field === 'material' || !selection.material || row.material === selection.material) &&
+      (field === 'size' || !selection.size || row.size === selection.size) &&
+      (field === 'colors' || !selection.colors || row.colors === selection.colors) &&
+      (field === 'finishing' || !selection.finishing || row.finishing === selection.finishing);
+  });
+
+  return Array.from(new Set(matches.map((row) => row[field]).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
+export function findVariantPricingMatrixRow(
+  rows: NormalizedVariantPricingMatrixRow[],
+  selection: VariantPricingSelection
+): NormalizedVariantPricingMatrixRow | null {
+  return rows.find((row) => (
+    (!row.material || row.material === selection.material) &&
+    (!row.size || row.size === selection.size) &&
+    (!row.colors || row.colors === selection.colors) &&
+    (!row.finishing || row.finishing === selection.finishing)
+  )) || null;
 }
 
 export function getCatalogPricePresentation(product: ProductLike | null | undefined): CatalogPricePresentation {
@@ -267,6 +347,6 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
     pricingType,
     appliedVolumePrice,
     formattedTotal: formatCurrency(subtotal),
-    formattedUnitPrice: formatCurrency(unitPrice)
+    formattedUnitPrice: formatUnitCurrency(unitPrice)
   };
 }

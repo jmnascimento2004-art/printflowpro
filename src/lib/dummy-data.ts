@@ -213,6 +213,21 @@ export interface ProductConfiguratorGroup {
   options: ProductConfiguratorOption[];
 }
 
+export interface VariantPricingTier {
+  quantity: number;
+  unit_price: number;
+  total_price?: number;
+}
+
+export interface VariantPricingMatrixRow {
+  id: string;
+  material?: string;
+  size?: string;
+  colors?: string;
+  finishing?: string;
+  tiers: VariantPricingTier[];
+}
+
 export interface ProductConfiguratorSettings {
   sale_mode: ProductSaleMode;
   allow_custom_measure?: boolean;
@@ -228,6 +243,7 @@ export interface ProductConfiguratorSettings {
   quote_on_request?: boolean;
   customer_message?: string;
   option_groups?: ProductConfiguratorGroup[];
+  variant_pricing_matrix?: VariantPricingMatrixRow[];
 }
 
 export interface VolumePriceTier {

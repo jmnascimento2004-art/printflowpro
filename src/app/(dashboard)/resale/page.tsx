@@ -7,6 +7,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
+import { formatUnitCurrency } from '@/lib/pricing';
 
 export default function ResalePage() {
   const { orders } = useDatabase();
@@ -172,7 +173,7 @@ export default function ResalePage() {
 
                       {/* Retail Price */}
                       <td className="px-5 py-3.5 text-right text-foreground font-bold">
-                        {formatCurrency(item.unitPrice)}
+                        {formatUnitCurrency(item.unitPrice)}
                         <div className="text-[9px] text-muted-foreground">Total: {formatCurrency(item.totalPrice)}</div>
                       </td>
 

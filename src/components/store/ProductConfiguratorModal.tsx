@@ -18,12 +18,17 @@ import type { Product, ProductConfiguratorSettings, ProductSaleMode } from '@/li
 import {
   formatCurrency,
   formatUnitCurrency,
+  findVariantPricingMatrixRow,
   getInitialVolumePricingTier,
   getNormalizedVolumePricing,
+  getNormalizedVariantPricingMatrix,
   getPriceBreakdown,
   getProductConfigurator,
+  getVariantPricingOptions,
+  type NormalizedVolumePriceTier,
   type PricingSelectedOption
 } from '@/lib/pricing';
+import { sanitizeProductDescription, stripRichTextHtml } from '@/lib/utils';
 
 export interface ProductConfiguratorCartPayload {
   product: Product;
@@ -127,6 +132,8 @@ export function ProductConfiguratorModal({
   const optionGroups = useMemo(() => configurator?.option_groups || [], [configurator]);
   const sizeOptions = useMemo(() => configurator?.size_options || [], [configurator]);
   const shouldShowSizeGrid = saleMode === 'size_grid' || hasRealSizeConfiguration(sizeOptions);
+  const variantPricingRows = useMemo(() => getNormalizedVariantPricingMatrix(product), [product]);
+  const hasVariantPricingMatrix = saleMode === 'volume' && variantPricingRows.length > 0;
 
   const [quantity, setQuantity] = useState(1);
   const [widthCm, setWidthCm] = useState(100);
@@ -136,6 +143,10 @@ export function ProductConfiguratorModal({
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedVariant, setSelectedVariant] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
+  const [selectedMaterial, setSelectedMaterial] = useState('');
+  const [selectedMatrixSize, setSelectedMatrixSize] = useState('');
+  const [selectedMatrixColors, setSelectedMatrixColors] = useState('');
+  const [selectedFinishing, setSelectedFinishing] = useState('');
 
   useEffect(() => {
     if (!isOpen || !product) return;
@@ -171,7 +182,41 @@ export function ProductConfiguratorModal({
     setSelectedSize(defaultSize);
     setSelectedVariant(product.variant_options?.[0]?.name || '');
     setSelectedColor(product.color_options?.[0]?.name || '');
-  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode]);
+    const firstMatrixRow = variantPricingRows[0];
+    setSelectedMaterial(firstMatrixRow?.material || '');
+    setSelectedMatrixSize(firstMatrixRow?.size || '');
+    setSelectedMatrixColors(firstMatrixRow?.colors || '');
+    setSelectedFinishing(firstMatrixRow?.finishing || '');
+  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode, variantPricingRows]);
+
+  const matrixSelection = useMemo(() => ({
+    material: selectedMaterial,
+    size: selectedMatrixSize,
+    colors: selectedMatrixColors,
+    finishing: selectedFinishing
+  }), [selectedMaterial, selectedMatrixSize, selectedMatrixColors, selectedFinishing]);
+
+  const selectedMatrixRow = useMemo(() => {
+    return hasVariantPricingMatrix
+      ? findVariantPricingMatrixRow(variantPricingRows, matrixSelection)
+      : null;
+  }, [hasVariantPricingMatrix, variantPricingRows, matrixSelection]);
+
+  const effectiveVolumeTiers: NormalizedVolumePriceTier[] = useMemo(() => {
+    return hasVariantPricingMatrix
+      ? selectedMatrixRow?.tiers || []
+      : volumeTiers;
+  }, [hasVariantPricingMatrix, selectedMatrixRow, volumeTiers]);
+  const hasVolumePricing = saleMode === 'volume' && effectiveVolumeTiers.length > 0;
+
+  useEffect(() => {
+    if (!isOpen || !hasVolumePricing) return;
+
+    const isValidTierQuantity = effectiveVolumeTiers.some((tier) => tier.min_qty === quantity);
+    if (!isValidTierQuantity) {
+      setQuantity(effectiveVolumeTiers[0].min_qty);
+    }
+  }, [isOpen, hasVolumePricing, quantity, effectiveVolumeTiers]);
 
   const selectedOptions = useMemo(() => {
     const groupOptions = optionGroups.flatMap((group) => {
@@ -212,14 +257,23 @@ export function ProductConfiguratorModal({
           group_name: 'Cor'
         }]
       : [];
+    const matrixSelectionOptions = hasVariantPricingMatrix
+      ? [
+          selectedMaterial ? { name: selectedMaterial, option_name: selectedMaterial, price_delta: 0, additional_days: 0, group_name: 'Material' } : null,
+          selectedMatrixSize ? { name: selectedMatrixSize, option_name: selectedMatrixSize, price_delta: 0, additional_days: 0, group_name: 'Tamanho' } : null,
+          selectedMatrixColors ? { name: selectedMatrixColors, option_name: selectedMatrixColors, price_delta: 0, additional_days: 0, group_name: 'Cores' } : null,
+          selectedFinishing ? { name: selectedFinishing, option_name: selectedFinishing, price_delta: 0, additional_days: 0, group_name: 'Acabamento' } : null
+        ].filter(Boolean) as Array<{ name: string; option_name: string; price_delta: number; additional_days: number; group_name: string }>
+      : [];
 
     return [
       ...groupOptions,
+      ...matrixSelectionOptions,
       ...sizeSelection,
       ...variantSelection,
       ...colorSelection
     ];
-  }, [optionGroups, selectedOptionsByGroup, selectedSize, selectedVariant, selectedColor, sizeOptions, shouldShowSizeGrid]);
+  }, [optionGroups, selectedOptionsByGroup, selectedSize, selectedVariant, selectedColor, sizeOptions, shouldShowSizeGrid, hasVariantPricingMatrix, selectedMaterial, selectedMatrixSize, selectedMatrixColors, selectedFinishing]);
 
   const selectedPricingOptions = useMemo(() => {
     return selectedOptions.map((option) => ({
@@ -233,10 +287,19 @@ export function ProductConfiguratorModal({
   const width = widthCm / 100;
   const height = heightCm / 100;
   const length = lengthCm / 100;
+  const selectedVolumeTier = hasVolumePricing
+    ? effectiveVolumeTiers.find((tier) => tier.min_qty === quantity) || effectiveVolumeTiers[0]
+    : null;
+  const configuredQuantity = selectedVolumeTier?.min_qty || quantity;
+  const productDescription = useMemo(
+    () => sanitizeProductDescription(product?.description || ''),
+    [product?.description]
+  );
+  const hasProductDescription = stripRichTextHtml(productDescription).length > 0;
 
   const breakdown = useMemo(() => {
     return getPriceBreakdown(product, {
-      quantity,
+      quantity: configuredQuantity,
       width,
       height,
       length,
@@ -246,7 +309,7 @@ export function ProductConfiguratorModal({
         selectedOptions: selectedPricingOptions
       }
     });
-  }, [product, quantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions]);
+  }, [product, configuredQuantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions]);
 
   if (!isOpen || !product) return null;
 
@@ -256,7 +319,12 @@ export function ProductConfiguratorModal({
 
   const saleModeLabel = saleModeLabels[saleMode] || 'Produto configurável';
   const isUnsupportedMode = !supportedSaleModes.has(saleMode);
-  const unitPriceForCart = breakdown.quantity > 0 ? breakdown.subtotal / breakdown.quantity : 0;
+  const subtotalForCart = selectedVolumeTier ? selectedVolumeTier.total : breakdown.subtotal;
+  const unitPriceForCart = selectedVolumeTier
+    ? selectedVolumeTier.price
+    : breakdown.quantity > 0 ? breakdown.subtotal / breakdown.quantity : 0;
+  const formattedSubtotal = formatCurrency(subtotalForCart);
+  const isConfigurationUnavailable = hasVariantPricingMatrix && !selectedMatrixRow;
   const dimensions = {
     width: product.pricing_type === 'm2' ? width : undefined,
     height: product.pricing_type === 'm2' ? height : undefined,
@@ -264,11 +332,21 @@ export function ProductConfiguratorModal({
   };
   const configurationSummary = [
     `Tipo: ${saleModeLabel}`,
-    `Quantidade: ${quantity}`,
+    `Quantidade: ${configuredQuantity}`,
     product.pricing_type === 'm2' ? `Medidas: ${widthCm}cm x ${heightCm}cm` : '',
     product.pricing_type === 'linear' ? `Metragem: ${lengthCm}cm` : '',
     summarizeOptions(selectedOptions)
   ].filter(Boolean).join(' | ');
+  const matrixMaterialOptions = getVariantPricingOptions(variantPricingRows, 'material');
+  const matrixSizeOptions = getVariantPricingOptions(variantPricingRows, 'size', { material: selectedMaterial });
+  const matrixColorOptions = getVariantPricingOptions(variantPricingRows, 'colors', { material: selectedMaterial, size: selectedMatrixSize });
+  const matrixFinishingOptions = getVariantPricingOptions(variantPricingRows, 'finishing', matrixSelection);
+  const matrixOptionGroups = [
+    { label: 'Material', value: selectedMaterial, options: matrixMaterialOptions, onSelect: setSelectedMaterial },
+    { label: 'Tamanho', value: selectedMatrixSize, options: matrixSizeOptions, onSelect: setSelectedMatrixSize },
+    { label: 'Cores', value: selectedMatrixColors, options: matrixColorOptions, onSelect: setSelectedMatrixColors },
+    { label: 'Acabamento', value: selectedFinishing, options: matrixFinishingOptions, onSelect: setSelectedFinishing }
+  ].filter((group) => group.options.length > 0);
 
   const handleGroupOptionChange = (
     groupId: string,
@@ -294,7 +372,7 @@ export function ProductConfiguratorModal({
       product_name: product.name,
       quantity: breakdown.quantity,
       unit_price: unitPriceForCart,
-      total_price: breakdown.subtotal,
+      total_price: subtotalForCart,
       selected_options: selectedOptions,
       dimensions,
       pricing_type: product.pricing_type,
@@ -305,10 +383,12 @@ export function ProductConfiguratorModal({
   });
 
   const handleAdd = () => {
+    if (isConfigurationUnavailable) return;
     onAddToCart(buildPayload());
   };
 
   const handleWhatsAppRequest = () => {
+    if (isConfigurationUnavailable) return;
     onRequestWhatsApp?.(buildPayload());
   };
 
@@ -399,22 +479,35 @@ export function ProductConfiguratorModal({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Configuração principal</h3>
-                  <p className="mt-1 text-xs text-slate-500">Informe quantidade e medidas necessárias para este produto.</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {hasVolumePricing
+                      ? 'Escolha uma tiragem cadastrada para este produto.'
+                      : 'Informe quantidade e medidas necessárias para este produto.'}
+                  </p>
                 </div>
                 <Layers3 className="h-5 w-5 text-emerald-600" />
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <label className="space-y-1">
-                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Quantidade</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={quantity}
-                    onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
-                  />
-                </label>
+                {hasVolumePricing ? (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Quantidade</span>
+                    <div className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-sm font-black text-emerald-700">
+                      {configuredQuantity} un
+                    </div>
+                  </div>
+                ) : (
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Quantidade</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
+                    />
+                  </label>
+                )}
 
                 {product.pricing_type === 'm2' && (
                   <>
@@ -456,19 +549,75 @@ export function ProductConfiguratorModal({
               </div>
             </section>
 
-            {saleMode === 'volume' && volumeTiers.length > 0 && (
+            {hasProductDescription && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Descrição do produto</h3>
+                <div
+                  className="rich-text-description mt-2 text-xs font-medium leading-relaxed text-slate-600"
+                  dangerouslySetInnerHTML={{ __html: productDescription }}
+                />
+              </section>
+            )}
+
+            {hasVariantPricingMatrix && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Configure seu produto</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Escolha a combinação cadastrada pela gráfica para ver as tiragens e preços disponíveis.
+                  </p>
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {matrixOptionGroups.map((group) => (
+                    <div key={group.label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{group.label}</span>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {group.options.map((option) => {
+                          const selected = group.value === option;
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => group.onSelect(option)}
+                              className={`rounded-xl border px-3 py-2 text-xs font-black transition-all ${
+                                selected
+                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-600/10'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
+                              }`}
+                            >
+                              {option}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {!selectedMatrixRow && (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                    Essa combinação não possui preço cadastrado. Escolha outra opção.
+                  </div>
+                )}
+              </section>
+            )}
+
+            {hasVolumePricing && (
               <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Faixas de quantidade</h3>
-                    <p className="mt-1 text-xs text-slate-600">Escolha a tiragem para aplicar o preço unitário correto.</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Este produto é vendido por tiragem. Escolha uma das quantidades disponíveis cadastradas pela gráfica.
+                    </p>
                   </div>
                   <Tag className="h-5 w-5 text-emerald-600" />
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {volumeTiers.map((tier) => {
-                    const selected = quantity === tier.min_qty;
+                  {effectiveVolumeTiers.map((tier) => {
+                    const selected = configuredQuantity === tier.min_qty;
                     return (
                       <button
                         key={tier.min_qty}
@@ -657,7 +806,7 @@ export function ProductConfiguratorModal({
                   </div>
                   <div className="flex justify-between gap-3">
                     <span className="text-slate-500">Quantidade</span>
-                    <span className="font-bold text-slate-700">{quantity}</span>
+                    <span className="font-bold text-slate-700">{configuredQuantity}</span>
                   </div>
                   {product.pricing_type === 'm2' && (
                     <div className="flex justify-between gap-3">
@@ -690,7 +839,7 @@ export function ProductConfiguratorModal({
                 <div className="mt-4 border-t border-slate-200 pt-4">
                   <div className="flex items-end justify-between gap-3">
                     <span className="text-xs font-bold text-slate-500">Subtotal</span>
-                    <span className="text-2xl font-black text-emerald-600">{breakdown.formattedTotal}</span>
+                    <span className="text-2xl font-black text-emerald-600">{formattedSubtotal}</span>
                   </div>
                   <p className="mt-1 text-right text-[11px] font-semibold text-slate-500">
                     Unitário estimado: {saleMode === 'volume' ? formatUnitCurrency(unitPriceForCart) : formatCurrency(unitPriceForCart)}
@@ -701,7 +850,8 @@ export function ProductConfiguratorModal({
               <button
                 type="button"
                 onClick={handleAdd}
-                className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/15 transition-all hover:bg-emerald-500 flex items-center justify-center gap-2"
+                disabled={isConfigurationUnavailable}
+                className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/15 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none flex items-center justify-center gap-2"
               >
                 <ShoppingCart className="h-4 w-4" />
                 Adicionar ao carrinho
@@ -709,14 +859,16 @@ export function ProductConfiguratorModal({
               <button
                 type="button"
                 onClick={handleAdd}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition-all hover:bg-slate-100"
+                disabled={isConfigurationUnavailable}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition-all hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               >
                 Finalizar produto
               </button>
               <button
                 type="button"
                 onClick={handleWhatsAppRequest}
-                className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100 flex items-center justify-center gap-2"
+                disabled={isConfigurationUnavailable}
+                className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 flex items-center justify-center gap-2"
               >
                 <MessageCircle className="h-4 w-4" />
                 Solicitar pelo WhatsApp

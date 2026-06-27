@@ -28,6 +28,7 @@ import {
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
+import { formatUnitCurrency } from '@/lib/pricing';
 
 export default function QuotesPage() {
   const { 
@@ -500,7 +501,7 @@ export default function QuotesPage() {
         width: prod.pricing_type === 'm2' || prod.pricing_type === 'linear' ? itemWidth : undefined,
         height: prod.pricing_type === 'm2' ? itemHeight : undefined,
         notes: volumeTier
-          ? `Faixa de preco aplicada: a partir de ${volumeTier.min_qty} un (${formatCurrency(volumeTier.price)} / un).`
+          ? `Faixa de preco aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un).`
           : ''
       }
     };
@@ -732,7 +733,7 @@ export default function QuotesPage() {
                         <td className="px-4 py-0.5 font-semibold text-foreground leading-tight">
                           {item.product_name}
                         </td>
-                        <td className="px-4 py-0.5 text-right text-muted-foreground whitespace-nowrap leading-tight">{formatCurrency(item.unit_price)}</td>
+                        <td className="px-4 py-0.5 text-right text-muted-foreground whitespace-nowrap leading-tight">{formatUnitCurrency(item.unit_price)}</td>
                         <td className="px-4 py-0.5 text-right font-bold text-foreground whitespace-nowrap leading-tight">{formatCurrency(item.total_price)}</td>
                       </tr>
                   ))
@@ -1112,7 +1113,7 @@ export default function QuotesPage() {
                             : 'bg-card text-foreground border-border hover:border-primary/50'
                         }`}
                       >
-                        {tier.min_qty} un - {formatCurrency(tier.price)} / un
+                        {tier.min_qty} un - {formatUnitCurrency(tier.price)} / un
                       </button>
                     ))}
                   </div>
@@ -1122,7 +1123,7 @@ export default function QuotesPage() {
                         Faixa aplicada: a partir de {getProductPriceInfo(selectedProductId).volumeTier?.min_qty} un
                       </span>
                       <span className="font-bold text-primary">
-                        {formatCurrency(getProductPriceInfo(selectedProductId).volumeTier?.price || 0)} / un
+                        {formatUnitCurrency(getProductPriceInfo(selectedProductId).volumeTier?.price || 0)} / un
                         {' | '}
                         {formatCurrency(getProductPriceInfo(selectedProductId).price * itemQty)} total
                       </span>
@@ -1133,7 +1134,7 @@ export default function QuotesPage() {
                         Este produto possui tabela por quantidade, mas a quantidade informada ainda nao atingiu a primeira faixa.
                       </span>
                       <span className="font-bold text-foreground">
-                        Preco base: {formatCurrency(getProductPriceInfo(selectedProductId).price)} / un
+                        Preco base: {formatUnitCurrency(getProductPriceInfo(selectedProductId).price)} / un
                       </span>
                     </div>
                   )}
@@ -1181,7 +1182,7 @@ export default function QuotesPage() {
                           )}
                         </td>
                         <td className="px-4 py-2 text-center font-semibold text-muted-foreground">{item.quantity}</td>
-                        <td className="px-4 py-2 text-right text-muted-foreground">{formatCurrency(item.unit_price)}</td>
+                        <td className="px-4 py-2 text-right text-muted-foreground">{formatUnitCurrency(item.unit_price)}</td>
                         <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(item.quantity * item.unit_price)}</td>
                         <td className="px-4 py-2 text-center">
                           <button

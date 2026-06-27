@@ -22,8 +22,14 @@ import {
   Eraser
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
-import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductSaleMode } from '@/lib/dummy-data';
-import { formatCurrencyInput, parseCurrencyInputToNumber, sanitizeRichTextHtml, stripRichTextHtml } from '@/lib/utils';
+import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductSaleMode, VariantPricingMatrixRow } from '@/lib/dummy-data';
+import {
+  formatCurrencyInput,
+  parseCurrencyInputToNumber,
+  parseUnitCurrencyInputToNumber,
+  sanitizeRichTextHtml,
+  stripRichTextHtml
+} from '@/lib/utils';
 import { formatUnitCurrency } from '@/lib/pricing';
 import { RichTextEditor } from '@/components/rich-text-editor';
 
@@ -359,9 +365,8 @@ export default function ProductsCRUDPage() {
   // Advanced States
   const [imageUrl, setImageUrl] = useState('');
   const [volumePricing, setVolumePricing] = useState<Array<{ min_qty: number, price: number }>>([]);
-  const [tempMinQty, setTempMinQty] = useState<number | ''>(2);
-  const [tempPrice, setTempPrice] = useState<number>(0);
-  const [tempTotalPrice, setTempTotalPrice] = useState<number>(0);
+  const [tempMinQty, setTempMinQty] = useState('');
+  const [tempUnitPriceInput, setTempUnitPriceInput] = useState('');
   const [variantOptions, setVariantOptions] = useState<Array<{ name: string }>>([]);
   const [colorOptions, setColorOptions] = useState<Array<{ name: string, hex?: string }>>([]);
   const [tempVariantName, setTempVariantName] = useState('');
@@ -382,28 +387,151 @@ export default function ProductsCRUDPage() {
   const [quoteOnRequest, setQuoteOnRequest] = useState(false);
   const [customerMessage, setCustomerMessage] = useState('');
   const [optionGroups, setOptionGroups] = useState<ProductConfiguratorGroup[]>([]);
+  const [variantPricingMatrix, setVariantPricingMatrix] = useState<VariantPricingMatrixRow[]>([]);
+  const [matrixMaterial, setMatrixMaterial] = useState('');
+  const [matrixSize, setMatrixSize] = useState('');
+  const [matrixColors, setMatrixColors] = useState('');
+  const [matrixFinishing, setMatrixFinishing] = useState('');
+  const [matrixQuantity, setMatrixQuantity] = useState('');
+  const [matrixUnitPriceInput, setMatrixUnitPriceInput] = useState('');
 
-  const handleTempPriceChange = (val: number, qty: number | '' = tempMinQty) => {
-    setTempPrice(val);
-    const numericQty = typeof qty === 'number' ? qty : 0;
-    setTempTotalPrice(Math.round(val * numericQty * 100) / 100);
-  };
-
-  const handleTempTotalPriceChange = (val: number, qty: number | '' = tempMinQty) => {
-    setTempTotalPrice(val);
-    const numericQty = typeof qty === 'number' ? qty : 0;
-    setTempPrice(numericQty > 0 ? Math.round((val / numericQty) * 10000) / 10000 : 0);
-  };
+  const parsedTempMinQty = tempMinQty.trim()
+    ? Math.max(0, parseInt(tempMinQty, 10) || 0)
+    : 0;
+  const parsedTempUnitPrice = parseUnitCurrencyInputToNumber(tempUnitPriceInput);
+  const tempCalculatedTotal = parsedTempMinQty > 0 && parsedTempUnitPrice > 0
+    ? Math.round(parsedTempMinQty * parsedTempUnitPrice * 100) / 100
+    : 0;
 
   const handleTempMinQtyChange = (valStr: string) => {
-    if (valStr === '') {
-      setTempMinQty('');
-      setTempTotalPrice(0);
+    setTempMinQty(valStr.replace(/\D/g, ''));
+  };
+
+  const handleTempUnitPriceChange = (value: string) => {
+    const cleaned = value.replace(/[^\d,.]/g, '');
+    const separatorIndex = cleaned.search(/[,.]/);
+
+    if (separatorIndex === -1) {
+      setTempUnitPriceInput(cleaned);
       return;
     }
-    const qty = parseInt(valStr) || 0;
-    setTempMinQty(qty);
-    setTempTotalPrice(Math.round(tempPrice * qty * 100) / 100);
+
+    const integerPart = cleaned.slice(0, separatorIndex).replace(/[,.]/g, '');
+    const separator = cleaned[separatorIndex];
+    const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[,.]/g, '').slice(0, 4);
+    setTempUnitPriceInput(`${integerPart}${separator}${decimalPart}`);
+  };
+
+  const parsedMatrixQuantity = matrixQuantity.trim()
+    ? Math.max(0, parseInt(matrixQuantity, 10) || 0)
+    : 0;
+  const parsedMatrixUnitPrice = parseUnitCurrencyInputToNumber(matrixUnitPriceInput);
+  const matrixCalculatedTotal = parsedMatrixQuantity > 0 && parsedMatrixUnitPrice > 0
+    ? Math.round(parsedMatrixQuantity * parsedMatrixUnitPrice * 100) / 100
+    : 0;
+
+  const handleMatrixQuantityChange = (value: string) => {
+    setMatrixQuantity(value.replace(/\D/g, ''));
+  };
+
+  const handleMatrixUnitPriceChange = (value: string) => {
+    const cleaned = value.replace(/[^\d,.]/g, '');
+    const separatorIndex = cleaned.search(/[,.]/);
+
+    if (separatorIndex === -1) {
+      setMatrixUnitPriceInput(cleaned);
+      return;
+    }
+
+    const integerPart = cleaned.slice(0, separatorIndex).replace(/[,.]/g, '');
+    const separator = cleaned[separatorIndex];
+    const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[,.]/g, '').slice(0, 4);
+    setMatrixUnitPriceInput(`${integerPart}${separator}${decimalPart}`);
+  };
+
+  const addVariantMatrixTier = () => {
+    const material = matrixMaterial.trim();
+    const size = matrixSize.trim();
+    const colors = matrixColors.trim();
+    const finishing = matrixFinishing.trim();
+    const quantity = parsedMatrixQuantity;
+    const unitPrice = parsedMatrixUnitPrice;
+
+    if (!material || !size || !colors || !finishing) {
+      alert('Informe material, tamanho, cores e acabamento para a combinação.');
+      return;
+    }
+    if (quantity < 1) {
+      alert('A quantidade da faixa deve ser maior que zero.');
+      return;
+    }
+    if (unitPrice <= 0) {
+      alert('Informe um preço unitário maior que zero.');
+      return;
+    }
+
+    const existingMatrixRow = variantPricingMatrix.find((row) => (
+      row.material?.toLowerCase() === material.toLowerCase() &&
+      row.size?.toLowerCase() === size.toLowerCase() &&
+      row.colors?.toLowerCase() === colors.toLowerCase() &&
+      row.finishing?.toLowerCase() === finishing.toLowerCase()
+    ));
+
+    if (existingMatrixRow?.tiers.some((tier) => tier.quantity === quantity)) {
+      alert('Já existe uma faixa com esta quantidade para esta combinação.');
+      return;
+    }
+
+    setVariantPricingMatrix((current) => {
+      const existingRow = current.find((row) => (
+        row.material?.toLowerCase() === material.toLowerCase() &&
+        row.size?.toLowerCase() === size.toLowerCase() &&
+        row.colors?.toLowerCase() === colors.toLowerCase() &&
+        row.finishing?.toLowerCase() === finishing.toLowerCase()
+      ));
+      const tier = {
+        quantity,
+        unit_price: unitPrice,
+        total_price: matrixCalculatedTotal
+      };
+
+      if (existingRow) {
+        return current.map((row) => {
+          if (row.id !== existingRow.id) return row;
+          return {
+            ...row,
+            tiers: [...row.tiers, tier].sort((a, b) => a.quantity - b.quantity)
+          };
+        });
+      }
+
+      return [
+        ...current,
+        {
+          id: `matrix-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          material,
+          size,
+          colors,
+          finishing,
+          tiers: [tier]
+        }
+      ];
+    });
+    setMatrixQuantity('');
+    setMatrixUnitPriceInput('');
+  };
+
+  const removeVariantMatrixRow = (rowId: string) => {
+    setVariantPricingMatrix((current) => current.filter((row) => row.id !== rowId));
+  };
+
+  const removeVariantMatrixTier = (rowId: string, quantity: number) => {
+    setVariantPricingMatrix((current) => current
+      .map((row) => row.id === rowId
+        ? { ...row, tiers: row.tiers.filter((tier) => tier.quantity !== quantity) }
+        : row)
+      .filter((row) => row.tiers.length > 0)
+    );
   };
 
   // Profitability parameters
@@ -453,12 +581,13 @@ export default function ProductsCRUDPage() {
 
   // Volume pricing helpers
   const addVolumeTier = () => {
-    const qty = typeof tempMinQty === 'number' ? tempMinQty : 0;
+    const qty = parsedTempMinQty;
+    const unitPrice = parsedTempUnitPrice;
     if (qty < 1) {
       alert("A quantidade minima deve ser pelo menos 1.");
       return;
     }
-    if (tempPrice <= 0) {
+    if (unitPrice <= 0) {
       alert("O preço deve ser maior que zero.");
       return;
     }
@@ -467,12 +596,11 @@ export default function ProductsCRUDPage() {
       return;
     }
 
-    const updated = [...volumePricing, { min_qty: qty, price: tempPrice }]
+    const updated = [...volumePricing, { min_qty: qty, price: unitPrice }]
       .sort((a, b) => a.min_qty - b.min_qty);
     setVolumePricing(updated);
-    setTempMinQty(2);
-    setTempPrice(0);
-    setTempTotalPrice(0);
+    setTempMinQty('');
+    setTempUnitPriceInput('');
   };
 
   const removeVolumeTier = (qty: number) => {
@@ -585,11 +713,28 @@ export default function ProductsCRUDPage() {
     min_area: minArea || undefined,
     min_length: minLength || undefined,
     kit_items: kitItems.trim() || undefined,
-    min_quantity: Math.max(1, configMinQuantity || 1),
+    min_quantity: saleMode === 'volume' ? undefined : Math.max(1, configMinQuantity || 1),
     size_options: sizeOptions.filter(option => option.name.trim()),
     quote_on_request: quoteOnRequest,
     customer_message: customerMessage.trim() || undefined,
-    option_groups: normalizeConfiguratorGroups()
+    option_groups: normalizeConfiguratorGroups(),
+    variant_pricing_matrix: variantPricingMatrix
+      .map((row) => ({
+        ...row,
+        material: row.material?.trim(),
+        size: row.size?.trim(),
+        colors: row.colors?.trim(),
+        finishing: row.finishing?.trim(),
+        tiers: row.tiers
+          .filter((tier) => tier.quantity > 0 && tier.unit_price > 0)
+          .map((tier) => ({
+            quantity: tier.quantity,
+            unit_price: tier.unit_price,
+            total_price: tier.total_price || Math.round(tier.quantity * tier.unit_price * 100) / 100
+          }))
+          .sort((a, b) => a.quantity - b.quantity)
+      }))
+      .filter((row) => row.material && row.size && row.colors && row.finishing && row.tiers.length > 0)
   });
 
   // Filter products
@@ -644,9 +789,15 @@ export default function ProductsCRUDPage() {
     setQuoteOnRequest(false);
     setCustomerMessage('');
     setOptionGroups([]);
-    setTempMinQty(2);
-    setTempPrice(0);
-    setTempTotalPrice(0);
+    setVariantPricingMatrix([]);
+    setMatrixMaterial('');
+    setMatrixSize('');
+    setMatrixColors('');
+    setMatrixFinishing('');
+    setMatrixQuantity('');
+    setMatrixUnitPriceInput('');
+    setTempMinQty('');
+    setTempUnitPriceInput('');
     setProfitMargin(defaultProfitMargin);
     setCommissionPercent(defaultCommissionRate);
     setTaxPercent(defaultTaxRate);
@@ -693,12 +844,18 @@ export default function ProductsCRUDPage() {
     setQuoteOnRequest(configurator?.quote_on_request || false);
     setCustomerMessage(configurator?.customer_message || '');
     setOptionGroups(configurator?.option_groups || []);
+    setVariantPricingMatrix(configurator?.variant_pricing_matrix || []);
+    setMatrixMaterial('');
+    setMatrixSize('');
+    setMatrixColors('');
+    setMatrixFinishing('');
+    setMatrixQuantity('');
+    setMatrixUnitPriceInput('');
     setTempVariantName('');
     setTempColorName('');
     setTempColorHex('#111827');
-    setTempMinQty(2);
-    setTempPrice(0);
-    setTempTotalPrice(0);
+    setTempMinQty('');
+    setTempUnitPriceInput('');
     if (prod.pricing_details) {
       setProfitMargin(prod.pricing_details.markup || defaultProfitMargin);
       setCommissionPercent(prod.pricing_details.commission || defaultCommissionRate);
@@ -2148,7 +2305,7 @@ export default function ProductsCRUDPage() {
                 <div>
                   <span className="font-bold text-xs text-foreground block">Preço por Quantidade (Tabela de Volume / Atacado)</span>
                   <span className="text-[9px] text-muted-foreground mt-0.5 block">
-                    Estas faixas alimentam o card publico do catalogo. Digite o preco unitario ou o total do lote para converter automaticamente.
+                    Neste modelo, a quantidade e definida nas faixas de preco abaixo. O cliente escolhera uma das tiragens cadastradas no catalogo.
                   </span>
                 </div>
                 
@@ -2156,9 +2313,11 @@ export default function ProductsCRUDPage() {
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase">Quantidade</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={tempMinQty}
                       onChange={(e) => handleTempMinQtyChange(e.target.value)}
+                      placeholder="Ex: 1000"
                       className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground text-center font-bold"
                     />
                   </div>
@@ -2167,20 +2326,23 @@ export default function ProductsCRUDPage() {
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase">Preço Unitário (R$)</label>
                     <input
                       type="text"
-                      value={formatCurrencyInput(tempPrice)}
-                      onChange={(e) => handleTempPriceChange(parseCurrencyInputToNumber(e.target.value))}
+                      inputMode="decimal"
+                      value={tempUnitPriceInput}
+                      onChange={(e) => handleTempUnitPriceChange(e.target.value)}
+                      placeholder="Ex: 0,1053"
                       className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase">Total do Lote (R$)</label>
-                    <input
-                      type="text"
-                      value={formatCurrencyInput(tempTotalPrice)}
-                      onChange={(e) => handleTempTotalPriceChange(parseCurrencyInputToNumber(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
-                    />
+                    <div className="flex h-8 w-full items-center rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-bold text-foreground">
+                      {tempCalculatedTotal > 0 ? (
+                        formatCurrency(tempCalculatedTotal)
+                      ) : (
+                        <span className="font-medium text-muted-foreground">Calculado automaticamente</span>
+                      )}
+                    </div>
                   </div>
                   
                   <button
@@ -2230,6 +2392,148 @@ export default function ProductsCRUDPage() {
                   </div>
                 )}
               </div>
+              )}
+
+              {saleMode === 'volume' && (
+                <div className="md:col-span-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 space-y-3">
+                  <div>
+                    <span className="font-bold text-xs text-foreground block">Matriz de Preços por Configuração</span>
+                    <span className="text-[9px] text-muted-foreground mt-0.5 block">
+                      Use quando material, tamanho, cores ou acabamento mudam o preço final. A tabela global acima continua como fallback para produtos simples.
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-background/80 p-3 rounded-xl border border-border">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase">Material</label>
+                      <input
+                        type="text"
+                        value={matrixMaterial}
+                        onChange={(e) => setMatrixMaterial(e.target.value)}
+                        placeholder="Ex: Couchê Brilho 90g"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase">Tamanho</label>
+                      <input
+                        type="text"
+                        value={matrixSize}
+                        onChange={(e) => setMatrixSize(e.target.value)}
+                        placeholder="Ex: 10x14cm"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase">Cores</label>
+                      <input
+                        type="text"
+                        value={matrixColors}
+                        onChange={(e) => setMatrixColors(e.target.value)}
+                        placeholder="Ex: 4x0 ou 4x4"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase">Acabamento</label>
+                      <input
+                        type="text"
+                        value={matrixFinishing}
+                        onChange={(e) => setMatrixFinishing(e.target.value)}
+                        placeholder="Ex: Refile"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end bg-secondary/15 p-3 rounded-xl border border-border">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase">Quantidade</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={matrixQuantity}
+                        onChange={(e) => handleMatrixQuantityChange(e.target.value)}
+                        placeholder="Ex: 1000"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground text-center font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase">Preço Unitário (R$)</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={matrixUnitPriceInput}
+                        onChange={(e) => handleMatrixUnitPriceChange(e.target.value)}
+                        placeholder="Ex: 0,1053"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase">Total do Lote (R$)</label>
+                      <div className="flex h-8 w-full items-center rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-bold text-foreground">
+                        {matrixCalculatedTotal > 0 ? (
+                          formatCurrency(matrixCalculatedTotal)
+                        ) : (
+                          <span className="font-medium text-muted-foreground">Calculado automaticamente</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addVariantMatrixTier}
+                      className="py-2 px-3 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all h-8 flex items-center justify-center w-full"
+                    >
+                      + Adicionar faixa
+                    </button>
+                  </div>
+
+                  {variantPricingMatrix.length > 0 && (
+                    <div className="space-y-2">
+                      {variantPricingMatrix.map((row) => (
+                        <div key={row.id} className="rounded-xl border border-border bg-white p-3 text-[11px]">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="font-black text-foreground">
+                                {row.material} | {row.size} | {row.colors} | {row.finishing}
+                              </p>
+                              <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
+                                Esta combinação aparecerá no catálogo com as faixas abaixo.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeVariantMatrixRow(row.id)}
+                              className="self-start rounded-lg border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-500"
+                            >
+                              Remover combinação
+                            </button>
+                          </div>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            {row.tiers.map((tier) => (
+                              <div key={tier.quantity} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-secondary/20 px-3 py-2">
+                                <div>
+                                  <span className="block font-black text-foreground">{tier.quantity} un</span>
+                                  <span className="text-[10px] font-semibold text-muted-foreground">
+                                    {formatUnitCurrency(tier.unit_price)} /un · {formatCurrency(tier.total_price || tier.quantity * tier.unit_price)} total
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeVariantMatrixTier(row.id, tier.quantity)}
+                                  className="rounded bg-rose-500/10 p-1 text-rose-500"
+                                  title="Excluir faixa"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
                 </div>
               </section>

@@ -28,6 +28,7 @@ import {
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
+import { formatUnitCurrency } from '@/lib/pricing';
 
 export default function OrdersPage() {
   const { 
@@ -1273,7 +1274,7 @@ export default function OrdersPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <span className="font-bold text-foreground">{item.quantity}x</span>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{formatCurrency(item.unit_price)}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{formatUnitCurrency(item.unit_price)}</div>
                   </div>
                 </div>
               ))}
@@ -1648,7 +1649,7 @@ export default function OrdersPage() {
                           )}
                         </td>
                         <td className="px-2 py-0.5 text-right border-r border-zinc-200 font-mono leading-tight">
-                          {formatCurrency(item.unit_price)}
+                          {formatUnitCurrency(item.unit_price)}
                         </td>
                         <td className="px-2 py-0.5 text-right font-mono font-semibold leading-tight">
                           {formatCurrency(item.total_price)}

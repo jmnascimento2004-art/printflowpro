@@ -29,6 +29,7 @@ import {
   getProductUnitPrice,
   stripRichTextHtml
 } from '@/lib/utils';
+import { formatUnitCurrency } from '@/lib/pricing';
 
 type PaymentMethod = 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado';
 type POSCustomer = Pick<Customer, 'id' | 'name' | 'document' | 'phone' | 'email' | 'billing_type' | 'credit_status' | 'credit_limit' | 'credit_used' | 'payment_terms_days'>;
@@ -622,7 +623,7 @@ export default function POSPage() {
                             )}
 
                             <div className="text-[10px] text-muted-foreground font-medium">
-                              {formatCurrency(item.unit_price)} x {item.quantity}
+                              {formatUnitCurrency(item.unit_price)} x {item.quantity}
                             </div>
                           </div>
                           

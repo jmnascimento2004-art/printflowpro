@@ -159,6 +159,44 @@ export function parseCurrencyInputToNumber(formattedValue: string): number {
   return parseInt(clean, 10) / 100;
 }
 
+export function formatUnitCurrencyInput(value: number | string | null | undefined): string {
+  const numericValue = typeof value === 'number'
+    ? value
+    : parseUnitCurrencyInputToNumber(String(value ?? ''));
+
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4
+  }).format(Number.isFinite(numericValue) ? numericValue : 0);
+}
+
+export function parseUnitCurrencyInputToNumber(formattedValue: string): number {
+  const rawValue = String(formattedValue ?? '').trim();
+  if (!rawValue) return 0;
+
+  const clean = rawValue
+    .replace(/[^\d,.-]/g, '')
+    .replace(/(?!^)-/g, '');
+  if (!clean || clean === '-' || clean === ',' || clean === '.') return 0;
+
+  const lastComma = clean.lastIndexOf(',');
+  const lastDot = clean.lastIndexOf('.');
+  const decimalSeparator = lastComma > lastDot ? ',' : lastDot > -1 ? '.' : '';
+
+  if (decimalSeparator) {
+    const separatorIndex = decimalSeparator === ',' ? lastComma : lastDot;
+    const integerPart = clean.slice(0, separatorIndex).replace(/[^\d-]/g, '') || '0';
+    const decimalPart = clean.slice(separatorIndex + 1).replace(/\D/g, '').slice(0, 4);
+    const parsed = Number(`${integerPart}.${decimalPart}`);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  const parsed = Number(clean.replace(/[^\d-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 /**
  * Validates a CNPJ string
  */
@@ -226,8 +264,12 @@ export function formatCEP(cep: string): string {
   return `${clean.substring(0, 5)}-${clean.substring(5, 8)}`;
 }
 
+function removeHtmlComments(value: string = ''): string {
+  return value.replace(/<!--[\s\S]*?-->/g, '');
+}
+
 export function stripRichTextHtml(value: string = ''): string {
-  return value
+  return removeHtmlComments(decodeRichTextEntities(value))
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<\/(p|div|li|h[1-6])>/gi, ' ')
     .replace(/<[^>]+>/g, '')
@@ -258,14 +300,15 @@ function decodeRichTextEntities(value: string = ''): string {
 }
 
 export function normalizeRichTextHtml(value: string = ''): string {
-  const decodedValue = decodeRichTextEntities(value);
+  const decodedValue = removeHtmlComments(decodeRichTextEntities(value));
   const decodedLooksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(decodedValue);
-  return sanitizeRichTextHtml(decodedLooksLikeHtml ? decodedValue : value);
+  return sanitizeRichTextHtml(decodedLooksLikeHtml ? decodedValue : removeHtmlComments(value));
 }
 
 export function sanitizeRichTextHtml(value: string = ''): string {
+  const cleanValue = removeHtmlComments(value);
   const allowedTags = ['a', 'b', 'blockquote', 'br', 'div', 'em', 'h1', 'h2', 'h3', 'i', 'img', 'li', 'ol', 'p', 'span', 'strong', 's', 'u', 'ul'];
-  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(value);
+  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(cleanValue);
   const escapeHtml = (text: string) =>
     text
       .replace(/&/g, '&amp;')
@@ -275,10 +318,10 @@ export function sanitizeRichTextHtml(value: string = ''): string {
       .replace(/'/g, '&#39;');
 
   if (!hasHtml) {
-    return escapeHtml(value).replace(/\n/g, '<br />');
+    return escapeHtml(cleanValue).replace(/\n/g, '<br />');
   }
 
-  return value
+  return cleanValue
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
     .replace(/\son[a-z]+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi, '')
@@ -313,6 +356,10 @@ export function sanitizeRichTextHtml(value: string = ''): string {
       return `<${cleanTag}>`;
     })
     .trim();
+}
+
+export function sanitizeProductDescription(description: string = ''): string {
+  return normalizeRichTextHtml(description);
 }
 
 /**
