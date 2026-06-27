@@ -848,14 +848,12 @@ export default function QuotesPage() {
               const customerAddress = buildAddressLine(customer?.address);
               const customerPhone = customer?.phone || activePrintQuote.customer_phone;
               const customerEmail = customer?.email;
-              const customerDocument = customer?.document;
 
               return (
                 <>
                   <div>
                     <h4 className="text-[10px] font-bold text-muted-foreground uppercase">Destinat&aacute;rio (Cliente)</h4>
                     <p className="text-sm font-bold mt-1">{customer?.name || getQuoteCustomerName(activePrintQuote)}</p>
-                    {customerDocument && <p className="text-xs text-muted-foreground mt-0.5">CPF/CNPJ: {customerDocument}</p>}
                     {customerPhone && <p className="text-xs text-muted-foreground">Telefone: {customerPhone}</p>}
                     {customerEmail && <p className="text-xs text-muted-foreground">E-mail: {customerEmail}</p>}
                     {customerAddress && <p className="text-xs text-muted-foreground">Endere&ccedil;o: {customerAddress}</p>}
@@ -873,12 +871,18 @@ export default function QuotesPage() {
           <div className="border border-border rounded-xl overflow-hidden bg-white">
             <h4 className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-foreground bg-secondary/20">Produtos</h4>
             <table className="print-items-table w-full text-left border-collapse text-xs">
+              <colgroup>
+                <col className="w-[10%]" />
+                <col className="w-[58%]" />
+                <col className="w-[15%]" />
+                <col className="w-[17%]" />
+              </colgroup>
               <thead>
                 <tr className="bg-black font-bold text-white uppercase">
-                  <th className="px-4 py-2.5 w-[10%] rounded-l-lg border-r border-white/40 text-center">QTD</th>
+                  <th className="px-4 py-2.5 rounded-l-lg border-r border-white/40 text-center">QTD</th>
                   <th className="px-4 py-2.5 w-[56%] border-r border-white/40 text-left">Descrição</th>
-                  <th className="px-4 py-2.5 text-right w-[16%] border-r border-white/40">UNIT</th>
-                  <th className="px-4 py-2.5 text-right w-[18%] rounded-r-lg">TOTAL</th>
+                  <th className="px-4 py-2.5 text-right border-r border-white/40">UNIT</th>
+                  <th className="px-4 py-2.5 text-right rounded-r-lg">TOTAL</th>
                 </tr>
               </thead>
               <tbody>

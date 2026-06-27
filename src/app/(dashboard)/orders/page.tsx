@@ -596,7 +596,6 @@ export default function OrdersPage() {
   const activePrintCustomer = activePrintOrder
     ? customers.find(c => c.id === activePrintOrder.customer_id || c.name === activePrintOrder.customer_name)
     : null;
-  const customerDoc = activePrintCustomer?.document || '000.000.000-00';
   const customerContactLine = [
     activePrintCustomer?.phone ? `Telefone: ${activePrintCustomer.phone}` : '',
     activePrintCustomer?.email ? `E-mail: ${activePrintCustomer.email}` : ''
@@ -1623,7 +1622,6 @@ export default function OrdersPage() {
               <strong>Dados do Cliente Final:</strong>
               <div className="grid grid-cols-2 gap-2 text-zinc-700">
                 <p><strong>Cliente:</strong> {activePrintOrder.customer_name}</p>
-                <p><strong>CPF/CNPJ:</strong> {customerDoc}</p>
                 {customerContactLine && <p className="col-span-2"><strong>Contato:</strong> {customerContactLine}</p>}
                 {customerAddressLine && <p className="col-span-2"><strong>Endereco:</strong> {customerAddressLine}</p>}
               </div>
@@ -1631,7 +1629,7 @@ export default function OrdersPage() {
             
             {activePrintMode === 'receipt' ? (
               <p>
-                Recebemos de <strong>{activePrintOrder.customer_name}</strong>, CPF/CNPJ <strong>{customerDoc}</strong>, o valor de <strong>{formatCurrency(activePrintOrder.paid_amount)}</strong>, referente ao Pedido <strong>{activePrintOrder.number}</strong>.
+                Recebemos de <strong>{activePrintOrder.customer_name}</strong> o valor de <strong>{formatCurrency(activePrintOrder.paid_amount)}</strong>, referente ao Pedido <strong>{activePrintOrder.number}</strong>.
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2 text-[10px]">
@@ -1652,12 +1650,18 @@ export default function OrdersPage() {
               <strong>Produtos:</strong>
               <div className="mt-1 overflow-x-auto">
                 <table className="print-items-table w-full text-left border-collapse text-[10px] border border-zinc-300">
+                  <colgroup>
+                    <col className="w-[10%]" />
+                    <col className="w-[58%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[17%]" />
+                  </colgroup>
                   <thead>
                     <tr className="bg-black border-b border-black font-bold text-[9px] uppercase text-white">
-                      <th className="px-2 py-1.5 text-center border-r border-white/40 w-10">QTD</th>
+                      <th className="px-2 py-1.5 text-center border-r border-white/40">QTD</th>
                       <th className="px-2 py-1.5 border-r border-white/40">DESCRICAO</th>
-                      <th className="px-2 py-1.5 text-right border-r border-white/40 w-24">UNIT</th>
-                      <th className="px-2 py-1.5 text-right w-24">TOTAL</th>
+                      <th className="px-2 py-1.5 text-right border-r border-white/40">UNIT</th>
+                      <th className="px-2 py-1.5 text-right">TOTAL</th>
                     </tr>
                   </thead>
                   <tbody>
