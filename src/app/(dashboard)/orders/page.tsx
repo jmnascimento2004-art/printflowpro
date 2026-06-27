@@ -9,6 +9,7 @@ import {
   Check, 
   AlertCircle,
   Printer,
+  Download,
   Eye,
   Edit3,
   RefreshCw
@@ -375,6 +376,11 @@ export default function OrdersPage() {
     window.open(`/api/pdf/order/${order.id}`, '_blank', 'noopener,noreferrer');
   };
 
+  const handleDownloadOrderPdf = (order: Order) => {
+    if (typeof window === 'undefined') return;
+    window.open(`/api/pdf/order/${order.id}?download=1`, '_blank', 'noopener,noreferrer');
+  };
+
   const handlePrintReceipt = (order: Order) => {
     setActivePrintMode('receipt');
     setActivePrintOrder(order);
@@ -624,11 +630,19 @@ export default function OrdersPage() {
     ? Math.max(0, printGrossProductsTotal + printServicesTotal + (activePrintOrder.shipping_cost || 0) - activePrintOrder.total_amount)
     : 0;
   const selectedOrderTransactions = selectedOrder
-    ? financial.filter((transaction) => transaction.order_id === selectedOrder.id || transaction.order_number === selectedOrder.number)
+    ? Array.from(
+        new Map(
+          financial
+            .filter((transaction) => transaction.order_id === selectedOrder.id || transaction.order_number === selectedOrder.number)
+            .map((transaction, index) => [
+              transaction.id || `${transaction.order_id || transaction.order_number || 'payment'}-${transaction.created_at || index}`,
+              transaction
+            ])
+        ).values()
+      )
     : [];
   
   const companyName = company?.name || 'PrintFlowPRO - ERP SAAS';
-  const companyDocument = company?.document || '12.345.678/0001-90';
   const companyLogo = company?.logo_light || company?.logo_url || company?.logo_dark || '';
   const companyAddressLine = [
     company?.street && company?.number ? `${company.street}, ${company.number}` : '',
@@ -1127,10 +1141,20 @@ export default function OrdersPage() {
                               <button
                                 type="button"
                                 onClick={() => handlePrintOrderPdf(order)}
-                                className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
-                                title="Gerar PDF do Pedido"
+                                className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/15 text-primary border border-primary/20"
+                                title="Visualizar PDF"
+                                aria-label={`Visualizar PDF do pedido ${order.number}`}
                               >
                                 <Printer className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadOrderPdf(order)}
+                                className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
+                                title="Baixar PDF"
+                                aria-label={`Baixar PDF do pedido ${order.number}`}
+                              >
+                                <Download className="h-3.5 w-3.5" />
                               </button>
                               {order.payment_status !== 'pago' && (
                                 <button
@@ -1165,14 +1189,45 @@ export default function OrdersPage() {
         /* 4. Visual Details and Payment in the Central Area */
         <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-5 no-print animate-in fade-in duration-200 text-foreground">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-border pb-4 gap-4">
-            <div>
-              <h3 className="text-base font-bold text-foreground">Ficha de Faturamento & Detalhes: {selectedOrder.number}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Cliente: {selectedOrder.customer_name} • Data: {new Date(selectedOrder.created_at).toLocaleDateString('pt-BR')}
-              </p>
+          <div className="rounded-2xl border border-border bg-secondary/15 p-4 shadow-sm">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="space-y-3">
+                <button
+                  onClick={() => setSelectedOrder(null)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-4 py-2 text-xs font-bold text-primary hover:bg-primary/15"
+                >
+                  <ChevronRight className="h-4 w-4 rotate-180" /> Voltar para Lista
+                </button>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-primary">Pedido comercial</span>
+                  <h3 className="mt-1 text-xl font-black text-foreground">{selectedOrder.number}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Cliente: <strong className="text-foreground">{selectedOrder.customer_name}</strong> • Data: {new Date(selectedOrder.created_at).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid w-full gap-2 sm:grid-cols-2 xl:max-w-xl xl:grid-cols-4">
+                <div className="rounded-xl border border-border bg-card p-3">
+                  <span className="block text-[10px] font-bold uppercase text-muted-foreground">Status</span>
+                  <span className="mt-1 block text-xs font-black text-foreground">{selectedOrder.status.toUpperCase().replace('_', ' ')}</span>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-3">
+                  <span className="block text-[10px] font-bold uppercase text-muted-foreground">Financeiro</span>
+                  <div className="mt-1">{getPaymentStatusBadge(selectedOrder.payment_status)}</div>
+                </div>
+                <div className="rounded-xl border border-border bg-card p-3">
+                  <span className="block text-[10px] font-bold uppercase text-muted-foreground">Total</span>
+                  <span className="mt-1 block text-sm font-black text-foreground">{formatCurrency(selectedOrder.total_amount)}</span>
+                </div>
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                  <span className="block text-[10px] font-bold uppercase text-amber-600">Saldo</span>
+                  <span className="mt-1 block text-sm font-black text-amber-600">{formatCurrency(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount))}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
               {selectedOrder.payment_status !== 'pago' && (
                 <button
                   onClick={() => sendPixWhatsApp(selectedOrder)}
@@ -1187,10 +1242,19 @@ export default function OrdersPage() {
               )}
               <button
                 onClick={() => handlePrintOrderPdf(selectedOrder)}
-                className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-1.5 border border-border"
-                title="Gerar PDF do Pedido"
+                className="px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary/15 text-primary text-xs font-semibold flex items-center gap-1.5 border border-primary/20"
+                title="Visualizar PDF"
+                aria-label={`Visualizar PDF do pedido ${selectedOrder.number}`}
               >
-                <Printer className="h-4 w-4" /> Gerar PDF do Pedido
+                <Printer className="h-4 w-4" /> Visualizar PDF
+              </button>
+              <button
+                onClick={() => handleDownloadOrderPdf(selectedOrder)}
+                className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-1.5 border border-border"
+                title="Baixar PDF"
+                aria-label={`Baixar PDF do pedido ${selectedOrder.number}`}
+              >
+                <Download className="h-4 w-4" /> Baixar PDF
               </button>
               <button
                 onClick={() => handlePrintReceipt(selectedOrder)}

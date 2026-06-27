@@ -1850,6 +1850,14 @@ useEffect(() => {
     }
   };
 
+  const createOperationId = (prefix: string) => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return `${prefix}-${crypto.randomUUID()}`;
+    }
+
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  };
+
   const payOrder = (
     id: string,
     amount: number,
@@ -1868,7 +1876,7 @@ useEffect(() => {
           if (paymentAmount <= 0) return o;
 
           const newPaid = Math.min(o.total_amount, o.paid_amount + paymentAmount);
-          const payment_status = newPaid >= o.total_amount ? 'pago' : 'parcial';
+          const payment_status: Order['payment_status'] = newPaid >= o.total_amount ? 'pago' : 'parcial';
           const paidAt = options?.paid_at || new Date().toISOString();
           const dueDate = paidAt.split('T')[0] || new Date().toISOString().split('T')[0];
           const paymentTypeLabel: Record<'adiantamento' | 'parcial' | 'saldo' | 'total', string> = {
@@ -1893,9 +1901,34 @@ useEffect(() => {
           const dueDateObj = new Date();
           dueDateObj.setDate(dueDateObj.getDate() + dueDays);
 
+          // Auto step from waiting payment to production if fully paid OR if faturado
+          let nextStatus = o.status;
+          if (o.status === 'aguardando_pagamento' && (payment_status === 'pago' || method === 'faturado')) {
+            nextStatus = 'producao';
+            // Trigger production queue injection right after state completes
+            setTimeout(() => {
+              updateOrderStatus(o.id, 'producao');
+            }, 10);
+          }
+
+          const nextOrder = {
+            ...o,
+            paid_amount: method === 'faturado' ? o.paid_amount : newPaid,
+            payment_status: method === 'faturado' ? 'parcial' as const : payment_status,
+            status: nextStatus
+          };
+
+          supabase.from('orders').update({
+            paid_amount: nextOrder.paid_amount,
+            payment_status: nextOrder.payment_status,
+            status: nextOrder.status
+          }).eq('id', o.id).then(({ error }) => {
+            if (error) warnCaught('Erro ao sincronizar pagamento do pedido no Supabase:', error);
+          });
+
           // Log Financial income transaction
           const trans: FinancialTransaction = {
-            id: `fin-${Date.now()}`,
+            id: createOperationId('fin'),
             company_id: currentCompanyId,
             order_id: o.id,
             order_number: o.number,
@@ -1912,13 +1945,20 @@ useEffect(() => {
             created_at: new Date().toISOString()
           };
           
-          setFinancial(f => [trans, ...f]);
+          setFinancial(f => (
+            f.some(item => item.id === trans.id)
+              ? f
+              : [trans, ...f]
+          ));
+          supabase.from('financial_transactions').insert(trans).then(({ error }) => {
+            if (error) warnCaught('Erro ao sincronizar lançamento financeiro do pedido no Supabase:', error);
+          });
 
           // Log Cash Register transaction if active session exists and payment isn't B2B faturado
           const activeReg = sessions.find(s => s.status === 'aberto');
           if (activeReg && method !== 'faturado') {
             const newPOSRegTrans: CashRegisterTransaction = {
-              id: `crt-ord-pay-${Date.now()}`,
+              id: createOperationId('crt-ord-pay'),
               session_id: activeReg.id,
               type: 'venda',
               amount: paymentAmount,
@@ -1948,22 +1988,7 @@ useEffect(() => {
             });
           }
 
-          // Auto step from waiting payment to production if fully paid OR if faturado
-          let nextStatus = o.status;
-          if (o.status === 'aguardando_pagamento' && (payment_status === 'pago' || method === 'faturado')) {
-            nextStatus = 'producao';
-            // Trigger production queue injection right after state completes
-            setTimeout(() => {
-              updateOrderStatus(o.id, 'producao');
-            }, 10);
-          }
-
-          return {
-            ...o,
-            paid_amount: method === 'faturado' ? o.paid_amount : newPaid,
-            payment_status: method === 'faturado' ? 'parcial' : payment_status,
-            status: nextStatus
-          };
+          return nextOrder;
         }
         return o;
       })
@@ -2043,7 +2068,7 @@ useEffect(() => {
   const addTransaction = (trans: Omit<FinancialTransaction, 'id' | 'company_id' | 'created_at'>) => {
     const newTrans: FinancialTransaction = {
       ...trans,
-      id: `fin-${Date.now()}`,
+      id: createOperationId('fin'),
       company_id: currentCompanyId,
       created_at: new Date().toISOString()
     };
@@ -2074,10 +2099,17 @@ useEffect(() => {
           prev.map(o => {
             if (o.id === ord.id) {
               const newPaid = Math.min(o.total_amount, o.paid_amount + trans.amount);
+              const nextPaymentStatus = newPaid >= o.total_amount ? 'pago' : 'parcial';
+              supabase.from('orders').update({
+                paid_amount: newPaid,
+                payment_status: nextPaymentStatus
+              }).eq('id', o.id).then(({ error }) => {
+                if (error) warnCaught('Erro ao sincronizar baixa financeira do pedido no Supabase:', error);
+              });
               return {
                 ...o,
                 paid_amount: newPaid,
-                payment_status: newPaid >= o.total_amount ? 'pago' : 'parcial'
+                payment_status: nextPaymentStatus
               };
             }
             return o;
@@ -2097,6 +2129,12 @@ useEffect(() => {
           : f
       )
     );
+    supabase.from('financial_transactions').update({
+      status,
+      paid_at: status === 'pago' ? new Date().toISOString() : null
+    }).eq('id', id).then(({ error }) => {
+      if (error) warnCaught('Erro ao sincronizar status financeiro no Supabase:', error);
+    });
   };
 
   // ----------------------------------------------------

@@ -8,9 +8,11 @@ import { QuotePdfDocument } from '@/lib/pdf/quote-pdf';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    const { searchParams } = new URL(request.url);
+    const shouldDownload = searchParams.get('download') === '1';
     const data = await loadQuotePdfData(id);
 
     if (!data) {
@@ -26,7 +28,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${filename}"`,
+        'Content-Disposition': `${shouldDownload ? 'attachment' : 'inline'}; filename="${filename}"`,
         'Cache-Control': 'no-store'
       }
     });

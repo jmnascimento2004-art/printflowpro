@@ -8,6 +8,7 @@ import {
   Trash2, 
   Check, 
   Printer, 
+  Download,
   X, 
   PlusCircle,
   Edit2,
@@ -794,6 +795,11 @@ export default function QuotesPage() {
     window.open(`/api/pdf/quote/${quote.id}`, '_blank', 'noopener,noreferrer');
   };
 
+  const downloadQuotePdf = (quote: Quote) => {
+    if (typeof window === 'undefined') return;
+    window.open(`/api/pdf/quote/${quote.id}?download=1`, '_blank', 'noopener,noreferrer');
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -1061,10 +1067,21 @@ export default function QuotesPage() {
                           <button
                             type="button"
                             onClick={() => openQuotePdf(quote)}
-                            className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
-                            title="Imprimir PDF"
+                            className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/15 text-primary border border-primary/20"
+                            title="Visualizar PDF"
+                            aria-label={`Visualizar PDF do orçamento ${quote.number}`}
                           >
                             <Printer className="h-3.5 w-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => downloadQuotePdf(quote)}
+                            className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
+                            title="Baixar PDF"
+                            aria-label={`Baixar PDF do orçamento ${quote.number}`}
+                          >
+                            <Download className="h-3.5 w-3.5" />
                           </button>
 
                           <button

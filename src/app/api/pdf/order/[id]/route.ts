@@ -8,9 +8,11 @@ import { OrderPdfDocument } from '@/lib/pdf/order-pdf';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    const { searchParams } = new URL(request.url);
+    const shouldDownload = searchParams.get('download') === '1';
     const data = await loadOrderPdfData(id);
 
     if (!data) {
@@ -20,13 +22,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const pdfDocument = React.createElement(OrderPdfDocument, { data }) as unknown as Parameters<typeof renderToBuffer>[0];
     const buffer = await renderToBuffer(pdfDocument);
     const customerName = data.customer?.name || data.order.customer_name || 'cliente';
-    const filename = getPdfSafeFilename(`${data.order.number}-${customerName}.pdf`);
+    const filename = getPdfSafeFilename(`PED-${data.order.number}-${customerName}.pdf`);
 
     return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${filename}"`,
+        'Content-Disposition': `${shouldDownload ? 'attachment' : 'inline'}; filename="${filename}"`,
         'Cache-Control': 'no-store'
       }
     });
