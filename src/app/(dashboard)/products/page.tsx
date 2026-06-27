@@ -8,6 +8,7 @@ import {
   Edit3,
   Copy,
   Package,
+  Printer,
   Check,
   X,
   Layers,
@@ -29,6 +30,8 @@ import {
 } from '@/lib/utils';
 import { formatUnitCurrency } from '@/lib/pricing';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { ProductBarcode } from '@/components/products/ProductBarcode';
+import { ProductLabelPreview, ProductLabelSize, productLabelSizes } from '@/components/products/ProductLabelPreview';
 
 function ProductDescriptionEditor({
   value,
@@ -308,6 +311,13 @@ export default function ProductsCRUDPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLabelsModalOpen, setIsLabelsModalOpen] = useState(false);
+  const [labelProductId, setLabelProductId] = useState('');
+  const [labelQuantity, setLabelQuantity] = useState(1);
+  const [labelSize, setLabelSize] = useState<ProductLabelSize>('small');
+  const [labelShowPrice, setLabelShowPrice] = useState(true);
+  const [labelShowLogo, setLabelShowLogo] = useState(true);
+  const [labelShowCategory, setLabelShowCategory] = useState(true);
 
   // Category management States
   const [catName, setCatName] = useState('');
@@ -1033,6 +1043,22 @@ export default function ProductsCRUDPage() {
     return { label: `Em estoque: ${product.current_stock}`, dotClass: 'bg-emerald-500', textClass: 'text-emerald-600' };
   };
 
+  const getProductCategoryName = (product: Product) => {
+    return categories.find((category) => category.id === product.category_id)?.name || 'Outros';
+  };
+
+  const openLabelsModal = (product?: Product) => {
+    setLabelProductId(product?.id || filteredProducts[0]?.id || products[0]?.id || '');
+    setLabelQuantity(1);
+    setIsLabelsModalOpen(true);
+  };
+
+  const selectedLabelProduct = products.find((product) => product.id === labelProductId) || filteredProducts[0] || products[0];
+  const safeLabelQuantity = Math.max(1, Math.min(99, Number(labelQuantity) || 1));
+  const printableLabels = selectedLabelProduct ? Array.from({ length: safeLabelQuantity }, (_, index) => index) : [];
+  const labelLogoSettings = settings as typeof settings & { logo_url?: string; logo_light?: string; logo_dark?: string };
+  const labelCompanyLogo = labelLogoSettings.logo_url || labelLogoSettings.logo_light || labelLogoSettings.logo_dark || null;
+
   const initialVolumeTier = [...volumePricing].sort((a, b) => a.min_qty - b.min_qty)[0];
   const selectedCategoryName = categories.find((category) => category.id === categoryId)?.name || 'Sem categoria';
 
@@ -1163,12 +1189,22 @@ export default function ProductsCRUDPage() {
                   </select>
                 </div>
 
-                <button
-                  onClick={handleOpenCreate}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all shrink-0 w-full sm:w-auto justify-center"
-                >
-                  <Plus className="h-4 w-4" /> Cadastrar Produto
-                </button>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => openLabelsModal()}
+                    disabled={products.length === 0}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground transition-all hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Printer className="h-4 w-4" /> Etiquetas
+                  </button>
+                  <button
+                    onClick={handleOpenCreate}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all shrink-0 w-full sm:w-auto justify-center"
+                  >
+                    <Plus className="h-4 w-4" /> Cadastrar Produto
+                  </button>
+                </div>
               </div>
 
               {/* 3. Products Card Grid */}
@@ -1271,8 +1307,14 @@ export default function ProductsCRUDPage() {
                                 <span className="inline-flex max-w-full rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-black text-amber-900 dark:bg-amber-500/15 dark:text-amber-300">
                                   SKU: {prod.sku}
                                 </span>
-                                <div className="mt-1.5 h-6 rounded bg-white border border-slate-200 bg-[repeating-linear-gradient(90deg,#111_0_1px,transparent_1px_3px,#111_3px_5px,transparent_5px_7px)] opacity-80" aria-hidden="true" />
-                                <p className="mt-0.5 truncate text-center font-mono text-[8px] tracking-tight text-muted-foreground">{prod.sku}</p>
+                                <ProductBarcode
+                                  value={prod.sku}
+                                  fallback={prod.id}
+                                  height={24}
+                                  showText={false}
+                                  className="mt-1.5 h-7 w-full rounded border border-slate-200 bg-white"
+                                />
+                                <p className="mt-0.5 truncate text-center font-mono text-[8px] tracking-tight text-muted-foreground">{prod.sku || prod.id}</p>
                               </div>
 
                               <div className="mt-auto flex items-center gap-1.5 pt-3 border-t border-border/70">
@@ -1638,6 +1680,172 @@ export default function ProductsCRUDPage() {
               </div>
             </div>
           )}
+
+          {isLabelsModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 product-label-modal-shell">
+              <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+                <div className="no-print flex items-center justify-between border-b border-border px-5 py-4">
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-wide text-foreground">Etiquetas de produtos</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Pré-visualize e imprima etiquetas com código de barras Code 128.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsLabelsModalOpen(false)}
+                    className="rounded-lg p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    aria-label="Fechar etiquetas"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[320px_1fr]">
+                  <div className="no-print space-y-4 border-b border-border p-5 lg:border-b-0 lg:border-r">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-muted-foreground">Produto</label>
+                      <select
+                        value={labelProductId}
+                        onChange={(event) => setLabelProductId(event.target.value)}
+                        className="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground"
+                      >
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-muted-foreground">Quantidade</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={99}
+                          value={labelQuantity}
+                          onChange={(event) => setLabelQuantity(Math.max(1, Number(event.target.value) || 1))}
+                          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-muted-foreground">Tamanho</label>
+                        <select
+                          value={labelSize}
+                          onChange={(event) => setLabelSize(event.target.value as ProductLabelSize)}
+                          className="w-full rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground"
+                        >
+                          {Object.entries(productLabelSizes).map(([key, size]) => (
+                            <option key={key} value={key}>
+                              {size.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 rounded-xl border border-border bg-secondary/20 p-3">
+                      {[
+                        { label: 'Mostrar preço', checked: labelShowPrice, onChange: setLabelShowPrice },
+                        { label: 'Mostrar logo', checked: labelShowLogo, onChange: setLabelShowLogo },
+                        { label: 'Mostrar categoria', checked: labelShowCategory, onChange: setLabelShowCategory }
+                      ].map((option) => (
+                        <label key={option.label} className="flex items-center justify-between gap-3 text-xs font-semibold text-foreground">
+                          <span>{option.label}</span>
+                          <input
+                            type="checkbox"
+                            checked={option.checked}
+                            onChange={(event) => option.onChange(event.target.checked)}
+                            className="h-4 w-4 accent-primary"
+                          />
+                        </label>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      disabled={!selectedLabelProduct}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-black text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Printer className="h-4 w-4" />
+                      Imprimir etiquetas
+                    </button>
+                  </div>
+
+                  <div className="bg-secondary/20 p-5">
+                    <div className="no-print mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase text-foreground">Prévia</p>
+                        <p className="text-[11px] text-muted-foreground">A impressão usa somente a grade de etiquetas abaixo.</p>
+                      </div>
+                      <span className="rounded-full border border-border bg-card px-2 py-1 text-[10px] font-bold text-muted-foreground">
+                        {safeLabelQuantity} etiqueta(s)
+                      </span>
+                    </div>
+
+                    <div className="product-label-print-area flex flex-wrap content-start gap-3 rounded-xl border border-dashed border-border bg-white p-4">
+                      {selectedLabelProduct ? (
+                        printableLabels.map((index) => (
+                          <ProductLabelPreview
+                            key={`${selectedLabelProduct.id}-${index}`}
+                            product={selectedLabelProduct}
+                            categoryName={getProductCategoryName(selectedLabelProduct)}
+                            saleModeLabel={getSaleModeLabel(selectedLabelProduct)}
+                            companyLogoUrl={labelCompanyLogo}
+                            size={labelSize}
+                            showPrice={labelShowPrice}
+                            showLogo={labelShowLogo}
+                            showCategory={labelShowCategory}
+                            formatCurrency={formatCurrency}
+                          />
+                        ))
+                      ) : (
+                        <div className="w-full py-10 text-center text-xs text-muted-foreground">Nenhum produto disponível para etiquetas.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <style jsx global>{`
+            @media print {
+              body * {
+                visibility: hidden !important;
+              }
+
+              .product-label-print-area,
+              .product-label-print-area * {
+                visibility: visible !important;
+              }
+
+              .product-label-print-area {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                min-height: auto !important;
+                display: flex !important;
+                flex-wrap: wrap !important;
+                align-content: flex-start !important;
+                gap: 3mm !important;
+                padding: 0 !important;
+                border: 0 !important;
+                background: #ffffff !important;
+              }
+
+              .product-label-preview {
+                box-shadow: none !important;
+                page-break-inside: avoid !important;
+              }
+
+              @page {
+                margin: 8mm;
+              }
+            }
+          `}</style>
         </>
       ) : (
         <div className="max-w-5xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
