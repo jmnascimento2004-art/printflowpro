@@ -371,8 +371,8 @@ export default function OrdersPage() {
   };
 
   const handlePrintOrderPdf = (order: Order) => {
-    setActivePrintMode('order');
-    setActivePrintOrder(order);
+    if (typeof window === 'undefined') return;
+    window.open(`/api/pdf/order/${order.id}`, '_blank', 'noopener,noreferrer');
   };
 
   const handlePrintReceipt = (order: Order) => {

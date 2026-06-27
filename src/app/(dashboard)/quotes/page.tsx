@@ -22,10 +22,9 @@ import {
   formatCurrencyInput,
   parseCurrencyInputToNumber,
   formatCEP,
-  getPixWhatsAppPaymentInfo,
-  getPublicImageUrl,
-  getWhatsAppTimeGreeting
+  getPublicImageUrl
 } from '@/lib/utils';
+import { openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import {
@@ -118,25 +117,6 @@ export default function QuotesPage() {
     };
   };
 
-  const withPrintableItems = (quote: Quote): Quote => {
-    if (quote.items && quote.items.length > 0) return quote;
-
-    const match = quotes.find((item) => item.id === quote.id || item.number === quote.number);
-    if (match?.items?.length) return { ...quote, items: match.items };
-
-    try {
-      const storedQuotes = JSON.parse(window.localStorage.getItem('printflow_quotes') || '[]') as Quote[];
-      const stored = storedQuotes.find((item) => item.id === quote.id || item.number === quote.number);
-      if (stored?.items?.length) return { ...quote, items: stored.items };
-    } catch {
-      // Keep the quote as-is when browser storage is unavailable or malformed.
-    }
-
-    return quote;
-  };
-
-  const preparePrintQuote = (quote: Quote) => withPrintableItems(withResolvedCustomer(quote));
-
   const buildAddressLine = (address?: {
     street?: string;
     number?: string;
@@ -202,39 +182,51 @@ export default function QuotesPage() {
     setIsCreating(true);
   };
 
-  const sendPixWhatsApp = (quote: Quote) => {
+  const sendQuoteProposalWhatsApp = (quote: Quote) => {
     const customer = resolveQuoteCustomer(quote);
-    const phone = customer?.phone;
+    const phone = customer?.phone || quote.customer_phone;
     if (!phone) {
-      alert("Telefone do cliente não encontrado!");
+      alert('Telefone/WhatsApp do cliente não encontrado. Atualize o cadastro do cliente antes de enviar a proposta.');
       return;
     }
 
-    const cleanPhone = phone.replace(/\D/g, '');
-    const formattedPhone = cleanPhone.length === 11 || cleanPhone.length === 10
-      ? `55${cleanPhone}`
-      : cleanPhone;
+    const quoteForSending: Quote = {
+      ...quote,
+      status: quote.status === 'rascunho' ? 'pendente' : quote.status
+    };
+    if (quote.status === 'rascunho') {
+      updateQuote(quoteForSending);
+    }
 
-    const pixKey = settings.pix_key || "financeiro@printflowpro.com.br";
-    const amount = quote.total_amount;
-    const pixInfo = getPixWhatsAppPaymentInfo({
-      key: pixKey,
-      keyType: settings.pix_key_type,
-      amount,
-      merchantName: company?.name || "PrintFlowPRO",
-      beneficiaryName: settings.pix_beneficiary_name || company?.name,
-      bankName: settings.bank_name
-    });
-    const logoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark);
-    const logoLine = logoUrl ? `\n\n🏢 Logo da empresa: ${logoUrl}` : '';
-    const greeting = getWhatsAppTimeGreeting();
+    if (typeof window !== 'undefined') {
+      window.open(`/api/pdf/quote/${quoteForSending.id}`, '_blank', 'noopener,noreferrer');
+    }
 
-    const message = `${greeting}, *${customer?.name || getQuoteCustomerName(quote)}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu orçamento *#${quote.number}*:\n\n💰 *Valor total:* *${formatCurrency(amount)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = [
+      `Olá, ${customer?.name || getQuoteCustomerName(quote)}! Tudo bem?`,
+      '',
+      `Segue a proposta/orçamento #${quote.number} da ${company?.name || 'CibelePRINT'}.`,
+      '',
+      `Valor total: ${formatCurrency(quote.total_amount)}`,
+      `Validade: ${new Date(quote.valid_until).toLocaleDateString('pt-BR')}`,
+      '',
+      'Estou enviando o PDF do orçamento para sua conferência.',
+      'Por segurança do navegador, o PDF deve ser anexado manualmente nesta conversa.',
+      '',
+      'Qualquer dúvida, fico à disposição.',
+      '',
+      `Atenciosamente\n${company?.name || 'CibelePRINT'}`
+    ].join('\n');
 
-    const encodedText = encodeURIComponent(message);
-    const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;
     if (typeof window === 'undefined') return;
-    window.open(url, '_blank');
+    window.setTimeout(() => {
+      const opened = openWhatsAppWithMessage(phone, message);
+      if (!opened) {
+        alert('Não foi possível abrir o WhatsApp. Verifique o telefone do cliente.');
+        return;
+      }
+      alert('O WhatsApp foi aberto com a mensagem pronta. Anexe manualmente o PDF gerado/impresso do orçamento na conversa.');
+    }, 250);
   };
 
   // Form State
@@ -786,6 +778,11 @@ export default function QuotesPage() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const openQuotePdf = (quote: Quote) => {
+    if (typeof window === 'undefined') return;
+    window.open(`/api/pdf/quote/${quote.id}`, '_blank', 'noopener,noreferrer');
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -1052,7 +1049,7 @@ export default function QuotesPage() {
                         <div className="flex items-center justify-start gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setActivePrintQuote(preparePrintQuote(quote))}
+                            onClick={() => openQuotePdf(quote)}
                             className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                             title="Imprimir PDF"
                           >
@@ -1085,9 +1082,9 @@ export default function QuotesPage() {
 
                           <button
                             type="button"
-                            onClick={() => sendPixWhatsApp(quote)}
+                            onClick={() => sendQuoteProposalWhatsApp(quote)}
                             className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/25 border border-emerald-500/20"
-                            title="Enviar Cobrança Pix via WhatsApp Web"
+                            title="Enviar proposta via WhatsApp Web"
                           >
                             <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
                               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.863-9.864.001-2.63-1.023-5.101-2.883-6.963C16.588 1.843 14.116.822 11.5.822 6.066.822 1.641 5.242 1.638 10.682c-.001 1.666.436 3.292 1.267 4.724L1.878 20.1l4.769-1.25zM17.51 14.86c-.3-.149-1.772-.875-2.046-.975-.276-.1-.476-.149-.676.15-.2.3-.777.975-.951 1.174-.176.2-.351.224-.651.075-.3-.149-1.268-.467-2.417-1.493-.892-.796-1.495-1.78-1.67-2.079-.176-.3-.019-.462.13-.611.134-.133.3-.35.45-.525.15-.175.2-.299.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.582-.491-.504-.676-.513-.175-.008-.375-.01-.575-.01-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.494 1.707.632.716.227 1.368.195 1.884.118.574-.085 1.772-.724 2.022-1.424.25-.7.25-1.299.175-1.424-.075-.125-.275-.199-.575-.349z" />
