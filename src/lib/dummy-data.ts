@@ -310,6 +310,17 @@ export interface QuoteItem {
     pricing_type?: Product['pricing_type'];
     production_days?: number;
     configuration_summary?: string;
+    configuration_snapshot?: {
+      sale_mode: 'variant_matrix' | 'volume';
+      material?: string;
+      size?: string;
+      colors?: string;
+      finishing?: string;
+      quantity_tier: number;
+      unit_price: number;
+      total_price: number;
+      display_label: string;
+    };
     notes?: string;
   };
 }
@@ -357,8 +368,31 @@ export interface OrderItem {
   details?: {
     width?: number;
     height?: number;
+    length?: number;
     variant?: string;
     color?: string;
+    selected_options?: Array<{
+      name?: string;
+      option_name?: string;
+      price_delta?: number | string | null;
+      additional_days?: number | string | null;
+      group_id?: string;
+      group_name?: string;
+    }>;
+    pricing_type?: Product['pricing_type'];
+    production_days?: number;
+    configuration_summary?: string;
+    configuration_snapshot?: {
+      sale_mode: 'variant_matrix' | 'volume';
+      material?: string;
+      size?: string;
+      colors?: string;
+      finishing?: string;
+      quantity_tier: number;
+      unit_price: number;
+      total_price: number;
+      display_label: string;
+    };
     notes?: string;
   };
   outsourced: boolean;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Plus, 
   FileText, 
@@ -28,7 +28,50 @@ import {
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
-import { formatUnitCurrency } from '@/lib/pricing';
+import {
+  findVariantPricingMatrixRow,
+  formatUnitCurrency,
+  getNormalizedVariantPricingMatrix,
+  getNormalizedVolumePricing,
+  getVariantPricingOptions,
+  NormalizedVolumePriceTier
+} from '@/lib/pricing';
+
+type ItemConfigurationSnapshot = NonNullable<QuoteItem['details']>['configuration_snapshot'];
+
+type MatrixSelectionField = 'material' | 'size' | 'colors' | 'finishing';
+
+const formatQuoteMoney = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(value || 0);
+};
+
+const buildConfigurationLabel = (snapshot: ItemConfigurationSnapshot) => {
+  if (!snapshot) return '';
+  return [
+    snapshot.material,
+    snapshot.size,
+    snapshot.colors,
+    snapshot.finishing,
+    `${snapshot.quantity_tier} un`
+  ].filter(Boolean).join(' | ');
+};
+
+const getItemConfigurationSnapshot = (item: Pick<QuoteItem, 'details'>) => item.details?.configuration_snapshot;
+
+const getItemConfigurationSummaryLines = (item: Pick<QuoteItem, 'details' | 'quantity' | 'unit_price' | 'total_price'>) => {
+  const snapshot = getItemConfigurationSnapshot(item);
+  if (!snapshot) return null;
+
+  return {
+    options: [snapshot.material, snapshot.size, snapshot.colors, snapshot.finishing].filter(Boolean).join(' • '),
+    quantity: `${snapshot.quantity_tier || item.quantity} un`,
+    unit: `${formatUnitCurrency(snapshot.unit_price || item.unit_price)}/un`,
+    total: formatQuoteMoney(snapshot.total_price || item.total_price)
+  };
+};
 
 export default function QuotesPage() {
   const { 
@@ -444,10 +487,79 @@ export default function QuotesPage() {
   const [itemQty, setItemQty] = useState(1);
   const [itemWidth, setItemWidth] = useState(1.0);
   const [itemHeight, setItemHeight] = useState(1.0);
+  const [selectedMaterial, setSelectedMaterial] = useState('');
+  const [selectedMatrixSize, setSelectedMatrixSize] = useState('');
+  const [selectedMatrixColors, setSelectedMatrixColors] = useState('');
+  const [selectedFinishing, setSelectedFinishing] = useState('');
 
   const getProductVolumeTiers = (prodId: string) => {
     const prod = products.find(p => p.id === prodId);
-    return [...(prod?.volume_pricing || [])].sort((a, b) => a.min_qty - b.min_qty);
+    return getNormalizedVolumePricing(prod).sort((a, b) => a.min_qty - b.min_qty);
+  };
+
+  const selectedProduct = products.find(p => p.id === selectedProductId);
+  const selectedVariantPricingRows = useMemo(() => (
+    getNormalizedVariantPricingMatrix(selectedProduct)
+  ), [selectedProduct]);
+  const hasVariantPricingMatrix = selectedVariantPricingRows.length > 0;
+  const matrixSelection = useMemo(() => ({
+    material: selectedMaterial,
+    size: selectedMatrixSize,
+    colors: selectedMatrixColors,
+    finishing: selectedFinishing
+  }), [selectedMaterial, selectedMatrixSize, selectedMatrixColors, selectedFinishing]);
+  const selectedMatrixRow = useMemo(() => (
+    hasVariantPricingMatrix ? findVariantPricingMatrixRow(selectedVariantPricingRows, matrixSelection) : null
+  ), [hasVariantPricingMatrix, selectedVariantPricingRows, matrixSelection]);
+  const effectiveQuantityTiers: NormalizedVolumePriceTier[] = useMemo(() => {
+    if (hasVariantPricingMatrix) return selectedMatrixRow?.tiers || [];
+    return getNormalizedVolumePricing(selectedProduct).sort((a, b) => a.min_qty - b.min_qty);
+  }, [hasVariantPricingMatrix, selectedMatrixRow, selectedProduct]);
+  const selectedQuantityTier = effectiveQuantityTiers.find((tier) => tier.min_qty === itemQty) || effectiveQuantityTiers[0] || null;
+  const requiresTierSelection = Boolean(selectedProductId && effectiveQuantityTiers.length > 0);
+  const matrixMaterialOptions = getVariantPricingOptions(selectedVariantPricingRows, 'material');
+  const matrixSizeOptions = getVariantPricingOptions(selectedVariantPricingRows, 'size', { material: selectedMaterial });
+  const matrixColorOptions = getVariantPricingOptions(selectedVariantPricingRows, 'colors', { material: selectedMaterial, size: selectedMatrixSize });
+  const matrixFinishingOptions = getVariantPricingOptions(selectedVariantPricingRows, 'finishing', matrixSelection);
+
+  const applyMatrixRow = (row: ReturnType<typeof findVariantPricingMatrixRow>) => {
+    setSelectedMaterial(row?.material || '');
+    setSelectedMatrixSize(row?.size || '');
+    setSelectedMatrixColors(row?.colors || '');
+    setSelectedFinishing(row?.finishing || '');
+    setItemQty(row?.tiers[0]?.min_qty || 1);
+  };
+
+  const initializeProductConfiguration = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    const rows = getNormalizedVariantPricingMatrix(product);
+    if (rows.length > 0) {
+      applyMatrixRow(rows[0]);
+      return;
+    }
+
+    setSelectedMaterial('');
+    setSelectedMatrixSize('');
+    setSelectedMatrixColors('');
+    setSelectedFinishing('');
+    setItemQty(getNormalizedVolumePricing(product)[0]?.min_qty || 1);
+  };
+
+  const handleMatrixOptionSelect = (field: MatrixSelectionField, value: string) => {
+    const nextSelection = {
+      material: field === 'material' ? value : selectedMaterial,
+      size: field === 'size' ? value : selectedMatrixSize,
+      colors: field === 'colors' ? value : selectedMatrixColors,
+      finishing: field === 'finishing' ? value : selectedFinishing
+    };
+    const matchingRow = selectedVariantPricingRows.find((row) => (
+      (!nextSelection.material || row.material === nextSelection.material) &&
+      (!nextSelection.size || row.size === nextSelection.size) &&
+      (!nextSelection.colors || row.colors === nextSelection.colors) &&
+      (!nextSelection.finishing || row.finishing === nextSelection.finishing)
+    )) || selectedVariantPricingRows[0] || null;
+
+    applyMatrixRow(matchingRow);
   };
 
   // 1. Filter Quotes
@@ -461,7 +573,7 @@ export default function QuotesPage() {
     const prod = products.find(p => p.id === prodId);
     if (!prod) return { price: 0, type: 'unidade', volumeTier: null, hasVolumePricing: false };
 
-    const volumeTiers = getProductVolumeTiers(prodId);
+    const volumeTiers = prodId === selectedProductId ? effectiveQuantityTiers : getProductVolumeTiers(prodId);
     const volumeTier = [...volumeTiers].reverse().find(tier => qty >= tier.min_qty) || null;
     const baseUnitPrice = volumeTier?.price ?? prod.sales_price;
     let price = baseUnitPrice;
@@ -484,13 +596,47 @@ export default function QuotesPage() {
     const prod = products.find(p => p.id === selectedProductId);
     if (!prod) return;
 
-    const volumeTiers = getProductVolumeTiers(selectedProductId);
+    const volumeTiers = requiresTierSelection ? effectiveQuantityTiers : getProductVolumeTiers(selectedProductId);
     const minAllowedQty = volumeTiers[0]?.min_qty || 1;
-    const normalizedQty = Math.max(itemQty, minAllowedQty);
+    const configuredTier = requiresTierSelection ? selectedQuantityTier : null;
+    if (requiresTierSelection && !configuredTier) return;
+
+    const normalizedQty = configuredTier?.min_qty || Math.max(itemQty, minAllowedQty);
     const originalQty = itemQty;
     if (normalizedQty !== originalQty) setItemQty(normalizedQty);
 
-    const { price, volumeTier } = getProductPriceInfo(selectedProductId, normalizedQty);
+    const { price, volumeTier } = configuredTier
+      ? { price: configuredTier.price, volumeTier: configuredTier }
+      : getProductPriceInfo(selectedProductId, normalizedQty);
+    const configurationSnapshot = volumeTier ? {
+      sale_mode: hasVariantPricingMatrix ? 'variant_matrix' as const : 'volume' as const,
+      material: hasVariantPricingMatrix ? selectedMatrixRow?.material || selectedMaterial : undefined,
+      size: hasVariantPricingMatrix ? selectedMatrixRow?.size || selectedMatrixSize : undefined,
+      colors: hasVariantPricingMatrix ? selectedMatrixRow?.colors || selectedMatrixColors : undefined,
+      finishing: hasVariantPricingMatrix ? selectedMatrixRow?.finishing || selectedFinishing : undefined,
+      quantity_tier: volumeTier.min_qty,
+      unit_price: volumeTier.price,
+      total_price: volumeTier.total,
+      display_label: buildConfigurationLabel({
+        sale_mode: hasVariantPricingMatrix ? 'variant_matrix' : 'volume',
+        material: hasVariantPricingMatrix ? selectedMatrixRow?.material || selectedMaterial : undefined,
+        size: hasVariantPricingMatrix ? selectedMatrixRow?.size || selectedMatrixSize : undefined,
+        colors: hasVariantPricingMatrix ? selectedMatrixRow?.colors || selectedMatrixColors : undefined,
+        finishing: hasVariantPricingMatrix ? selectedMatrixRow?.finishing || selectedFinishing : undefined,
+        quantity_tier: volumeTier.min_qty,
+        unit_price: volumeTier.price,
+        total_price: volumeTier.total,
+        display_label: ''
+      })
+    } : undefined;
+    const selectedOptions = configurationSnapshot && hasVariantPricingMatrix
+      ? [
+          configurationSnapshot.material ? { name: configurationSnapshot.material, option_name: configurationSnapshot.material, group_name: 'Material', price_delta: 0, additional_days: 0 } : null,
+          configurationSnapshot.size ? { name: configurationSnapshot.size, option_name: configurationSnapshot.size, group_name: 'Tamanho', price_delta: 0, additional_days: 0 } : null,
+          configurationSnapshot.colors ? { name: configurationSnapshot.colors, option_name: configurationSnapshot.colors, group_name: 'Cores', price_delta: 0, additional_days: 0 } : null,
+          configurationSnapshot.finishing ? { name: configurationSnapshot.finishing, option_name: configurationSnapshot.finishing, group_name: 'Acabamento', price_delta: 0, additional_days: 0 } : null
+        ].filter(Boolean) as NonNullable<QuoteItem['details']>['selected_options']
+      : undefined;
 
     const newItem = {
       product_id: prod.id,
@@ -500,8 +646,12 @@ export default function QuotesPage() {
       details: {
         width: prod.pricing_type === 'm2' || prod.pricing_type === 'linear' ? itemWidth : undefined,
         height: prod.pricing_type === 'm2' ? itemHeight : undefined,
+        selected_options: selectedOptions,
+        pricing_type: prod.pricing_type,
+        configuration_summary: configurationSnapshot?.display_label,
+        configuration_snapshot: configurationSnapshot,
         notes: volumeTier
-          ? `Faixa de preco aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un).`
+          ? `Faixa de preco aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un, ${formatCurrency(volumeTier.total)} total).`
           : ''
       }
     };
@@ -513,6 +663,10 @@ export default function QuotesPage() {
     setItemQty(1);
     setItemWidth(1.0);
     setItemHeight(1.0);
+    setSelectedMaterial('');
+    setSelectedMatrixSize('');
+    setSelectedMatrixColors('');
+    setSelectedFinishing('');
   };
 
   const handleRemoveItem = (index: number) => {
@@ -547,6 +701,10 @@ export default function QuotesPage() {
     setItemQty(1);
     setItemWidth(1.0);
     setItemHeight(1.0);
+    setSelectedMaterial('');
+    setSelectedMatrixSize('');
+    setSelectedMatrixColors('');
+    setSelectedFinishing('');
     setDeliveryType('retirada');
     setDeliveryAddress('');
     setDeliveryDistanceKm(0);
@@ -726,16 +884,27 @@ export default function QuotesPage() {
               <tbody>
                 {activePrintQuote.items.length > 0 ? (
                   activePrintQuote.items.map((item) => (
+                    (() => {
+                      const configLines = getItemConfigurationSummaryLines(item);
+                      return (
                       <tr key={item.id} className="align-top">
                         <td className="px-4 py-0.5 text-center font-bold text-foreground leading-tight">
                           {item.quantity}
                         </td>
                         <td className="px-4 py-0.5 font-semibold text-foreground leading-tight">
                           {item.product_name}
+                          {configLines && (
+                            <span className="mt-0.5 block text-[9px] font-normal leading-tight text-muted-foreground">
+                              Configura&ccedil;&atilde;o: {configLines.options}<br />
+                              Tiragem: {configLines.quantity} &bull; Unit&aacute;rio: {configLines.unit} &bull; Total: {configLines.total}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-0.5 text-right text-muted-foreground whitespace-nowrap leading-tight">{formatUnitCurrency(item.unit_price)}</td>
                         <td className="px-4 py-0.5 text-right font-bold text-foreground whitespace-nowrap leading-tight">{formatCurrency(item.total_price)}</td>
                       </tr>
+                      );
+                    })()
                   ))
                 ) : (
                   <tr>
@@ -1040,8 +1209,7 @@ export default function QuotesPage() {
                   onChange={(e) => {
                     const nextProductId = e.target.value;
                     setSelectedProductId(nextProductId);
-                    const firstTier = getProductVolumeTiers(nextProductId)[0];
-                    setItemQty(firstTier?.min_qty || 1);
+                    initializeProductConfiguration(nextProductId);
                   }}
                   className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
                 >
@@ -1085,24 +1253,75 @@ export default function QuotesPage() {
               )}
 
               {/* Quantity */}
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
-                <input
-                  type="number"
-                  min={getProductVolumeTiers(selectedProductId)[0]?.min_qty || 1}
-                  value={itemQty}
-                  onChange={(e) => {
-                    const minQty = getProductVolumeTiers(selectedProductId)[0]?.min_qty || 1;
-                    setItemQty(Math.max(minQty, parseInt(e.target.value) || minQty));
-                  }}
-                  className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                />
-              </div>
+              {!requiresTierSelection && (
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={itemQty}
+                    onChange={(e) => {
+                      setItemQty(Math.max(1, parseInt(e.target.value) || 1));
+                    }}
+                    className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                  />
+                </div>
+              )}
 
-              {selectedProductId && getProductPriceInfo(selectedProductId).hasVolumePricing && (
+              {selectedProductId && hasVariantPricingMatrix && (
+                <div className="md:col-span-12 rounded-xl border border-border bg-card px-4 py-3">
+                  <div className="flex flex-col gap-1">
+                    <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Configure o produto</h5>
+                    <p className="text-[11px] text-muted-foreground">
+                      Escolha a combinação cadastrada para liberar as tiragens e preços disponíveis.
+                    </p>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      { label: 'Material', field: 'material' as const, value: selectedMaterial, options: matrixMaterialOptions },
+                      { label: 'Tamanho', field: 'size' as const, value: selectedMatrixSize, options: matrixSizeOptions },
+                      { label: 'Cores', field: 'colors' as const, value: selectedMatrixColors, options: matrixColorOptions },
+                      { label: 'Acabamento', field: 'finishing' as const, value: selectedFinishing, options: matrixFinishingOptions }
+                    ].filter((group) => group.options.length > 0).map((group) => (
+                      <div key={group.label} className="rounded-lg border border-border bg-secondary/20 p-2.5">
+                        <span className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">{group.label}</span>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {group.options.map((option) => (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => handleMatrixOptionSelect(group.field, option)}
+                              className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition-all ${
+                                group.value === option
+                                  ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/10'
+                                  : 'border-border bg-card text-foreground hover:border-primary/50'
+                              }`}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {!selectedMatrixRow && (
+                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                      Essa combinação não possui preço cadastrado. Escolha outra opção.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedProductId && requiresTierSelection && (
                 <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground space-y-2">
+                  <div>
+                    <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Faixas de quantidade</h5>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Clique na tiragem cadastrada. A quantidade, o unitário e o total serão aplicados ao item.
+                    </p>
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    {getProductVolumeTiers(selectedProductId).map((tier) => (
+                    {effectiveQuantityTiers.map((tier) => (
                       <button
                         key={tier.min_qty}
                         type="button"
@@ -1113,19 +1332,21 @@ export default function QuotesPage() {
                             : 'bg-card text-foreground border-border hover:border-primary/50'
                         }`}
                       >
-                        {tier.min_qty} un - {formatUnitCurrency(tier.price)} / un
+                        <span className="block">A partir de {tier.min_qty} un</span>
+                        <span className="block">{formatUnitCurrency(tier.price)} / un</span>
+                        <span className="block text-[9px] opacity-80">{formatCurrency(tier.total)} total</span>
                       </button>
                     ))}
                   </div>
-                  {getProductPriceInfo(selectedProductId).volumeTier ? (
+                  {selectedQuantityTier ? (
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <span className="font-semibold">
-                        Faixa aplicada: a partir de {getProductPriceInfo(selectedProductId).volumeTier?.min_qty} un
+                        Faixa aplicada: a partir de {selectedQuantityTier.min_qty} un
                       </span>
                       <span className="font-bold text-primary">
-                        {formatUnitCurrency(getProductPriceInfo(selectedProductId).volumeTier?.price || 0)} / un
+                        {formatUnitCurrency(selectedQuantityTier.price)} / un
                         {' | '}
-                        {formatCurrency(getProductPriceInfo(selectedProductId).price * itemQty)} total
+                        {formatCurrency(selectedQuantityTier.total)} total
                       </span>
                     </div>
                   ) : (
@@ -1170,6 +1391,21 @@ export default function QuotesPage() {
                       <tr key={idx}>
                         <td className="px-4 py-2">
                           <div className="font-semibold">{item.product_name}</div>
+                          {(() => {
+                            const configLines = getItemConfigurationSummaryLines({
+                              ...item,
+                              total_price: item.quantity * item.unit_price
+                            });
+                            if (!configLines) return null;
+                            return (
+                              <div className="mt-1 rounded-lg border border-primary/10 bg-primary/5 px-2 py-1 text-[9px] leading-relaxed text-muted-foreground">
+                                <span className="block font-bold text-foreground">Configuração: {configLines.options}</span>
+                                <span className="block">
+                                  Tiragem: {configLines.quantity} • Unitário: {configLines.unit} • Total: {configLines.total}
+                                </span>
+                              </div>
+                            );
+                          })()}
                           {item.details && (item.details.width || item.details.height) && (
                             <div className="text-[9px] text-muted-foreground">
                               Medidas: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}

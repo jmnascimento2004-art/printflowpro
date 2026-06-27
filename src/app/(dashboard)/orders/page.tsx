@@ -526,6 +526,18 @@ export default function OrdersPage() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const getOrderItemConfigurationLines = (item: Order['items'][number]) => {
+    const snapshot = item.details?.configuration_snapshot;
+    if (!snapshot) return null;
+
+    return {
+      options: [snapshot.material, snapshot.size, snapshot.colors, snapshot.finishing].filter(Boolean).join(' • '),
+      quantity: `${snapshot.quantity_tier || item.quantity} un`,
+      unit: `${formatUnitCurrency(snapshot.unit_price || item.unit_price)}/un`,
+      total: formatCurrency(snapshot.total_price || item.total_price)
+    };
+  };
+
   const isOverdue = (dateStr: string, status: string) => {
     const isPast = new Date(dateStr) < new Date();
     const active = !['entregue', 'finalizado', 'cancelado'].includes(status);
@@ -1261,6 +1273,18 @@ export default function OrdersPage() {
                 <div key={item.id} className="p-3.5 text-xs flex justify-between items-start">
                   <div>
                     <div className="font-semibold text-foreground">{item.product_name}</div>
+                    {(() => {
+                      const configLines = getOrderItemConfigurationLines(item);
+                      if (!configLines) return null;
+                      return (
+                        <div className="mt-1 rounded-lg border border-primary/10 bg-primary/5 px-2 py-1 text-[10px] leading-relaxed text-muted-foreground">
+                          <span className="block font-bold text-foreground">Configuração: {configLines.options}</span>
+                          <span className="block">
+                            Tiragem: {configLines.quantity} • Unitário: {configLines.unit} • Total: {configLines.total}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     {item.details && (item.details.width || item.details.height) && (
                       <div className="text-[10px] text-muted-foreground mt-0.5">
                         Medidas: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
@@ -1638,23 +1662,34 @@ export default function OrdersPage() {
                   </thead>
                   <tbody>
                     {activePrintOrder.items.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-2 py-0.5 text-center border-r border-zinc-200 font-mono leading-tight">{item.quantity}</td>
-                        <td className="px-2 py-0.5 border-r border-zinc-200 leading-tight">
-                          <span className="font-semibold">{getPrintItemDescription(item)}</span>
-                          {item.details?.notes && (
-                            <span className="block text-[8px] text-zinc-500 font-normal italic mt-px leading-tight">
-                              Obs: {item.details.notes}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-2 py-0.5 text-right border-r border-zinc-200 font-mono leading-tight">
-                          {formatUnitCurrency(item.unit_price)}
-                        </td>
-                        <td className="px-2 py-0.5 text-right font-mono font-semibold leading-tight">
-                          {formatCurrency(item.total_price)}
-                        </td>
-                      </tr>
+                      (() => {
+                        const configLines = getOrderItemConfigurationLines(item);
+                        return (
+                          <tr key={item.id}>
+                            <td className="px-2 py-0.5 text-center border-r border-zinc-200 font-mono leading-tight">{item.quantity}</td>
+                            <td className="px-2 py-0.5 border-r border-zinc-200 leading-tight">
+                              <span className="font-semibold">{getPrintItemDescription(item)}</span>
+                              {configLines && (
+                                <span className="block text-[8px] text-zinc-500 font-normal mt-px leading-tight">
+                                  Configuração: {configLines.options}<br />
+                                  Tiragem: {configLines.quantity} • Unitário: {configLines.unit} • Total: {configLines.total}
+                                </span>
+                              )}
+                              {item.details?.notes && (
+                                <span className="block text-[8px] text-zinc-500 font-normal italic mt-px leading-tight">
+                                  Obs: {item.details.notes}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-2 py-0.5 text-right border-r border-zinc-200 font-mono leading-tight">
+                              {formatUnitCurrency(item.unit_price)}
+                            </td>
+                            <td className="px-2 py-0.5 text-right font-mono font-semibold leading-tight">
+                              {formatCurrency(item.total_price)}
+                            </td>
+                          </tr>
+                        );
+                      })()
                     ))}
                   </tbody>
                 </table>
