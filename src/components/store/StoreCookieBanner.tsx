@@ -42,10 +42,10 @@ export function StoreCookieBanner() {
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-black text-slate-950">Preferencias de cookies</h2>
+              <h2 className="text-sm font-black text-slate-950">Preferências de cookies</h2>
               <p className="mt-1 text-xs leading-5 text-slate-600">
-                Usamos cookies necessarios para login, carrinho, seguranca e checkout. Cookies de preferencias,
-                analise e marketing so devem ser ativados com sua escolha.
+                Usamos cookies necessários para login, carrinho, segurança e checkout. Cookies de preferências,
+                análise e marketing só devem ser ativados com sua escolha.
               </p>
             </div>
             {open && (
@@ -53,7 +53,7 @@ export function StoreCookieBanner() {
                 type="button"
                 onClick={() => setOpen(false)}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500"
-                aria-label="Fechar preferencias"
+                aria-label="Fechar preferências"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -87,7 +87,7 @@ export function StoreCookieBanner() {
             <button
               type="button"
               onClick={() => acceptAllCookies('banner_accept_all')}
-              className="min-h-11 rounded-xl bg-slate-950 px-4 text-xs font-black text-white"
+              className="pf-button-primary min-h-11 px-4 text-xs"
             >
               Aceitar todos
             </button>
@@ -96,16 +96,16 @@ export function StoreCookieBanner() {
               onClick={() => rejectNonEssentialCookies('banner_reject_non_essential')}
               className="min-h-11 rounded-xl border border-slate-300 px-4 text-xs font-black text-slate-700"
             >
-              Recusar nao essenciais
+              Recusar não essenciais
             </button>
             {open ? (
               <button
                 type="button"
                 onClick={save}
                 disabled={saving}
-                className="min-h-11 rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-xs font-black text-emerald-700 disabled:opacity-60"
+                className="pf-button-primary min-h-11 px-4 text-xs disabled:opacity-60"
               >
-                {saving ? 'Salvando...' : 'Salvar preferencias'}
+                {saving ? 'Salvando...' : 'Salvar preferências'}
               </button>
             ) : (
               <button
@@ -114,11 +114,11 @@ export function StoreCookieBanner() {
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 text-xs font-black text-slate-700"
               >
                 <Settings2 className="h-4 w-4" />
-                Gerenciar preferencias
+                Gerenciar preferências
               </button>
             )}
             <Link href="/store/cookies" className="px-1 text-xs font-bold text-slate-500 underline-offset-4 hover:underline">
-              Politica de cookies
+              Política de cookies
             </Link>
           </div>
         </div>

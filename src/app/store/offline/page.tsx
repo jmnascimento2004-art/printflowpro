@@ -14,9 +14,9 @@ export default function StoreOfflinePage() {
           <WifiOff className="h-7 w-7" />
         </div>
 
-        <h1 className="mt-5 text-xl font-black text-slate-950">Catalogo sem conexao</h1>
+        <h1 className="mt-5 text-xl font-black text-slate-950">Catálogo sem conexão</h1>
         <p className="mt-3 text-sm leading-6 text-slate-600">
-          Voce esta sem conexao. Alguns produtos, precos e disponibilidades podem nao estar atualizados.
+          Você está sem conexão. Alguns produtos, preços e disponibilidades podem não estar atualizados.
         </p>
 
         <Link

@@ -15,6 +15,7 @@ const ALLOWED_STORE_REDIRECTS = [
   '/store/privacidade',
   '/store/cookies',
   '/store/termos',
+  '/store/politicas',
   '/store/privacidade/solicitar'
 ];
 
@@ -31,6 +32,7 @@ export const STORE_ROUTES = {
   security: '/store/conta/seguranca',
   privacy: '/store/conta/privacidade',
   publicPrivacy: '/store/privacidade',
+  policies: '/store/politicas',
   resetPassword: '/store/recuperar-senha',
   updatePassword: '/store/redefinir-senha'
 } as const;

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
+import { getBrazilianWhatsAppHref } from '@/lib/utils';
 
 type StoreCategory = {
   id: string;
@@ -68,8 +69,7 @@ export default function StoreMobileBottomNavigation({
     }
   }, [sheet]);
 
-  const cleanPhone = (companyPhone || '').replace(/\D/g, '');
-  const whatsAppHref = cleanPhone ? `https://wa.me/55${cleanPhone}` : '';
+  const whatsAppHref = getBrazilianWhatsAppHref(companyPhone);
   const rootCategories = categories.filter((category) => !category.parent_id);
   const childCategories = categories.filter((category) => category.parent_id);
   const activeAccent = { color: primaryColor };
@@ -186,7 +186,7 @@ export default function StoreMobileBottomNavigation({
                     type="search"
                     value={searchQuery}
                     onChange={(event) => onSearchChange(event.target.value)}
-                    placeholder="Buscar banners, adesivos, cartoes..."
+                    placeholder="Buscar banners, adesivos, cartões..."
                     className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 text-base font-semibold text-slate-900 outline-none focus:bg-white"
                     style={{ borderColor: searchQuery ? primaryColor : undefined }}
                   />
@@ -218,12 +218,12 @@ export default function StoreMobileBottomNavigation({
               <div className="max-h-[58dvh] overflow-y-auto p-3">
                 <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-xs font-black text-slate-900">
-                    {hasStoreSession ? `Ola, ${customer?.name?.split(' ')[0] || session?.user?.email?.split('@')[0] || 'cliente'}` : 'Conta do cliente'}
+                    {hasStoreSession ? `Olá, ${customer?.name?.split(' ')[0] || session?.user?.email?.split('@')[0] || 'cliente'}` : 'Conta do cliente'}
                   </p>
                   <p className="mt-1 text-[11px] leading-4 text-slate-500">
                     {hasStoreSession
-                      ? `${orders.length} pedido(s) vinculados a sua conta.`
-                      : 'Entre ou crie sua conta para acompanhar pedidos e salvar enderecos.'}
+                      ? `${orders.length} pedido(s) vinculados à sua conta.`
+                      : 'Entre ou crie sua conta para acompanhar pedidos e salvar endereços.'}
                   </p>
                 </div>
 
@@ -249,7 +249,7 @@ export default function StoreMobileBottomNavigation({
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <MapPin className="h-4.5 w-4.5 text-slate-500" />
-                        Enderecos
+                        Endereços
                       </a>
                       <a
                         href={STORE_ROUTES.privacy}
@@ -263,7 +263,7 @@ export default function StoreMobileBottomNavigation({
                         className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                       >
                         <LockKeyhole className="h-4.5 w-4.5 text-slate-500" />
-                        Seguranca e senha
+                        Segurança e senha
                       </a>
                     </>
                   ) : (
@@ -312,7 +312,7 @@ export default function StoreMobileBottomNavigation({
                       className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
                     >
                       <Info className="h-4.5 w-4.5 text-slate-500" />
-                      Informacoes da loja
+                      Informações da loja
                     </a>
                   )}
 
@@ -325,7 +325,7 @@ export default function StoreMobileBottomNavigation({
                     className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                   >
                     <MapPin className="h-4.5 w-4.5 text-slate-500" />
-                    Balcoes de retirada
+                    Balcões de retirada
                   </button>
 
                   <button
@@ -337,7 +337,7 @@ export default function StoreMobileBottomNavigation({
                     className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left text-sm font-bold text-slate-700"
                   >
                     <HelpCircle className="h-4.5 w-4.5 text-slate-500" />
-                    Politica de devolucao
+                    Política de devolução
                   </button>
 
                   <a
@@ -345,7 +345,7 @@ export default function StoreMobileBottomNavigation({
                     className="flex min-h-12 items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"
                   >
                     <Info className="h-4.5 w-4.5 text-slate-500" />
-                    Politicas da loja
+                    Políticas da loja
                   </a>
 
                   {hasStoreSession && (
@@ -379,10 +379,10 @@ export default function StoreMobileBottomNavigation({
               homeActive ? 'bg-slate-100' : 'text-slate-500'
             }`}
             style={homeActive ? activeAccent : undefined}
-            aria-label="Ir para inicio"
+            aria-label="Ir para início"
           >
             <Home className="h-5 w-5" />
-            <span className="max-w-full truncate text-[10px] font-black leading-tight">Inicio</span>
+            <span className="max-w-full truncate text-[10px] font-black leading-tight">Início</span>
           </button>
 
           <button
