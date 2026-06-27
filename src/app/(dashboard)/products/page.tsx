@@ -32,6 +32,7 @@ import {
   formatUnitCurrency,
   getNormalizedVariantPricingMatrix,
   getNormalizedVolumePricing,
+  getProductQuantityTierSummary,
   NormalizedVolumePriceTier
 } from '@/lib/pricing';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -1060,18 +1061,7 @@ export default function ProductsCRUDPage() {
   });
 
   const getProductQuantityTiers = (product: Product) => {
-    const volumeTiers = getNormalizedVolumePricing(product);
-    if (volumeTiers.length > 0) return { tiers: volumeTiers, sourceLabel: 'Faixas de quantidade' };
-
-    const matrixRow = getNormalizedVariantPricingMatrix(product)[0];
-    if (matrixRow?.tiers.length) {
-      return {
-        tiers: matrixRow.tiers,
-        sourceLabel: [matrixRow.material, matrixRow.size, matrixRow.colors, matrixRow.finishing].filter(Boolean).join(' | ') || 'Matriz de configuração'
-      };
-    }
-
-    return { tiers: [], sourceLabel: '' };
+    return getProductQuantityTierSummary(product);
   };
 
   const getProductCategoryName = (product: Product) => {
@@ -1359,7 +1349,7 @@ export default function ProductsCRUDPage() {
                                 {cardTiers.length > 0 && (
                                   <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 px-2 py-1.5">
                                     <div className="mb-1 flex items-center justify-between gap-2">
-                                      <span className="text-[9px] font-black uppercase tracking-wide text-emerald-700">Faixas</span>
+                                      <span className="text-[9px] font-black uppercase tracking-wide text-emerald-700">Faixas de quantidade</span>
                                       {hiddenTierCount > 0 && (
                                         <span className="text-[9px] font-bold text-emerald-700">+ {hiddenTierCount} faixas</span>
                                       )}
@@ -1368,13 +1358,20 @@ export default function ProductsCRUDPage() {
                                       {cardTiers.map((tier) => {
                                         const formattedTier = formatQuantityTier(tier);
                                         return (
-                                          <div key={`${prod.id}-${tier.min_qty}-${tier.price}`} className="flex items-center justify-between gap-2 text-[9px] font-bold leading-tight">
+                                          <div key={`${prod.id}-${tier.min_qty}-${tier.price}`} className="grid grid-cols-[42px_1fr_1fr] gap-1 text-[9px] font-bold leading-tight">
                                             <span className="text-foreground">{formattedTier.quantity}</span>
                                             <span className="text-muted-foreground">{formattedTier.unit}</span>
+                                            <span className="text-right text-muted-foreground">{formattedTier.total.replace(' total', '')}</span>
                                           </div>
                                         );
                                       })}
                                     </div>
+                                  </div>
+                                )}
+
+                                {cardTiers.length === 0 && getProductSaleMode(prod) === 'volume' && (
+                                  <div className="rounded-lg border border-amber-500/15 bg-amber-500/5 px-2 py-1.5 text-[9px] font-bold text-amber-700">
+                                    Sem faixas cadastradas
                                   </div>
                                 )}
                               </div>

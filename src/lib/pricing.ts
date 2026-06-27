@@ -78,14 +78,24 @@ export interface CatalogPricePresentation {
   tier: NormalizedVolumePriceTier | null;
 }
 
+export interface ProductQuantityTierSummary {
+  tiers: NormalizedVolumePriceTier[];
+  source: 'volume_pricing' | 'variant_pricing_matrix' | null;
+  sourceLabel: string;
+  matrixRow: NormalizedVariantPricingMatrixRow | null;
+}
+
 type ProductLike = Partial<Product> & {
   sales_price?: number | string | null;
   base_cost?: number | string | null;
   pricing_type?: PricingType | string | null;
   volume_pricing?: unknown;
+  variant_pricing_matrix?: unknown;
+  configurator_options?: ProductConfiguratorSettings | null;
   pricing_details?: {
     configurator_options?: ProductConfiguratorSettings | null;
-  } | null;
+    variant_pricing_matrix?: unknown;
+  } | string | null;
 };
 
 const normalizeTextValue = (value: unknown): string => String(value ?? '').trim();
@@ -106,17 +116,51 @@ const toFiniteNumber = (value: unknown, fallback = 0): number => {
 
 const roundMoney = (value: number): number => Math.round(value * 100) / 100;
 
+const parseMaybeJsonArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getPricingDetailsObject = (product: ProductLike | null | undefined): Record<string, unknown> => {
+  const details = product?.pricing_details;
+  if (!details) return {};
+  if (typeof details === 'string') {
+    try {
+      const parsed = JSON.parse(details);
+      return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return details as unknown as Record<string, unknown>;
+};
+
+const getConfiguratorObject = (product: ProductLike | null | undefined): Record<string, unknown> => {
+  const details = getPricingDetailsObject(product);
+  const configurator = product?.configurator_options || details.configurator_options;
+  return configurator && typeof configurator === 'object' ? configurator as Record<string, unknown> : {};
+};
+
 export function getNormalizedVolumePricing(product: ProductLike | null | undefined): NormalizedVolumePriceTier[] {
   const salesPrice = toFiniteNumber(product?.sales_price, NaN);
   const fallbackPrice = Number.isFinite(salesPrice)
     ? salesPrice
     : toFiniteNumber(product?.base_cost, 0);
-  const tiers = Array.isArray(product?.volume_pricing) ? product.volume_pricing : [];
+  const tiers = parseMaybeJsonArray(product?.volume_pricing);
 
   return tiers
     .map((tier) => {
-      const minQty = Math.max(0, toFiniteNumber((tier as { min_qty?: unknown }).min_qty, 0));
-      const price = toFiniteNumber((tier as { price?: unknown }).price, fallbackPrice);
+      const tierRecord = tier as { min_qty?: unknown; quantity?: unknown; qty?: unknown; price?: unknown; unit_price?: unknown };
+      const minQty = Math.max(0, toFiniteNumber(tierRecord.min_qty ?? tierRecord.quantity ?? tierRecord.qty, 0));
+      const price = toFiniteNumber(tierRecord.price ?? tierRecord.unit_price, fallbackPrice);
       return {
         min_qty: minQty,
         price,
@@ -132,17 +176,32 @@ export function getInitialVolumePricingTier(product: ProductLike | null | undefi
 }
 
 export function getNormalizedVariantPricingMatrix(product: ProductLike | null | undefined): NormalizedVariantPricingMatrixRow[] {
-  const matrix = product?.pricing_details?.configurator_options?.variant_pricing_matrix;
-  if (!Array.isArray(matrix)) return [];
+  const details = getPricingDetailsObject(product);
+  const configurator = getConfiguratorObject(product);
+  const matrix = parseMaybeJsonArray(
+    configurator.variant_pricing_matrix ||
+    details.variant_pricing_matrix ||
+    product?.variant_pricing_matrix
+  );
 
   return matrix
     .map((row, index) => {
-      const rawTiers = Array.isArray(row.tiers) ? row.tiers : [];
+      const rowRecord = row as {
+        id?: unknown;
+        material?: unknown;
+        size?: unknown;
+        colors?: unknown;
+        finishing?: unknown;
+        tiers?: unknown;
+        volume_pricing?: unknown;
+      };
+      const rawTiers = parseMaybeJsonArray(rowRecord.tiers || rowRecord.volume_pricing);
       const tiers = rawTiers
         .map((tier) => {
-          const quantity = Math.max(0, toFiniteNumber((tier as { quantity?: unknown; min_qty?: unknown }).quantity ?? (tier as { min_qty?: unknown }).min_qty, 0));
-          const explicitTotal = toFiniteNumber((tier as { total_price?: unknown; total?: unknown }).total_price ?? (tier as { total?: unknown }).total, NaN);
-          const unitPrice = toFiniteNumber((tier as { unit_price?: unknown; price?: unknown }).unit_price ?? (tier as { price?: unknown }).price, Number.isFinite(explicitTotal) && quantity > 0 ? explicitTotal / quantity : 0);
+          const tierRecord = tier as { quantity?: unknown; min_qty?: unknown; qty?: unknown; total_price?: unknown; total?: unknown; unit_price?: unknown; price?: unknown };
+          const quantity = Math.max(0, toFiniteNumber(tierRecord.quantity ?? tierRecord.min_qty ?? tierRecord.qty, 0));
+          const explicitTotal = toFiniteNumber(tierRecord.total_price ?? tierRecord.total, NaN);
+          const unitPrice = toFiniteNumber(tierRecord.unit_price ?? tierRecord.price, Number.isFinite(explicitTotal) && quantity > 0 ? explicitTotal / quantity : 0);
 
           return {
             min_qty: quantity,
@@ -154,16 +213,49 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
         .sort((a, b) => a.min_qty - b.min_qty);
 
       return {
-        id: normalizeTextValue(row.id) || `matrix-${index}`,
-        material: normalizeTextValue(row.material),
-        size: normalizeTextValue(row.size),
-        colors: normalizeTextValue(row.colors),
-        finishing: normalizeTextValue(row.finishing),
+        id: normalizeTextValue(rowRecord.id) || `matrix-${index}`,
+        material: normalizeTextValue(rowRecord.material),
+        size: normalizeTextValue(rowRecord.size),
+        colors: normalizeTextValue(rowRecord.colors),
+        finishing: normalizeTextValue(rowRecord.finishing),
         tiers
       };
     })
     .filter((row) => row.tiers.length > 0)
     .sort((a, b) => [a.material, a.size, a.colors, a.finishing].join('|').localeCompare([b.material, b.size, b.colors, b.finishing].join('|')));
+}
+
+export function getProductQuantityTierSummary(product: ProductLike | null | undefined): ProductQuantityTierSummary {
+  const matrixRow = getNormalizedVariantPricingMatrix(product)[0] || null;
+  if (matrixRow?.tiers.length) {
+    const sourceLabel = [matrixRow.material, matrixRow.size, matrixRow.colors, matrixRow.finishing]
+      .filter(Boolean)
+      .join(' | ');
+
+    return {
+      tiers: matrixRow.tiers,
+      source: 'variant_pricing_matrix',
+      sourceLabel: sourceLabel || 'Matriz de configuração',
+      matrixRow
+    };
+  }
+
+  const volumeTiers = getNormalizedVolumePricing(product);
+  if (volumeTiers.length) {
+    return {
+      tiers: volumeTiers,
+      source: 'volume_pricing',
+      sourceLabel: 'Faixas de quantidade',
+      matrixRow: null
+    };
+  }
+
+  return {
+    tiers: [],
+    source: null,
+    sourceLabel: '',
+    matrixRow: null
+  };
 }
 
 export function getVariantPricingOptions(
@@ -239,8 +331,8 @@ const hasConfiguratorContent = (configurator: ProductConfiguratorSettings): bool
 };
 
 export function getProductConfigurator(product: ProductLike | null | undefined): ProductConfiguratorSettings | null {
-  const configurator = product?.pricing_details?.configurator_options;
-  return configurator && hasConfiguratorContent(configurator) ? configurator : null;
+  const configurator = getConfiguratorObject(product) as unknown as ProductConfiguratorSettings;
+  return hasConfiguratorContent(configurator) ? configurator : null;
 }
 
 export function hasAdvancedConfigurator(product: ProductLike | null | undefined): boolean {
