@@ -107,8 +107,8 @@ function resolveDisplayName(value: string) {
   return value.length > 24 && cleanBrandName.length >= 3 ? cleanBrandName : value;
 }
 
-export function normalizeBrandDomain(value: string = '') {
-  const trimmed = value.trim().toLowerCase();
+export function normalizeBrandDomain(value?: string | null) {
+  const trimmed = String(value ?? '').trim().toLowerCase();
   if (!trimmed) return '';
   return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/^www\./, '');
 }

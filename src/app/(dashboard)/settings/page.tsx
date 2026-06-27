@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
-import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber, normalizeRichTextHtml } from '@/lib/utils';
+import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber, normalizeRichTextHtml, onlyPhoneDigits, getBrazilianPhoneDisplay } from '@/lib/utils';
 import { lookupCNPJ } from '@/lib/cnpj-lookup';
 import { DUMMY_COMPANY, PickupPoint, UserProfile } from '@/lib/dummy-data';
 import { warnCaught } from '@/lib/safe-log';
@@ -304,7 +304,7 @@ export default function SettingsPage() {
         try {
           const data = await lookupCNPJ(clean);
           setCompName(data.razaoSocial || data.nomeFantasia || compName);
-          setCompPhone(data.telefone || compPhone);
+          setCompPhone(getBrazilianPhoneDisplay(data.telefone || compPhone));
           setCompEmail(data.email || compEmail);
           setCompCEP(data.cep || compCEP);
           setCompStreet(data.logradouro || compStreet);
@@ -315,12 +315,22 @@ export default function SettingsPage() {
           setCnpjLookupStatus('Dados da empresa preenchidos automaticamente.');
         } catch (e) {
           warnCaught('Erro ao consultar CNPJ da empresa:', e);
-          setCnpjLookupStatus(e instanceof Error ? e.message : 'Nao foi possivel consultar o CNPJ.');
+          setCnpjLookupStatus(e instanceof Error ? e.message : 'Não foi possível consultar o CNPJ.');
         }
       }
     } else {
       setCnpjError(false);
     }
+  };
+
+  const handleCatalogWhatsAppChange = (value: string) => {
+    const digits = onlyPhoneDigits(value).slice(0, 13);
+    setCatalogWhatsApp(getBrazilianPhoneDisplay(digits) || digits);
+  };
+
+  const handleCompanyPhoneChange = (value: string) => {
+    const digits = onlyPhoneDigits(value).slice(0, 13);
+    setCompPhone(getBrazilianPhoneDisplay(digits) || digits);
   };
 
   const handleCEPChange = async (val: string) => {
@@ -379,7 +389,8 @@ export default function SettingsPage() {
   // Storefront Header & Footer Customization State
   const [topBarHours, setTopBarHours] = useState(settings.top_bar_hours || 'Segunda à Sexta: 8h às 12h / 13h30 às 18h');
   const [topBarShowPickup, setTopBarShowPickup] = useState(settings.top_bar_show_pickup !== false);
-  const [topBarPhone, setTopBarPhone] = useState(settings.top_bar_phone || '(51) 98765-4321');
+  const [topBarPhone, setTopBarPhone] = useState(settings.top_bar_phone || '');
+  const [catalogWhatsApp, setCatalogWhatsApp] = useState(getBrazilianPhoneDisplay(settings.catalog_whatsapp || ''));
   const [footerShowAddress, setFooterShowAddress] = useState(settings.footer_show_address !== false);
   const [catalogPromotionsSectionEnabled, setCatalogPromotionsSectionEnabled] = useState(settings.catalog_promotions_section_enabled !== false);
   const [footerHoursMessage, setFooterHoursMessage] = useState(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
@@ -418,7 +429,8 @@ export default function SettingsPage() {
     setDeliveryMinFee(settings.delivery_min_fee !== undefined && settings.delivery_min_fee !== null ? settings.delivery_min_fee : 10.00);
     setTopBarHours(settings.top_bar_hours || 'Segunda a Sexta: 8h as 12h / 13h30 as 18h');
     setTopBarShowPickup(settings.top_bar_show_pickup !== false);
-    setTopBarPhone(settings.top_bar_phone || '(51) 98765-4321');
+    setTopBarPhone(settings.top_bar_phone || '');
+    setCatalogWhatsApp(getBrazilianPhoneDisplay(settings.catalog_whatsapp || ''));
     setFooterShowAddress(settings.footer_show_address !== false);
     setCatalogPromotionsSectionEnabled(settings.catalog_promotions_section_enabled !== false);
     setFooterHoursMessage(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
@@ -440,7 +452,7 @@ export default function SettingsPage() {
     setCompThemeColor(company.theme_color || 'violet');
     setCompAdminDomain(company.admin_domain || '');
     setCompStoreDomain(company.store_domain || company.custom_domain || '');
-    setCompPhone(company.phone || '');
+    setCompPhone(getBrazilianPhoneDisplay(company.phone || ''));
     setCompEmail(company.email || '');
     setCompCEP(company.cep || '');
     setCompStreet(company.street || '');
@@ -783,6 +795,7 @@ export default function SettingsPage() {
       top_bar_hours: topBarHours,
       top_bar_show_pickup: topBarShowPickup,
       top_bar_phone: topBarPhone,
+      catalog_whatsapp: onlyPhoneDigits(catalogWhatsApp),
       footer_show_address: footerShowAddress,
       catalog_promotions_section_enabled: catalogPromotionsSectionEnabled,
       footer_hours_message: footerHoursMessage,
@@ -813,7 +826,7 @@ export default function SettingsPage() {
       custom_domain: normalizeCustomDomainInput(compStoreDomain),
       custom_domain_status: normalizeCustomDomainInput(compAdminDomain) || normalizeCustomDomainInput(compStoreDomain) ? (company.custom_domain_status === 'active' ? 'active' : 'pending') : 'not_configured',
       custom_domain_verified_at: normalizeCustomDomainInput(compAdminDomain) || normalizeCustomDomainInput(compStoreDomain) ? company.custom_domain_verified_at || null : null,
-      phone: compPhone,
+      phone: getBrazilianPhoneDisplay(compPhone),
       email: compEmail,
       cep: compCEP,
       street: compStreet,
@@ -1144,13 +1157,27 @@ export default function SettingsPage() {
                       <input
                         type="text"
                         value={compPhone}
-                        onChange={(e) => setCompPhone(e.target.value)}
+                        onChange={(e) => handleCompanyPhoneChange(e.target.value)}
                         placeholder="Ex: (11) 98765-4321"
                         className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
                       />
                     </div>
 
-                    <div className="md:col-span-2 space-y-1">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase">WhatsApp de Vendas</label>
+                      <input
+                        type="tel"
+                        value={catalogWhatsApp}
+                        onChange={(e) => handleCatalogWhatsAppChange(e.target.value)}
+                        placeholder="Ex: (81) 99274-9650"
+                        className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
+                      />
+                      <p className="text-[9px] text-muted-foreground font-semibold">
+                        Usado no rodapé, botão flutuante e atendimento do catálogo. Não substitui o telefone comercial.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
                       <label className="text-[10px] font-bold text-muted-foreground uppercase">E-mail Comercial</label>
                       <input
                         type="email"
@@ -1274,28 +1301,30 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="mt-4 rounded-xl border border-primary/15 bg-primary/5 p-3 space-y-2">
-                      <p className="text-[10px] font-black uppercase text-primary">Instrução para DNS e Vercel</p>
+                      <p className="text-[10px] font-black uppercase text-primary">Instruções para configurar domínio</p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px]">
                         <div className="rounded-lg bg-background border border-border p-2">
                           <span className="block text-muted-foreground font-bold uppercase">Tipo</span>
                           <span className="font-black text-foreground">CNAME</span>
                         </div>
                         <div className="rounded-lg bg-background border border-border p-2">
-                          <span className="block text-muted-foreground font-bold uppercase">Nomes</span>
+                          <span className="block text-muted-foreground font-bold uppercase">Subdomínios</span>
                           <span className="font-black text-foreground break-all">admin / store</span>
                         </div>
                         <div className="rounded-lg bg-background border border-border p-2">
                           <span className="block text-muted-foreground font-bold uppercase">Destino</span>
-                          <span className="font-black text-foreground break-all">Valor CNAME exibido pela Vercel</span>
+                          <span className="font-black text-foreground break-all">Informado pela Vercel</span>
                         </div>
                       </div>
                       <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
-                        Adicione os dois domínios no projeto da Vercel e configure o DNS conforme a Vercel indicar. O SaaS identifica a empresa pelos hostnames salvos aqui.
+                        Adicione os domínios no projeto da Vercel e configure os registros DNS conforme as instruções exibidas pela própria Vercel.
+                        Depois de configurado, informe os domínios acima para o catálogo reconhecer a empresa corretamente.
+                        Copie o CNAME informado pela Vercel e configure no seu provedor de DNS.
                       </p>
                       <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary/20 px-2.5 py-1.5">
-                        <span className={`h-2 w-2 rounded-full ${compAdminDomain || compStoreDomain ? 'bg-amber-500' : 'bg-muted-foreground/50'}`} />
+                        <span className={`h-2 w-2 rounded-full ${compAdminDomain || compStoreDomain ? 'bg-primary' : 'bg-muted-foreground/50'}`} />
                         <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                          {compAdminDomain || compStoreDomain ? 'Aguardando DNS / verificação' : 'Não configurado'}
+                          {compAdminDomain || compStoreDomain ? 'Configuração manual' : 'Não configurado'}
                         </span>
                       </div>
                     </div>
@@ -1570,7 +1599,7 @@ export default function SettingsPage() {
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">WhatsApp de Suporte</label>
+                        <label className="text-xs font-semibold text-muted-foreground">Telefone da Barra Superior</label>
                         <input
                           type="text"
                           value={topBarPhone}

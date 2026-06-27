@@ -125,6 +125,36 @@ export function getPublicImageUrl(value?: string): string {
   return '';
 }
 
+export function onlyPhoneDigits(value?: string | null): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+export function getBrazilianPhoneDisplay(value?: string | null): string {
+  let digits = onlyPhoneDigits(value);
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+    digits = digits.slice(2);
+  }
+
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return value?.trim() || '';
+}
+
+export function getBrazilianWhatsAppHref(value?: string | null): string {
+  const digits = onlyPhoneDigits(value);
+  if (!digits) return '';
+  const internationalDigits = digits.startsWith('55') && (digits.length === 12 || digits.length === 13)
+    ? digits
+    : `55${digits}`;
+  return `https://wa.me/${internationalDigits}`;
+}
+
 /**
  * Formats a raw number or string value as R$ Currency input format
  * e.g. 10.5 -> "R$ 10,50"

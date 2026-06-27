@@ -133,7 +133,7 @@ export default function ShipmentPage() {
                       setSelectedShipment(ship);
                       setCarrierInput(ship.carrier || 'Correios');
                     }}
-                    className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow"
+                    className="w-full py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow"
                   >
                     Despachar Envio <ArrowRight className="h-3.5 w-3.5" />
                   </button>

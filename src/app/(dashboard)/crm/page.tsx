@@ -315,7 +315,7 @@ export default function CustomersPage() {
 
               <button
                 onClick={startCreate}
-                className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white shadow-lg shadow-blue-600/15 transition-all hover:bg-blue-500"
+                className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-primary-foreground shadow-lg shadow-primary/15 transition-all hover:bg-primary/90"
               >
                 <Plus className="h-4 w-4" /> Novo Cliente
               </button>
@@ -439,7 +439,7 @@ export default function CustomersPage() {
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field label={personType === 'fisica' ? 'Nome completo *' : 'Razão social *'}>
-                  <input required value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
+                  <input required value={name} onChange={(event) => setName(event.target.value)} className={inputClass} placeholder={personType === 'fisica' ? 'Ex: Joao da Silva' : 'Ex: Grafica Modelo LTDA'} />
                 </Field>
 
                 <Field label={personType === 'fisica' ? 'CPF *' : 'CNPJ *'}>
@@ -460,31 +460,31 @@ export default function CustomersPage() {
                 {personType === 'juridica' && (
                   <>
                     <Field label="Nome fantasia">
-                      <input value={tradeName} onChange={(event) => setTradeName(event.target.value)} className={inputClass} />
+                      <input value={tradeName} onChange={(event) => setTradeName(event.target.value)} className={inputClass} placeholder="Ex: Grafica Modelo" />
                     </Field>
                     <Field label="Inscrição estadual">
-                      <input value={stateRegistration} onChange={(event) => setStateRegistration(event.target.value)} className={inputClass} />
+                      <input value={stateRegistration} onChange={(event) => setStateRegistration(event.target.value)} className={inputClass} placeholder="Ex: 123456789" />
                     </Field>
                     <Field label="Responsável">
-                      <input value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} className={inputClass} />
+                      <input value={responsibleName} onChange={(event) => setResponsibleName(event.target.value)} className={inputClass} placeholder="Ex: Maria Souza" />
                     </Field>
                   </>
                 )}
 
                 {personType === 'fisica' && (
                   <Field label="Data de nascimento">
-                    <input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} />
+                    <input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} className={inputClass} placeholder="dd/mm/aaaa" />
                   </Field>
                 )}
 
                 <Field label="Telefone *">
-                  <input required value={phone} onChange={(event) => setPhone(event.target.value)} className={inputClass} />
+                  <input required value={phone} onChange={(event) => setPhone(event.target.value)} className={inputClass} placeholder="(00) 00000-0000" />
                 </Field>
                 <Field label="WhatsApp">
-                  <input value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className={inputClass} />
+                  <input value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className={inputClass} placeholder="(00) 00000-0000" />
                 </Field>
                 <Field label="E-mail">
-                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} />
+                  <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} placeholder="cliente@email.com" />
                 </Field>
               </div>
 
@@ -492,25 +492,25 @@ export default function CustomersPage() {
                 <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Endereço</h4>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                   <Field label="CEP" className="md:col-span-2">
-                    <input value={zipCode} onChange={(event) => handleZipCodeChange(event.target.value)} className={inputClass} />
+                    <input value={zipCode} onChange={(event) => handleZipCodeChange(event.target.value)} className={inputClass} placeholder="00000-000" />
                   </Field>
                   <Field label="Rua" className="md:col-span-4">
-                    <input value={street} onChange={(event) => setStreet(event.target.value)} className={inputClass} />
+                    <input value={street} onChange={(event) => setStreet(event.target.value)} className={inputClass} placeholder="Ex: Avenida Principal" />
                   </Field>
                   <Field label="Número" className="md:col-span-2">
-                    <input value={number} onChange={(event) => setNumber(event.target.value)} className={inputClass} />
+                    <input value={number} onChange={(event) => setNumber(event.target.value)} className={inputClass} placeholder="Ex: 123" />
                   </Field>
                   <Field label="Complemento" className="md:col-span-4">
-                    <input value={complement} onChange={(event) => setComplement(event.target.value)} className={inputClass} />
+                    <input value={complement} onChange={(event) => setComplement(event.target.value)} className={inputClass} placeholder="Ex: Sala 02" />
                   </Field>
                   <Field label="Bairro" className="md:col-span-2">
-                    <input value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)} className={inputClass} />
+                    <input value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)} className={inputClass} placeholder="Ex: Centro" />
                   </Field>
                   <Field label="Cidade" className="md:col-span-2">
-                    <input value={city} onChange={(event) => setCity(event.target.value)} className={inputClass} />
+                    <input value={city} onChange={(event) => setCity(event.target.value)} className={inputClass} placeholder="Ex: Recife" />
                   </Field>
                   <Field label="Estado" className="md:col-span-2">
-                    <input value={state} onChange={(event) => setState(event.target.value.toUpperCase().slice(0, 2))} className={inputClass} />
+                    <input value={state} onChange={(event) => setState(event.target.value.toUpperCase().slice(0, 2))} className={inputClass} placeholder="PE" />
                   </Field>
                 </div>
               </div>
@@ -521,6 +521,7 @@ export default function CustomersPage() {
                   onChange={(event) => setNotes(event.target.value)}
                   rows={3}
                   className={`${inputClass} min-h-24 resize-none py-2`}
+                  placeholder="Ex: Preferencia de contato, observacoes comerciais ou historico relevante"
                 />
               </Field>
 
@@ -562,7 +563,7 @@ export default function CustomersPage() {
                   <div className="flex flex-wrap gap-2 xl:shrink-0 xl:justify-end xl:pt-8">
                     <button
                       onClick={() => startEdit(selectedCustomer)}
-                      className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-blue-600/15 transition-all hover:bg-blue-500"
+                      className="rounded-xl bg-primary px-4 py-2 text-xs font-black text-primary-foreground shadow-md shadow-primary/15 transition-all hover:bg-primary/90"
                     >
                       Editar
                     </button>
@@ -892,3 +893,4 @@ function formatAddress(customer: Customer) {
     address.zip_code ? `CEP ${address.zip_code}` : ''
   ].filter(Boolean).join(' • ');
 }
+
