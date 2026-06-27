@@ -73,6 +73,49 @@ const companyHeadBootScript = `
 })();
 `;
 
+const developmentPwaCleanupBootScript = process.env.NODE_ENV === 'production' ? '' : `
+(function () {
+  try {
+    var host = window.location.hostname;
+    var isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    if (!isLocal) return;
+
+    var cleanup = [];
+
+    if ('serviceWorker' in navigator) {
+      cleanup.push(
+        navigator.serviceWorker.getRegistrations()
+          .then(function (registrations) {
+            return Promise.all(registrations.map(function (registration) {
+              return registration.unregister();
+            }));
+          })
+      );
+    }
+
+    if ('caches' in window) {
+      cleanup.push(
+        window.caches.keys()
+          .then(function (cacheNames) {
+            return Promise.all(cacheNames.map(function (cacheName) {
+              return window.caches.delete(cacheName);
+            }));
+          })
+      );
+    }
+
+    if (!cleanup.length) return;
+
+    Promise.all(cleanup).then(function () {
+      if (navigator.serviceWorker && navigator.serviceWorker.controller && !window.sessionStorage.getItem('printflow_dev_sw_cleanup')) {
+        window.sessionStorage.setItem('printflow_dev_sw_cleanup', '1');
+        window.location.reload();
+      }
+    }).catch(function () {});
+  } catch (error) {}
+})();
+`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://admin.cibeleprint.com.br"),
   title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
@@ -115,6 +158,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="light" suppressHydrationWarning>
       <head>
+        {developmentPwaCleanupBootScript && (
+          <script dangerouslySetInnerHTML={{ __html: developmentPwaCleanupBootScript }} />
+        )}
         <script dangerouslySetInnerHTML={{ __html: companyHeadBootScript }} />
       </head>
       <body className="antialiased" suppressHydrationWarning>

@@ -27,8 +27,44 @@ function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: strin
 
   if (!icon) return `/icons/icon-${size}x${size}.png`;
 
-  const absoluteIcon = new URL(icon, request.nextUrl.origin).href;
-  return `/api/pwa/icon?src=${encodeURIComponent(absoluteIcon)}&size=${size}`;
+  try {
+    const absoluteIcon = new URL(icon, request.nextUrl.origin).href;
+    return `/api/pwa/icon?src=${encodeURIComponent(absoluteIcon)}&size=${size}`;
+  } catch {
+    return `/icons/icon-${size}x${size}.png`;
+  }
+}
+
+function fallbackManifest() {
+  return {
+    name: DEFAULT_BRANDING.appName || 'PrintFlowPRO',
+    short_name: DEFAULT_BRANDING.shortName || 'PrintFlowPRO',
+    description: DEFAULT_BRANDING.description || 'PrintFlowPRO',
+    id: '/printflowpro',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait-primary',
+    theme_color: DEFAULT_BRANDING.themeColor || '#2533C5',
+    background_color: DEFAULT_BRANDING.backgroundColor || '#ffffff',
+    categories: ['business', 'productivity'],
+    lang: 'pt-BR',
+    icons: ICON_SIZES.map((size) => ({
+      src: `/icons/icon-${size}x${size}.png`,
+      sizes: `${size}x${size}`,
+      type: 'image/png',
+      purpose: size >= 192 ? 'any maskable' : 'any'
+    }))
+  };
+}
+
+function manifestResponse(manifest: Record<string, unknown>) {
+  return NextResponse.json(manifest, {
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/manifest+json; charset=utf-8'
+    }
+  });
 }
 
 async function resolveServerBranding(request: NextRequest) {
@@ -111,78 +147,49 @@ async function resolveServerBranding(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   if (process.env.NODE_ENV !== 'production') {
-    return NextResponse.json({
-      name: DEFAULT_BRANDING.appName,
-      short_name: DEFAULT_BRANDING.shortName,
-      description: DEFAULT_BRANDING.description,
-      id: '/printflowpro-dev',
-      start_url: '/',
-      scope: '/',
-      display: 'standalone',
-      orientation: 'portrait-primary',
-      theme_color: DEFAULT_BRANDING.themeColor,
-      background_color: DEFAULT_BRANDING.backgroundColor,
-      categories: ['business', 'productivity'],
-      lang: 'pt-BR',
-      icons: ICON_SIZES.map((size) => ({
-        src: `/icons/icon-${size}x${size}.png`,
-        sizes: `${size}x${size}`,
-        type: 'image/png',
-        purpose: size >= 192 ? 'any maskable' : 'any'
-      }))
-    }, {
-      headers: {
-        'Cache-Control': 'no-store',
-        'Content-Type': 'application/manifest+json; charset=utf-8'
-      }
+    return manifestResponse({
+      ...fallbackManifest(),
+      id: '/printflowpro-dev'
     });
   }
 
-  const branding = await resolveServerBranding(request);
+  try {
+    const branding = await resolveServerBranding(request);
 
-  const manifest = {
-    name: branding.appName,
-    short_name: branding.shortName,
-    description: branding.description,
-    id: `/${branding.slug}`,
-    start_url: '/',
-    scope: '/',
-    display: 'standalone',
-    orientation: 'portrait-primary',
-    theme_color: branding.themeColor,
-    background_color: branding.backgroundColor,
-    categories: ['business', 'productivity'],
-    lang: 'pt-BR',
-    icons: ICON_SIZES.map((size) => ({
-      src: branding.usePublicBrandingIcon
-        ? `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(branding.version)}`
-        : resolveIconSrc(request, size, branding.iconUrl),
-      sizes: `${size}x${size}`,
-      type: 'image/png',
-      purpose: size >= 192 ? 'any maskable' : 'any'
-    })),
-    screenshots: [
-      {
-        src: '/screenshots/app-home-540x720.png',
-        sizes: '540x720',
+    return manifestResponse({
+      ...fallbackManifest(),
+      name: branding.appName,
+      short_name: branding.shortName,
+      description: branding.description,
+      id: `/${branding.slug}`,
+      theme_color: branding.themeColor,
+      background_color: branding.backgroundColor,
+      icons: ICON_SIZES.map((size) => ({
+        src: branding.usePublicBrandingIcon
+          ? `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(branding.version)}`
+          : resolveIconSrc(request, size, branding.iconUrl),
+        sizes: `${size}x${size}`,
         type: 'image/png',
-        form_factor: 'narrow',
-        label: branding.appName
-      },
-      {
-        src: '/screenshots/app-home-1280x720.png',
-        sizes: '1280x720',
-        type: 'image/png',
-        form_factor: 'wide',
-        label: `${branding.appName} dashboard`
-      }
-    ]
-  };
-
-  return NextResponse.json(manifest, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': 'application/manifest+json; charset=utf-8'
-    }
-  });
+        purpose: size >= 192 ? 'any maskable' : 'any'
+      })),
+      screenshots: [
+        {
+          src: '/screenshots/app-home-540x720.png',
+          sizes: '540x720',
+          type: 'image/png',
+          form_factor: 'narrow',
+          label: branding.appName
+        },
+        {
+          src: '/screenshots/app-home-1280x720.png',
+          sizes: '1280x720',
+          type: 'image/png',
+          form_factor: 'wide',
+          label: `${branding.appName} dashboard`
+        }
+      ]
+    });
+  } catch {
+    return manifestResponse(fallbackManifest());
+  }
 }

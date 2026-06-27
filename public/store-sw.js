@@ -17,7 +17,10 @@ function isNonHtmlAssetRequest(request) {
   const url = new URL(request.url);
   return (
     url.origin === self.location.origin &&
-    /\.(?:js|css|map|json|webmanifest|png|jpe?g|svg|webp|ico|woff2?|ttf|otf)$/i.test(url.pathname)
+    (
+      ['script', 'style', 'worker', 'font', 'manifest', 'image'].includes(request.destination) ||
+      /\.(?:js|css|mjs|map|json|webmanifest|png|jpe?g|svg|webp|gif|ico|woff2?|ttf|otf)$/i.test(url.pathname)
+    )
   );
 }
 
