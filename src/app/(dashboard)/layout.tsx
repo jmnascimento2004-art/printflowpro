@@ -32,6 +32,13 @@ const ROLE_LABELS: Record<string, string> = {
   arte_finalista: 'Arte Finalista'
 };
 
+function resolvePermissionSegment(pathname: string) {
+  if (pathname.startsWith('/pdf-preview/order/')) return '/orders';
+  if (pathname.startsWith('/pdf-preview/quote/')) return '/quotes';
+
+  return '/' + pathname.split('/').filter(Boolean)[0];
+}
+
 export default function DashboardLayout({
   children
 }: {
@@ -52,7 +59,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
 
-  const currentBaseSegment = '/' + pathname.split('/').filter(Boolean)[0];
+  const currentBaseSegment = resolvePermissionSegment(pathname);
   const allowedRoles = rolePermissions[currentBaseSegment] || DEFAULT_ROLE_PERMISSIONS[currentBaseSegment] || [];
   const hasAccess = allowedRoles.includes(activeProfile.role);
 
