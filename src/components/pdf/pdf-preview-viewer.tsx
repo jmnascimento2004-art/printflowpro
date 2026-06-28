@@ -6,6 +6,7 @@ import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw } from 'lucide-re
 
 type PdfPreviewViewerProps = {
   title: string;
+  previewDataUrl: string;
   pdfUrl: string;
   downloadUrl: string;
   backUrl?: string;
@@ -26,7 +27,36 @@ type PdfLoadingTask = {
   destroy: () => Promise<void>;
 };
 
-export function PdfPreviewViewer({ title, pdfUrl, downloadUrl, backUrl }: PdfPreviewViewerProps) {
+type PdfPreviewData = {
+  filename: string;
+  contentType: string;
+  base64: string;
+};
+
+function base64ToBytes(base64: string) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+function isPdfPreviewData(value: unknown): value is PdfPreviewData {
+  if (!value || typeof value !== 'object') return false;
+
+  const data = value as Partial<PdfPreviewData>;
+  return (
+    typeof data.filename === 'string' &&
+    data.contentType === 'application/pdf' &&
+    typeof data.base64 === 'string' &&
+    data.base64.length > 0
+  );
+}
+
+export function PdfPreviewViewer({ title, previewDataUrl, pdfUrl, downloadUrl, backUrl }: PdfPreviewViewerProps) {
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const renderTasksRef = useRef<RenderTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,22 +91,41 @@ export function PdfPreviewViewer({ title, pdfUrl, downloadUrl, backUrl }: PdfPre
           import.meta.url
         ).toString();
 
-        const response = await fetch(pdfUrl, {
+        const response = await fetch(previewDataUrl, {
           credentials: 'include',
           cache: 'no-store'
         });
 
         if (!response.ok) {
-          throw new Error(`Nao foi possivel carregar o PDF (${response.status}).`);
+          throw new Error(`Nao foi possivel carregar a pre-visualizacao do PDF (${response.status}).`);
         }
 
         const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('application/pdf')) {
-          throw new Error('A resposta recebida nao e um PDF valido.');
+        if (!contentType.includes('application/json')) {
+          if (process.env.NODE_ENV === 'development') {
+            const preview = await response.text();
+            console.error('PDF preview endpoint returned an unexpected response.', {
+              status: response.status,
+              contentType,
+              body: preview.slice(0, 300)
+            });
+          }
+          throw new Error('Nao foi possivel carregar a pre-visualizacao do PDF.');
         }
 
-        const data = await response.arrayBuffer();
-        loadingTask = pdfjs.getDocument({ data }) as PdfLoadingTask;
+        const previewData = await response.json();
+        if (!isPdfPreviewData(previewData)) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('PDF preview endpoint returned invalid JSON.', {
+              status: response.status,
+              contentType,
+              body: previewData
+            });
+          }
+          throw new Error('Nao foi possivel carregar a pre-visualizacao do PDF.');
+        }
+
+        loadingTask = pdfjs.getDocument({ data: base64ToBytes(previewData.base64) }) as PdfLoadingTask;
         const pdf = await loadingTask.promise;
 
         if (!isMounted || !pagesRef.current) return;
@@ -126,7 +175,7 @@ export function PdfPreviewViewer({ title, pdfUrl, downloadUrl, backUrl }: PdfPre
         }
       } catch (err) {
         if (!isMounted) return;
-        const message = err instanceof Error ? err.message : 'Nao foi possivel renderizar o PDF.';
+        const message = err instanceof Error ? err.message : 'Nao foi possivel carregar a pre-visualizacao do PDF.';
         setError(message);
       } finally {
         if (isMounted) setIsLoading(false);
@@ -142,7 +191,7 @@ export function PdfPreviewViewer({ title, pdfUrl, downloadUrl, backUrl }: PdfPre
         void loadingTask.destroy();
       }
     };
-  }, [pdfUrl, reloadKey]);
+  }, [previewDataUrl, reloadKey]);
 
   const openUrl = (url: string) => {
     window.open(url, '_blank', 'noopener,noreferrer');

@@ -1,9 +1,5 @@
-import React from 'react';
-import { renderToBuffer } from '@react-pdf/renderer';
 import { NextResponse } from 'next/server';
-import { loadQuotePdfData } from '@/lib/pdf/pdf-data';
-import { getPdfSafeFilename } from '@/lib/pdf/pdf-formatters';
-import { QuotePdfDocument } from '@/lib/pdf/quote-pdf';
+import { renderQuotePdf } from '@/lib/pdf/pdf-render';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,22 +9,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
     const shouldDownload = searchParams.get('download') === '1';
-    const data = await loadQuotePdfData(id);
+    const renderedPdf = await renderQuotePdf(id);
 
-    if (!data) {
+    if (!renderedPdf) {
       return NextResponse.json({ error: 'Orcamento nao encontrado.' }, { status: 404 });
     }
 
-    const pdfDocument = React.createElement(QuotePdfDocument, { data }) as unknown as Parameters<typeof renderToBuffer>[0];
-    const buffer = await renderToBuffer(pdfDocument);
-    const customerName = data.customer?.name || data.quote.customer_name || 'cliente';
-    const filename = getPdfSafeFilename(`ORC-${data.quote.number}-${customerName}.pdf`);
-
-    return new Response(new Uint8Array(buffer), {
+    return new Response(new Uint8Array(renderedPdf.buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `${shouldDownload ? 'attachment' : 'inline'}; filename="${filename}"`,
+        'Content-Disposition': `${shouldDownload ? 'attachment' : 'inline'}; filename="${renderedPdf.filename}"`,
         'Cache-Control': 'no-store'
       }
     });

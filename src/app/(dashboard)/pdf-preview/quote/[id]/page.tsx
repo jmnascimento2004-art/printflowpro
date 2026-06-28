@@ -10,6 +10,7 @@ export default function QuotePdfPreviewPage() {
   return (
     <PdfPreviewViewer
       title="Pre-visualizacao do Orcamento"
+      previewDataUrl={`/api/pdf-preview-data/quote/${quoteId}`}
       pdfUrl={`/api/pdf/quote/${quoteId}`}
       downloadUrl={`/api/pdf/quote/${quoteId}?download=1`}
       backUrl="/quotes"

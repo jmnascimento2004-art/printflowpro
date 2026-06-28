@@ -30,6 +30,11 @@ export default function Header({
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readCatalogInterestIds, setReadCatalogInterestIds] = useState<string[]>([]);
+  const companyDisplayName = (() => {
+    const name = company.name?.trim();
+    const slug = name?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+    return name && slug !== 'printflowpro' && slug !== 'minhaempresa' ? name : 'CibelePRINT';
+  })();
 
   const loadReadCatalogInterestIds = () => {
     try {
@@ -129,7 +134,7 @@ export default function Header({
       employees: 'Equipe & Funcionarios'
     };
 
-    return titles[segments[0]] || 'PrintFlowPRO';
+    return titles[segments[0]] || companyDisplayName;
   };
 
   const getRoleLabel = (role: string) => {
@@ -162,7 +167,7 @@ export default function Header({
             {getPageTitle()}
           </h1>
           <p className="hidden md:block text-[11px] text-muted-foreground truncate">
-            {company.name} - {company.document}
+            {companyDisplayName} - {company.document}
           </p>
         </div>
       </div>
