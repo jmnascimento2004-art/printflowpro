@@ -473,29 +473,38 @@ export default function StorefrontPage() {
     }
   }, [activePickupPoints, selectedPickupPoint]);
 
-  // 2. Filter products based on active status, visible category, and search query
+  // 2. Keep hidden categories out of the menu, but not out of "Todos os produtos".
   const catalogCategories = (categories || []).filter((category) => {
     if (!category || category.show_in_catalog === false) return false;
     if (!category.parent_id) return true;
     const parent = (categories || []).find((item) => item.id === category.parent_id);
     return parent?.show_in_catalog !== false;
   });
-  const isProductCategoryVisible = useCallback((product: Product) => {
-    if (!product.category_id) return true;
-    if (!categories || categories.length === 0) return true;
-
-    const category = categories.find((item) => item.id === product.category_id);
-    if (!category) return true;
-    if (category.show_in_catalog === false) return false;
-
-    if (!category.parent_id) return true;
-    const parent = categories.find((item) => item.id === category.parent_id);
-    return parent?.show_in_catalog !== false;
+  const getProductCategoryName = useCallback((product: Product) => {
+    if (!product.category_id) return 'Outros';
+    return categories.find((item) => item.id === product.category_id)?.name || 'Outros';
   }, [categories]);
+
+  const getProductSaleModeLabel = useCallback((product: Product) => {
+    const configurator = product.pricing_details?.configurator_options;
+    if (product.pricing_type === 'm2') return 'Sob Medida (m²)';
+    if (product.pricing_type === 'linear') {
+      return configurator?.max_width ? 'Metro linear largura max.' : 'Metro linear';
+    }
+    return '';
+  }, []);
+
+  const getProductPriceUnitLabel = useCallback((product: Product, hasVolumeTiers: boolean) => {
+    if (hasVolumeTiers) return 'un';
+    if (product.pricing_type === 'm2') return 'm²';
+    if (product.pricing_type === 'linear') return 'm linear';
+    return product.pricing_type;
+  }, []);
+
   const activeProducts = (products || []).filter((product) => {
     if (!product || product.active === false) return false;
     if (!product || product.catalog_active === false) return false;
-    return isProductCategoryVisible(product);
+    return true;
   });
   const searchedProducts = searchQuery.trim() !== ''
     ? activeProducts.filter(p => 
@@ -523,7 +532,6 @@ export default function StorefrontPage() {
 
     const productsAfterActive = (products || []).filter((product) => product && product.active !== false);
     const productsAfterCatalog = productsAfterActive.filter((product) => product.catalog_active !== false);
-    const productsAfterCategory = productsAfterCatalog.filter((product) => isProductCategoryVisible(product));
 
     console.log('[STORE DEBUG] page-filters', {
       hostname: window.location.hostname,
@@ -541,7 +549,6 @@ export default function StorefrontPage() {
       productsRawCount: (products || []).length,
       productsAfterActiveCount: productsAfterActive.length,
       productsAfterCatalogActiveCount: productsAfterCatalog.length,
-      productsAfterCategoryCount: productsAfterCategory.length,
       categoriesCount: (categories || []).length,
       searchTerm: searchQuery,
       selectedCategory,
@@ -552,11 +559,12 @@ export default function StorefrontPage() {
         name: product.name,
         company_id: product.company_id,
         category_id: product.category_id,
+        category_name: getProductCategoryName(product),
         active: product.active,
         catalog_active: product.catalog_active
       }))
     });
-  }, [products, categories, company, searchQuery, selectedCategory, selectedTagFilter, taggedProducts, isProductCategoryVisible]);
+  }, [products, categories, company, searchQuery, selectedCategory, selectedTagFilter, taggedProducts, getProductCategoryName]);
 
   const soldQuantityByProductId = (orders || []).reduce<Record<string, number>>((acc, order) => {
     (order.items || []).forEach((item) => {
@@ -1430,6 +1438,8 @@ export default function StorefrontPage() {
                 const pricePresentation = getCatalogPricePresentation(p);
                 const { hasVolumeTiers } = pricePresentation;
                 const displayPrice = pricePresentation.unitPrice;
+                const saleModeLabel = getProductSaleModeLabel(p);
+                const priceUnitLabel = getProductPriceUnitLabel(p, hasVolumeTiers);
 
                 return (
                   <div 
@@ -1514,11 +1524,11 @@ export default function StorefrontPage() {
                         {/* Visual Category badge */}
                         <div className="flex justify-between items-center">
                           <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
-                            {catalogCategories.find(c => c && c.id === p.category_id)?.name || 'Outros'}
+                            {getProductCategoryName(p)}
                           </span>
-                          {p.pricing_type === 'm2' && (
+                          {saleModeLabel && (
                             <span className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg border border-blue-500/10 uppercase tracking-wide">
-                              Sob Medida (m²)
+                              {saleModeLabel}
                             </span>
                           )}
                         </div>
@@ -1548,7 +1558,7 @@ export default function StorefrontPage() {
                         )}
                         <span className="font-extrabold text-emerald-600 text-sm block leading-none">
                           {hasVolumeTiers ? formatUnitCurrency(displayPrice) : formatCurrency(displayPrice)} 
-                          <span className="text-[10px] text-slate-400 font-normal">/{hasVolumeTiers ? 'un' : p.pricing_type}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">/{priceUnitLabel}</span>
                         </span>
                         {hasVolumeTiers && (
                           <span className="mt-1 block text-[10px] font-bold text-slate-500">
@@ -1617,7 +1627,7 @@ export default function StorefrontPage() {
         onRequestWhatsApp={handleWhatsAppProductRequest}
         categoryName={
           activeAdvancedConfigProduct
-            ? catalogCategories.find(c => c && c.id === activeAdvancedConfigProduct.category_id)?.name || 'Catálogo'
+            ? getProductCategoryName(activeAdvancedConfigProduct)
             : undefined
         }
       />
@@ -2003,6 +2013,8 @@ export default function StorefrontPage() {
                   const pricePresentation = getCatalogPricePresentation(product);
                   const { hasVolumeTiers } = pricePresentation;
                   const displayPrice = pricePresentation.unitPrice;
+                  const saleModeLabel = getProductSaleModeLabel(product);
+                  const priceUnitLabel = getProductPriceUnitLabel(product, hasVolumeTiers);
 
                   return (
                     <div
@@ -2082,11 +2094,11 @@ export default function StorefrontPage() {
                         <div className="p-3 space-y-2.5">
                           <div className="flex justify-between items-center">
                             <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
-                              {catalogCategories.find(c => c && c.id === product.category_id)?.name || 'Outros'}
+                              {getProductCategoryName(product)}
                             </span>
-                            {product.pricing_type === 'm2' && (
+                            {saleModeLabel && (
                               <span className="text-[9px] font-extrabold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg border border-blue-500/10 uppercase tracking-wide">
-                                Sob Medida (m²)
+                                {saleModeLabel}
                               </span>
                             )}
                           </div>
@@ -2114,7 +2126,7 @@ export default function StorefrontPage() {
                           )}
                           <span className="font-extrabold text-emerald-600 text-sm block leading-none">
                             {hasVolumeTiers ? formatUnitCurrency(displayPrice) : formatCurrency(displayPrice)}
-                            <span className="text-[10px] text-slate-400 font-normal">/{hasVolumeTiers ? 'un' : product.pricing_type}</span>
+                            <span className="text-[10px] text-slate-400 font-normal">/{priceUnitLabel}</span>
                           </span>
                           {hasVolumeTiers && (
                             <span className="mt-1 block text-[10px] font-bold text-slate-500">
