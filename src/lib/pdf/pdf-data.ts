@@ -10,12 +10,19 @@ export type QuotePdfData = {
   quote: Quote;
   customer: Customer | null;
   company: Company;
+  settings: PdfSettings;
 };
 
 export type OrderPdfData = {
   order: Order;
   customer: Customer | null;
   company: Company;
+  settings: PdfSettings;
+};
+
+export type PdfSettings = {
+  footer_show_address?: boolean | null;
+  company_address?: string | null;
 };
 
 function getSupabaseServerClient() {
@@ -89,6 +96,17 @@ async function loadCustomer(supabase: SupabaseClient, customerId?: string | null
   return (data || null) as Customer | null;
 }
 
+async function loadPdfSettings(supabase: SupabaseClient, companyId: string): Promise<PdfSettings> {
+  const { data, error } = await supabase
+    .from('settings')
+    .select('footer_show_address, company_address')
+    .eq('company_id', companyId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data || {}) as PdfSettings;
+}
+
 export async function loadQuotePdfData(id: string): Promise<QuotePdfData | null> {
   const supabase = getSupabaseServerClient();
 
@@ -119,12 +137,13 @@ export async function loadQuotePdfData(id: string): Promise<QuotePdfData | null>
     items: ((itemRows || []) as QuoteItemRow[]).map(normalizeQuoteItem)
   } as Quote;
 
-  const [company, customer] = await Promise.all([
+  const [company, customer, settings] = await Promise.all([
     loadCompany(supabase, quote.company_id),
-    loadCustomer(supabase, quote.customer_id)
+    loadCustomer(supabase, quote.customer_id),
+    loadPdfSettings(supabase, quote.company_id)
   ]);
 
-  return { quote, company, customer };
+  return { quote, company, customer, settings };
 }
 
 export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null> {
@@ -157,10 +176,11 @@ export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null>
     items: ((itemRows || []) as OrderItemRow[]).map(normalizeOrderItem)
   } as Order;
 
-  const [company, customer] = await Promise.all([
+  const [company, customer, settings] = await Promise.all([
     loadCompany(supabase, order.company_id),
-    loadCustomer(supabase, order.customer_id)
+    loadCustomer(supabase, order.customer_id),
+    loadPdfSettings(supabase, order.company_id)
   ]);
 
-  return { order, company, customer };
+  return { order, company, customer, settings };
 }

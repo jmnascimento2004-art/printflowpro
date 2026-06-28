@@ -1,4 +1,5 @@
 import type { AdditionalService, Company, Customer, OrderItem, QuoteItem } from '@/lib/dummy-data';
+import type { PdfSettings } from '@/lib/pdf/pdf-data';
 
 export function formatPdfCurrency(value?: number | string | null, options?: { maximumFractionDigits?: number }) {
   const numeric = Number(value || 0);
@@ -29,6 +30,27 @@ export function buildCompanyAddress(company?: Company | null) {
     [company.city, company.state].filter(Boolean).join(' - '),
     company.cep ? `CEP ${company.cep}` : ''
   ].filter(Boolean).join(' | ');
+}
+
+function hasPhysicalCompanyAddress(company?: Company | null) {
+  if (!company) return false;
+
+  const hasStreet = Boolean(company.street?.trim());
+  const hasNumber = Boolean(company.number?.trim());
+  const hasCity = Boolean(company.city?.trim());
+  const hasState = Boolean(company.state?.trim());
+
+  return hasStreet && hasNumber && hasCity && hasState;
+}
+
+export function buildVisibleCompanyAddress(company?: Company | null, settings?: PdfSettings | null) {
+  if (settings?.footer_show_address === false) return '';
+
+  if (hasPhysicalCompanyAddress(company)) {
+    return buildCompanyAddress(company);
+  }
+
+  return normalizePdfText(settings?.company_address);
 }
 
 export function buildCustomerAddress(customer?: Customer | null, fallbackAddress?: string | null) {
@@ -92,6 +114,15 @@ export function getItemDescriptionLines(item: QuoteItem | OrderItem) {
     quantityLine: `Tiragem: ${tierQuantity} un • Unitário: ${formatPdfUnitCurrency(unitPrice)}/un • Total: ${formatPdfCurrency(totalPrice)}`,
     notes: normalizePdfText(item.details?.notes)
   };
+}
+
+export function getCompactItemDescription(item: QuoteItem | OrderItem) {
+  return normalizePdfText(item.product_name);
+}
+
+export function getPdfFooterText(company?: Company | null) {
+  const companyName = normalizePdfText(company?.name) || 'Empresa';
+  return `Documento gerado por ${companyName} via PrintFlowPRO.`;
 }
 
 export function getAdditionalServicesTotal(services?: AdditionalService[] | null) {

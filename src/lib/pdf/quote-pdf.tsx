@@ -2,13 +2,14 @@ import React from 'react';
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import type { QuotePdfData } from '@/lib/pdf/pdf-data';
 import {
-  buildCompanyAddress,
+  buildVisibleCompanyAddress,
   buildCustomerAddress,
   formatPdfCurrency,
   formatPdfDate,
   formatPdfUnitCurrency,
   getAdditionalServicesTotal,
-  getItemDescriptionLines,
+  getCompactItemDescription,
+  getPdfFooterText,
   getPdfLogoUrl,
   normalizePdfText
 } from '@/lib/pdf/pdf-formatters';
@@ -31,9 +32,9 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   brandBlock: { flex: 1.2 },
-  logo: { width: 132, height: 48, objectFit: 'contain', marginBottom: 8 },
-  companyName: { fontSize: 13, fontWeight: 700, marginBottom: 4 },
-  muted: { color: '#65728a' },
+  logo: { width: 132, height: 48, objectFit: 'contain', marginBottom: 7 },
+  companyName: { fontSize: 10.5, fontWeight: 700, marginBottom: 3, lineHeight: 1.2 },
+  muted: { color: '#65728a', fontSize: 8, lineHeight: 1.25 },
   titleBlock: { width: 190, alignItems: 'flex-end' },
   title: { fontSize: 20, fontWeight: 700, color: '#101827' },
   meta: { marginTop: 6, lineHeight: 1.45 },
@@ -52,11 +53,11 @@ const styles = StyleSheet.create({
   tableHeader: { flexDirection: 'row', backgroundColor: '#050505', color: '#ffffff' },
   tableHeaderCell: { paddingVertical: 7, paddingHorizontal: 6, fontSize: 8, fontWeight: 700 },
   tableRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#e8edf5' },
-  cell: { paddingVertical: 7, paddingHorizontal: 6, lineHeight: 1.35 },
+  cell: { paddingVertical: 6, paddingHorizontal: 6, lineHeight: 1.2 },
   qtyCol: { width: '9%', textAlign: 'center' },
   descCol: { width: '61%' },
   moneyCol: { width: '15%', textAlign: 'right' },
-  itemName: { fontSize: 9, fontWeight: 700, marginBottom: 3 },
+  itemName: { fontSize: 9, fontWeight: 700 },
   itemDetail: { fontSize: 8, color: '#4b5870', marginTop: 2 },
   sectionTitle: { fontSize: 10, fontWeight: 700, marginBottom: 7, marginTop: 14 },
   totals: { marginLeft: 'auto', width: 230, marginTop: 14 },
@@ -94,15 +95,11 @@ function ItemRows({ data }: { data: QuotePdfData }) {
   return (
     <>
       {data.quote.items.map((item) => {
-        const lines = getItemDescriptionLines(item);
         return (
           <View key={item.id} style={styles.tableRow} wrap={false}>
             <Text style={[styles.cell, styles.qtyCol]}>{item.quantity}</Text>
             <View style={[styles.cell, styles.descCol]}>
-              <Text style={styles.itemName}>{lines.name}</Text>
-              {lines.configuration ? <Text style={styles.itemDetail}>{lines.configuration}</Text> : null}
-              <Text style={styles.itemDetail}>{lines.quantityLine}</Text>
-              {lines.notes ? <Text style={styles.itemDetail}>Obs: {lines.notes}</Text> : null}
+              <Text style={styles.itemName}>{getCompactItemDescription(item)}</Text>
             </View>
             <Text style={[styles.cell, styles.moneyCol]}>{formatPdfUnitCurrency(item.unit_price)}</Text>
             <Text style={[styles.cell, styles.moneyCol]}>{formatPdfCurrency(item.total_price)}</Text>
@@ -145,6 +142,7 @@ function ServicesRows({ data }: { data: QuotePdfData }) {
 
 export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
   const logoUrl = getPdfLogoUrl(data.company);
+  const companyAddress = buildVisibleCompanyAddress(data.company, data.settings);
   const productsTotal = data.quote.items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
   const servicesTotal = getAdditionalServicesTotal(data.quote.additional_services);
   const deliveryFee = Number(data.quote.delivery_fee || 0);
@@ -159,7 +157,7 @@ export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
             <Text style={styles.companyName}>{data.company.name}</Text>
             {data.company.phone ? <Text style={styles.muted}>Telefone: {data.company.phone}</Text> : null}
             {data.company.email ? <Text style={styles.muted}>E-mail: {data.company.email}</Text> : null}
-            {buildCompanyAddress(data.company) ? <Text style={styles.muted}>{buildCompanyAddress(data.company)}</Text> : null}
+            {companyAddress ? <Text style={styles.muted}>{companyAddress}</Text> : null}
           </View>
           <View style={styles.titleBlock}>
             <Text style={styles.title}>ORCAMENTO</Text>
@@ -238,7 +236,7 @@ export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
           <Text>Validade da proposta: {formatPdfDate(data.quote.valid_until)}.</Text>
           {data.quote.notes ? <Text>Observações: {normalizePdfText(data.quote.notes)}</Text> : null}
         </View>
-        <Text style={styles.footer}>Documento gerado pelo PrintFlowPRO.</Text>
+        <Text style={styles.footer}>{getPdfFooterText(data.company)}</Text>
       </Page>
     </Document>
   );
