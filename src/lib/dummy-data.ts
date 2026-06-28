@@ -194,9 +194,17 @@ export interface PricingDetails {
   calculated_price: number;
   delivery_time?: string;
   configurator_options?: ProductConfiguratorSettings;
+  gallery_images?: ProductGalleryImage[];
 }
 
 export type ProductSaleMode = 'unidade' | 'volume' | 'm2' | 'linear' | 'width_height' | 'pacote' | 'kit' | 'size_grid' | 'custom';
+
+export interface ProductGalleryImage {
+  url: string;
+  alt?: string;
+  is_primary?: boolean;
+  position?: number;
+}
 
 export interface ProductConfiguratorOption {
   name: string;

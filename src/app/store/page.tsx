@@ -31,6 +31,7 @@ import { useDatabase } from '@/context/database-context';
 import { Product } from '@/lib/dummy-data';
 import { formatCEP, normalizeRichTextHtml } from '@/lib/utils';
 import { formatCurrency, formatUnitCurrency, getCatalogPricePresentation } from '@/lib/pricing';
+import { getPrimaryProductImage } from '@/lib/product-images';
 import { safeHref } from '@/lib/safe-url';
 import { buildWhatsAppOrderMessage, openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { StorePWARegister } from '@/components/store/store-pwa-register';
@@ -1440,6 +1441,7 @@ export default function StorefrontPage() {
                 const displayPrice = pricePresentation.unitPrice;
                 const saleModeLabel = getProductSaleModeLabel(p);
                 const priceUnitLabel = getProductPriceUnitLabel(p, hasVolumeTiers);
+                const primaryImage = getPrimaryProductImage(p);
 
                 return (
                   <div 
@@ -1449,9 +1451,9 @@ export default function StorefrontPage() {
                     <div>
                       {/* Product Image Area (Aspect Square & No Margin at top/left/right) */}
                       <div className="aspect-[1/1.08] w-full bg-white overflow-hidden border-b border-slate-200/60 flex items-center justify-center shrink-0 relative">
-                        {p.image_url ? (
+                        {primaryImage ? (
                           <img
-                            src={p.image_url}
+                            src={primaryImage}
                             alt={p.name}
                             className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                           />
@@ -2015,6 +2017,7 @@ export default function StorefrontPage() {
                   const displayPrice = pricePresentation.unitPrice;
                   const saleModeLabel = getProductSaleModeLabel(product);
                   const priceUnitLabel = getProductPriceUnitLabel(product, hasVolumeTiers);
+                  const primaryImage = getPrimaryProductImage(product);
 
                   return (
                     <div
@@ -2023,9 +2026,9 @@ export default function StorefrontPage() {
                     >
                       <div>
                         <div className="aspect-[1/1.08] w-full bg-white overflow-hidden border-b border-slate-200/60 flex items-center justify-center shrink-0 relative">
-                          {product.image_url ? (
+                          {primaryImage ? (
                             <img
-                              src={product.image_url}
+                              src={primaryImage}
                               alt={product.name}
                               className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                             />

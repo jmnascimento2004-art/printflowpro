@@ -20,7 +20,7 @@ import {
   Eraser
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
-import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductSaleMode, VariantPricingMatrixRow } from '@/lib/dummy-data';
+import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductGalleryImage, ProductSaleMode, VariantPricingMatrixRow } from '@/lib/dummy-data';
 import {
   formatCurrencyInput,
   parseCurrencyInputToNumber,
@@ -38,6 +38,7 @@ import {
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { ProductBarcode } from '@/components/products/ProductBarcode';
 import { ProductLabelPreview, ProductLabelSize, productLabelSizes } from '@/components/products/ProductLabelPreview';
+import { getPrimaryProductImage, normalizeProductGallery, prepareProductGallery } from '@/lib/product-images';
 
 type ProductSaleModeDraft = ProductSaleMode | 'linear_width';
 
@@ -438,6 +439,7 @@ export default function ProductsCRUDPage() {
 
   // Advanced States
   const [imageUrl, setImageUrl] = useState('');
+  const [galleryImages, setGalleryImages] = useState<ProductGalleryImage[]>([]);
   const [volumePricing, setVolumePricing] = useState<Array<{ min_qty: number, price: number }>>([]);
   const [tempMinQty, setTempMinQty] = useState('');
   const [tempUnitPriceInput, setTempUnitPriceInput] = useState('');
@@ -640,20 +642,62 @@ export default function ProductsCRUDPage() {
     setSku(`SKU-${pricingType.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`);
   };
 
+  const syncGallery = (images: ProductGalleryImage[]) => {
+    const normalized = prepareProductGallery(images, name.trim() || 'Produto');
+    setGalleryImages(normalized);
+    setImageUrl(normalized.find((image) => image.is_primary)?.url || normalized[0]?.url || '');
+  };
+
   // Image reader
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("A imagem é muito grande! Escolha um arquivo de até 2MB.");
-        return;
-      }
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const acceptedTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    const invalidFile = files.find((file) => !acceptedTypes.has(file.type));
+    if (invalidFile) {
+      alert("Use apenas imagens PNG, JPG ou WEBP.");
+      e.target.value = '';
+      return;
+    }
+
+    const oversizedFile = files.find((file) => file.size > 2 * 1024 * 1024);
+    if (oversizedFile) {
+      alert("Uma das imagens é muito grande! Escolha arquivos de até 2MB.");
+      e.target.value = '';
+      return;
+    }
+
+    Promise.all(files.map((file) => new Promise<ProductGalleryImage>((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImageUrl(reader.result as string);
+        resolve({
+          url: String(reader.result || ''),
+          alt: name.trim() || file.name
+        });
       };
       reader.readAsDataURL(file);
-    }
+    }))).then((newImages) => {
+      syncGallery([
+        ...galleryImages,
+        ...newImages.map((image, index) => ({
+          ...image,
+          is_primary: galleryImages.length === 0 && index === 0
+        }))
+      ]);
+      e.target.value = '';
+    });
+  };
+
+  const handleSetPrimaryImage = (imageUrlToPromote: string) => {
+    syncGallery(galleryImages.map((image) => ({
+      ...image,
+      is_primary: image.url === imageUrlToPromote
+    })));
+  };
+
+  const handleRemoveGalleryImage = (imageUrlToRemove: string) => {
+    syncGallery(galleryImages.filter((image) => image.url !== imageUrlToRemove));
   };
 
   // Volume pricing helpers
@@ -875,6 +919,7 @@ export default function ProductsCRUDPage() {
     setIsHighlight(false);
     setDeliveryTime('');
     setImageUrl('');
+    setGalleryImages([]);
     setVolumePricing([]);
     setVariantOptions([]);
     setColorOptions([]);
@@ -930,8 +975,10 @@ export default function ProductsCRUDPage() {
     setCatalogActive(prod.catalog_active ?? true);
     setIsPromo(prod.is_promo || false);
     setIsHighlight(prod.is_highlight || false);
+    const productGallery = normalizeProductGallery(prod);
     setDeliveryTime(prod.delivery_time || prod.pricing_details?.delivery_time || '');
-    setImageUrl(prod.image_url || '');
+    setImageUrl(productGallery.find((image) => image.is_primary)?.url || productGallery[0]?.url || prod.image_url || '');
+    setGalleryImages(productGallery);
     setVolumePricing(prod.volume_pricing || []);
     setVariantOptions(prod.variant_options || []);
     setColorOptions(prod.color_options || []);
@@ -1023,6 +1070,8 @@ export default function ProductsCRUDPage() {
     }
     const cleanDescription = sanitizeRichTextHtml(description);
     const configuratorOptions = buildConfiguratorOptions();
+    const normalizedGallery = prepareProductGallery(galleryImages, name.trim() || 'Produto');
+    const primaryImageUrl = normalizedGallery.find((image) => image.is_primary)?.url || normalizedGallery[0]?.url || '';
     const pricingDetails = {
       raw_material_cost: baseCost,
       operating_cost: 0,
@@ -1033,7 +1082,8 @@ export default function ProductsCRUDPage() {
       waste_percent: 0,
       calculated_price: salesPrice,
       delivery_time: cleanDeliveryTime || undefined,
-      configurator_options: configuratorOptions
+      configurator_options: configuratorOptions,
+      gallery_images: normalizedGallery.length > 0 ? normalizedGallery : undefined
     };
 
     if (isEditing && selectedProduct) {
@@ -1054,7 +1104,7 @@ export default function ProductsCRUDPage() {
         is_promo: isPromo,
         is_highlight: isHighlight,
         delivery_time: cleanDeliveryTime || undefined,
-        image_url: imageUrl || undefined,
+        image_url: primaryImageUrl || imageUrl || undefined,
         volume_pricing: productVolumePricing,
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
         color_options: colorOptions.length > 0 ? colorOptions : undefined,
@@ -1077,7 +1127,7 @@ export default function ProductsCRUDPage() {
         is_promo: isPromo,
         is_highlight: isHighlight,
         delivery_time: cleanDeliveryTime || undefined,
-        image_url: imageUrl || undefined,
+        image_url: primaryImageUrl || imageUrl || undefined,
         volume_pricing: productVolumePricing,
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
         color_options: colorOptions.length > 0 ? colorOptions : undefined,
@@ -1435,13 +1485,15 @@ export default function ProductsCRUDPage() {
                         const quantityTierSummary = getProductQuantityTiers(prod);
                         const cardTiers = quantityTierSummary.tiers.slice(0, 3);
                         const hiddenTierCount = quantityTierSummary.tiers.length - cardTiers.length;
+                        const productGallery = normalizeProductGallery(prod);
+                        const primaryImage = getPrimaryProductImage(prod);
 
                         return (
                           <article key={prod.id} className="group flex min-h-[318px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-md">
                             <div className="relative aspect-[1.28] overflow-hidden bg-secondary/30 border-b border-border">
-                              {prod.image_url ? (
+                              {primaryImage ? (
                                 <img
-                                  src={prod.image_url}
+                                  src={primaryImage}
                                   alt={prod.name}
                                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
                                 />
@@ -1449,6 +1501,12 @@ export default function ProductsCRUDPage() {
                                 <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                                   <Package className="h-8 w-8" />
                                 </div>
+                              )}
+
+                              {productGallery.length > 1 && (
+                                <span className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2 py-0.5 text-[9px] font-black text-slate-700 shadow-sm">
+                                  +{productGallery.length - 1} imagens
+                                </span>
                               )}
 
                               <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1">
@@ -2655,41 +2713,69 @@ export default function ProductsCRUDPage() {
                 </summary>
 
               {/* Product Image Attachment */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground block">Imagem do Produto</label>
-                <div className="flex items-center gap-4 mt-1.5">
-                  {imageUrl ? (
-                    <div className="relative h-16 w-16 rounded-xl border border-border overflow-hidden bg-background shrink-0">
-                      <img src={imageUrl} alt="Preview" className="h-full w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => setImageUrl('')}
-                        className="absolute top-0 right-0 p-0.5 bg-rose-600 text-white rounded-bl-lg hover:bg-rose-500 transition-colors"
-                        title="Remover Imagem"
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground block">Imagens do Produto</label>
+                <div className="flex flex-col gap-3 mt-1.5">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {galleryImages.length > 0 ? (
+                      galleryImages.map((image, index) => (
+                        <div
+                          key={`${image.url}-${index}`}
+                          className={`relative h-20 w-20 rounded-xl border overflow-hidden bg-background shrink-0 ${
+                            image.is_primary ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+                          }`}
+                        >
+                          <img src={image.url} alt={image.alt || `Imagem ${index + 1}`} className="h-full w-full object-cover" />
+                          {image.is_primary && (
+                            <span className="absolute bottom-1 left-1 rounded bg-primary px-1.5 py-0.5 text-[8px] font-black uppercase text-primary-foreground">
+                              Capa
+                            </span>
+                          )}
+                          <div className="absolute right-1 top-1 flex gap-1">
+                            {!image.is_primary && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimaryImage(image.url)}
+                                className="rounded bg-white/90 p-1 text-primary shadow-sm hover:bg-white"
+                                title="Definir como capa"
+                              >
+                                <Check className="h-3 w-3" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveGalleryImage(image.url)}
+                              className="rounded bg-rose-600 p-1 text-white shadow-sm hover:bg-rose-500"
+                              title="Remover imagem"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-20 w-20 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground shrink-0 bg-secondary/20">
+                        <Package className="h-6 w-6 stroke-[1.5]" />
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <input
+                        type="file"
+                        id="product-image-upload"
+                        accept="image/png,image/jpeg,image/webp"
+                        multiple
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="product-image-upload"
+                        className="px-3 py-1.5 bg-secondary border border-border hover:bg-secondary/80 text-foreground font-bold rounded-lg text-xs cursor-pointer inline-block transition-all"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
+                        Escolher imagens
+                      </label>
+                      <span className="text-[9px] text-muted-foreground block">PNG, JPG ou WEBP de até 2MB cada. A capa aparece no card do catálogo.</span>
                     </div>
-                  ) : (
-                    <div className="h-16 w-16 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground shrink-0 bg-secondary/20">
-                      <Package className="h-6 w-6 stroke-[1.5]" />
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    <input
-                      type="file"
-                      id="product-image-upload"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="product-image-upload"
-                      className="px-3 py-1.5 bg-secondary border border-border hover:bg-secondary/80 text-foreground font-bold rounded-lg text-xs cursor-pointer inline-block transition-all"
-                    >
-                      Escolher Arquivo
-                    </label>
-                    <span className="text-[9px] text-muted-foreground block">PNG, JPG ou WEBP de até 2MB.</span>
                   </div>
                 </div>
               </div>
