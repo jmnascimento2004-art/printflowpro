@@ -318,6 +318,45 @@ const isPlaceholderCompanyName = (name?: string | null) => {
 const resolveLocalCompany = (companies: Company[]) =>
   companies.find((company) => !isPlaceholderCompanyName(company.name)) || companies[0];
 
+const PRODUCTION_ORDER_STATUSES: Order['status'][] = ['producao', 'impressao', 'acabamento'];
+
+const isActiveProductionOrder = (order: Order) =>
+  PRODUCTION_ORDER_STATUSES.includes(order.status);
+
+const productionStatusForOrder = (status: Order['status']): ProductionItem['status'] => {
+  if (status === 'impressao' || status === 'acabamento') return status;
+  return 'fila';
+};
+
+const createProductionItemId = (orderId: string, orderItemId: string) =>
+  `prod-q-${orderId}-${orderItemId}`.replace(/[^a-zA-Z0-9-_]/g, '-');
+
+const createProductionQueueItemsForOrder = (
+  order: Order,
+  companyId: string,
+  existingProduction: ProductionItem[]
+): ProductionItem[] => {
+  const existingKeys = new Set(
+    existingProduction.map((item) => `${item.order_id}:${item.order_item_id}`)
+  );
+
+  return (order.items || [])
+    .filter((item) => !existingKeys.has(`${order.id}:${item.id}`))
+    .map((item) => ({
+      id: createProductionItemId(order.id, item.id),
+      company_id: order.company_id || companyId,
+      order_id: order.id,
+      order_number: order.number,
+      order_item_id: item.id,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      status: productionStatusForOrder(order.status),
+      priority: 'media',
+      deadline: order.deadline,
+      created_at: new Date().toISOString()
+    }));
+};
+
 const getCurrentHostname = () => {
   if (!isBrowser()) return '';
   return normalizeDomain(window.location.hostname);
@@ -862,6 +901,28 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       if (canShowToast) showToast('Erro ao salvar pedidos!', 'error');
     }
   }, [orders, initialized, canShowToast]);
+
+  useEffect(() => {
+    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+
+    const activeProductionOrders = orders.filter(isActiveProductionOrder);
+    if (activeProductionOrders.length === 0) return;
+
+    setProduction(prev => {
+      let nextProduction = prev;
+      let hasNewItems = false;
+
+      activeProductionOrders.forEach(order => {
+        const missingQueueItems = createProductionQueueItemsForOrder(order, currentCompanyId, nextProduction);
+        if (missingQueueItems.length === 0) return;
+
+        nextProduction = [...nextProduction, ...missingQueueItems];
+        hasNewItems = true;
+      });
+
+      return hasNewItems ? nextProduction : prev;
+    });
+  }, [orders, initialized, currentCompanyId]);
 
   useEffect(() => {
     if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
@@ -1752,25 +1813,18 @@ useEffect(() => {
   };
 
   const injectProductionQueue = (order: Order) => {
-    // Helper to queue items
-    const newQueueItems: ProductionItem[] = order.items.map(item => ({
-      id: `prod-q-${Math.random().toString(36).substr(2, 9)}`,
-      company_id: currentCompanyId,
-      order_id: order.id,
-      order_number: order.number,
-      order_item_id: item.id,
-      product_name: item.product_name,
-      quantity: item.quantity,
-      status: 'fila',
-      priority: 'media',
-      deadline: order.deadline,
-      created_at: new Date().toISOString()
-    }));
+    const newQueueItems = createProductionQueueItemsForOrder(order, currentCompanyId, production);
+    if (newQueueItems.length === 0) return;
 
-    setProduction(prev => [...prev, ...newQueueItems]);
+    setProduction(prev => {
+      const missingQueueItems = createProductionQueueItemsForOrder(order, currentCompanyId, prev);
+      return missingQueueItems.length > 0 ? [...prev, ...missingQueueItems] : prev;
+    });
 
     // Deduct stock for materials if controlled
-    order.items.forEach(item => {
+    newQueueItems.forEach(queueItem => {
+      const item = order.items.find(orderItem => orderItem.id === queueItem.order_item_id);
+      if (!item) return;
       const match = products.find(p => p.id === item.product_id);
       if (match && match.stock_controlled) {
         adjustStock(

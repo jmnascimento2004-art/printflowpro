@@ -26,6 +26,16 @@ export default function ProductionPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
 
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+
+  const paymentStatusLabels: Record<string, string> = {
+    pendente: 'Pendente',
+    parcial: 'Parcial',
+    pago: 'Pago',
+    reembolsado: 'Reembolsado'
+  };
+
   const sendWhatsAppStatus = (item: ProductionItem) => {
     const order = orders.find(o => o.number === item.order_number || o.id === item.order_id);
     const customer = order ? customers.find(c => c.id === order.customer_id) : null;
@@ -165,6 +175,8 @@ export default function ProductionPage() {
                 {colItems.length > 0 ? (
                   colItems.map((item) => {
                     const overdue = isOverdue(item.deadline, item.status);
+                    const order = orders.find(o => o.id === item.order_id || o.number === item.order_number);
+                    const paymentStatus = order?.payment_status ? paymentStatusLabels[order.payment_status] || order.payment_status : 'Não informado';
 
                     return (
                       <div
@@ -194,6 +206,19 @@ export default function ProductionPage() {
                           <span className="text-[10px] text-muted-foreground mt-1 block">
                             Qtd: <span className="font-bold text-foreground">{item.quantity}</span>
                           </span>
+                          {order && (
+                            <div className="mt-2 space-y-1 text-[10px] text-muted-foreground">
+                              <p className="truncate">
+                                Cliente: <span className="font-bold text-foreground">{order.customer_name}</span>
+                              </p>
+                              <div className="flex items-center justify-between gap-2">
+                                <span>
+                                  Financeiro: <span className="font-bold text-foreground">{paymentStatus}</span>
+                                </span>
+                                <span className="font-black text-primary">{formatCurrency(order.total_amount)}</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Technical assignment dropdown */}
