@@ -99,6 +99,59 @@ const parsePricingCurrencyInput = (value: string) => toNumberOrZero(value);
 
 const currencyInputValue = (value: number) => formatCurrencyPrecisionInput(value);
 
+type MoneyInputProps = {
+  value: number;
+  onValueChange: (value: number) => void;
+  placeholder?: string;
+  className?: string;
+};
+
+function MoneyInput({
+  value,
+  onValueChange,
+  placeholder = 'Ex: R$ 0,00',
+  className = ''
+}: MoneyInputProps) {
+  const [displayValue, setDisplayValue] = useState(() => currencyInputValue(value));
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setDisplayValue(currencyInputValue(value));
+    }
+  }, [value, isFocused]);
+
+  const handleChange = (nextValue: string) => {
+    setDisplayValue(nextValue);
+    onValueChange(parsePricingCurrencyInput(nextValue));
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const parsed = parsePricingCurrencyInput(displayValue);
+    onValueChange(parsed);
+    setDisplayValue(currencyInputValue(parsed));
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    setDisplayValue(value > 0 ? String(value).replace('.', ',') : '');
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={displayValue}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onChange={(event) => handleChange(event.target.value)}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
+
 export default function PricingPage() {
   const { addProduct, categories, settings } = useDatabase();
 
@@ -486,10 +539,9 @@ export default function PricingPage() {
                   <span className="text-muted-foreground">Custo da Matéria-Prima ({pricingType === 'm2' ? 'm²' : 'un'})</span>
                   <span className="text-foreground">{formatCurrency(rawMaterialCost)}</span>
                 </div>
-                <input
-                  type="text"
-                  value={currencyInputValue(rawMaterialCost)}
-                  onChange={(e) => setRawMaterialCost(parsePricingCurrencyInput(e.target.value))}
+                <MoneyInput
+                  value={rawMaterialCost}
+                  onValueChange={setRawMaterialCost}
                   placeholder="Ex: R$ 35,00"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground"
                 />
@@ -517,10 +569,9 @@ export default function PricingPage() {
                   <span className="text-muted-foreground">Custo Operacional da Máquina / Hora</span>
                   <span className="text-foreground">{formatCurrency(operatingCostMin * 60)} ({formatCurrency(operatingCostMin)}/min)</span>
                 </div>
-                <input
-                  type="text"
-                  value={currencyInputValue(operatingCostMin * 60)}
-                  onChange={(e) => setOperatingCostMin(parsePricingCurrencyInput(e.target.value) / 60)}
+                <MoneyInput
+                  value={operatingCostMin * 60}
+                  onValueChange={(value) => setOperatingCostMin(value / 60)}
                   placeholder="Ex: R$ 45,00"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground"
                 />
@@ -1263,10 +1314,9 @@ function CurrencyField({
   return (
     <div className="space-y-1">
       <label className={`${compact ? 'text-[10px]' : 'text-xs'} font-semibold text-muted-foreground`}>{label}</label>
-      <input
-        type="text"
-        value={currencyInputValue(value)}
-        onChange={(e) => onChange(parsePricingCurrencyInput(e.target.value))}
+      <MoneyInput
+        value={value}
+        onValueChange={onChange}
         placeholder={placeholder}
         className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
       />
