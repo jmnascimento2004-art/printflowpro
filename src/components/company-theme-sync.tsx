@@ -113,8 +113,8 @@ export function CompanyThemeSync() {
     const companyName = company.name?.trim();
     if (!companyName) return;
 
-    const suffix = pathname === '/store' ? 'Catálogo Online' : 'ERP';
-    document.title = `${companyName} - ${suffix}`;
+    const isStorePath = pathname === '/store' || pathname.startsWith('/store/');
+    document.title = isStorePath ? `Catálogo - ${companyName}` : `Dashboard - ${companyName}`;
   }, [company.name, pathname]);
 
   useEffect(() => {

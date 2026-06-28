@@ -17,6 +17,14 @@ function safeHexColor(value: string, fallback: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
 
+function withoutInstallPrefix(value: string) {
+  return value.replace(/^(Dashboard|Catálogo|Catalogo)\s+-\s+/i, '').trim() || value;
+}
+
+function storeAppName(value: string) {
+  return /^(Catálogo|Catalogo)\s+-\s+/i.test(value) ? value : `Catálogo - ${withoutInstallPrefix(value)}`;
+}
+
 function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: string | null) {
   const icon = resolvedIcon || request.nextUrl.searchParams.get('icon')?.trim();
   const usePublicBrandingIcon = request.nextUrl.searchParams.get('public_icon') === '1';
@@ -37,9 +45,9 @@ function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: strin
 
 function fallbackStoreManifest() {
   return {
-    name: DEFAULT_BRANDING.appName || 'PrintFlowPRO',
-    short_name: DEFAULT_BRANDING.shortName || 'PrintFlowPRO',
-    description: DEFAULT_BRANDING.description || 'PrintFlowPRO',
+    name: `Catálogo - ${DEFAULT_BRANDING.appName || 'PrintFlowPRO'}`,
+    short_name: 'Catálogo',
+    description: `Catálogo online da ${DEFAULT_BRANDING.appName || 'PrintFlowPRO'}`,
     id: '/store/catalogo',
     start_url: '/store/',
     scope: '/store/',
@@ -144,23 +152,16 @@ async function resolveStoreBranding(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  if (process.env.NODE_ENV !== 'production') {
-    return manifestResponse({
-      ...fallbackStoreManifest(),
-      id: '/store/catalogo-dev',
-      start_url: '/store/',
-      scope: '/store/'
-    });
-  }
-
   try {
     const branding = await resolveStoreBranding(request);
+    const companyName = withoutInstallPrefix(branding.appName || DEFAULT_BRANDING.appName);
+    const appName = storeAppName(branding.appName || DEFAULT_BRANDING.appName);
 
     return manifestResponse({
       ...fallbackStoreManifest(),
-      name: branding.appName,
-      short_name: branding.shortName,
-      description: branding.description,
+      name: appName,
+      short_name: 'Catálogo',
+      description: `Catálogo online da ${companyName}`,
       id: `/store/${branding.slug}`,
       theme_color: branding.themeColor,
       background_color: branding.backgroundColor,
@@ -178,7 +179,7 @@ export async function GET(request: NextRequest) {
           sizes: '540x720',
           type: 'image/png',
           form_factor: 'narrow',
-          label: branding.appName
+          label: appName
         }
       ]
     });

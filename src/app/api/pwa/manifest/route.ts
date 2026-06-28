@@ -17,6 +17,14 @@ function safeHexColor(value: string, fallback: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
 
+function withoutInstallPrefix(value: string) {
+  return value.replace(/^(Dashboard|Catálogo|Catalogo)\s+-\s+/i, '').trim() || value;
+}
+
+function dashboardAppName(value: string) {
+  return /^Dashboard\s+-\s+/i.test(value) ? value : `Dashboard - ${withoutInstallPrefix(value)}`;
+}
+
 function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: string | null) {
   const icon = resolvedIcon || request.nextUrl.searchParams.get('icon')?.trim();
   const usePublicBrandingIcon = request.nextUrl.searchParams.get('public_icon') === '1';
@@ -37,9 +45,9 @@ function resolveIconSrc(request: NextRequest, size: number, resolvedIcon?: strin
 
 function fallbackManifest() {
   return {
-    name: DEFAULT_BRANDING.appName || 'PrintFlowPRO',
-    short_name: DEFAULT_BRANDING.shortName || 'PrintFlowPRO',
-    description: DEFAULT_BRANDING.description || 'PrintFlowPRO',
+    name: `Dashboard - ${DEFAULT_BRANDING.appName || 'PrintFlowPRO'}`,
+    short_name: 'Dashboard',
+    description: `Painel administrativo da ${DEFAULT_BRANDING.appName || 'PrintFlowPRO'}`,
     id: '/printflowpro',
     start_url: '/',
     scope: '/',
@@ -146,21 +154,16 @@ async function resolveServerBranding(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  if (process.env.NODE_ENV !== 'production') {
-    return manifestResponse({
-      ...fallbackManifest(),
-      id: '/printflowpro-dev'
-    });
-  }
-
   try {
     const branding = await resolveServerBranding(request);
+    const companyName = withoutInstallPrefix(branding.appName || DEFAULT_BRANDING.appName);
+    const appName = dashboardAppName(branding.appName || DEFAULT_BRANDING.appName);
 
     return manifestResponse({
       ...fallbackManifest(),
-      name: branding.appName,
-      short_name: branding.shortName,
-      description: branding.description,
+      name: appName,
+      short_name: 'Dashboard',
+      description: `Painel administrativo da ${companyName}`,
       id: `/${branding.slug}`,
       theme_color: branding.themeColor,
       background_color: branding.backgroundColor,
@@ -178,14 +181,14 @@ export async function GET(request: NextRequest) {
           sizes: '540x720',
           type: 'image/png',
           form_factor: 'narrow',
-          label: branding.appName
+          label: appName
         },
         {
           src: '/screenshots/app-home-1280x720.png',
           sizes: '1280x720',
           type: 'image/png',
           form_factor: 'wide',
-          label: `${branding.appName} dashboard`
+          label: `${appName} dashboard`
         }
       ]
     });

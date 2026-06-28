@@ -192,9 +192,9 @@ export function resolveBranding(company?: Partial<Company> | null, settings?: Pa
 
 export function createBrandManifestUrl(branding: ActiveBranding) {
   const params = new URLSearchParams();
-  params.set('name', branding.appName);
-  params.set('short_name', branding.shortName);
-  params.set('description', branding.description);
+  params.set('name', `Dashboard - ${branding.appName}`);
+  params.set('short_name', 'Dashboard');
+  params.set('description', `Painel administrativo da ${branding.appName}`);
   params.set('theme_color', branding.themeColor);
   params.set('background_color', branding.backgroundColor);
   if (branding.companyId) params.set('company_id', branding.companyId);
@@ -211,9 +211,9 @@ export function createBrandManifestUrl(branding: ActiveBranding) {
 
 export function createStoreBrandManifestUrl(branding: ActiveBranding) {
   const params = new URLSearchParams();
-  params.set('name', branding.appName);
-  params.set('short_name', branding.shortName);
-  params.set('description', branding.description);
+  params.set('name', `Catálogo - ${branding.appName}`);
+  params.set('short_name', 'Catálogo');
+  params.set('description', `Catálogo online da ${branding.appName}`);
   params.set('theme_color', branding.themeColor);
   params.set('background_color', branding.backgroundColor);
   if (branding.companyId) params.set('company_id', branding.companyId);

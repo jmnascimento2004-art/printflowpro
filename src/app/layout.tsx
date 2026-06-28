@@ -28,12 +28,12 @@ const companyHeadBootScript = `
     var companyName = company && typeof company.name === 'string' && company.name.trim()
       ? company.name.trim()
       : hostBrand;
-    var suffix = window.location.pathname === '/store' || hostParts[0] === 'store'
-      ? 'Catálogo Online'
-      : 'ERP';
+    var isStore = window.location.pathname === '/store' ||
+      window.location.pathname.indexOf('/store/') === 0 ||
+      hostParts[0] === 'store';
 
     if (companyName) {
-      document.title = companyName + ' - ' + suffix;
+      document.title = (isStore ? 'Catálogo - ' : 'Dashboard - ') + companyName;
     }
 
     var favicon = company && typeof company.favicon === 'string' ? company.favicon.trim() : '';
@@ -118,14 +118,14 @@ const developmentPwaCleanupBootScript = process.env.NODE_ENV === 'production' ? 
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://admin.cibeleprint.com.br"),
-  title: "PrintFlowPRO - ERP SaaS para Gráficas e Comunicação Visual",
+  title: "Dashboard - CibelePRINT",
   description: "O ERP definitivo para controle de custos, precificação m², ordens de produção Kanban e gestão financeira de gráficas, brindes, sublimação e comunicação visual.",
   manifest: "/manifest.webmanifest",
-  applicationName: "PrintFlowPRO",
+  applicationName: "Dashboard - CibelePRINT",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "PrintFlowPRO",
+    title: "Dashboard",
   },
   formatDetection: {
     telephone: false,
@@ -136,7 +136,7 @@ export const metadata: Metadata = {
     apple: "/api/public/branding/icon?size=192&v=initial",
   },
   openGraph: {
-    title: "PrintFlowPRO",
+    title: "Dashboard - CibelePRINT",
     description: "ERP SaaS para graficas e comunicacao visual.",
     images: ["/api/public/branding/icon?size=512&v=initial"],
   },
