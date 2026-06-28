@@ -11,6 +11,7 @@ type PdfPreviewDialogProps = {
   previewDataUrl: string;
   downloadUrl: string;
   directPdfUrl?: string;
+  downloadLabel?: string;
 };
 
 export function PdfPreviewDialog({
@@ -19,7 +20,8 @@ export function PdfPreviewDialog({
   title,
   previewDataUrl,
   downloadUrl,
-  directPdfUrl
+  directPdfUrl,
+  downloadLabel
 }: PdfPreviewDialogProps) {
   useEffect(() => {
     if (!open) return;
@@ -57,6 +59,7 @@ export function PdfPreviewDialog({
           previewDataUrl={previewDataUrl}
           downloadUrl={downloadUrl}
           directPdfUrl={directPdfUrl}
+          downloadLabel={downloadLabel}
           onClose={() => onOpenChange(false)}
           height="90vh"
         />

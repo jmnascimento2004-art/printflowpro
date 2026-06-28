@@ -12,6 +12,7 @@ type PdfPreviewViewerProps = {
   downloadUrl: string;
   backUrl?: string;
   directPdfUrl?: string;
+  downloadLabel?: string;
   height?: string;
   onClose?: () => void;
   showHeaderActions?: boolean;
@@ -69,6 +70,7 @@ export function PdfPreviewViewer({
   downloadUrl,
   backUrl,
   directPdfUrl,
+  downloadLabel = 'Baixar PDF',
   height,
   showHeaderActions = true,
   embedded = false
@@ -258,7 +260,7 @@ export function PdfPreviewViewer({
               className="inline-flex items-center gap-2 rounded-xl bg-[#1D35C9] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#172AA3]"
             >
               <Download className="h-4 w-4" />
-              Baixar PDF
+              {downloadLabel}
             </button>
             {resolvedDirectPdfUrl && (
               <button

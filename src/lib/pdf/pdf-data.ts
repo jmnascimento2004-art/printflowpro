@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Company, Customer, Order, OrderItem, Quote, QuoteItem } from '@/lib/dummy-data';
+import type { Company, Customer, FinancialTransaction, Order, OrderItem, Quote, QuoteItem } from '@/lib/dummy-data';
 
 type QuoteItemRow = QuoteItem & { quote_id?: string };
 type OrderItemRow = OrderItem & { order_id?: string };
@@ -18,6 +18,12 @@ export type OrderPdfData = {
   customer: Customer | null;
   company: Company;
   settings: PdfSettings;
+};
+
+export type ReceiptPdfData = OrderPdfData & {
+  transaction: FinancialTransaction;
+  accumulatedPaid: number;
+  pendingAmount: number;
 };
 
 export type PdfSettings = {
@@ -183,4 +189,58 @@ export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null>
   ]);
 
   return { order, company, customer, settings };
+}
+
+export async function loadReceiptPdfData(transactionId: string): Promise<ReceiptPdfData | null> {
+  const supabase = getSupabaseServerClient();
+
+  const { data: transactionRow, error: transactionError } = await supabase
+    .from('financial_transactions')
+    .select('*')
+    .eq('id', transactionId)
+    .eq('type', 'receita')
+    .maybeSingle();
+
+  if (transactionError) throw transactionError;
+  if (!transactionRow) return null;
+
+  const transaction = {
+    ...(transactionRow as FinancialTransaction),
+    amount: Number(transactionRow.amount || 0)
+  } as FinancialTransaction;
+
+  if (!transaction.order_id) {
+    throw new Error('Transacao sem pedido vinculado para gerar recibo.');
+  }
+
+  const orderData = await loadOrderPdfData(transaction.order_id);
+  if (!orderData) return null;
+
+  const { data: paidRows, error: paidError } = await supabase
+    .from('financial_transactions')
+    .select('id, amount, created_at, paid_at')
+    .eq('order_id', transaction.order_id)
+    .eq('type', 'receita')
+    .eq('status', 'pago')
+    .order('created_at', { ascending: true });
+
+  if (paidError) throw paidError;
+
+  const transactionDate = new Date(transaction.paid_at || transaction.created_at || Date.now()).getTime();
+  const accumulatedPaid = ((paidRows || []) as Pick<FinancialTransaction, 'id' | 'amount' | 'created_at' | 'paid_at'>[])
+    .filter((row) => {
+      const rowDate = new Date(row.paid_at || row.created_at || Date.now()).getTime();
+      return row.id === transaction.id || rowDate <= transactionDate;
+    })
+    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+
+  const safeAccumulatedPaid = Math.max(Number(transaction.amount || 0), accumulatedPaid || Number(orderData.order.paid_amount || 0));
+  const pendingAmount = Math.max(0, Number(orderData.order.total_amount || 0) - safeAccumulatedPaid);
+
+  return {
+    ...orderData,
+    transaction,
+    accumulatedPaid: safeAccumulatedPaid,
+    pendingAmount
+  };
 }
