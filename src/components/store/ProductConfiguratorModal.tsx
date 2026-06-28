@@ -108,6 +108,18 @@ const hasRealSizeConfiguration = (sizeOptions: Array<{ name?: string; price_delt
   });
 };
 
+const isInternalGeneratedDescription = (value: string): boolean => {
+  const normalized = stripRichTextHtml(sanitizeProductDescription(value)).toLowerCase();
+  if (!normalized.trim()) return false;
+
+  return (
+    normalized.includes('produto precificado automaticamente') ||
+    normalized.includes('custo base:') ||
+    normalized.includes('pricing_type') ||
+    normalized.includes('sale_mode')
+  );
+};
+
 export function ProductConfiguratorModal({
   product,
   isOpen,
@@ -134,6 +146,9 @@ export function ProductConfiguratorModal({
   const shouldShowSizeGrid = saleMode === 'size_grid' || hasRealSizeConfiguration(sizeOptions);
   const variantPricingRows = useMemo(() => getNormalizedVariantPricingMatrix(product), [product]);
   const hasVariantPricingMatrix = saleMode === 'volume' && variantPricingRows.length > 0;
+  const linearWidthMaxMeters = toPositiveNumber(configurator?.max_width, 0);
+  const isLinearWidthMode = product?.pricing_type === 'linear' && linearWidthMaxMeters > 0;
+  const maxWidthCm = isLinearWidthMode ? toDisplayCm(linearWidthMaxMeters) : 0;
 
   const [quantity, setQuantity] = useState(1);
   const [widthCm, setWidthCm] = useState(100);
@@ -175,8 +190,8 @@ export function ProductConfiguratorModal({
       : '';
 
     setQuantity(initialQuantity);
-    setWidthCm(toDisplayCm(configurator?.min_width));
-    setHeightCm(toDisplayCm(configurator?.min_height));
+    setWidthCm(isLinearWidthMode ? maxWidthCm : toDisplayCm(configurator?.min_width));
+    setHeightCm(isLinearWidthMode ? toDisplayCm(configurator?.min_length || configurator?.min_height) : toDisplayCm(configurator?.min_height));
     setLengthCm(toDisplayCm(configurator?.min_length));
     setSelectedOptionsByGroup(initialGroups);
     setSelectedSize(defaultSize);
@@ -187,7 +202,7 @@ export function ProductConfiguratorModal({
     setSelectedMatrixSize(firstMatrixRow?.size || '');
     setSelectedMatrixColors(firstMatrixRow?.colors || '');
     setSelectedFinishing(firstMatrixRow?.finishing || '');
-  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode, variantPricingRows]);
+  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode, variantPricingRows, isLinearWidthMode, maxWidthCm]);
 
   const matrixSelection = useMemo(() => ({
     material: selectedMaterial,
@@ -286,13 +301,18 @@ export function ProductConfiguratorModal({
 
   const width = widthCm / 100;
   const height = heightCm / 100;
-  const length = lengthCm / 100;
+  const length = isLinearWidthMode ? width * height : lengthCm / 100;
+  const linearWidthError = isLinearWidthMode && widthCm > maxWidthCm
+    ? 'A largura informada ultrapassa a largura máxima deste produto.'
+    : '';
   const selectedVolumeTier = hasVolumePricing
     ? effectiveVolumeTiers.find((tier) => tier.min_qty === quantity) || effectiveVolumeTiers[0]
     : null;
   const configuredQuantity = selectedVolumeTier?.min_qty || quantity;
   const productDescription = useMemo(
-    () => sanitizeProductDescription(product?.description || ''),
+    () => isInternalGeneratedDescription(product?.description || '')
+      ? ''
+      : sanitizeProductDescription(product?.description || ''),
     [product?.description]
   );
   const hasProductDescription = stripRichTextHtml(productDescription).length > 0;
@@ -317,7 +337,9 @@ export function ProductConfiguratorModal({
     return sum + toPositiveNumber(option.additional_days, 0);
   }, 0);
 
-  const saleModeLabel = saleModeLabels[saleMode] || 'Produto configurável';
+  const saleModeLabel = isLinearWidthMode
+    ? 'Metro linear com largura máxima'
+    : saleModeLabels[saleMode] || 'Produto configurável';
   const isUnsupportedMode = !supportedSaleModes.has(saleMode);
   const subtotalForCart = selectedVolumeTier ? selectedVolumeTier.total : breakdown.subtotal;
   const unitPriceForCart = selectedVolumeTier
@@ -326,15 +348,16 @@ export function ProductConfiguratorModal({
   const formattedSubtotal = formatCurrency(subtotalForCart);
   const isConfigurationUnavailable = hasVariantPricingMatrix && !selectedMatrixRow;
   const dimensions = {
-    width: product.pricing_type === 'm2' ? width : undefined,
-    height: product.pricing_type === 'm2' ? height : undefined,
-    length: product.pricing_type === 'linear' ? length : undefined
+    width: product.pricing_type === 'm2' || isLinearWidthMode ? width : undefined,
+    height: product.pricing_type === 'm2' || isLinearWidthMode ? height : undefined,
+    length: product.pricing_type === 'linear' && !isLinearWidthMode ? length : undefined
   };
   const configurationSummary = [
     `Tipo: ${saleModeLabel}`,
     `Quantidade: ${configuredQuantity}`,
     product.pricing_type === 'm2' ? `Medidas: ${widthCm}cm x ${heightCm}cm` : '',
-    product.pricing_type === 'linear' ? `Metragem: ${lengthCm}cm` : '',
+    isLinearWidthMode ? `Medidas: ${widthCm}cm x ${heightCm}cm` : '',
+    product.pricing_type === 'linear' && !isLinearWidthMode ? `Metragem: ${lengthCm}cm` : '',
     summarizeOptions(selectedOptions)
   ].filter(Boolean).join(' | ');
   const matrixMaterialOptions = getVariantPricingOptions(variantPricingRows, 'material');
@@ -383,12 +406,12 @@ export function ProductConfiguratorModal({
   });
 
   const handleAdd = () => {
-    if (isConfigurationUnavailable) return;
+    if (isConfigurationUnavailable || linearWidthError) return;
     onAddToCart(buildPayload());
   };
 
   const handleWhatsAppRequest = () => {
-    if (isConfigurationUnavailable) return;
+    if (isConfigurationUnavailable || linearWidthError) return;
     onRequestWhatsApp?.(buildPayload());
   };
 
@@ -535,18 +558,57 @@ export function ProductConfiguratorModal({
                 )}
 
                 {product.pricing_type === 'linear' && (
-                  <label className="space-y-1">
-                    <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Metro linear (cm)</span>
-                    <input
-                      type="number"
-                      min="1"
-                      value={lengthCm}
-                      onChange={(event) => setLengthCm(Math.max(1, Number(event.target.value) || 1))}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
-                    />
-                  </label>
+                  isLinearWidthMode ? (
+                    <>
+                      <label className="space-y-1">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Largura (cm)</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max={maxWidthCm}
+                          value={widthCm}
+                          onChange={(event) => setWidthCm(Math.max(1, Number(event.target.value) || 1))}
+                          className={`w-full rounded-xl border px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:bg-white ${
+                            linearWidthError ? 'border-rose-300 bg-rose-50 focus:border-rose-500' : 'border-slate-200 bg-slate-50 focus:border-emerald-500'
+                          }`}
+                        />
+                        <span className="block text-[10px] font-semibold text-slate-400">Máximo: {maxWidthCm} cm</span>
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Altura/Comprimento (cm)</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={heightCm}
+                          onChange={(event) => setHeightCm(Math.max(1, Number(event.target.value) || 1))}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <label className="space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Metro linear (cm)</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={lengthCm}
+                        onChange={(event) => setLengthCm(Math.max(1, Number(event.target.value) || 1))}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
+                      />
+                    </label>
+                  )
                 )}
               </div>
+              {linearWidthError && (
+                <p className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
+                  {linearWidthError}
+                </p>
+              )}
+              {isLinearWidthMode && !linearWidthError && (
+                <p className="mt-2 text-[11px] font-semibold text-slate-500">
+                  Cálculo: largura x altura/comprimento x valor do metro linear.
+                </p>
+              )}
             </section>
 
             {hasProductDescription && (
@@ -814,7 +876,19 @@ export function ProductConfiguratorModal({
                       <span className="font-bold text-slate-700">{widthCm} x {heightCm} cm</span>
                     </div>
                   )}
-                  {product.pricing_type === 'linear' && (
+                  {isLinearWidthMode && (
+                    <>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Largura</span>
+                        <span className="font-bold text-slate-700">{widthCm} cm</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Altura/Comprimento</span>
+                        <span className="font-bold text-slate-700">{heightCm} cm</span>
+                      </div>
+                    </>
+                  )}
+                  {product.pricing_type === 'linear' && !isLinearWidthMode && (
                     <div className="flex justify-between gap-3">
                       <span className="text-slate-500">Metragem</span>
                       <span className="font-bold text-slate-700">{lengthCm} cm</span>
@@ -850,7 +924,7 @@ export function ProductConfiguratorModal({
               <button
                 type="button"
                 onClick={handleAdd}
-                disabled={isConfigurationUnavailable}
+                disabled={isConfigurationUnavailable || Boolean(linearWidthError)}
                 className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/15 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none flex items-center justify-center gap-2"
               >
                 <ShoppingCart className="h-4 w-4" />
@@ -859,7 +933,7 @@ export function ProductConfiguratorModal({
               <button
                 type="button"
                 onClick={handleAdd}
-                disabled={isConfigurationUnavailable}
+                disabled={isConfigurationUnavailable || Boolean(linearWidthError)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition-all hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               >
                 Finalizar produto
