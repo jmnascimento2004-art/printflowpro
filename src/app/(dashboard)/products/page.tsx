@@ -39,6 +39,8 @@ import { RichTextEditor } from '@/components/rich-text-editor';
 import { ProductBarcode } from '@/components/products/ProductBarcode';
 import { ProductLabelPreview, ProductLabelSize, productLabelSizes } from '@/components/products/ProductLabelPreview';
 
+type ProductSaleModeDraft = ProductSaleMode | 'linear_width';
+
 function ProductDescriptionEditor({
   value,
   onChange
@@ -133,22 +135,24 @@ function ProductDescriptionEditor({
 
 void ProductDescriptionEditor;
 
-const saleModeOptions: Array<{ value: ProductSaleMode; label: string; pricingType: Product['pricing_type'] }> = [
+const saleModeOptions: Array<{ value: ProductSaleModeDraft; label: string; pricingType: Product['pricing_type'] }> = [
   { value: 'unidade', label: 'Unidade Simples', pricingType: 'unidade' },
   { value: 'volume', label: 'Preco por Quantidade / Lote', pricingType: 'unidade' },
   { value: 'm2', label: 'Metro Quadrado (m²)', pricingType: 'm2' },
-  { value: 'linear', label: 'Metro Linear', pricingType: 'linear' },
+  { value: 'linear_width', label: 'Metro Linear com Largura Maxima', pricingType: 'linear' },
+  { value: 'linear', label: 'Comprimento Linear Simples', pricingType: 'linear' },
   { value: 'width_height', label: 'Largura x Altura', pricingType: 'm2' },
   { value: 'pacote', label: 'Pacote / Kit', pricingType: 'pacote' },
   { value: 'size_grid', label: 'Produto com Variacoes', pricingType: 'unidade' },
   { value: 'custom', label: 'Produto Personalizado', pricingType: 'unidade' }
 ];
 
-const saleModeDescriptions: Record<ProductSaleMode, string> = {
+const saleModeDescriptions: Record<ProductSaleModeDraft, string> = {
   unidade: 'Use para produtos vendidos por unidade, sem tabela de tiragem ou lote.',
   volume: 'Use para panfletos, cartoes, taloes, folders e impressos vendidos por quantidade/lote.',
   m2: 'Use para banners, lonas, adesivos, placas, ACM, fachadas e comunicação visual por área.',
-  linear: 'Use para adesivos em rolo, faixas e materiais vendidos por metro.',
+  linear_width: 'Use para bobinas, vinil, lona, manta, chapas e materiais com largura maxima e comprimento livre.',
+  linear: 'Use para perfis, tubos, reguas e materiais vendidos apenas por comprimento.',
   width_height: 'Use para produtos que precisam de largura e altura com limites mínimos, máximos ou área mínima cobrada.',
   pacote: 'Use para kits fechados, combos e pacotes com composição definida.',
   kit: 'Use para kits fechados, combos e pacotes com composição definida.',
@@ -162,7 +166,53 @@ type ConfiguratorInterfaceField = {
   kind?: 'input' | 'toggle' | 'chip';
 };
 
-const saleModeOperatorGuidance: Record<ProductSaleMode, {
+type ProductRegistrationType = 'simple_unit' | 'measured' | 'tiered' | 'service' | 'custom_project';
+
+const registrationTypeCards: Array<{
+  value: ProductRegistrationType;
+  title: string;
+  description: string;
+  examples: string;
+  defaultSaleMode: ProductSaleMode;
+}> = [
+  {
+    value: 'simple_unit',
+    title: 'Produto simples',
+    description: 'Venda por unidade, com preco fixo.',
+    examples: 'Caneca, camisa, cartao simples, item pronto.',
+    defaultSaleMode: 'unidade'
+  },
+  {
+    value: 'measured',
+    title: 'Produto por medida',
+    description: 'Venda por largura, altura, m2 ou metro linear.',
+    examples: 'Lona, adesivo, ACM, fachada, grade, movel.',
+    defaultSaleMode: 'm2'
+  },
+  {
+    value: 'tiered',
+    title: 'Produto por tiragem/lote',
+    description: 'Venda com tabela de preco por quantidade.',
+    examples: 'Panfletos, cartoes, folders, taloes.',
+    defaultSaleMode: 'volume'
+  },
+  {
+    value: 'service',
+    title: 'Servico',
+    description: 'Servico sem estoque fisico.',
+    examples: 'Arte final, instalacao, manutencao, solda, corte.',
+    defaultSaleMode: 'custom'
+  },
+  {
+    value: 'custom_project',
+    title: 'Projeto sob medida',
+    description: 'Orcamentos personalizados com material, mao de obra e medidas.',
+    examples: 'Portao, balcao, movel planejado, fachada completa.',
+    defaultSaleMode: 'custom'
+  }
+];
+
+const saleModeOperatorGuidance: Record<ProductSaleModeDraft, {
   title: string;
   impact: string;
   catalog: string;
@@ -182,9 +232,14 @@ const saleModeOperatorGuidance: Record<ProductSaleMode, {
     impact: 'Use para banners, placas, adesivos, lonas e materiais calculados por largura x altura.',
     catalog: 'No catalogo o cliente informa medidas e o sistema calcula pela area.'
   },
+  linear_width: {
+    title: 'Metro linear com largura maxima',
+    impact: 'Use quando o material tem largura maxima de bobina/chapa e o cliente informa largura e comprimento.',
+    catalog: 'No catalogo o cliente informa largura e altura/comprimento. O sistema bloqueia largura acima do limite.'
+  },
   linear: {
-    title: 'Metro linear',
-    impact: 'Use para produtos vendidos por comprimento, como adesivos em rolo e faixas.',
+    title: 'Comprimento linear simples',
+    impact: 'Use quando o cliente informa apenas o comprimento, sem largura de material.',
     catalog: 'No catalogo o cliente informa a metragem e o sistema calcula pelo comprimento.'
   },
   width_height: {
@@ -214,7 +269,7 @@ const saleModeOperatorGuidance: Record<ProductSaleMode, {
   }
 };
 
-const configuratorInterfaceFields: Record<ProductSaleMode, ConfiguratorInterfaceField[]> = {
+const configuratorInterfaceFields: Record<ProductSaleModeDraft, ConfiguratorInterfaceField[]> = {
   unidade: [
     { label: 'Material', placeholder: 'Ex: Couchê, Offset, PVC' },
     { label: 'Tamanho', placeholder: 'Ex: 15x21 cm, A4, personalizado' },
@@ -234,6 +289,13 @@ const configuratorInterfaceFields: Record<ProductSaleMode, ConfiguratorInterface
     { label: 'Largura mínima', placeholder: 'Ex: 50 cm' },
     { label: 'Altura mínima', placeholder: 'Ex: 50 cm' },
     { label: 'Permitir medida personalizada', kind: 'toggle' }
+  ],
+  linear_width: [
+    { label: 'Valor do metro linear', placeholder: 'R$ 0,00' },
+    { label: 'Largura maxima', placeholder: 'Ex: 1,20 m' },
+    { label: 'Largura solicitada', placeholder: 'Ex: 0,80 m' },
+    { label: 'Altura/comprimento', placeholder: 'Ex: 3,00 m' },
+    { label: 'Cobranca minima opcional', placeholder: 'Ex: 1 m2' }
   ],
   linear: [
     { label: 'Preço por metro', placeholder: 'R$ 0,00' },
@@ -384,7 +446,10 @@ export default function ProductsCRUDPage() {
   const [tempVariantName, setTempVariantName] = useState('');
   const [tempColorName, setTempColorName] = useState('');
   const [tempColorHex, setTempColorHex] = useState('#111827');
-  const [saleMode, setSaleMode] = useState<ProductSaleMode>('unidade');
+  const [registrationType, setRegistrationType] = useState<ProductRegistrationType>('simple_unit');
+  const [isAdvancedPricingOpen, setIsAdvancedPricingOpen] = useState(false);
+  const [isConfiguratorOpen, setIsConfiguratorOpen] = useState(false);
+  const [saleMode, setSaleMode] = useState<ProductSaleModeDraft>('unidade');
   const [allowCustomMeasure, setAllowCustomMeasure] = useState(true);
   const [minWidth, setMinWidth] = useState(0);
   const [minHeight, setMinHeight] = useState(0);
@@ -642,13 +707,42 @@ export default function ProductsCRUDPage() {
     setTempColorHex('#111827');
   };
 
-  const getPricingTypeForSaleMode = (mode: ProductSaleMode): Product['pricing_type'] => {
+  const getPricingTypeForSaleMode = (mode: ProductSaleModeDraft): Product['pricing_type'] => {
     return saleModeOptions.find((option) => option.value === mode)?.pricingType || 'unidade';
   };
 
-  const handleSaleModeChange = (mode: ProductSaleMode) => {
+  const getRegistrationTypeForSaleMode = (mode: ProductSaleModeDraft, product?: Product): ProductRegistrationType => {
+    const configurator = product?.pricing_details?.configurator_options as { registration_type?: ProductRegistrationType } | undefined;
+    const savedType = configurator?.registration_type;
+    if (savedType) return savedType;
+    if (mode === 'volume' || (product?.volume_pricing?.length || 0) > 0) return 'tiered';
+    if (mode === 'm2' || mode === 'linear_width' || mode === 'linear' || mode === 'width_height') return 'measured';
+    if (mode === 'custom') return product?.stock_controlled === false ? 'service' : 'custom_project';
+    return 'simple_unit';
+  };
+
+  const handleRegistrationTypeChange = (type: ProductRegistrationType) => {
+    setRegistrationType(type);
+    const defaultSaleMode = registrationTypeCards.find((card) => card.value === type)?.defaultSaleMode || 'unidade';
+    handleSaleModeChange(defaultSaleMode);
+    if (type === 'service' || type === 'custom_project') {
+      setStockControlled(false);
+      setQuoteOnRequest(type === 'custom_project');
+    }
+    if (type === 'simple_unit') {
+      setStockControlled(true);
+      setQuoteOnRequest(false);
+    }
+    if (type === 'tiered') {
+      setIsAdvancedPricingOpen(false);
+      setIsConfiguratorOpen(false);
+    }
+  };
+
+  const handleSaleModeChange = (mode: ProductSaleModeDraft) => {
     setSaleMode(mode);
     setPricingType(getPricingTypeForSaleMode(mode));
+    setRegistrationType(getRegistrationTypeForSaleMode(mode));
   };
 
   const updateSizeOption = (index: number, patch: Partial<ProductConfiguratorOption>) => {
@@ -716,7 +810,8 @@ export default function ProductsCRUDPage() {
     .filter(group => group.name && group.options.length > 0);
 
   const buildConfiguratorOptions = () => ({
-    sale_mode: saleMode,
+    sale_mode: saleMode === 'linear_width' ? 'linear' : saleMode,
+    registration_type: registrationType,
     allow_custom_measure: allowCustomMeasure,
     min_width: minWidth || undefined,
     min_height: minHeight || undefined,
@@ -786,6 +881,9 @@ export default function ProductsCRUDPage() {
     setTempVariantName('');
     setTempColorName('');
     setTempColorHex('#111827');
+    setRegistrationType('simple_unit');
+    setIsAdvancedPricingOpen(false);
+    setIsConfiguratorOpen(false);
     setSaleMode('unidade');
     setAllowCustomMeasure(true);
     setMinWidth(0);
@@ -838,10 +936,13 @@ export default function ProductsCRUDPage() {
     setVariantOptions(prod.variant_options || []);
     setColorOptions(prod.color_options || []);
     const configurator = prod.pricing_details?.configurator_options;
-    setSaleMode(configurator?.sale_mode === 'unidade' && (prod.volume_pricing?.length || 0) > 0
+    const nextSaleMode = configurator?.sale_mode === 'unidade' && (prod.volume_pricing?.length || 0) > 0
       ? 'volume'
-      : configurator?.sale_mode || ((prod.volume_pricing?.length || 0) > 0 ? 'volume' : prod.pricing_type)
-    );
+      : configurator?.sale_mode || ((prod.volume_pricing?.length || 0) > 0 ? 'volume' : prod.pricing_type);
+    setSaleMode(nextSaleMode);
+    setRegistrationType(getRegistrationTypeForSaleMode(nextSaleMode, prod));
+    setIsAdvancedPricingOpen(false);
+    setIsConfiguratorOpen(false);
     setAllowCustomMeasure(configurator?.allow_custom_measure !== false);
     setMinWidth(configurator?.min_width || 0);
     setMinHeight(configurator?.min_height || 0);
@@ -1003,8 +1104,9 @@ export default function ProductsCRUDPage() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
-  const getProductSaleMode = (product: Product): ProductSaleMode => {
+  const getProductSaleMode = (product: Product): ProductSaleModeDraft => {
     const configuredMode = product.pricing_details?.configurator_options?.sale_mode;
+    if (configuredMode === 'linear' && product.pricing_details?.configurator_options?.max_width) return 'linear_width';
     if (configuredMode) return configuredMode;
     if ((product.volume_pricing?.length || 0) > 0) return 'volume';
     if (product.variant_options?.length || product.color_options?.length) return 'size_grid';
@@ -1013,11 +1115,12 @@ export default function ProductsCRUDPage() {
 
   const getSaleModeLabel = (product: Product) => {
     const mode = getProductSaleMode(product);
-    const labels: Record<ProductSaleMode, string> = {
+    const labels: Record<ProductSaleModeDraft, string> = {
       unidade: 'Unidade',
       volume: 'Preço por lote',
       m2: 'M²',
-      linear: 'Metro linear',
+      linear_width: 'Metro linear largura max.',
+      linear: 'Comprimento linear',
       width_height: 'Sob medida',
       pacote: 'Pacote',
       kit: 'Kit',
@@ -1089,6 +1192,22 @@ export default function ProductsCRUDPage() {
     .filter((tier) => tier.min_qty > 0 && tier.price >= 0)
     .sort((a, b) => a.min_qty - b.min_qty);
   const initialVolumeTier = normalizedVolumePricingPreview[0];
+  const isSimpleRegistration = registrationType === 'simple_unit';
+  const isMeasuredRegistration = registrationType === 'measured';
+  const isTieredRegistration = registrationType === 'tiered';
+  const isServiceRegistration = registrationType === 'service';
+  const isCustomProjectRegistration = registrationType === 'custom_project';
+  const shouldShowSaleModelSection = !isServiceRegistration && !isCustomProjectRegistration;
+  const shouldShowStockSection = isSimpleRegistration || isMeasuredRegistration || isTieredRegistration;
+  const shouldShowConfiguratorSection = isConfiguratorOpen;
+  const shouldShowVolumePricingSection = isTieredRegistration || saleMode === 'volume';
+  const shouldShowAdvancedConfiguratorTools = isConfiguratorOpen;
+  const visibleSaleModeOptions = saleModeOptions.filter((option) => {
+    if (isSimpleRegistration) return ['unidade', 'pacote', 'kit'].includes(option.value);
+    if (isMeasuredRegistration) return ['m2', 'linear_width', 'linear', 'width_height'].includes(option.value);
+    if (isTieredRegistration) return ['volume', 'size_grid'].includes(option.value);
+    return ['custom', 'unidade'].includes(option.value);
+  });
   const firstMatrixPreviewRow = variantPricingMatrix.find((row) => row.tiers.length > 0);
   const firstMatrixPreviewTier = firstMatrixPreviewRow
     ? [...firstMatrixPreviewRow.tiers].sort((a, b) => a.quantity - b.quantity)[0]
@@ -1102,6 +1221,52 @@ export default function ProductsCRUDPage() {
       }
     : initialVolumeTier;
   const selectedCategoryName = categories.find((category) => category.id === categoryId)?.name || 'Sem categoria';
+  const normalizedCategoryName = selectedCategoryName.toLowerCase();
+  const categoryGuidance = normalizedCategoryName.includes('serralharia')
+    ? {
+        title: 'Sugestão para serralharia',
+        modes: 'Projeto sob medida, produto por medida ou serviço.',
+        examples: 'Portão, grade, corrimão, estrutura metálica, suporte, solda e manutenção.'
+      }
+    : normalizedCategoryName.includes('marcenaria')
+      ? {
+          title: 'Sugestão para marcenaria',
+          modes: 'Projeto sob medida, produto por medida ou serviço.',
+          examples: 'Armário, balcão, painel, prateleira, móvel planejado, bancada, corte e montagem.'
+        }
+      : null;
+  const registrationFlowSummary = {
+    simple_unit: {
+      title: 'Produto simples',
+      fields: 'Dados básicos, preço final, catálogo simples e estoque opcional.',
+      catalog: 'O cliente vê o preço unitário e escolhe a quantidade livremente.',
+      tip: 'Ideal para itens prontos, brindes, peças unitárias e produtos de balcão.'
+    },
+    measured: {
+      title: 'Produto por medida',
+      fields: 'Dados básicos, tipo de medida, limites, preço por medida e catálogo simples.',
+      catalog: 'O cliente informa medidas dentro das regras configuradas.',
+      tip: 'Use metro quadrado, metro linear com largura máxima, comprimento simples ou largura x altura.'
+    },
+    tiered: {
+      title: 'Produto por tiragem/lote',
+      fields: 'Dados básicos, tabela de faixas, matriz opcional e preço por quantidade.',
+      catalog: 'O cliente escolhe uma tiragem cadastrada e vê valor unitário e total do lote.',
+      tip: 'Ideal para panfletos, cartões, folders, talões e impressos por quantidade.'
+    },
+    service: {
+      title: 'Serviço',
+      fields: 'Dados básicos, tipo de cobrança, valor base, prazo estimado e observações.',
+      catalog: 'O cliente entende que está contratando um serviço, não um item de estoque.',
+      tip: 'Use para arte final, instalação, manutenção, solda, corte, visita técnica e mão de obra.'
+    },
+    custom_project: {
+      title: 'Projeto sob medida',
+      fields: 'Segmento, tipo do projeto, medidas, material, acabamento, instalação, mão de obra e prazo.',
+      catalog: 'O cliente envia a solicitação para análise comercial antes do orçamento final.',
+      tip: 'Use para serralharia, marcenaria, comunicação visual e projetos com muitas variáveis.'
+    }
+  }[registrationType];
 
   return (    <div className="space-y-6 animate-in fade-in duration-300">
       {!isFormOpen ? (
@@ -1938,13 +2103,68 @@ export default function ProductsCRUDPage() {
             </div>
 
             <div className="flex flex-col gap-4 py-1">
+              <section className="order-0 rounded-2xl border border-primary/15 bg-primary/5 p-4 shadow-sm space-y-4">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Assistente de cadastro</span>
+                  <h4 className="mt-1 text-base font-black text-foreground">Que tipo de item você quer cadastrar?</h4>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Escolha uma opção para mostrar apenas os campos necessários.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
+                  {registrationTypeCards.map((card) => {
+                    const selected = registrationType === card.value;
+                    return (
+                      <button
+                        key={card.value}
+                        type="button"
+                        onClick={() => handleRegistrationTypeChange(card.value)}
+                        className={`min-h-[132px] rounded-xl border p-3 text-left transition-all ${
+                          selected
+                            ? 'border-primary bg-white text-foreground shadow-sm ring-2 ring-primary/10'
+                            : 'border-border bg-white/70 text-muted-foreground hover:border-primary/40 hover:bg-white'
+                        }`}
+                      >
+                        <span className="block text-xs font-black text-foreground">{card.title}</span>
+                        <span className="mt-1 block text-[11px] leading-relaxed">{card.description}</span>
+                        <span className="mt-2 block text-[10px] font-semibold leading-relaxed text-primary">{card.examples}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {categoryGuidance && (
+                  <div className="rounded-xl border border-primary/15 bg-white px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                    <span className="block text-xs font-black text-foreground">{categoryGuidance.title}</span>
+                    <span className="mt-0.5 block font-semibold text-primary">{categoryGuidance.modes}</span>
+                    <span className="mt-0.5 block">{categoryGuidance.examples}</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-white p-3 text-[11px] leading-relaxed md:grid-cols-3">
+                  <div>
+                    <span className="block text-[10px] font-black uppercase tracking-wide text-primary">Caminho selecionado</span>
+                    <span className="mt-1 block text-sm font-black text-foreground">{registrationFlowSummary.title}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-black uppercase tracking-wide text-muted-foreground">Campos principais</span>
+                    <span className="mt-1 block text-muted-foreground">{registrationFlowSummary.fields}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-black uppercase tracking-wide text-muted-foreground">Como aparece no catálogo</span>
+                    <span className="mt-1 block text-muted-foreground">{registrationFlowSummary.catalog}</span>
+                  </div>
+                  <div className="rounded-lg border border-primary/10 bg-primary/5 px-3 py-2 font-semibold text-primary md:col-span-3">
+                    {registrationFlowSummary.tip}
+                  </div>
+                </div>
+              </section>
+
               <section className="order-1 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
-                <div className="border-b border-border/60 pb-3">
+                <summary className="cursor-pointer list-none border-b border-border/60 pb-3">
                   <span className="text-xs font-black uppercase tracking-wide text-primary">1. Informações do Produto</span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                     Dados principais usados no cadastro interno, identificação e organização do produto.
                   </p>
-                </div>
+                </summary>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Product Name */}
@@ -2028,6 +2248,7 @@ export default function ProductsCRUDPage() {
               </section>
 
               {/* Online sale configurator */}
+              {shouldShowSaleModelSection && (
               <section className="order-2 rounded-2xl border border-primary/15 bg-white p-4 shadow-sm space-y-4">
                 <div className="flex flex-col gap-1 border-b border-border/60 pb-3">
                   <span className="text-xs font-black uppercase tracking-wide text-primary">2. Modelo de Venda</span>
@@ -2039,15 +2260,26 @@ export default function ProductsCRUDPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground">Como este produto será vendido?</label>
-                    <select
-                      value={saleMode}
-                      onChange={(e) => handleSaleModeChange(e.target.value as ProductSaleMode)}
-                      className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
-                    >
-                      {saleModeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {visibleSaleModeOptions.map((option) => {
+                        const selected = saleMode === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => handleSaleModeChange(option.value)}
+                            className={`min-h-[74px] rounded-xl border px-3 py-2 text-left text-[11px] transition-all ${
+                              selected
+                                ? 'border-primary bg-primary/5 text-foreground shadow-sm ring-2 ring-primary/10'
+                                : 'border-border bg-white text-muted-foreground hover:border-primary/40'
+                            }`}
+                          >
+                            <span className="block text-xs font-black text-foreground">{saleModeOperatorGuidance[option.value].title}</span>
+                            <span className="mt-1 block leading-relaxed">{saleModeOperatorGuidance[option.value].impact}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                     <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-[11px] leading-relaxed">
                       <span className="block text-xs font-black text-foreground">
                         {saleModeOperatorGuidance[saleMode].title}
@@ -2128,10 +2360,40 @@ export default function ProductsCRUDPage() {
                       </div>
                     )}
 
+                    {saleMode === 'linear_width' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <p className="sm:col-span-2 lg:col-span-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
+                          O cálculo usa largura informada x altura/comprimento x valor do metro linear. Largura máxima limita o material; não é metragem mínima.
+                        </p>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura máxima do material (cm)</label>
+                          <input type="number" min="0" value={maxWidth} onChange={(e) => setMaxWidth(Math.max(0, Number(e.target.value) || 0))} placeholder="Ex: 120" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura mínima opcional (cm)</label>
+                          <input type="number" min="0" value={minWidth} onChange={(e) => setMinWidth(Math.max(0, Number(e.target.value) || 0))} placeholder="Ex: 30" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Cobrança mínima opcional (m²)</label>
+                          <input type="number" min="0" step="0.01" value={minArea} onChange={(e) => setMinArea(Math.max(0, Number(e.target.value) || 0))} placeholder="Ex: 1" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                        </div>
+                        <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-emerald-500/20 bg-white p-3 text-[11px] leading-relaxed text-muted-foreground">
+                          <span className="block text-xs font-black text-foreground">Resumo visual da regra</span>
+                          <span className="mt-1 block">Campos no atendimento: largura solicitada, altura/comprimento, valor do metro linear e quantidade.</span>
+                          <span className="mt-1 block font-semibold text-emerald-700">Exemplo: 0,80 m x 3,00 m x R$ 50,00 = R$ 120,00.</span>
+                          <span className="mt-1 block">Se a largura solicitada ultrapassar a largura máxima configurada, o catálogo deve bloquear a compra.</span>
+                        </div>
+                        <label className="sm:col-span-2 lg:col-span-3 flex items-center gap-2 text-[11px] font-bold text-foreground">
+                          <input type="checkbox" checked={allowCustomMeasure} onChange={(e) => setAllowCustomMeasure(e.target.checked)} className="h-4 w-4 rounded border-border text-primary" />
+                          Permitir largura e comprimento personalizados no catalogo
+                        </label>
+                      </div>
+                    )}
+
                     {saleMode === 'linear' && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <p className="sm:col-span-2 rounded-lg border border-blue-500/15 bg-blue-500/5 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
-                          O cliente informa o comprimento no catalogo. Use este modelo para produtos vendidos por metro linear.
+                          O cliente informa apenas o comprimento no catalogo. Use este modelo para perfil, tubo, regua ou produto vendido por comprimento simples.
                         </p>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Metragem mínima (m)</label>
@@ -2196,6 +2458,76 @@ export default function ProductsCRUDPage() {
                   </div>
                 </div>
               </section>
+              )}
+
+              {isServiceRegistration && (
+                <section className="order-2 rounded-2xl border border-primary/15 bg-white p-4 shadow-sm space-y-4">
+                  <div className="border-b border-border/60 pb-3">
+                    <span className="text-xs font-black uppercase tracking-wide text-primary">2. Serviço</span>
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      Use este caminho para mão de obra, instalação, manutenção, arte, corte ou atendimento sem estoque físico.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-border bg-secondary/10 p-3">
+                      <span className="block text-[10px] font-black uppercase text-muted-foreground">Tipo de cobrança</span>
+                      <span className="mt-1 block text-xs font-bold text-foreground">Valor base ou sob consulta</span>
+                      <span className="mt-1 block text-[11px] text-muted-foreground">O preço final continua no bloco de precificação.</span>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">Prazo estimado</label>
+                      <input
+                        type="text"
+                        value={deliveryTime}
+                        onChange={(e) => setDeliveryTime(e.target.value)}
+                        placeholder="Ex: 2 dias úteis, visita agendada"
+                        className="w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs text-foreground"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">Orientação ao cliente</label>
+                      <input
+                        type="text"
+                        value={customerMessage}
+                        onChange={(e) => setCustomerMessage(e.target.value)}
+                        placeholder="Ex: Informe local, medidas ou arquivo"
+                        className="w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs text-foreground"
+                      />
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {isCustomProjectRegistration && (
+                <section className="order-2 rounded-2xl border border-primary/15 bg-white p-4 shadow-sm space-y-4">
+                  <div className="border-b border-border/60 pb-3">
+                    <span className="text-xs font-black uppercase tracking-wide text-primary">2. Projeto sob medida</span>
+                    <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      Use para serralharia, marcenaria, comunicação visual e projetos que dependem de análise comercial antes do preço final.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-border bg-secondary/10 p-3">
+                      <span className="block text-[10px] font-black uppercase text-muted-foreground">Segmento</span>
+                      <span className="mt-1 block text-xs font-bold text-foreground">{selectedCategoryName}</span>
+                      <span className="mt-1 block text-[11px] text-muted-foreground">A categoria ajuda a orientar materiais, acabamento e mão de obra.</span>
+                    </div>
+                    <div className="rounded-xl border border-border bg-secondary/10 p-3">
+                      <span className="block text-[10px] font-black uppercase text-muted-foreground">Campos do briefing</span>
+                      <span className="mt-1 block text-[11px] text-muted-foreground">Medidas, material, acabamento, instalação, mão de obra e prazo devem entrar na descrição completa.</span>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">Mensagem para o cliente</label>
+                      <textarea
+                        value={customerMessage}
+                        onChange={(e) => setCustomerMessage(e.target.value)}
+                        placeholder="Ex: Envie medidas, local de instalação, referência visual e prazo desejado."
+                        className="min-h-[86px] w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs text-foreground"
+                      />
+                    </div>
+                  </div>
+                </section>
+              )}
 
               {/* Pricing Type */}
               <div className="hidden">
@@ -2314,13 +2646,13 @@ export default function ProductsCRUDPage() {
                 </div>
               </section>
 
-              <section className="order-6 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
-                <div className="border-b border-border/60 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wide text-primary">6. Upload e Instruções</span>
+              <details className="order-6 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+                <summary className="cursor-pointer list-none border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">6. Imagem e descrição completa</span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                    Imagem, prévia visual e instruções do produto para produção e apresentação.
+                    Opcional: imagem, prévia visual e detalhes completos para produção e apresentação.
                   </p>
-                </div>
+                </summary>
 
               {/* Product Image Attachment */}
               <div className="space-y-1">
@@ -2372,7 +2704,7 @@ export default function ProductsCRUDPage() {
                   minHeightClass="min-h-[136px]"
                 />
               </div>
-              </section>
+              </details>
 
               <section className="order-4 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
                 <div className="border-b border-border/60 pb-3">
@@ -2407,10 +2739,19 @@ export default function ProductsCRUDPage() {
               </div>
 
               {/* Margens de Precificação */}
-              <div className="md:col-span-2 bg-secondary/15 p-4 rounded-xl border border-border space-y-3.5">
-                <span className="font-bold text-xs text-foreground block uppercase tracking-wide border-b border-border pb-1">
-                  % Lucratividade, Comissão & Impostos
+              <details
+                className="md:col-span-2 bg-secondary/15 p-4 rounded-xl border border-border space-y-3.5"
+                open={isAdvancedPricingOpen}
+                onToggle={(event) => setIsAdvancedPricingOpen(event.currentTarget.open)}
+              >
+                <summary className="cursor-pointer list-none">
+                  <span className="font-bold text-xs text-foreground block uppercase tracking-wide">
+                    Precificação avançada opcional
                 </span>
+                  <span className="mt-1 block text-[10px] font-medium text-muted-foreground">
+                    Use apenas se quiser calcular margem, comissão e impostos. O modo simples usa custo e preço de venda.
+                  </span>
+                </summary>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Meta Margem Líquida */}
                   <div className="space-y-1.5">
@@ -2460,10 +2801,10 @@ export default function ProductsCRUDPage() {
                     />
                   </div>
                 </div>
-              </div>
+              </details>
 
               {/* Volume pricing tiers */}
-              {saleMode === 'volume' && (
+              {shouldShowVolumePricingSection && (
               <div className="md:col-span-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-3">
                 <div>
                   <span className="font-bold text-xs text-foreground block">Preço por Quantidade (Tabela de Volume / Atacado)</span>
@@ -2556,7 +2897,7 @@ export default function ProductsCRUDPage() {
               </div>
               )}
 
-              {saleMode === 'volume' && (
+              {shouldShowVolumePricingSection && (
                 <div className="md:col-span-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 space-y-3">
                   <div>
                     <span className="font-bold text-xs text-foreground block">Matriz de Preços por Configuração</span>
@@ -2708,6 +3049,17 @@ export default function ProductsCRUDPage() {
                 </div>
               </section>
 
+              {(isMeasuredRegistration || isTieredRegistration || saleMode === 'size_grid') && !shouldShowConfiguratorSection && (
+                <button
+                  type="button"
+                  onClick={() => setIsConfiguratorOpen(true)}
+                  className="order-3 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-left text-xs font-bold text-primary hover:bg-primary/10"
+                >
+                  + Abrir opções avançadas, variações e grupos de escolha
+                </button>
+              )}
+
+              {shouldShowConfiguratorSection && (
               <section className="order-3 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
                 <div className="border-b border-border/60 pb-3">
                   <span className="text-xs font-black uppercase tracking-wide text-primary">3. Configurador do Produto</span>
@@ -2771,6 +3123,8 @@ export default function ProductsCRUDPage() {
                   </div>
                 </div>
 
+              {shouldShowAdvancedConfiguratorTools && (
+              <>
               {/* Variations and colors */}
               <div className="space-y-3">
                 <div>
@@ -2995,16 +3349,20 @@ export default function ProductsCRUDPage() {
                   </div>
                 )}
               </div>
+              </>
+              )}
               </section>
+              )}
 
               {/* Stock control configurations */}
-              <section className="order-7 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
-                <div className="border-b border-border/60 pb-3">
+              {shouldShowStockSection && (
+              <details className="order-7 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+                <summary className="cursor-pointer list-none border-b border-border/60 pb-3">
                   <span className="text-xs font-black uppercase tracking-wide text-primary">7. Estoque</span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                     Controle de estoque, alerta mínimo e lançamento inicial quando aplicável.
                   </p>
-                </div>
+                </summary>
 
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -3051,7 +3409,8 @@ export default function ProductsCRUDPage() {
                   )}
                 </div>
               )}
-              </section>
+              </details>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 border-t border-border pt-4 mt-2 shrink-0">
