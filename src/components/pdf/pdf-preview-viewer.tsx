@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
+import { downloadFileFromUrl } from '@/lib/download';
 
 type PdfPreviewViewerProps = {
   title: string;
@@ -69,7 +70,6 @@ export function PdfPreviewViewer({
   backUrl,
   directPdfUrl,
   height,
-  onClose,
   showHeaderActions = true,
   embedded = false
 }: PdfPreviewViewerProps) {
@@ -213,6 +213,17 @@ export function PdfPreviewViewer({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const handleDownload = async () => {
+    try {
+      await downloadFileFromUrl(downloadUrl);
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Erro ao baixar PDF:', err);
+      }
+      alert('Nao foi possivel baixar o PDF. Tente novamente.');
+    }
+  };
+
   const resolvedDirectPdfUrl = directPdfUrl || pdfUrl;
 
   const header = (
@@ -243,7 +254,7 @@ export function PdfPreviewViewer({
             </button>
             <button
               type="button"
-              onClick={() => openUrl(downloadUrl)}
+              onClick={handleDownload}
               className="inline-flex items-center gap-2 rounded-xl bg-[#1D35C9] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#172AA3]"
             >
               <Download className="h-4 w-4" />
@@ -257,16 +268,6 @@ export function PdfPreviewViewer({
               >
                 <ExternalLink className="h-4 w-4" />
                 Abrir PDF direto
-              </button>
-            )}
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-              >
-                <X className="h-4 w-4" />
-                Fechar
               </button>
             )}
           </div>

@@ -12,6 +12,7 @@ import {
 import { useDatabase } from '@/context/database-context';
 import { ProductionItem } from '@/lib/dummy-data';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
+import { getWhatsAppTimeGreeting } from '@/lib/utils';
 
 export default function ProductionPage() {
   const { 
@@ -64,8 +65,9 @@ export default function ProductionPage() {
     };
     const statusName = statusLabels[item.status] || item.status;
     const companyName = company?.name || "Nossa Gráfica";
+    const greeting = getWhatsAppTimeGreeting();
 
-    const message = `Olá, *${customer.name}*!\n\nPassando para informar que o seu pedido *${item.order_number}* (*${item.product_name}*) avançou na nossa linha de produção e agora está na fase de: *${statusName}*.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${companyName}*`;
+    const message = `${greeting}, *${customer.name}*!\n\nPassando para informar que o seu pedido *${item.order_number}* (*${item.product_name}*) avançou na nossa linha de produção e agora está na fase de: *${statusName}*.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${companyName}*`;
     
     const opened = openWhatsAppUrl(customer.phone, message);
     if (!opened) {

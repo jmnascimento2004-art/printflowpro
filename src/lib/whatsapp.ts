@@ -29,7 +29,10 @@ export function buildWhatsAppUrl(phone: string, message = ''): string {
   if (!normalizedPhone) return '';
 
   const encodedMessage = encodeURIComponent(message);
-  return `https://wa.me/${normalizedPhone}${encodedMessage ? `?text=${encodedMessage}` : ''}`;
+  const searchParams = new URLSearchParams({ phone: normalizedPhone });
+  if (encodedMessage) searchParams.set('text', message);
+
+  return `https://web.whatsapp.com/send?${searchParams.toString()}`;
 }
 
 export function openWhatsAppUrl(phone: string, message = ''): boolean {

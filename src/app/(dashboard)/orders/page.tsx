@@ -24,7 +24,6 @@ import {
   generatePixPayload,
   formatCEP,
   getPixWhatsAppPaymentInfo,
-  getPublicImageUrl,
   getWhatsAppTimeGreeting
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
@@ -32,6 +31,7 @@ import { warnCaught } from '@/lib/safe-log';
 import { formatUnitCurrency } from '@/lib/pricing';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
+import { downloadFileFromUrl } from '@/lib/download';
 
 type PdfPreviewState = {
   title: string;
@@ -390,9 +390,15 @@ export default function OrdersPage() {
     });
   };
 
-  const handleDownloadOrderPdf = (order: Order) => {
-    if (typeof window === 'undefined') return;
-    window.open(`/api/pdf/order/${order.id}?download=1`, '_blank', 'noopener,noreferrer');
+  const handleDownloadOrderPdf = async (order: Order) => {
+    try {
+      await downloadFileFromUrl(`/api/pdf/order/${order.id}?download=1`, `PED-${order.number}.pdf`);
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Erro ao baixar PDF do pedido:', err);
+      }
+      alert('Nao foi possivel baixar o PDF. Tente novamente.');
+    }
   };
 
   const handlePrintReceipt = (order: Order) => {
@@ -592,15 +598,13 @@ export default function OrdersPage() {
       beneficiaryName: settings.pix_beneficiary_name || company?.name,
       bankName: settings.bank_name
     });
-    const logoUrl = getPublicImageUrl(company?.logo_light || company?.logo_url || company?.logo_dark);
-    const logoLine = logoUrl ? `\n\n🏢 Logo da empresa: ${logoUrl}` : '';
-    const greeting = getWhatsAppTimeGreeting();
 
-    const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${order.number}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const greeting = getWhatsAppTimeGreeting();
+    const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${order.number}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const opened = openWhatsAppUrl(phone, message);
     if (!opened) {
-      alert("Cliente sem telefone vÃ¡lido para WhatsApp.");
+      alert("Cliente sem telefone válido para WhatsApp.");
     }
   };
 
@@ -629,6 +633,7 @@ export default function OrdersPage() {
       ].filter(Boolean).join(' - ')
     : '';
   const paymentType = activePrintOrder ? (activePrintOrder.paid_amount >= activePrintOrder.total_amount ? 'Total' : activePrintOrder.paid_amount > 0 ? 'Parcial / Entrada' : 'Pendente') : '';
+
   // Find payment info from latest transaction
   const orderTx = activePrintOrder ? financial.find(f => f.order_id === activePrintOrder.id || f.order_number === activePrintOrder.number) : null;
   const paymentMethodName = orderTx ? orderTx.payment_method.replace('_', ' ').toUpperCase() : 'PIX';

@@ -29,6 +29,7 @@ import { openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
+import { downloadFileFromUrl } from '@/lib/download';
 import {
   findVariantPricingMatrixRow,
   formatUnitCurrency,
@@ -808,9 +809,15 @@ export default function QuotesPage() {
     });
   };
 
-  const downloadQuotePdf = (quote: Quote) => {
-    if (typeof window === 'undefined') return;
-    window.open(`/api/pdf/quote/${quote.id}?download=1`, '_blank', 'noopener,noreferrer');
+  const downloadQuotePdf = async (quote: Quote) => {
+    try {
+      await downloadFileFromUrl(`/api/pdf/quote/${quote.id}?download=1`, `ORC-${quote.number}.pdf`);
+    } catch (err) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Erro ao baixar PDF do orcamento:', err);
+      }
+      alert('Nao foi possivel baixar o PDF. Tente novamente.');
+    }
   };
 
   useEffect(() => {
