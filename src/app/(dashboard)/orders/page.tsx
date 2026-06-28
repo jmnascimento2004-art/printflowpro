@@ -30,6 +30,7 @@ import {
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { formatUnitCurrency } from '@/lib/pricing';
+import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 
 export default function OrdersPage() {
   const { 
@@ -558,10 +559,10 @@ export default function OrdersPage() {
       return;
     }
 
-    const cleanPhone = phone.replace(/\D/g, '');
-    const formattedPhone = cleanPhone.length === 11 || cleanPhone.length === 10
-      ? `55${cleanPhone}`
-      : cleanPhone;
+    if (!validateWhatsAppPhone(phone)) {
+      alert("Cliente sem telefone vÃ¡lido para WhatsApp.");
+      return;
+    }
 
     const balance = order.total_amount - order.paid_amount;
     if (balance <= 0) {
@@ -584,10 +585,10 @@ export default function OrdersPage() {
 
     const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${order.number}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.${logoLine}\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
-    const encodedText = encodeURIComponent(message);
-    const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;
-    if (typeof window === 'undefined') return;
-    window.open(url, '_blank');
+    const opened = openWhatsAppUrl(phone, message);
+    if (!opened) {
+      alert("Cliente sem telefone vÃ¡lido para WhatsApp.");
+    }
   };
 
   // Stats Calculations

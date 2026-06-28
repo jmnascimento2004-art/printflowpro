@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { ProductionItem } from '@/lib/dummy-data';
+import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 
 export default function ProductionPage() {
   const { 
@@ -34,15 +35,12 @@ export default function ProductionPage() {
       return;
     }
     
-    const cleanPhone = customer.phone.replace(/\D/g, '');
-    if (!cleanPhone) {
+    const isValidWhatsAppPhone = validateWhatsAppPhone(customer.phone);
+    if (!isValidWhatsAppPhone) {
       alert("Telefone inválido para este cliente!");
       return;
     }
 
-    const formattedPhone = cleanPhone.length === 11 || cleanPhone.length === 10
-      ? `55${cleanPhone}`
-      : cleanPhone;
       
     const statusLabels: Record<ProductionItem['status'], string> = {
       fila: 'Fila (Aguardando)',
@@ -59,10 +57,10 @@ export default function ProductionPage() {
 
     const message = `Olá, *${customer.name}*!\n\nPassando para informar que o seu pedido *${item.order_number}* (*${item.product_name}*) avançou na nossa linha de produção e agora está na fase de: *${statusName}*.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${companyName}*`;
     
-    const encodedText = encodeURIComponent(message);
-    const url = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodedText}`;
-    if (typeof window === 'undefined') return;
-    window.open(url, '_blank');
+    const opened = openWhatsAppUrl(customer.phone, message);
+    if (!opened) {
+      alert("Cliente sem telefone vÃ¡lido para WhatsApp.");
+    }
   };
 
   // Dynamic list of tech profiles to assign

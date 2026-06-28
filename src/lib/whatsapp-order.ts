@@ -1,6 +1,7 @@
 import type { Product, ProductSaleMode } from '@/lib/dummy-data';
 import type { PricingSelectedOption } from '@/lib/pricing';
 import { formatCurrency } from '@/lib/pricing';
+import { normalizeWhatsAppPhone, openWhatsAppUrl } from '@/lib/whatsapp';
 
 type WhatsAppSelectedOption = PricingSelectedOption & {
   group_name?: string;
@@ -104,19 +105,9 @@ export const buildWhatsAppOrderMessage = ({
 };
 
 export const normalizeBrazilWhatsAppPhone = (phone: string) => {
-  const digits = phone.replace(/\D/g, '');
-  if (!digits) return '';
-  if (digits.startsWith('55')) return digits;
-  return `55${digits}`;
+  return normalizeWhatsAppPhone(phone);
 };
 
 export const openWhatsAppWithMessage = (phone: string, message: string) => {
-  const normalizedPhone = normalizeBrazilWhatsAppPhone(phone);
-  if (!normalizedPhone) return false;
-
-  const url = `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
-  if (typeof window === 'undefined') return false;
-
-  window.open(url, '_blank', 'noopener,noreferrer');
-  return true;
+  return openWhatsAppUrl(phone, message);
 };

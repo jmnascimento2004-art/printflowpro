@@ -1,6 +1,7 @@
 /**
  * Utility helper functions for PrintFlowPRO
  */
+import { buildWhatsAppUrl } from '@/lib/whatsapp';
 
 /**
  * Calculates the CRC16 checksum for the PIX payload
@@ -147,12 +148,7 @@ export function getBrazilianPhoneDisplay(value?: string | null): string {
 }
 
 export function getBrazilianWhatsAppHref(value?: string | null): string {
-  const digits = onlyPhoneDigits(value);
-  if (!digits) return '';
-  const internationalDigits = digits.startsWith('55') && (digits.length === 12 || digits.length === 13)
-    ? digits
-    : `55${digits}`;
-  return `https://wa.me/${internationalDigits}`;
+  return buildWhatsAppUrl(value || '');
 }
 
 /**
