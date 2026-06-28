@@ -2,14 +2,19 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react';
 
 type PdfPreviewViewerProps = {
   title: string;
   previewDataUrl: string;
-  pdfUrl: string;
+  pdfUrl?: string;
   downloadUrl: string;
   backUrl?: string;
+  directPdfUrl?: string;
+  height?: string;
+  onClose?: () => void;
+  showHeaderActions?: boolean;
+  embedded?: boolean;
 };
 
 type RenderTask = {
@@ -56,7 +61,18 @@ function isPdfPreviewData(value: unknown): value is PdfPreviewData {
   );
 }
 
-export function PdfPreviewViewer({ title, previewDataUrl, pdfUrl, downloadUrl, backUrl }: PdfPreviewViewerProps) {
+export function PdfPreviewViewer({
+  title,
+  previewDataUrl,
+  pdfUrl,
+  downloadUrl,
+  backUrl,
+  directPdfUrl,
+  height,
+  onClose,
+  showHeaderActions = true,
+  embedded = false
+}: PdfPreviewViewerProps) {
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const renderTasksRef = useRef<RenderTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -197,9 +213,10 @@ export function PdfPreviewViewer({ title, previewDataUrl, pdfUrl, downloadUrl, b
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
-      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+  const resolvedDirectPdfUrl = directPdfUrl || pdfUrl;
+
+  const header = (
+    <div className={embedded ? 'border-b border-slate-200 bg-white' : 'sticky top-0 z-20 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur'}>
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             {backUrl && (
@@ -214,6 +231,7 @@ export function PdfPreviewViewer({ title, previewDataUrl, pdfUrl, downloadUrl, b
             </p>
           </div>
 
+          {showHeaderActions && (
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -231,18 +249,33 @@ export function PdfPreviewViewer({ title, previewDataUrl, pdfUrl, downloadUrl, b
               <Download className="h-4 w-4" />
               Baixar PDF
             </button>
-            <button
-              type="button"
-              onClick={() => openUrl(pdfUrl)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Abrir PDF direto
-            </button>
+            {resolvedDirectPdfUrl && (
+              <button
+                type="button"
+                onClick={() => openUrl(resolvedDirectPdfUrl)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Abrir PDF direto
+              </button>
+            )}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+              >
+                <X className="h-4 w-4" />
+                Fechar
+              </button>
+            )}
           </div>
+          )}
         </div>
       </div>
+  );
 
+  const content = (
       <section className="mx-auto max-w-6xl px-4 py-6">
         {isLoading && (
           <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-6 text-sm font-bold text-slate-600 shadow-sm">
@@ -265,6 +298,23 @@ export function PdfPreviewViewer({ title, previewDataUrl, pdfUrl, downloadUrl, b
 
         <div ref={pagesRef} className="space-y-5" />
       </section>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex h-full flex-col bg-slate-100 text-slate-950" style={{ height }}>
+        {header}
+        <div className="flex-1 overflow-y-auto">
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-100 text-slate-950">
+      {header}
+      {content}
     </main>
   );
 }

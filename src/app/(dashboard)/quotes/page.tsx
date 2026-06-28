@@ -28,6 +28,7 @@ import {
 import { openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
+import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import {
   findVariantPricingMatrixRow,
   formatUnitCurrency,
@@ -43,6 +44,13 @@ type MatrixSelectionField = 'material' | 'size' | 'colors' | 'finishing';
 type DraftQuoteItem = Omit<QuoteItem, 'id' | 'total_price'> & {
   id?: string;
   total_price?: number;
+};
+
+type PdfPreviewState = {
+  title: string;
+  previewDataUrl: string;
+  downloadUrl: string;
+  directPdfUrl: string;
 };
 
 const formatQuoteMoney = (value: number) => {
@@ -94,6 +102,7 @@ export default function QuotesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [activePrintQuote, setActivePrintQuote] = useState<Quote | null>(null);
+  const [selectedPdfPreview, setSelectedPdfPreview] = useState<PdfPreviewState | null>(null);
   const [requestedCustomerId, setRequestedCustomerId] = useState('');
   const [customerPrefillMessage, setCustomerPrefillMessage] = useState('');
 
@@ -791,8 +800,12 @@ export default function QuotesPage() {
   };
 
   const openQuotePdf = (quote: Quote) => {
-    if (typeof window === 'undefined') return;
-    window.open(`/pdf-preview/quote/${quote.id}`, '_blank', 'noopener,noreferrer');
+    setSelectedPdfPreview({
+      title: `Orcamento #${quote.number}`,
+      previewDataUrl: `/api/pdf-preview-data/quote/${quote.id}`,
+      downloadUrl: `/api/pdf/quote/${quote.id}?download=1`,
+      directPdfUrl: `/api/pdf/quote/${quote.id}`
+    });
   };
 
   const downloadQuotePdf = (quote: Quote) => {
@@ -825,6 +838,19 @@ export default function QuotesPage() {
 
   return (
     <div className="space-y-6">
+      {selectedPdfPreview && (
+        <PdfPreviewDialog
+          open={Boolean(selectedPdfPreview)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedPdfPreview(null);
+          }}
+          title={selectedPdfPreview.title}
+          previewDataUrl={selectedPdfPreview.previewDataUrl}
+          downloadUrl={selectedPdfPreview.downloadUrl}
+          directPdfUrl={selectedPdfPreview.directPdfUrl}
+        />
+      )}
+
       {/* Hidden printable container for Quote print document */}
       {activePrintQuote && (
         <div className="hidden print:block p-8 space-y-6 text-foreground bg-white" id="printable-quote-area">

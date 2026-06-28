@@ -31,6 +31,14 @@ import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { formatUnitCurrency } from '@/lib/pricing';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
+import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
+
+type PdfPreviewState = {
+  title: string;
+  previewDataUrl: string;
+  downloadUrl: string;
+  directPdfUrl: string;
+};
 
 export default function OrdersPage() {
   const { 
@@ -47,6 +55,7 @@ export default function OrdersPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedPdfPreview, setSelectedPdfPreview] = useState<PdfPreviewState | null>(null);
   const [activePrintOrder, setActivePrintOrder] = useState<Order | null>(null);
   const [activePrintMode, setActivePrintMode] = useState<'order' | 'receipt'>('receipt');
   const [isAddingPayment, setIsAddingPayment] = useState(false);
@@ -373,8 +382,12 @@ export default function OrdersPage() {
   };
 
   const handlePrintOrderPdf = (order: Order) => {
-    if (typeof window === 'undefined') return;
-    window.open(`/pdf-preview/order/${order.id}`, '_blank', 'noopener,noreferrer');
+    setSelectedPdfPreview({
+      title: `Pedido ${order.number}`,
+      previewDataUrl: `/api/pdf-preview-data/order/${order.id}`,
+      downloadUrl: `/api/pdf/order/${order.id}?download=1`,
+      directPdfUrl: `/api/pdf/order/${order.id}`
+    });
   };
 
   const handleDownloadOrderPdf = (order: Order) => {
@@ -666,6 +679,19 @@ export default function OrdersPage() {
   };
   return (
     <div className="space-y-6">
+      {selectedPdfPreview && (
+        <PdfPreviewDialog
+          open={Boolean(selectedPdfPreview)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedPdfPreview(null);
+          }}
+          title={selectedPdfPreview.title}
+          previewDataUrl={selectedPdfPreview.previewDataUrl}
+          downloadUrl={selectedPdfPreview.downloadUrl}
+          directPdfUrl={selectedPdfPreview.directPdfUrl}
+        />
+      )}
+
       {editingOrder ? (
         /* Edit Order Form */
         <div className="max-w-2xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
