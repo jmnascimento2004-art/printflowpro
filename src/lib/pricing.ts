@@ -187,6 +187,16 @@ export function getInitialVolumePricingTier(product: ProductLike | null | undefi
   return getNormalizedVolumePricing(product)[0] || null;
 }
 
+export function sortTiersByQuantity(tiers: NormalizedVolumePriceTier[]): NormalizedVolumePriceTier[] {
+  return [...tiers]
+    .filter((tier) => Number.isFinite(tier.min_qty) && tier.min_qty > 0)
+    .sort((a, b) => a.min_qty - b.min_qty);
+}
+
+export function getMinimumTier(tiers: NormalizedVolumePriceTier[]): NormalizedVolumePriceTier | null {
+  return sortTiersByQuantity(tiers)[0] || null;
+}
+
 export function getNormalizedVariantPricingMatrix(product: ProductLike | null | undefined): NormalizedVariantPricingMatrixRow[] {
   const details = getPricingDetailsObject(product);
   const configurator = getConfiguratorObject(product);

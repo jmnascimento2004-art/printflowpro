@@ -20,6 +20,7 @@ import {
   formatUnitCurrency,
   findVariantPricingMatrixRow,
   getInitialVolumePricingTier,
+  getMinimumTier,
   getNormalizedVolumePricing,
   getNormalizedVariantPricingMatrix,
   getPriceBreakdown,
@@ -229,15 +230,31 @@ export function ProductConfiguratorModal({
       : volumeTiers;
   }, [hasVariantPricingMatrix, selectedMatrixRow, volumeTiers]);
   const hasVolumePricing = saleMode === 'volume' && effectiveVolumeTiers.length > 0;
+  const minimumVolumeTier = useMemo(() => getMinimumTier(effectiveVolumeTiers), [effectiveVolumeTiers]);
+  const selectedMatrixRowKey = hasVariantPricingMatrix
+    ? [
+        selectedMatrixRow?.id,
+        selectedMatrixRow?.material,
+        selectedMatrixRow?.size,
+        selectedMatrixRow?.colors,
+        selectedMatrixRow?.finishing
+      ].map(normalizeCombinationKey).join('|')
+    : product?.id || '';
+  const tierQuantityKey = effectiveVolumeTiers.map((tier) => tier.min_qty).join('|');
+
+  useEffect(() => {
+    if (!isOpen || !hasVolumePricing || !minimumVolumeTier) return;
+    setQuantity(minimumVolumeTier.min_qty);
+  }, [isOpen, hasVolumePricing, minimumVolumeTier, selectedMatrixRowKey, tierQuantityKey]);
 
   useEffect(() => {
     if (!isOpen || !hasVolumePricing) return;
 
     const isValidTierQuantity = effectiveVolumeTiers.some((tier) => tier.min_qty === quantity);
     if (!isValidTierQuantity) {
-      setQuantity(effectiveVolumeTiers[0].min_qty);
+      setQuantity(minimumVolumeTier?.min_qty || effectiveVolumeTiers[0].min_qty);
     }
-  }, [isOpen, hasVolumePricing, quantity, effectiveVolumeTiers]);
+  }, [isOpen, hasVolumePricing, quantity, effectiveVolumeTiers, minimumVolumeTier]);
 
   const selectedOptions = useMemo(() => {
     const groupOptions = optionGroups.flatMap((group) => {
