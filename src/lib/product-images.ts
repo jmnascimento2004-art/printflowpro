@@ -34,6 +34,33 @@ export function isDataImageUrl(url: string) {
   return /^data:image\/(png|jpe?g|webp);base64,/i.test(url.trim());
 }
 
+export function isStorageProductImageUrl(url: string) {
+  const cleanUrl = url.trim();
+  return cleanUrl.includes('/storage/v1/object/public/product-images/');
+}
+
+const isLightweightImageUrl = (url: string) => {
+  return !isDataImageUrl(url);
+};
+
+const getPreferredPrimaryIndex = (images: ProductGalleryImage[]) => {
+  const markedStorageIndex = images.findIndex((image) => image.is_primary && isStorageProductImageUrl(image.url));
+  if (markedStorageIndex >= 0) return markedStorageIndex;
+
+  const markedLightweightIndex = images.findIndex((image) => image.is_primary && isLightweightImageUrl(image.url));
+  if (markedLightweightIndex >= 0) return markedLightweightIndex;
+
+  const firstStorageIndex = images.findIndex((image) => isStorageProductImageUrl(image.url));
+  if (firstStorageIndex >= 0) return firstStorageIndex;
+
+  const firstLightweightIndex = images.findIndex((image) => isLightweightImageUrl(image.url));
+  if (firstLightweightIndex >= 0) return firstLightweightIndex;
+
+  return images.findIndex((image) => image.is_primary) >= 0
+    ? images.findIndex((image) => image.is_primary)
+    : 0;
+};
+
 export function validateProductGalleryLimit(currentCount: number, incomingCount: number) {
   if (currentCount + incomingCount <= MAX_PRODUCT_GALLERY_IMAGES) {
     return { valid: true as const };
@@ -131,11 +158,11 @@ export function normalizeProductGallery(product: Pick<Product, 'image_url' | 'na
 
   if (normalized.length === 0) return [];
 
-  const primaryIndex = normalized.findIndex((image) => image.is_primary);
+  const primaryIndex = getPreferredPrimaryIndex(normalized);
   return normalized.map((image, index) => ({
     ...image,
     alt: image.alt || product.name,
-    is_primary: primaryIndex >= 0 ? index === primaryIndex : index === 0,
+    is_primary: index === primaryIndex,
     position: index
   }));
 }
@@ -161,11 +188,17 @@ export function prepareProductGallery(images: ProductGalleryImage[], fallbackAlt
       return gallery;
     }, []);
 
-  const primaryIndex = cleanImages.findIndex((image) => image.is_primary);
-  return cleanImages.map((image, index) => ({
+  const hasLightweightImages = cleanImages.some((image) => isLightweightImageUrl(image.url));
+  const imagesToPersist = hasLightweightImages
+    ? cleanImages.filter((image) => isLightweightImageUrl(image.url))
+    : cleanImages;
+  const limitedImages = imagesToPersist.slice(0, MAX_PRODUCT_GALLERY_IMAGES);
+
+  const primaryIndex = getPreferredPrimaryIndex(limitedImages);
+  return limitedImages.map((image, index) => ({
     ...image,
     alt: image.alt || fallbackAlt,
-    is_primary: primaryIndex >= 0 ? index === primaryIndex : index === 0,
+    is_primary: index === primaryIndex,
     position: index
   }));
 }
