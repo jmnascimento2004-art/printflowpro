@@ -41,6 +41,7 @@ import { ProductLabelPreview, ProductLabelSize, productLabelSizes } from '@/comp
 import { getPrimaryProductImage, normalizeProductGallery, prepareProductGallery } from '@/lib/product-images';
 
 type ProductSaleModeDraft = ProductSaleMode | 'linear_width';
+const MAX_PRODUCT_GALLERY_IMAGES = 5;
 
 function ProductDescriptionEditor({
   value,
@@ -652,6 +653,12 @@ export default function ProductsCRUDPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+
+    if (galleryImages.length + files.length > MAX_PRODUCT_GALLERY_IMAGES) {
+      alert(`Adicione no máximo ${MAX_PRODUCT_GALLERY_IMAGES} imagens por produto.`);
+      e.target.value = '';
+      return;
+    }
 
     const acceptedTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
     const invalidFile = files.find((file) => !acceptedTypes.has(file.type));
@@ -2774,7 +2781,7 @@ export default function ProductsCRUDPage() {
                       >
                         Escolher imagens
                       </label>
-                      <span className="text-[9px] text-muted-foreground block">PNG, JPG ou WEBP de até 2MB cada. A capa aparece no card do catálogo.</span>
+                      <span className="text-[9px] text-muted-foreground block">PNG, JPG ou WEBP de até 2MB cada. Máximo de {MAX_PRODUCT_GALLERY_IMAGES} imagens; a capa aparece no card do catálogo.</span>
                     </div>
                   </div>
                 </div>
