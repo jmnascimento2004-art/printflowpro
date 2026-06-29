@@ -230,6 +230,7 @@ export interface VariantPricingTier {
 export interface VariantPricingMatrixRow {
   id: string;
   position?: number;
+  sort_order?: number;
   material?: string;
   size?: string;
   colors?: string;

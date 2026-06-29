@@ -541,22 +541,28 @@ export default function ProductsCRUDPage() {
     setMatrixUnitPriceInput(`${integerPart}${separator}${decimalPart}`);
   };
 
+  const reindexVariantMatrixRows = (rows: VariantPricingMatrixRow[]): VariantPricingMatrixRow[] => {
+    return rows.map((row, index) => ({
+      ...row,
+      position: index,
+      sort_order: index,
+      tiers: [...(row.tiers || [])].sort((a, b) => a.quantity - b.quantity)
+    }));
+  };
+
   const normalizeVariantMatrixRows = (rows: VariantPricingMatrixRow[]): VariantPricingMatrixRow[] => {
-    return rows
+    return reindexVariantMatrixRows(rows
       .map((row, index) => {
-        const savedOrder = (row as VariantPricingMatrixRow & { sort_order?: number }).sort_order;
+        const savedOrder = row.position ?? row.sort_order;
+        const position = Number.isFinite(savedOrder) ? Number(savedOrder) : index;
 
         return {
           ...row,
-          position: Number.isFinite(row.position) ? row.position : Number.isFinite(savedOrder) ? savedOrder : index,
-          tiers: [...(row.tiers || [])].sort((a, b) => a.quantity - b.quantity)
+          position,
+          sort_order: position
         };
       })
-      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-      .map((row, index) => ({
-        ...row,
-        position: index
-      }));
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)));
   };
 
   const addVariantMatrixTier = () => {
@@ -606,7 +612,7 @@ export default function ProductsCRUDPage() {
       };
 
       if (existingRow) {
-        return normalizeVariantMatrixRows(current.map((row) => {
+        return reindexVariantMatrixRows(current.map((row) => {
           if (row.id !== existingRow.id) return row;
           return {
             ...row,
@@ -615,11 +621,12 @@ export default function ProductsCRUDPage() {
         }));
       }
 
-      return normalizeVariantMatrixRows([
+      return reindexVariantMatrixRows([
         ...current,
         {
           id: `matrix-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           position: current.length,
+          sort_order: current.length,
           material,
           size,
           colors,
@@ -633,11 +640,11 @@ export default function ProductsCRUDPage() {
   };
 
   const removeVariantMatrixRow = (rowId: string) => {
-    setVariantPricingMatrix((current) => normalizeVariantMatrixRows(current.filter((row) => row.id !== rowId)));
+    setVariantPricingMatrix((current) => reindexVariantMatrixRows(current.filter((row) => row.id !== rowId)));
   };
 
   const removeVariantMatrixTier = (rowId: string, quantity: number) => {
-    setVariantPricingMatrix((current) => normalizeVariantMatrixRows(current
+    setVariantPricingMatrix((current) => reindexVariantMatrixRows(current
       .map((row) => row.id === rowId
         ? { ...row, tiers: row.tiers.filter((tier) => tier.quantity !== quantity) }
         : row)
@@ -658,7 +665,7 @@ export default function ProductsCRUDPage() {
       const next = [...ordered];
       const [movedRow] = next.splice(currentIndex, 1);
       next.splice(targetIndex, 0, movedRow);
-      return normalizeVariantMatrixRows(next);
+      return reindexVariantMatrixRows(next);
     });
   };
 
@@ -929,6 +936,7 @@ export default function ProductsCRUDPage() {
       .map((row, index) => ({
         ...row,
         position: index,
+        sort_order: index,
         material: row.material?.trim(),
         size: row.size?.trim(),
         colors: row.colors?.trim(),
@@ -3153,7 +3161,11 @@ export default function ProductsCRUDPage() {
                             <div className="flex items-center gap-1.5 self-start">
                               <button
                                 type="button"
-                                onClick={() => moveVariantMatrixRow(row.id, 'up')}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  moveVariantMatrixRow(row.id, 'up');
+                                }}
                                 disabled={rowIndex === 0}
                                 className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-1.5 text-sky-700 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                                 title="Mover para cima"
@@ -3163,7 +3175,11 @@ export default function ProductsCRUDPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => moveVariantMatrixRow(row.id, 'down')}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  moveVariantMatrixRow(row.id, 'down');
+                                }}
                                 disabled={rowIndex === variantPricingMatrix.length - 1}
                                 className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-1.5 text-sky-700 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                                 title="Mover para baixo"
