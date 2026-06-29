@@ -1444,9 +1444,21 @@ export default function StorefrontPage() {
                 const primaryImage = getPrimaryProductImage(p);
 
                 return (
-                  <div 
+                  <div
                     key={p.id}
-                    className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-500/40 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Abrir produto ${p.name}`}
+                    onClick={() => handleOpenProductConfig(p)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleOpenProductConfig(p);
+                      }
+                    }}
+                    className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-emerald-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 transition-all duration-200 flex flex-col justify-between group relative overflow-hidden cursor-pointer"
                   >
                     <div>
                       {/* Product Image Area (Aspect Square & No Margin at top/left/right) */}
@@ -1522,9 +1534,9 @@ export default function StorefrontPage() {
                       </div>
 
                       {/* Content padding wrapper */}
-                      <div className="p-3 space-y-2.5">
+                      <div className="p-3 space-y-1.5">
                         {/* Visual Category badge */}
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center gap-1.5">
                           <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
                             {getProductCategoryName(p)}
                           </span>
@@ -1536,11 +1548,11 @@ export default function StorefrontPage() {
                         </div>
                         
                         {/* Product Title (uppercase & bold as in reference image) */}
-                        <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wide line-clamp-2 min-h-[2rem] group-hover:text-emerald-600 transition-colors duration-300">
+                        <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wide leading-tight line-clamp-2 min-h-[1.8rem] group-hover:text-emerald-600 transition-colors duration-300">
                           {p.name}
                         </h3>
                         {deliveryTime && (
-                          <p className="text-[10px] leading-snug text-slate-500">
+                          <p className="text-[10px] leading-tight text-slate-500">
                             <strong className="text-slate-700">Prazo de entrega:</strong> {deliveryTime}
                           </p>
                         )}
@@ -1548,13 +1560,13 @@ export default function StorefrontPage() {
                     </div>
 
                     {/* Price card footer */}
-                    <div className="border-t border-slate-100 p-3 pt-3 mt-1 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
+                    <div className="border-t border-slate-100 p-3 pt-2.5 flex flex-col items-stretch gap-2 sm:flex-row sm:items-end sm:justify-between">
+                      <div className="leading-tight">
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                           {hasVolumeTiers ? 'A partir de' : 'Preço'}
                         </span>
                         {hasVolumeTiers && (
-                          <span className="mb-0.5 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                          <span className="block text-[10px] font-extrabold uppercase tracking-wide text-slate-500 leading-tight">
                             {pricePresentation.quantity} un
                           </span>
                         )}
@@ -1563,12 +1575,12 @@ export default function StorefrontPage() {
                           <span className="text-[10px] text-slate-400 font-normal">/{priceUnitLabel}</span>
                         </span>
                         {hasVolumeTiers && (
-                          <span className="mt-1 block text-[10px] font-bold text-slate-500">
+                          <span className="mt-0.5 block text-[10px] font-bold text-slate-500 leading-tight">
                             {formatCurrency(pricePresentation.totalPrice)} total
                           </span>
                         )}
                         {company.show_payments_pix !== false && (
-                          <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold">
+                          <div className="mt-1 flex items-center gap-1 text-[10px] leading-tight text-emerald-600 dark:text-emerald-400 font-extrabold">
                             <svg className="h-3.5 w-3.5 text-[#32BCAD] shrink-0" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M12 0L1.6 10.4 12 20.8 22.4 10.4 12 0zm0 3.2L19.2 10.4 12 17.6 4.8 10.4 12 3.2zm0 3.8L8.2 10.8 12 14.6 15.8 10.8 12 7zm0 2.2l1.6 1.6-1.6 1.6-1.6-1.6 1.6-1.6z"/>
                             </svg>
@@ -1580,8 +1592,12 @@ export default function StorefrontPage() {
                       </div>
                       
                       <button
-                        onClick={() => handleOpenProductConfig(p)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleOpenProductConfig(p);
+                        }}
+                        className="flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
                       >
                         <ShoppingBag className="h-3.5 w-3.5" />
                         Comprar
@@ -2022,7 +2038,19 @@ export default function StorefrontPage() {
                   return (
                     <div
                       key={product.id}
-                      className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-500/40 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Abrir produto ${product.name}`}
+                      onClick={() => handleOpenProductConfig(product)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          handleOpenProductConfig(product);
+                        }
+                      }}
+                      className="bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-emerald-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 transition-all duration-200 flex flex-col justify-between group relative overflow-hidden cursor-pointer"
                     >
                       <div>
                         <div className="aspect-[1/1.08] w-full bg-white overflow-hidden border-b border-slate-200/60 flex items-center justify-center shrink-0 relative">
@@ -2094,8 +2122,8 @@ export default function StorefrontPage() {
                           </div>
                         </div>
 
-                        <div className="p-3 space-y-2.5">
-                          <div className="flex justify-between items-center">
+                        <div className="p-3 space-y-1.5">
+                          <div className="flex justify-between items-center gap-1.5">
                             <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-lg border border-emerald-500/10 uppercase tracking-wide">
                               {getProductCategoryName(product)}
                             </span>
@@ -2106,24 +2134,24 @@ export default function StorefrontPage() {
                             )}
                           </div>
 
-                          <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wide line-clamp-2 min-h-[2rem] group-hover:text-emerald-600 transition-colors duration-300">
+                          <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wide leading-tight line-clamp-2 min-h-[1.8rem] group-hover:text-emerald-600 transition-colors duration-300">
                             {product.name}
                           </h3>
                           {deliveryTime && (
-                            <p className="text-[10px] leading-snug text-slate-500">
+                            <p className="text-[10px] leading-tight text-slate-500">
                               <strong className="text-slate-700">Prazo de entrega:</strong> {deliveryTime}
                             </p>
                           )}
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 p-3 pt-3 mt-1 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
+                      <div className="border-t border-slate-100 p-3 pt-2.5 flex flex-col items-stretch gap-2 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="leading-tight">
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                             {hasVolumeTiers ? 'A partir de' : 'Preço'}
                           </span>
                           {hasVolumeTiers && (
-                            <span className="mb-0.5 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+                            <span className="block text-[10px] font-extrabold uppercase tracking-wide text-slate-500 leading-tight">
                               {pricePresentation.quantity} un
                             </span>
                           )}
@@ -2132,12 +2160,12 @@ export default function StorefrontPage() {
                             <span className="text-[10px] text-slate-400 font-normal">/{priceUnitLabel}</span>
                           </span>
                           {hasVolumeTiers && (
-                            <span className="mt-1 block text-[10px] font-bold text-slate-500">
+                            <span className="mt-0.5 block text-[10px] font-bold text-slate-500 leading-tight">
                               {formatCurrency(pricePresentation.totalPrice)} total
                             </span>
                           )}
                           {company.show_payments_pix !== false && (
-                            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold">
+                            <div className="mt-1 flex items-center gap-1 text-[10px] leading-tight text-emerald-600 dark:text-emerald-400 font-extrabold">
                               <svg className="h-3.5 w-3.5 text-[#32BCAD] shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 0L1.6 10.4 12 20.8 22.4 10.4 12 0zm0 3.2L19.2 10.4 12 17.6 4.8 10.4 12 3.2zm0 3.8L8.2 10.8 12 14.6 15.8 10.8 12 7zm0 2.2l1.6 1.6-1.6 1.6-1.6-1.6 1.6-1.6z"/>
                               </svg>
@@ -2150,8 +2178,11 @@ export default function StorefrontPage() {
 
                         <button
                           type="button"
-                          onClick={() => handleOpenProductConfig(product)}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleOpenProductConfig(product);
+                          }}
+                          className="flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
                         >
                           <ShoppingBag className="h-3.5 w-3.5" />
                           Comprar
