@@ -101,6 +101,17 @@ type ProductLike = Partial<Product> & {
 
 const normalizeTextValue = (value: unknown): string => String(value ?? '').trim();
 
+export const normalizeCombinationKey = (value: unknown): string => {
+  return normalizeTextValue(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*x\s*/g, 'x')
+    .replace(/\s*cm\b/g, 'cm')
+    .trim();
+};
+
 const toFiniteNumber = (value: unknown, fallback = 0): number => {
   if (value === null || value === undefined || value === '') return fallback;
   const normalized = typeof value === 'number'
@@ -269,13 +280,22 @@ export function getVariantPricingOptions(
   selection: VariantPricingSelection = {}
 ): string[] {
   const matches = rows.filter((row) => {
-    return (field === 'material' || !selection.material || row.material === selection.material) &&
-      (field === 'size' || !selection.size || row.size === selection.size) &&
-      (field === 'colors' || !selection.colors || row.colors === selection.colors) &&
-      (field === 'finishing' || !selection.finishing || row.finishing === selection.finishing);
+    return (field === 'material' || !selection.material || normalizeCombinationKey(row.material) === normalizeCombinationKey(selection.material)) &&
+      (field === 'size' || !selection.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(selection.size)) &&
+      (field === 'colors' || !selection.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(selection.colors)) &&
+      (field === 'finishing' || !selection.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(selection.finishing));
   });
 
-  return Array.from(new Set(matches.map((row) => row[field]).filter(Boolean)));
+  const options = new Map<string, string>();
+  matches.forEach((row) => {
+    const label = row[field];
+    const key = normalizeCombinationKey(label);
+    if (label && key && !options.has(key)) {
+      options.set(key, label);
+    }
+  });
+
+  return Array.from(options.values());
 }
 
 export function findVariantPricingMatrixRow(
@@ -283,10 +303,10 @@ export function findVariantPricingMatrixRow(
   selection: VariantPricingSelection
 ): NormalizedVariantPricingMatrixRow | null {
   return rows.find((row) => (
-    (!row.material || row.material === selection.material) &&
-    (!row.size || row.size === selection.size) &&
-    (!row.colors || row.colors === selection.colors) &&
-    (!row.finishing || row.finishing === selection.finishing)
+    (!row.material || normalizeCombinationKey(row.material) === normalizeCombinationKey(selection.material)) &&
+    (!row.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(selection.size)) &&
+    (!row.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(selection.colors)) &&
+    (!row.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(selection.finishing))
   )) || null;
 }
 

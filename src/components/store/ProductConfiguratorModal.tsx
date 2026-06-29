@@ -25,8 +25,10 @@ import {
   getPriceBreakdown,
   getProductConfigurator,
   getVariantPricingOptions,
+  normalizeCombinationKey,
   type NormalizedVolumePriceTier,
-  type PricingSelectedOption
+  type PricingSelectedOption,
+  type VariantPricingSelection
 } from '@/lib/pricing';
 import { getPrimaryProductImage, normalizeProductGallery } from '@/lib/product-images';
 import { sanitizeProductDescription, stripRichTextHtml } from '@/lib/utils';
@@ -364,15 +366,45 @@ export function ProductConfiguratorModal({
     product.pricing_type === 'linear' && !isLinearWidthMode ? `Metragem: ${lengthCm}cm` : '',
     summarizeOptions(selectedOptions)
   ].filter(Boolean).join(' | ');
+
+  const findCompatibleMatrixRow = (selection: VariantPricingSelection) => {
+    return variantPricingRows.find((row) => (
+      (!selection.material || normalizeCombinationKey(row.material) === normalizeCombinationKey(selection.material)) &&
+      (!selection.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(selection.size)) &&
+      (!selection.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(selection.colors)) &&
+      (!selection.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(selection.finishing))
+    )) || null;
+  };
+
+  const applyMatrixRowSelection = (row: typeof selectedMatrixRow, fallback: VariantPricingSelection = {}) => {
+    setSelectedMaterial(row?.material || fallback.material || '');
+    setSelectedMatrixSize(row?.size || fallback.size || '');
+    setSelectedMatrixColors(row?.colors || fallback.colors || '');
+    setSelectedFinishing(row?.finishing || fallback.finishing || '');
+  };
+
+  const handleMatrixOptionSelect = (field: keyof VariantPricingSelection, value: string) => {
+    const nextSelection: VariantPricingSelection = field === 'material'
+      ? { material: value }
+      : field === 'size'
+        ? { material: selectedMaterial, size: value }
+        : field === 'colors'
+          ? { material: selectedMaterial, size: selectedMatrixSize, colors: value }
+          : { material: selectedMaterial, size: selectedMatrixSize, colors: selectedMatrixColors, finishing: value };
+    const compatibleRow = findCompatibleMatrixRow(nextSelection);
+
+    applyMatrixRowSelection(compatibleRow, nextSelection);
+  };
+
   const matrixMaterialOptions = getVariantPricingOptions(variantPricingRows, 'material');
   const matrixSizeOptions = getVariantPricingOptions(variantPricingRows, 'size', { material: selectedMaterial });
   const matrixColorOptions = getVariantPricingOptions(variantPricingRows, 'colors', { material: selectedMaterial, size: selectedMatrixSize });
   const matrixFinishingOptions = getVariantPricingOptions(variantPricingRows, 'finishing', matrixSelection);
   const matrixOptionGroups = [
-    { label: 'Material', value: selectedMaterial, options: matrixMaterialOptions, onSelect: setSelectedMaterial },
-    { label: 'Tamanho', value: selectedMatrixSize, options: matrixSizeOptions, onSelect: setSelectedMatrixSize },
-    { label: 'Cores', value: selectedMatrixColors, options: matrixColorOptions, onSelect: setSelectedMatrixColors },
-    { label: 'Acabamento', value: selectedFinishing, options: matrixFinishingOptions, onSelect: setSelectedFinishing }
+    { label: 'Material', field: 'material' as const, value: selectedMaterial, options: matrixMaterialOptions },
+    { label: 'Tamanho', field: 'size' as const, value: selectedMatrixSize, options: matrixSizeOptions },
+    { label: 'Cores', field: 'colors' as const, value: selectedMatrixColors, options: matrixColorOptions },
+    { label: 'Acabamento', field: 'finishing' as const, value: selectedFinishing, options: matrixFinishingOptions }
   ].filter((group) => group.options.length > 0);
 
   const handleGroupOptionChange = (
@@ -660,12 +692,12 @@ export function ProductConfiguratorModal({
                       <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{group.label}</span>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {group.options.map((option) => {
-                          const selected = group.value === option;
+                          const selected = normalizeCombinationKey(group.value) === normalizeCombinationKey(option);
                           return (
                             <button
                               key={option}
                               type="button"
-                              onClick={() => group.onSelect(option)}
+                              onClick={() => handleMatrixOptionSelect(group.field, option)}
                               className={`rounded-xl border px-3 py-2 text-xs font-black transition-all ${
                                 selected
                                   ? 'border-emerald-600 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-600/10'

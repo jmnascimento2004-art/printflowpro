@@ -35,6 +35,7 @@ import {
   getNormalizedVariantPricingMatrix,
   getNormalizedVolumePricing,
   getProductQuantityTierSummary,
+  normalizeCombinationKey,
   NormalizedVolumePriceTier
 } from '@/lib/pricing';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -368,6 +369,21 @@ const buildEmptyConfiguratorOption = (): ProductConfiguratorOption => ({
   is_default: false
 });
 
+type MatrixTierDraft = {
+  draftId: string;
+  quantity: string;
+  unitPrice: string;
+  totalPrice: string;
+};
+
+type MatrixRowDraft = {
+  material: string;
+  size: string;
+  colors: string;
+  finishing: string;
+  tiers: MatrixTierDraft[];
+};
+
 export default function ProductsCRUDPage() {
   const { 
     products, 
@@ -486,6 +502,8 @@ export default function ProductsCRUDPage() {
   const [matrixFinishing, setMatrixFinishing] = useState('');
   const [matrixQuantity, setMatrixQuantity] = useState('');
   const [matrixUnitPriceInput, setMatrixUnitPriceInput] = useState('');
+  const [editingMatrixRowId, setEditingMatrixRowId] = useState<string | null>(null);
+  const [matrixEditDraft, setMatrixEditDraft] = useState<MatrixRowDraft | null>(null);
 
   const parsedTempMinQty = tempMinQty.trim()
     ? Math.max(0, parseInt(tempMinQty, 10) || 0)
@@ -541,6 +559,39 @@ export default function ProductsCRUDPage() {
     setMatrixUnitPriceInput(`${integerPart}${separator}${decimalPart}`);
   };
 
+  const sanitizeDecimalInput = (value: string, maxDecimals = 4) => {
+    const cleaned = value.replace(/[^\d,.]/g, '');
+    const separatorIndex = cleaned.search(/[,.]/);
+
+    if (separatorIndex === -1) {
+      return cleaned;
+    }
+
+    const integerPart = cleaned.slice(0, separatorIndex).replace(/[,.]/g, '');
+    const separator = cleaned[separatorIndex];
+    const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[,.]/g, '').slice(0, maxDecimals);
+    return `${integerPart}${separator}${decimalPart}`;
+  };
+
+  const formatDecimalDraft = (value?: number) => {
+    return Number.isFinite(value) ? String(value).replace('.', ',') : '';
+  };
+
+  const buildMatrixDraft = (row: VariantPricingMatrixRow): MatrixRowDraft => ({
+    material: row.material || '',
+    size: row.size || '',
+    colors: row.colors || '',
+    finishing: row.finishing || '',
+    tiers: [...(row.tiers || [])]
+      .sort((a, b) => a.quantity - b.quantity)
+      .map((tier, index) => ({
+        draftId: `${row.id}-tier-${tier.quantity}-${index}`,
+        quantity: String(tier.quantity || ''),
+        unitPrice: formatDecimalDraft(tier.unit_price),
+        totalPrice: formatDecimalDraft(tier.total_price || Math.round(tier.quantity * tier.unit_price * 100) / 100)
+      }))
+  });
+
   const reindexVariantMatrixRows = (rows: VariantPricingMatrixRow[]): VariantPricingMatrixRow[] => {
     return rows.map((row, index) => ({
       ...row,
@@ -587,10 +638,10 @@ export default function ProductsCRUDPage() {
     }
 
     const existingMatrixRow = variantPricingMatrix.find((row) => (
-      row.material?.toLowerCase() === material.toLowerCase() &&
-      row.size?.toLowerCase() === size.toLowerCase() &&
-      row.colors?.toLowerCase() === colors.toLowerCase() &&
-      row.finishing?.toLowerCase() === finishing.toLowerCase()
+      normalizeCombinationKey(row.material) === normalizeCombinationKey(material) &&
+      normalizeCombinationKey(row.size) === normalizeCombinationKey(size) &&
+      normalizeCombinationKey(row.colors) === normalizeCombinationKey(colors) &&
+      normalizeCombinationKey(row.finishing) === normalizeCombinationKey(finishing)
     ));
 
     if (existingMatrixRow?.tiers.some((tier) => tier.quantity === quantity)) {
@@ -600,10 +651,10 @@ export default function ProductsCRUDPage() {
 
     setVariantPricingMatrix((current) => {
       const existingRow = current.find((row) => (
-        row.material?.toLowerCase() === material.toLowerCase() &&
-        row.size?.toLowerCase() === size.toLowerCase() &&
-        row.colors?.toLowerCase() === colors.toLowerCase() &&
-        row.finishing?.toLowerCase() === finishing.toLowerCase()
+        normalizeCombinationKey(row.material) === normalizeCombinationKey(material) &&
+        normalizeCombinationKey(row.size) === normalizeCombinationKey(size) &&
+        normalizeCombinationKey(row.colors) === normalizeCombinationKey(colors) &&
+        normalizeCombinationKey(row.finishing) === normalizeCombinationKey(finishing)
       ));
       const tier = {
         quantity,
@@ -667,6 +718,155 @@ export default function ProductsCRUDPage() {
       next.splice(targetIndex, 0, movedRow);
       return reindexVariantMatrixRows(next);
     });
+  };
+
+  const startEditVariantMatrixRow = (row: VariantPricingMatrixRow) => {
+    setEditingMatrixRowId(row.id);
+    setMatrixEditDraft(buildMatrixDraft(row));
+  };
+
+  const cancelEditVariantMatrixRow = () => {
+    setEditingMatrixRowId(null);
+    setMatrixEditDraft(null);
+  };
+
+  const updateMatrixEditField = (field: keyof Omit<MatrixRowDraft, 'tiers'>, value: string) => {
+    setMatrixEditDraft((current) => current ? { ...current, [field]: value } : current);
+  };
+
+  const updateMatrixEditTier = (tierIndex: number, field: 'quantity' | 'unitPrice' | 'totalPrice', value: string) => {
+    setMatrixEditDraft((current) => {
+      if (!current) return current;
+
+      const tiers = current.tiers.map((tier, index) => {
+        if (index !== tierIndex) return tier;
+
+        if (field === 'quantity') {
+          const quantity = value.replace(/\D/g, '');
+          const unitPrice = parseUnitCurrencyInputToNumber(tier.unitPrice);
+          const totalPrice = quantity && unitPrice > 0
+            ? formatDecimalDraft(Math.round(Number(quantity) * unitPrice * 100) / 100)
+            : '';
+          return { ...tier, quantity, totalPrice };
+        }
+
+        if (field === 'unitPrice') {
+          const unitPrice = sanitizeDecimalInput(value, 4);
+          const quantity = Number(tier.quantity || 0);
+          const numericUnitPrice = parseUnitCurrencyInputToNumber(unitPrice);
+          const totalPrice = quantity > 0 && numericUnitPrice > 0
+            ? formatDecimalDraft(Math.round(quantity * numericUnitPrice * 100) / 100)
+            : '';
+          return { ...tier, unitPrice, totalPrice };
+        }
+
+        const totalPrice = sanitizeDecimalInput(value, 2);
+        const quantity = Number(tier.quantity || 0);
+        const numericTotal = parseCurrencyInputToNumber(totalPrice);
+        const unitPrice = quantity > 0 && numericTotal > 0
+          ? formatDecimalDraft(Math.round((numericTotal / quantity) * 10000) / 10000)
+          : tier.unitPrice;
+        return { ...tier, totalPrice, unitPrice };
+      });
+
+      return { ...current, tiers };
+    });
+  };
+
+  const addMatrixEditTier = () => {
+    setMatrixEditDraft((current) => current ? {
+      ...current,
+      tiers: [
+        ...current.tiers,
+        {
+          draftId: `draft-tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          quantity: '',
+          unitPrice: '',
+          totalPrice: ''
+        }
+      ]
+    } : current);
+  };
+
+  const removeMatrixEditTier = (tierIndex: number) => {
+    setMatrixEditDraft((current) => current ? {
+      ...current,
+      tiers: current.tiers.filter((_, index) => index !== tierIndex)
+    } : current);
+  };
+
+  const saveVariantMatrixRowEdit = (rowId: string) => {
+    if (!matrixEditDraft) return;
+
+    const material = matrixEditDraft.material.trim();
+    const size = matrixEditDraft.size.trim();
+    const colors = matrixEditDraft.colors.trim();
+    const finishing = matrixEditDraft.finishing.trim();
+
+    if (!material || !size || !colors || !finishing) {
+      alert('Informe material, tamanho, cores e acabamento para a combinacao.');
+      return;
+    }
+
+    const duplicateRow = variantPricingMatrix.find((row) => (
+      row.id !== rowId &&
+      normalizeCombinationKey(row.material) === normalizeCombinationKey(material) &&
+      normalizeCombinationKey(row.size) === normalizeCombinationKey(size) &&
+      normalizeCombinationKey(row.colors) === normalizeCombinationKey(colors) &&
+      normalizeCombinationKey(row.finishing) === normalizeCombinationKey(finishing)
+    ));
+
+    if (duplicateRow) {
+      alert('Ja existe uma combinacao com este material, tamanho, cores e acabamento.');
+      return;
+    }
+
+    const normalizedTiers = matrixEditDraft.tiers.map((tier) => {
+      const quantity = Number(tier.quantity || 0);
+      const unitPrice = parseUnitCurrencyInputToNumber(tier.unitPrice);
+      const totalPrice = parseCurrencyInputToNumber(tier.totalPrice);
+      const effectiveTotal = totalPrice > 0
+        ? totalPrice
+        : quantity > 0 && unitPrice > 0
+          ? Math.round(quantity * unitPrice * 100) / 100
+          : 0;
+      const effectiveUnitPrice = unitPrice > 0
+        ? unitPrice
+        : quantity > 0 && effectiveTotal > 0
+          ? Math.round((effectiveTotal / quantity) * 10000) / 10000
+          : 0;
+
+      return {
+        quantity,
+        unit_price: effectiveUnitPrice,
+        total_price: effectiveTotal
+      };
+    });
+
+    if (normalizedTiers.length === 0 || normalizedTiers.some((tier) => tier.quantity <= 0 || tier.unit_price < 0 || tier.total_price < 0)) {
+      alert('Revise as faixas: quantidade deve ser maior que zero e os valores nao podem ser negativos.');
+      return;
+    }
+
+    const tierQuantities = normalizedTiers.map((tier) => tier.quantity);
+    if (new Set(tierQuantities).size !== tierQuantities.length) {
+      alert('Existem faixas duplicadas com a mesma quantidade.');
+      return;
+    }
+
+    setVariantPricingMatrix((current) => reindexVariantMatrixRows(current.map((row) => (
+      row.id === rowId
+        ? {
+            ...row,
+            material,
+            size,
+            colors,
+            finishing,
+            tiers: normalizedTiers.sort((a, b) => a.quantity - b.quantity)
+          }
+        : row
+    ))));
+    cancelEditVariantMatrixRow();
   };
 
   // Profitability parameters
@@ -1016,6 +1216,8 @@ export default function ProductsCRUDPage() {
     setMatrixFinishing('');
     setMatrixQuantity('');
     setMatrixUnitPriceInput('');
+    setEditingMatrixRowId(null);
+    setMatrixEditDraft(null);
     setTempMinQty('');
     setTempUnitPriceInput('');
     setProfitMargin(defaultProfitMargin);
@@ -1076,6 +1278,8 @@ export default function ProductsCRUDPage() {
     setMatrixFinishing('');
     setMatrixQuantity('');
     setMatrixUnitPriceInput('');
+    setEditingMatrixRowId(null);
+    setMatrixEditDraft(null);
     setTempVariantName('');
     setTempColorName('');
     setTempColorHex('#111827');
@@ -3161,6 +3365,16 @@ export default function ProductsCRUDPage() {
                             <div className="flex items-center gap-1.5 self-start">
                               <button
                                 type="button"
+                                onClick={() => startEditVariantMatrixRow(row)}
+                                className="rounded-lg border border-primary/20 bg-primary/10 px-2 py-1.5 text-[10px] font-bold text-primary transition hover:bg-primary/20"
+                                title="Editar combinaÃ§Ã£o"
+                                aria-label="Editar combinacao"
+                              >
+                                <Edit3 className="mr-1 inline h-3.5 w-3.5" />
+                                Editar
+                              </button>
+                              <button
+                                type="button"
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
@@ -3196,6 +3410,63 @@ export default function ProductsCRUDPage() {
                               Remover combinação
                             </button>
                           </div>
+                          {editingMatrixRowId === row.id && matrixEditDraft && (
+                            <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+                              <div className="grid gap-2 md:grid-cols-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-muted-foreground">Material</label>
+                                  <input value={matrixEditDraft.material} onChange={(event) => updateMatrixEditField('material', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-bold text-foreground" />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-muted-foreground">Tamanho</label>
+                                  <input value={matrixEditDraft.size} onChange={(event) => updateMatrixEditField('size', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-bold text-foreground" />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-muted-foreground">Cores</label>
+                                  <input value={matrixEditDraft.colors} onChange={(event) => updateMatrixEditField('colors', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-bold text-foreground" />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-muted-foreground">Acabamento</label>
+                                  <input value={matrixEditDraft.finishing} onChange={(event) => updateMatrixEditField('finishing', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-bold text-foreground" />
+                                </div>
+                              </div>
+                              <div className="mt-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-wide text-primary">Faixas desta combinaÃ§Ã£o</span>
+                                  <button type="button" onClick={addMatrixEditTier} className="rounded-lg border border-primary/20 bg-white px-2 py-1 text-[10px] font-bold text-primary">
+                                    + Adicionar faixa
+                                  </button>
+                                </div>
+                                {matrixEditDraft.tiers.map((tierDraft, tierIndex) => (
+                                  <div key={tierDraft.draftId} className="grid gap-2 rounded-lg border border-border bg-white p-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] font-black uppercase text-muted-foreground">Quantidade</label>
+                                      <input value={tierDraft.quantity} onChange={(event) => updateMatrixEditTier(tierIndex, 'quantity', event.target.value)} placeholder="Ex: 1000" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] font-black uppercase text-muted-foreground">PreÃ§o unitÃ¡rio</label>
+                                      <input value={tierDraft.unitPrice} onChange={(event) => updateMatrixEditTier(tierIndex, 'unitPrice', event.target.value)} placeholder="Ex: 0,067" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] font-black uppercase text-muted-foreground">Total do lote</label>
+                                      <input value={tierDraft.totalPrice} onChange={(event) => updateMatrixEditTier(tierIndex, 'totalPrice', event.target.value)} placeholder="Ex: 167,50" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
+                                    </div>
+                                    <button type="button" onClick={() => removeMatrixEditTier(tierIndex)} className="self-end rounded-lg border border-rose-500/20 bg-rose-500/10 p-2 text-rose-500" title="Remover faixa">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                                <button type="button" onClick={cancelEditVariantMatrixRow} className="rounded-lg border border-border bg-white px-3 py-1.5 text-[10px] font-bold text-muted-foreground">
+                                  Cancelar
+                                </button>
+                                <button type="button" onClick={() => saveVariantMatrixRowEdit(row.id)} className="rounded-lg bg-primary px-3 py-1.5 text-[10px] font-bold text-primary-foreground">
+                                  Salvar alteraÃ§Ãµes
+                                </button>
+                              </div>
+                            </div>
+                          )}
                           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                             {row.tiers.map((tier) => (
                               <div key={tier.quantity} className="flex items-start justify-between gap-2 rounded-lg border border-sky-500/15 bg-sky-500/5 px-3 py-2">

@@ -36,6 +36,7 @@ import {
   getNormalizedVariantPricingMatrix,
   getNormalizedVolumePricing,
   getVariantPricingOptions,
+  normalizeCombinationKey,
   NormalizedVolumePriceTier
 } from '@/lib/pricing';
 
@@ -562,10 +563,10 @@ export default function QuotesPage() {
       finishing: field === 'finishing' ? value : selectedFinishing
     };
     const matchingRow = selectedVariantPricingRows.find((row) => (
-      (!nextSelection.material || row.material === nextSelection.material) &&
-      (!nextSelection.size || row.size === nextSelection.size) &&
-      (!nextSelection.colors || row.colors === nextSelection.colors) &&
-      (!nextSelection.finishing || row.finishing === nextSelection.finishing)
+      (!nextSelection.material || normalizeCombinationKey(row.material) === normalizeCombinationKey(nextSelection.material)) &&
+      (!nextSelection.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(nextSelection.size)) &&
+      (!nextSelection.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(nextSelection.colors)) &&
+      (!nextSelection.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(nextSelection.finishing))
     )) || selectedVariantPricingRows[0] || null;
 
     applyMatrixRow(matchingRow);
@@ -1354,7 +1355,7 @@ export default function QuotesPage() {
                               type="button"
                               onClick={() => handleMatrixOptionSelect(group.field, option)}
                               className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition-all ${
-                                group.value === option
+                                normalizeCombinationKey(group.value) === normalizeCombinationKey(option)
                                   ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/10'
                                   : 'border-border bg-card text-foreground hover:border-primary/50'
                               }`}
