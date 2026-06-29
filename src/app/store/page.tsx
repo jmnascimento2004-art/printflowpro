@@ -222,7 +222,7 @@ export default function StorefrontPage() {
     const buttonLeft = buttonRect.left - parentRect.left;
     const buttonRight = buttonRect.right - parentRect.left;
 
-    const megamenuWidth = hasSidebar ? 1024 : 768;
+    const megamenuWidth = hasSidebar ? 560 : 768;
     const parentWidth = parentRect.width;
 
     let left = buttonLeft;
@@ -1025,24 +1025,6 @@ export default function StorefrontPage() {
                 <Menu className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 <span>Todos os Produtos</span>
               </button>
-
-              {/* Other Categories */}
-              <div className="flex items-center gap-6 md:gap-8 h-full">
-                {catalogCategories.filter(c => !c.parent_id).map(cat => (
-                  <button
-                    type="button"
-                    key={cat.id}
-                    onClick={(e) => handleTopCategoryClick(cat.id, e)}
-                    className={`text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors shrink-0 h-full relative flex items-center ${
-                      (megaMenuOpen ? megaMenuCategory === cat.id : selectedCategory === cat.id)
-                        ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' 
-                        : 'text-slate-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -1057,44 +1039,31 @@ export default function StorefrontPage() {
               
               <div 
                 style={megamenuStyle}
-                className={`absolute top-full bg-white dark:bg-zinc-900 border-t-0 border border-slate-200 dark:border-zinc-800 shadow-2xl rounded-b-3xl overflow-hidden hidden md:grid z-20 animate-in fade-in slide-in-from-top-2 duration-200 text-slate-800 dark:text-zinc-200 ${
-                  openedFromAllProducts ? 'grid-cols-4' : 'grid-cols-3'
-                }`}
+                className="absolute top-full bg-white dark:bg-zinc-900 border-t-0 border border-slate-200 dark:border-zinc-800 shadow-2xl rounded-b-3xl overflow-hidden hidden md:block z-20 animate-in fade-in slide-in-from-top-2 duration-200 text-slate-800 dark:text-zinc-200"
               >
                 {/* Left Sidebar: Categories List */}
                 {openedFromAllProducts && (
-                  <div className="bg-slate-50/80 dark:bg-zinc-950/80 p-5 space-y-1.5 border-r border-slate-150 dark:border-zinc-850 h-[380px] overflow-y-auto no-scrollbar col-span-1">
-                    {/* Option "Todos os Produtos" in sidebar */}
-                    <button
-                      type="button"
-                      onClick={(event) => handleMenuCategoryClick(null, event)}
-                      className={`w-full text-left px-3.5 py-2.5 rounded-xl transition-all flex items-center justify-between group text-xs font-bold uppercase tracking-wide ${
-                        megaMenuCategory === null
-                          ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white font-extrabold'
-                          : 'hover:bg-slate-100 dark:hover:bg-zinc-850 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-zinc-400'
-                      }`}
-                    >
-                      <span>Todos os Produtos</span>
-                      {megaMenuCategory === null && <ChevronRight className="h-3.5 w-3.5 text-slate-700 dark:text-zinc-300 shrink-0 ml-2" />}
-                    </button>
+                  <div className="bg-slate-50/80 dark:bg-zinc-950/80 p-5 space-y-1.5 max-h-[360px] overflow-y-auto no-scrollbar">
+                    <div className="mb-3 border-b border-slate-200/80 dark:border-zinc-800 pb-3">
+                      <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                        Categorias
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-zinc-400">
+                        Escolha uma categoria para filtrar os produtos.
+                      </p>
+                    </div>
 
-                    {/* Other category options in sidebar */}
                     {(() => {
                       const rootCategories = catalogCategories.filter(c => !c.parent_id);
                       const childCategories = catalogCategories.filter(c => c.parent_id);
-                      const selectedChild = childCategories.find(child => child.id === megaMenuCategory);
-                      const expandedParentId = selectedChild?.parent_id || megaMenuCategory;
-                      
                       const items: { id: string; name: string; isChild: boolean }[] = [];
                       rootCategories.forEach(parent => {
                         items.push({ id: parent.id, name: parent.name, isChild: false });
-                        if (expandedParentId === parent.id) {
-                          childCategories
-                            .filter(child => child.parent_id === parent.id)
-                            .forEach(child => {
-                              items.push({ id: child.id, name: child.name, isChild: true });
-                            });
-                        }
+                        childCategories
+                          .filter(child => child.parent_id === parent.id)
+                          .forEach(child => {
+                            items.push({ id: child.id, name: child.name, isChild: true });
+                          });
                       });
                       
                       // Fallback: add child categories whose parents aren't found in root
@@ -1103,6 +1072,14 @@ export default function StorefrontPage() {
                           items.push({ id: child.id, name: child.name, isChild: true });
                         }
                       });
+
+                      if (items.length === 0) {
+                        return (
+                          <p className="rounded-xl border border-dashed border-slate-300 dark:border-zinc-700 bg-white/70 dark:bg-zinc-900/70 px-4 py-6 text-center text-xs font-bold text-slate-500 dark:text-zinc-400">
+                            Nenhuma categoria cadastrada.
+                          </p>
+                        );
+                      }
 
                       return items.map(cat => (
                         <button
@@ -1114,7 +1091,7 @@ export default function StorefrontPage() {
                               ? 'pl-7 pr-3.5 text-[11px] font-medium normal-case' 
                               : 'px-3.5 text-xs font-bold'
                           } ${
-                            megaMenuCategory === cat.id
+                            selectedCategory === cat.id
                               ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white font-extrabold'
                               : 'hover:bg-slate-100/70 dark:hover:bg-zinc-850/70 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                           }`}
@@ -1122,7 +1099,7 @@ export default function StorefrontPage() {
                           <span className="truncate">
                             {cat.name}
                           </span>
-                          {megaMenuCategory === cat.id && <ChevronRight className="h-3.5 w-3.5 text-slate-700 dark:text-zinc-300 shrink-0 ml-2" />}
+                          {selectedCategory === cat.id && <ChevronRight className="h-3.5 w-3.5 text-slate-700 dark:text-zinc-300 shrink-0 ml-2" />}
                         </button>
                       ));
                     })()}
@@ -1130,7 +1107,7 @@ export default function StorefrontPage() {
                 )}
 
                 {/* Right Area: Product Sublists */}
-                {(() => {
+                {!openedFromAllProducts && (() => {
                   const selectedCategoryIds = megaMenuCategory
                     ? [megaMenuCategory, ...catalogCategories.filter(c => c.parent_id === megaMenuCategory).map(c => c.id)]
                     : [];
