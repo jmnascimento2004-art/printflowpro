@@ -56,6 +56,7 @@ export interface NormalizedVolumePriceTier {
 
 export interface NormalizedVariantPricingMatrixRow {
   id: string;
+  position: number;
   material: string;
   size: string;
   colors: string;
@@ -192,9 +193,12 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
         size?: unknown;
         colors?: unknown;
         finishing?: unknown;
+        position?: unknown;
+        sort_order?: unknown;
         tiers?: unknown;
         volume_pricing?: unknown;
       };
+      const explicitPosition = toFiniteNumber(rowRecord.position ?? rowRecord.sort_order, NaN);
       const rawTiers = parseMaybeJsonArray(rowRecord.tiers || rowRecord.volume_pricing);
       const tiers = rawTiers
         .map((tier) => {
@@ -214,6 +218,7 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
 
       return {
         id: normalizeTextValue(rowRecord.id) || `matrix-${index}`,
+        position: Number.isFinite(explicitPosition) ? Math.max(0, explicitPosition) : index,
         material: normalizeTextValue(rowRecord.material),
         size: normalizeTextValue(rowRecord.size),
         colors: normalizeTextValue(rowRecord.colors),
@@ -222,7 +227,7 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
       };
     })
     .filter((row) => row.tiers.length > 0)
-    .sort((a, b) => [a.material, a.size, a.colors, a.finishing].join('|').localeCompare([b.material, b.size, b.colors, b.finishing].join('|')));
+    .sort((a, b) => a.position - b.position);
 }
 
 export function getProductQuantityTierSummary(product: ProductLike | null | undefined): ProductQuantityTierSummary {
@@ -270,7 +275,7 @@ export function getVariantPricingOptions(
       (field === 'finishing' || !selection.finishing || row.finishing === selection.finishing);
   });
 
-  return Array.from(new Set(matches.map((row) => row[field]).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  return Array.from(new Set(matches.map((row) => row[field]).filter(Boolean)));
 }
 
 export function findVariantPricingMatrixRow(
