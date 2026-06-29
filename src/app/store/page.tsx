@@ -214,22 +214,14 @@ export default function StorefrontPage() {
   const [megamenuStyle, setMegamenuStyle] = useState<React.CSSProperties>({});
 
   const updateMenuPosition = (buttonEl: HTMLElement, hasSidebar: boolean) => {
+    void buttonEl;
+    void hasSidebar;
     if (!menuBarRef.current) return;
 
     const parentRect = menuBarRef.current.getBoundingClientRect();
-    const buttonRect = buttonEl.getBoundingClientRect();
-
-    const buttonLeft = buttonRect.left - parentRect.left;
-    const buttonRight = buttonRect.right - parentRect.left;
-
-    const megamenuWidth = hasSidebar ? 560 : 768;
     const parentWidth = parentRect.width;
-
-    let left = buttonLeft;
-    if (buttonLeft + megamenuWidth > parentWidth) {
-      left = buttonRight - megamenuWidth;
-      if (left < 0) left = 0;
-    }
+    const megamenuWidth = Math.min(parentWidth, 960);
+    const left = Math.max(0, (parentWidth - megamenuWidth) / 2);
 
     setMegamenuStyle({
       left: `${left}px`,
@@ -276,16 +268,16 @@ export default function StorefrontPage() {
     event?.preventDefault();
     runWithoutScrollJump(() => {
       setMegaMenuCategory(categoryId);
-      setSelectedCategory(categoryId);
-      setMegaMenuOpen(false);
     });
   };
 
   const handleMegaMenuProductClick = (product: Product, event?: React.MouseEvent<HTMLButtonElement>) => {
     event?.preventDefault();
     runWithoutScrollJump(() => {
+      setSelectedCategory(megaMenuCategory || product.category_id || null);
+      setSelectedTagFilter('all');
+      setSearchQuery(product.name);
       setMegaMenuOpen(false);
-      handleOpenProductConfig(product);
     });
   };
 
@@ -1030,82 +1022,151 @@ export default function StorefrontPage() {
 
           {/* Mega Menu Dropdown */}
           {megaMenuOpen && (
-            <>
-              {/* Backdrop overlay to close when clicking outside */}
-              <div 
-                className="fixed inset-x-0 bottom-0 top-[128px] md:top-[160px] bg-black/45 dark:bg-black/60 backdrop-blur-xs z-10 transition-opacity"
-                onClick={() => setMegaMenuOpen(false)}
-              />
-              
-              <div 
-                style={megamenuStyle}
-                className="absolute top-full bg-white dark:bg-zinc-900 border-t-0 border border-slate-200 dark:border-zinc-800 shadow-2xl rounded-b-3xl overflow-hidden hidden md:block z-20 animate-in fade-in slide-in-from-top-2 duration-200 text-slate-800 dark:text-zinc-200"
-              >
-                {/* Left Sidebar: Categories List */}
-                {openedFromAllProducts && (
-                  <div className="bg-slate-50/80 dark:bg-zinc-950/80 p-5 space-y-1.5 max-h-[360px] overflow-y-auto no-scrollbar">
-                    <div className="mb-3 border-b border-slate-200/80 dark:border-zinc-800 pb-3">
-                      <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
-                        Categorias
-                      </p>
-                      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-zinc-400">
-                        Escolha uma categoria para filtrar os produtos.
-                      </p>
+            <div
+              style={megamenuStyle}
+              className="absolute top-full hidden md:block z-20 animate-in fade-in slide-in-from-top-2 duration-200 text-slate-800 dark:text-zinc-200"
+            >
+                {(() => {
+                  const categoryChildren = catalogCategories.reduce<Record<string, typeof catalogCategories>>((acc, category) => {
+                    if (!category.parent_id) return acc;
+                    acc[category.parent_id] = [...(acc[category.parent_id] || []), category];
+                    return acc;
+                  }, {});
+
+                  const hasProductsInCategory = (categoryId: string) => {
+                    const relatedIds = [categoryId, ...(categoryChildren[categoryId] || []).map((category) => category.id)];
+                    return activeProducts.some((product) => relatedIds.includes(product.category_id));
+                  };
+
+                  const rootCategories = catalogCategories
+                    .filter((category) => !category.parent_id || !catalogCategories.some((item) => item.id === category.parent_id))
+                    .filter((category) => hasProductsInCategory(category.id));
+
+                  const activeCategory = rootCategories.find((category) => category.id === megaMenuCategory) || rootCategories[0] || null;
+                  const activeCategoryId = activeCategory?.id || null;
+                  const activeChildCategories = activeCategoryId
+                    ? (categoryChildren[activeCategoryId] || []).filter((category) => hasProductsInCategory(category.id))
+                    : [];
+                  const activeCategoryIds = activeCategoryId
+                    ? [activeCategoryId, ...activeChildCategories.map((category) => category.id)]
+                    : [];
+                  const categoryProducts = activeCategoryId
+                    ? activeProducts.filter((product) => activeCategoryIds.includes(product.category_id))
+                    : [];
+                  const uniqueCategoryProducts = Array.from(
+                    new Map(categoryProducts.map((product) => [product.name.trim().toLowerCase(), product])).values()
+                  );
+
+                  const handleChildCategoryClick = (categoryId: string, event: React.MouseEvent<HTMLButtonElement>) => {
+                    event.preventDefault();
+                    runWithoutScrollJump(() => {
+                      setSelectedCategory(categoryId);
+                      setSelectedTagFilter('all');
+                      setSearchQuery('');
+                      setMegaMenuOpen(false);
+                    });
+                  };
+
+                  if (rootCategories.length === 0) {
+                    return (
+                      <div className="rounded-b-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl px-6 py-5">
+                        <p className="text-sm font-semibold text-slate-600 dark:text-zinc-300">
+                          Nenhuma categoria cadastrada.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid max-h-[430px] grid-cols-[270px_minmax(0,1fr)] overflow-hidden rounded-b-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl">
+                      <aside className="overflow-y-auto border-r border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 py-3">
+                        {rootCategories.map((category) => {
+                          const isActive = category.id === activeCategoryId;
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              onMouseEnter={() => setMegaMenuCategory(category.id)}
+                              onClick={(event) => handleMenuCategoryClick(category.id, event)}
+                              className={`flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-semibold transition-colors ${
+                                isActive
+                                  ? 'bg-white text-slate-950 shadow-sm dark:bg-zinc-900 dark:text-white'
+                                  : 'text-slate-600 hover:bg-white/80 hover:text-slate-950 dark:text-zinc-400 dark:hover:bg-zinc-900/80 dark:hover:text-white'
+                              }`}
+                            >
+                              <span className="line-clamp-2">{category.name}</span>
+                              <ChevronRight className={`h-4 w-4 shrink-0 ${isActive ? 'text-slate-700 dark:text-zinc-200' : 'text-slate-400'}`} />
+                            </button>
+                          );
+                        })}
+                      </aside>
+
+                      <section className="overflow-y-auto px-7 py-6">
+                        <div className="mb-4 flex items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-zinc-800">
+                          <div>
+                            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
+                              Categoria
+                            </p>
+                            <h3 className="mt-1 text-xl font-extrabold text-slate-950 dark:text-white">
+                              {activeCategory?.name}
+                            </h3>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(event) => activeCategoryId && handleChildCategoryClick(activeCategoryId, event)}
+                            disabled={!activeCategoryId}
+                            className="rounded-full border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-emerald-950/30"
+                          >
+                            Ver categoria
+                          </button>
+                        </div>
+
+                        {activeChildCategories.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-3">
+                            {activeChildCategories.map((category) => (
+                              <button
+                                key={category.id}
+                                type="button"
+                                onClick={(event) => handleChildCategoryClick(category.id, event)}
+                                className="flex min-h-[54px] items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-emerald-950/30"
+                              >
+                                <span className="line-clamp-2">{category.name}</span>
+                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                              </button>
+                            ))}
+                          </div>
+                        ) : uniqueCategoryProducts.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+                            {uniqueCategoryProducts.map((product) => {
+                              const badge = getProductBadge(product.name);
+                              return (
+                                <button
+                                  key={product.id}
+                                  type="button"
+                                  onClick={(event) => handleMegaMenuProductClick(product, event)}
+                                  className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950 dark:text-zinc-300 dark:hover:bg-zinc-800/70 dark:hover:text-white"
+                                >
+                                  <span className="line-clamp-2">{product.name}</span>
+                                  {badge && (
+                                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                                      {badge === 'favorito' ? 'Favorito' : 'Novo'}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm font-semibold text-slate-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
+                            Nenhum item cadastrado nesta categoria.
+                          </div>
+                        )}
+                      </section>
                     </div>
+                  );
+                })()}
 
-                    {(() => {
-                      const rootCategories = catalogCategories.filter(c => !c.parent_id);
-                      const childCategories = catalogCategories.filter(c => c.parent_id);
-                      const items: { id: string; name: string; isChild: boolean }[] = [];
-                      rootCategories.forEach(parent => {
-                        items.push({ id: parent.id, name: parent.name, isChild: false });
-                        childCategories
-                          .filter(child => child.parent_id === parent.id)
-                          .forEach(child => {
-                            items.push({ id: child.id, name: child.name, isChild: true });
-                          });
-                      });
-                      
-                      // Fallback: add child categories whose parents aren't found in root
-                      childCategories.forEach(child => {
-                        if (!rootCategories.some(r => r.id === child.parent_id) && !items.some(item => item.id === child.id)) {
-                          items.push({ id: child.id, name: child.name, isChild: true });
-                        }
-                      });
-
-                      if (items.length === 0) {
-                        return (
-                          <p className="rounded-xl border border-dashed border-slate-300 dark:border-zinc-700 bg-white/70 dark:bg-zinc-900/70 px-4 py-6 text-center text-xs font-bold text-slate-500 dark:text-zinc-400">
-                            Nenhuma categoria cadastrada.
-                          </p>
-                        );
-                      }
-
-                      return items.map(cat => (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={(event) => handleMenuCategoryClick(cat.id, event)}
-                          className={`w-full text-left py-2.5 rounded-xl transition-all flex items-center justify-between group uppercase tracking-wide ${
-                            cat.isChild 
-                              ? 'pl-7 pr-3.5 text-[11px] font-medium normal-case' 
-                              : 'px-3.5 text-xs font-bold'
-                          } ${
-                            selectedCategory === cat.id
-                              ? 'bg-white dark:bg-zinc-900 shadow-sm border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white font-extrabold'
-                              : 'hover:bg-slate-100/70 dark:hover:bg-zinc-850/70 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                        >
-                          <span className="truncate">
-                            {cat.name}
-                          </span>
-                          {selectedCategory === cat.id && <ChevronRight className="h-3.5 w-3.5 text-slate-700 dark:text-zinc-300 shrink-0 ml-2" />}
-                        </button>
-                      ));
-                    })()}
-                  </div>
-                )}
-
+                {false && (<>
                 {/* Right Area: Product Sublists */}
                 {!openedFromAllProducts && (() => {
                   const selectedCategoryIds = megaMenuCategory
@@ -1238,8 +1299,8 @@ export default function StorefrontPage() {
                     </div>
                   );
                 })()}
-              </div>
-            </>
+                </>)}
+            </div>
           )}
         </div>
       </div>
