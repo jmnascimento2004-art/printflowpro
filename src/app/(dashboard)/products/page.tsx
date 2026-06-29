@@ -38,10 +38,19 @@ import {
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { ProductBarcode } from '@/components/products/ProductBarcode';
 import { ProductLabelPreview, ProductLabelSize, productLabelSizes } from '@/components/products/ProductLabelPreview';
-import { getPrimaryProductImage, normalizeProductGallery, prepareProductGallery } from '@/lib/product-images';
+import { supabase } from '@/lib/supabaseClient';
+import {
+  MAX_PRODUCT_GALLERY_IMAGES,
+  PRODUCT_IMAGE_BUCKET,
+  getPrimaryProductImage,
+  normalizeProductGallery,
+  prepareProductGallery,
+  uploadProductImage,
+  validateProductGalleryLimit,
+  validateProductImage
+} from '@/lib/product-images';
 
 type ProductSaleModeDraft = ProductSaleMode | 'linear_width';
-const MAX_PRODUCT_GALLERY_IMAGES = 5;
 
 function ProductDescriptionEditor({
   value,
@@ -368,7 +377,8 @@ export default function ProductsCRUDPage() {
     addCategory,
     updateCategory,
     deleteCategory,
-    settings
+    settings,
+    company
   } = useDatabase();
 
   const defaultProfitMargin = settings.profit_margin ?? 40;
@@ -649,51 +659,52 @@ export default function ProductsCRUDPage() {
     setImageUrl(normalized.find((image) => image.is_primary)?.url || normalized[0]?.url || '');
   };
 
-  // Image reader
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image upload
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    if (galleryImages.length + files.length > MAX_PRODUCT_GALLERY_IMAGES) {
-      alert(`Adicione no máximo ${MAX_PRODUCT_GALLERY_IMAGES} imagens por produto.`);
+    const limitValidation = validateProductGalleryLimit(galleryImages.length, files.length);
+    if (!limitValidation.valid) {
+      alert(limitValidation.message);
       e.target.value = '';
       return;
     }
 
-    const acceptedTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
-    const invalidFile = files.find((file) => !acceptedTypes.has(file.type));
-    if (invalidFile) {
-      alert("Use apenas imagens PNG, JPG ou WEBP.");
+    const invalidValidation = files.map(validateProductImage).find((validation) => !validation.valid);
+    if (invalidValidation && !invalidValidation.valid) {
+      alert(invalidValidation.message);
       e.target.value = '';
       return;
     }
 
-    const oversizedFile = files.find((file) => file.size > 2 * 1024 * 1024);
-    if (oversizedFile) {
-      alert("Uma das imagens é muito grande! Escolha arquivos de até 2MB.");
-      e.target.value = '';
-      return;
-    }
-
-    Promise.all(files.map((file) => new Promise<ProductGalleryImage>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve({
-          url: String(reader.result || ''),
-          alt: name.trim() || file.name
+    try {
+      const uploadedImages = await Promise.all(files.map(async (file) => {
+        const url = await uploadProductImage(supabase, file, {
+          companyId: company?.id,
+          productId: selectedProduct?.id,
+          productName: name.trim() || file.name
         });
-      };
-      reader.readAsDataURL(file);
-    }))).then((newImages) => {
+
+        return {
+          url,
+          alt: name.trim() || file.name
+        };
+      }));
+
       syncGallery([
         ...galleryImages,
-        ...newImages.map((image, index) => ({
+        ...uploadedImages.map((image, index) => ({
           ...image,
           is_primary: galleryImages.length === 0 && index === 0
         }))
       ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Nao foi possivel enviar a imagem para o bucket ${PRODUCT_IMAGE_BUCKET}.`;
+      alert(message);
+    } finally {
       e.target.value = '';
-    });
+    }
   };
 
   const handleSetPrimaryImage = (imageUrlToPromote: string) => {
