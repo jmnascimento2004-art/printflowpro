@@ -18,15 +18,15 @@ import type { Product, ProductConfiguratorSettings, ProductSaleMode } from '@/li
 import {
   formatCurrency,
   formatUnitCurrency,
-  findVariantPricingMatrixRow,
   getInitialVolumePricingTier,
   getMinimumTier,
+  findVariantPricingMatrixRow,
   getNormalizedVolumePricing,
   getNormalizedVariantPricingMatrix,
-  getPriceBreakdown,
   getProductConfigurator,
   getVariantPricingOptions,
   normalizeCombinationKey,
+  resolveProductPrice,
   type NormalizedVolumePriceTier,
   type PricingSelectedOption,
   type VariantPricingSelection
@@ -52,9 +52,25 @@ export interface ProductConfiguratorCartPayload {
   };
   pricing_type: Product['pricing_type'];
   production_days: number;
+  production_time: string;
+  production_time_source: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
   sale_mode?: ProductSaleMode;
   sale_mode_label?: string;
   configuration_summary: string;
+  configuration_snapshot?: {
+    sale_mode: 'variant_matrix' | 'volume';
+    material?: string;
+    size?: string;
+    colors?: string;
+    finishing?: string;
+    quantity_tier: number;
+    unit_price: number;
+    total_price: number;
+    display_label: string;
+    matrix_row_id?: string;
+    production_time?: string;
+    production_time_source?: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
+  };
 }
 
 interface ProductConfiguratorModalProps {
@@ -68,7 +84,7 @@ interface ProductConfiguratorModalProps {
 
 const saleModeLabels: Record<ProductSaleMode, string> = {
   unidade: 'Unidade simples',
-  volume: 'Preco por quantidade',
+  volume: 'Preço por quantidade',
   m2: 'Metro quadrado',
   linear: 'Metro linear',
   width_height: 'Largura x Altura',
@@ -135,22 +151,24 @@ export function ProductConfiguratorModal({
   const savedConfigurator = getProductConfigurator(product);
   const initialVolumeTier = useMemo(() => getInitialVolumePricingTier(product), [product]);
   const volumeTiers = useMemo(() => getNormalizedVolumePricing(product), [product]);
+  const variantPricingRows = useMemo(() => getNormalizedVariantPricingMatrix(product), [product]);
   const configurator = useMemo<ProductConfiguratorSettings>(() => {
     return savedConfigurator || {
-      sale_mode: initialVolumeTier ? 'volume' : (product?.pricing_type || 'unidade') as ProductSaleMode,
+      sale_mode: initialVolumeTier || variantPricingRows.length > 0 ? 'volume' : (product?.pricing_type || 'unidade') as ProductSaleMode,
       min_quantity: initialVolumeTier?.min_qty || 1,
       option_groups: [],
       size_options: []
     };
-  }, [product, savedConfigurator, initialVolumeTier]);
+  }, [product, savedConfigurator, initialVolumeTier, variantPricingRows]);
   const savedSaleMode = (configurator?.sale_mode || product?.pricing_type || 'unidade') as ProductSaleMode;
-  const saleMode = savedSaleMode === 'unidade' && initialVolumeTier ? 'volume' : savedSaleMode;
+  const saleMode = variantPricingRows.length > 0 || initialVolumeTier
+    ? 'volume'
+    : savedSaleMode;
   const optionGroups = useMemo(() => configurator?.option_groups || [], [configurator]);
   const sizeOptions = useMemo(() => configurator?.size_options || [], [configurator]);
   const shouldShowSizeGrid = saleMode === 'size_grid' || hasRealSizeConfiguration(sizeOptions);
-  const variantPricingRows = useMemo(() => getNormalizedVariantPricingMatrix(product), [product]);
   const productGallery = useMemo(() => (product ? normalizeProductGallery(product) : []), [product]);
-  const hasVariantPricingMatrix = saleMode === 'volume' && variantPricingRows.length > 0;
+  const hasVariantPricingMatrix = variantPricingRows.length > 0;
   const linearWidthMaxMeters = toPositiveNumber(configurator?.max_width, 0);
   const isLinearWidthMode = product?.pricing_type === 'linear' && linearWidthMaxMeters > 0;
   const maxWidthCm = isLinearWidthMode ? toDisplayCm(linearWidthMaxMeters) : 0;
@@ -172,8 +190,11 @@ export function ProductConfiguratorModal({
   useEffect(() => {
     if (!isOpen || !product) return;
 
+    const firstMatrixRow = variantPricingRows[0];
+    const firstMatrixTier = firstMatrixRow?.tiers[0];
     const initialQuantity = Math.max(
       1,
+      firstMatrixTier?.min_qty ||
       (saleMode === 'volume' ? initialVolumeTier?.min_qty : configurator?.min_quantity) ||
       configurator?.min_quantity ||
       1
@@ -203,7 +224,6 @@ export function ProductConfiguratorModal({
     setSelectedSize(defaultSize);
     setSelectedVariant(product.variant_options?.[0]?.name || '');
     setSelectedColor(product.color_options?.[0]?.name || '');
-    const firstMatrixRow = variantPricingRows[0];
     setSelectedMaterial(firstMatrixRow?.material || '');
     setSelectedMatrixSize(firstMatrixRow?.size || '');
     setSelectedMatrixColors(firstMatrixRow?.colors || '');
@@ -340,8 +360,8 @@ export function ProductConfiguratorModal({
   );
   const hasProductDescription = stripRichTextHtml(productDescription).length > 0;
 
-  const breakdown = useMemo(() => {
-    return getPriceBreakdown(product, {
+  const priceResolution = useMemo(() => {
+    return resolveProductPrice(product, {
       quantity: configuredQuantity,
       width,
       height,
@@ -349,10 +369,13 @@ export function ProductConfiguratorModal({
       selectedVariant,
       selectedColor,
       customOptions: {
-        selectedOptions: selectedPricingOptions
+        selectedOptions: selectedPricingOptions,
+        baseSubtotal: selectedVolumeTier?.total,
+        variantSelection: matrixSelection
       }
     });
-  }, [product, configuredQuantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions]);
+  }, [product, configuredQuantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions, selectedVolumeTier, matrixSelection]);
+  const breakdown = priceResolution.breakdown;
 
   if (!isOpen || !product) return null;
 
@@ -364,12 +387,18 @@ export function ProductConfiguratorModal({
     ? 'Metro linear com largura máxima'
     : saleModeLabels[saleMode] || 'Produto configurável';
   const isUnsupportedMode = !supportedSaleModes.has(saleMode);
-  const subtotalForCart = selectedVolumeTier ? selectedVolumeTier.total : breakdown.subtotal;
-  const unitPriceForCart = selectedVolumeTier
-    ? selectedVolumeTier.price
-    : breakdown.quantity > 0 ? breakdown.subtotal / breakdown.quantity : 0;
+  const subtotalForCart = priceResolution.totalPrice;
+  const unitPriceForCart = priceResolution.unitPrice;
+  const resolvedProductionTime = priceResolution.productionTime || 'Prazo sob consulta';
+  const resolvedProductionTimeSource = priceResolution.productionTimeSource;
   const formattedSubtotal = formatCurrency(subtotalForCart);
-  const isConfigurationUnavailable = hasVariantPricingMatrix && !selectedMatrixRow;
+  const isConfigurationUnavailable = hasVariantPricingMatrix && !priceResolution.canPurchase;
+  const isConfigurationIncomplete = hasVariantPricingMatrix && !priceResolution.isComplete;
+  const missingConfigurationLabel = priceResolution.missingRequiredGroups.length > 0
+    ? priceResolution.missingRequiredGroups.join(', ')
+    : 'material, tamanho, cor e finalização';
+  const subtotalPendingMessage = `Defina ${missingConfigurationLabel} para saber o subtotal.`;
+  const productionTimePendingMessage = `Defina ${missingConfigurationLabel} para saber o prazo de produção.`;
   const dimensions = {
     width: product.pricing_type === 'm2' || isLinearWidthMode ? width : undefined,
     height: product.pricing_type === 'm2' || isLinearWidthMode ? height : undefined,
@@ -383,40 +412,69 @@ export function ProductConfiguratorModal({
     product.pricing_type === 'linear' && !isLinearWidthMode ? `Metragem: ${lengthCm}cm` : '',
     summarizeOptions(selectedOptions)
   ].filter(Boolean).join(' | ');
-
-  const findCompatibleMatrixRow = (selection: VariantPricingSelection) => {
-    return variantPricingRows.find((row) => (
-      (!selection.material || normalizeCombinationKey(row.material) === normalizeCombinationKey(selection.material)) &&
-      (!selection.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(selection.size)) &&
-      (!selection.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(selection.colors)) &&
-      (!selection.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(selection.finishing))
-    )) || null;
-  };
-
-  const applyMatrixRowSelection = (row: typeof selectedMatrixRow, fallback: VariantPricingSelection = {}) => {
-    setSelectedMaterial(row?.material || fallback.material || '');
-    setSelectedMatrixSize(row?.size || fallback.size || '');
-    setSelectedMatrixColors(row?.colors || fallback.colors || '');
-    setSelectedFinishing(row?.finishing || fallback.finishing || '');
-  };
+  const configurationSnapshot: ProductConfiguratorCartPayload['configuration_snapshot'] =
+    priceResolution.matchedMatrixRow && priceResolution.matchedTier
+      ? {
+          sale_mode: 'variant_matrix',
+          material: priceResolution.matchedMatrixRow.material,
+          size: priceResolution.matchedMatrixRow.size,
+          colors: priceResolution.matchedMatrixRow.colors,
+          finishing: priceResolution.matchedMatrixRow.finishing,
+          quantity_tier: priceResolution.matchedTier.min_qty,
+          unit_price: priceResolution.unitPrice,
+          total_price: priceResolution.totalPrice,
+          display_label: [
+            priceResolution.matchedTier.min_qty ? `${priceResolution.matchedTier.min_qty} un` : '',
+            priceResolution.matchedMatrixRow.material,
+            priceResolution.matchedMatrixRow.size,
+            priceResolution.matchedMatrixRow.colors,
+            priceResolution.matchedMatrixRow.finishing
+          ].filter(Boolean).join(' | '),
+          matrix_row_id: priceResolution.matchedMatrixRow.id,
+          production_time: resolvedProductionTime,
+          production_time_source: resolvedProductionTimeSource
+        }
+      : selectedVolumeTier
+        ? {
+            sale_mode: 'volume',
+            quantity_tier: selectedVolumeTier.min_qty,
+            unit_price: priceResolution.unitPrice,
+            total_price: priceResolution.totalPrice,
+            display_label: `${selectedVolumeTier.min_qty} un | ${formatUnitCurrency(priceResolution.unitPrice)} /un | ${resolvedProductionTime}`,
+            production_time: resolvedProductionTime,
+            production_time_source: resolvedProductionTimeSource
+          }
+        : undefined;
 
   const handleMatrixOptionSelect = (field: keyof VariantPricingSelection, value: string) => {
-    const nextSelection: VariantPricingSelection = field === 'material'
-      ? { material: value }
-      : field === 'size'
-        ? { material: selectedMaterial, size: value }
-        : field === 'colors'
-          ? { material: selectedMaterial, size: selectedMatrixSize, colors: value }
-          : { material: selectedMaterial, size: selectedMatrixSize, colors: selectedMatrixColors, finishing: value };
-    const compatibleRow = findCompatibleMatrixRow(nextSelection);
+    if (field === 'material') {
+      setSelectedMaterial(value);
+      setSelectedMatrixSize('');
+      setSelectedMatrixColors('');
+      setSelectedFinishing('');
+      return;
+    }
 
-    applyMatrixRowSelection(compatibleRow, nextSelection);
+    if (field === 'size') {
+      setSelectedMatrixSize(value);
+      setSelectedMatrixColors('');
+      setSelectedFinishing('');
+      return;
+    }
+
+    if (field === 'colors') {
+      setSelectedMatrixColors(value);
+      setSelectedFinishing('');
+      return;
+    }
+
+    setSelectedFinishing(value);
   };
 
   const matrixMaterialOptions = getVariantPricingOptions(variantPricingRows, 'material');
-  const matrixSizeOptions = getVariantPricingOptions(variantPricingRows, 'size', { material: selectedMaterial });
-  const matrixColorOptions = getVariantPricingOptions(variantPricingRows, 'colors', { material: selectedMaterial, size: selectedMatrixSize });
-  const matrixFinishingOptions = getVariantPricingOptions(variantPricingRows, 'finishing', matrixSelection);
+  const matrixSizeOptions = selectedMaterial ? getVariantPricingOptions(variantPricingRows, 'size', { material: selectedMaterial }) : [];
+  const matrixColorOptions = selectedMaterial && selectedMatrixSize ? getVariantPricingOptions(variantPricingRows, 'colors', { material: selectedMaterial, size: selectedMatrixSize }) : [];
+  const matrixFinishingOptions = selectedMaterial && selectedMatrixSize && selectedMatrixColors ? getVariantPricingOptions(variantPricingRows, 'finishing', matrixSelection) : [];
   const matrixOptionGroups = [
     { label: 'Material', field: 'material' as const, value: selectedMaterial, options: matrixMaterialOptions },
     { label: 'Tamanho', field: 'size' as const, value: selectedMatrixSize, options: matrixSizeOptions },
@@ -453,9 +511,12 @@ export function ProductConfiguratorModal({
       dimensions,
       pricing_type: product.pricing_type,
       production_days: additionalDays,
+      production_time: resolvedProductionTime,
+      production_time_source: resolvedProductionTimeSource,
       sale_mode: saleMode,
       sale_mode_label: saleModeLabel,
-      configuration_summary: configurationSummary
+      configuration_summary: configurationSummary,
+      configuration_snapshot: configurationSnapshot
   });
 
   const handleAdd = () => {
@@ -464,7 +525,7 @@ export function ProductConfiguratorModal({
   };
 
   const handleWhatsAppRequest = () => {
-    if (isConfigurationUnavailable || linearWidthError) return;
+    if (isConfigurationIncomplete || linearWidthError) return;
     onRequestWhatsApp?.(buildPayload());
   };
 
@@ -540,8 +601,7 @@ export function ProductConfiguratorModal({
                     Prazo de produção
                   </div>
                   <p className="mt-1 text-slate-500">
-                    {product.delivery_time || product.pricing_details?.delivery_time || 'Consultar prazo'}
-                    {additionalDays > 0 ? ` + ${additionalDays} dia(s)` : ''}
+                    {isConfigurationIncomplete ? productionTimePendingMessage : resolvedProductionTime}
                   </p>
                 </div>
 
@@ -585,7 +645,14 @@ export function ProductConfiguratorModal({
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                {hasVolumePricing ? (
+                {hasVariantPricingMatrix && !hasVolumePricing ? (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Quantidade</span>
+                    <div className="w-full rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-relaxed text-slate-500">
+                      Complete a configuração para escolher a tiragem.
+                    </div>
+                  </div>
+                ) : hasVolumePricing ? (
                   <div className="space-y-1">
                     <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Quantidade</span>
                     <div className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-sm font-black text-emerald-700">
@@ -684,15 +751,6 @@ export function ProductConfiguratorModal({
               )}
             </section>
 
-            {hasProductDescription && (
-              <section className="rounded-2xl border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Descrição do produto</h3>
-                <div
-                  className="rich-text-description mt-2 text-xs font-medium leading-relaxed text-slate-600"
-                  dangerouslySetInnerHTML={{ __html: productDescription }}
-                />
-              </section>
-            )}
 
             {hasVariantPricingMatrix && (
               <section className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -732,9 +790,17 @@ export function ProductConfiguratorModal({
 
                 {!selectedMatrixRow && (
                   <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
-                    Essa combinação não possui preço cadastrado. Escolha outra opção.
+                    {isConfigurationIncomplete
+                      ? `Defina ${missingConfigurationLabel} para ver as tiragens, subtotal e prazo.`
+                      : 'Essa combinação ainda não possui preço cadastrado. Solicite orçamento pelo WhatsApp.'}
                   </div>
                 )}
+              </section>
+            )}
+
+            {hasVariantPricingMatrix && isConfigurationIncomplete && (
+              <section className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/60 p-4 text-xs font-semibold leading-relaxed text-emerald-800">
+                Escolha material, tamanho, cores e acabamento para liberar as tiragens cadastradas deste produto.
               </section>
             )}
 
@@ -765,14 +831,9 @@ export function ProductConfiguratorModal({
                         }`}
                       >
                         <span className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
-                          A partir de {tier.min_qty} un
+                          Tiragem
                         </span>
-                        <span className="mt-1 block text-sm font-black text-emerald-700">
-                          {formatUnitCurrency(tier.price)} /un
-                        </span>
-                        <span className="mt-0.5 block text-[11px] font-bold text-slate-500">
-                          {formatCurrency(tier.total)} total
-                        </span>
+                        <span className="mt-1 block text-sm font-black text-emerald-700">{tier.min_qty} un</span>
                       </button>
                     );
                   })}
@@ -798,9 +859,6 @@ export function ProductConfiguratorModal({
                         }`}
                       >
                         {option.name}
-                        {option.price_delta > 0 && (
-                          <span className="ml-2 text-[10px] text-emerald-600">+ {formatCurrency(option.price_delta)}</span>
-                        )}
                       </button>
                     );
                   })}
@@ -904,13 +962,6 @@ export function ProductConfiguratorModal({
                           )}
                           {option.name}
                         </span>
-                        {(option.price_delta > 0 || option.additional_days > 0) && (
-                          <span className="mt-1 block text-[10px] font-bold text-slate-500">
-                            {option.price_delta > 0 ? `+ ${formatCurrency(option.price_delta)}` : ''}
-                            {option.price_delta > 0 && option.additional_days > 0 ? ' | ' : ''}
-                            {option.additional_days > 0 ? `+ ${option.additional_days} dia(s)` : ''}
-                          </span>
-                        )}
                       </button>
                     );
                   })}
@@ -922,6 +973,16 @@ export function ProductConfiguratorModal({
               <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Itens inclusos</h3>
                 <p className="mt-2 whitespace-pre-line text-xs font-medium leading-relaxed text-slate-600">{configurator.kit_items}</p>
+              </section>
+            )}
+
+            {hasProductDescription && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Descrição do produto</h3>
+                <div
+                  className="rich-text-description mt-2 text-xs font-medium leading-relaxed text-slate-600"
+                  dangerouslySetInnerHTML={{ __html: productDescription }}
+                />
               </section>
             )}
           </main>
@@ -942,6 +1003,12 @@ export function ProductConfiguratorModal({
                   <div className="flex justify-between gap-3">
                     <span className="text-slate-500">Quantidade</span>
                     <span className="font-bold text-slate-700">{configuredQuantity}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500">Prazo de produção</span>
+                    <span className="text-right font-bold text-slate-700">
+                      {isConfigurationIncomplete ? productionTimePendingMessage : resolvedProductionTime}
+                    </span>
                   </div>
                   {product.pricing_type === 'm2' && (
                     <div className="flex justify-between gap-3">
@@ -976,7 +1043,6 @@ export function ProductConfiguratorModal({
                       {selectedOptions.map((option, index) => (
                         <li key={`${option.group_name}-${option.name}-${index}`} className="flex justify-between gap-2">
                           <span>{option.group_name ? `${option.group_name}: ` : ''}{option.name}</span>
-                          {option.price_delta > 0 && <span>{formatCurrency(option.price_delta)}</span>}
                         </li>
                       ))}
                     </ul>
@@ -984,13 +1050,30 @@ export function ProductConfiguratorModal({
                 )}
 
                 <div className="mt-4 border-t border-slate-200 pt-4">
+                  {!isConfigurationIncomplete && priceResolution.warningMessage && (
+                    <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-amber-800">
+                      {priceResolution.warningMessage}
+                    </div>
+                  )}
                   <div className="flex items-end justify-between gap-3">
                     <span className="text-xs font-bold text-slate-500">Subtotal</span>
-                    <span className="text-2xl font-black text-emerald-600">{formattedSubtotal}</span>
+                    {isConfigurationIncomplete ? (
+                      <span className="max-w-[12rem] text-right text-[11px] font-bold leading-relaxed text-slate-500">
+                        {subtotalPendingMessage}
+                      </span>
+                    ) : priceResolution.canPurchase ? (
+                      <span className="text-2xl font-black text-emerald-600">{formattedSubtotal}</span>
+                    ) : (
+                      <span className="max-w-[12rem] text-right text-[11px] font-bold leading-relaxed text-amber-700">
+                        Preço sob consulta
+                      </span>
+                    )}
                   </div>
-                  <p className="mt-1 text-right text-[11px] font-semibold text-slate-500">
-                    Unitário estimado: {saleMode === 'volume' ? formatUnitCurrency(unitPriceForCart) : formatCurrency(unitPriceForCart)}
-                  </p>
+                  {priceResolution.canPurchase && (
+                    <p className="mt-1 text-right text-[11px] font-semibold text-slate-500">
+                      Unitário estimado: {saleMode === 'volume' ? formatUnitCurrency(unitPriceForCart) : formatCurrency(unitPriceForCart)}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1014,7 +1097,7 @@ export function ProductConfiguratorModal({
               <button
                 type="button"
                 onClick={handleWhatsAppRequest}
-                disabled={isConfigurationUnavailable}
+                disabled={isConfigurationIncomplete || Boolean(linearWidthError)}
                 className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 flex items-center justify-center gap-2"
               >
                 <MessageCircle className="h-4 w-4" />

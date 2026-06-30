@@ -22,6 +22,8 @@ export interface PricingSelectedOption {
 export interface PricingCustomOptions {
   selectedOptions?: PricingSelectedOption[];
   optionSurcharge?: number | string | null;
+  baseSubtotal?: number | string | null;
+  variantSelection?: VariantPricingSelection | null;
   [key: string]: unknown;
 }
 
@@ -40,7 +42,9 @@ export interface PriceBreakdown {
   quantity: number;
   area: number;
   length: number;
+  baseSubtotal: number;
   optionsTotal: number;
+  optionReplacementTotal: number;
   subtotal: number;
   pricingType: PricingType;
   appliedVolumePrice: number | null;
@@ -52,6 +56,7 @@ export interface NormalizedVolumePriceTier {
   min_qty: number;
   price: number;
   total: number;
+  productionTime?: string;
 }
 
 export interface NormalizedVariantPricingMatrixRow {
@@ -61,6 +66,7 @@ export interface NormalizedVariantPricingMatrixRow {
   size: string;
   colors: string;
   finishing: string;
+  active: boolean;
   tiers: NormalizedVolumePriceTier[];
 }
 
@@ -79,12 +85,36 @@ export interface CatalogPricePresentation {
   tier: NormalizedVolumePriceTier | null;
 }
 
+export interface ProductPriceResolution {
+  totalPrice: number;
+  unitPrice: number;
+  pricingMode: 'simple' | 'measure' | 'volume' | 'matrix' | 'quote';
+  isComplete: boolean;
+  missingRequiredGroups: string[];
+  matchedMatrixRow: NormalizedVariantPricingMatrixRow | null;
+  matchedTier: NormalizedVolumePriceTier | null;
+  selectedQuantityTier: NormalizedVolumePriceTier | null;
+  productionTime: string;
+  productionTimeSource: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
+  selectedOptionsSnapshot: PricingSelectedOption[];
+  canPurchase: boolean;
+  warningMessage?: string;
+  breakdown: PriceBreakdown;
+}
+
 export interface ProductQuantityTierSummary {
   tiers: NormalizedVolumePriceTier[];
   source: 'volume_pricing' | 'variant_pricing_matrix' | null;
   sourceLabel: string;
   matrixRow: NormalizedVariantPricingMatrixRow | null;
 }
+
+const matrixFieldLabels: Record<keyof VariantPricingSelection, string> = {
+  material: 'material',
+  size: 'tamanho',
+  colors: 'cor',
+  finishing: 'finalização'
+};
 
 type ProductLike = Partial<Product> & {
   sales_price?: number | string | null;
@@ -96,6 +126,15 @@ type ProductLike = Partial<Product> & {
   pricing_details?: {
     configurator_options?: ProductConfiguratorSettings | null;
     variant_pricing_matrix?: unknown;
+    delivery_time?: unknown;
+    production_time?: unknown;
+    production_days?: unknown;
+    lead_time?: unknown;
+    prazo?: unknown;
+    prazo_entrega?: unknown;
+    prazo_producao?: unknown;
+    turnaround_days?: unknown;
+    estimated_days?: unknown;
   } | string | null;
 };
 
@@ -161,6 +200,48 @@ const getConfiguratorObject = (product: ProductLike | null | undefined): Record<
   return configurator && typeof configurator === 'object' ? configurator as Record<string, unknown> : {};
 };
 
+const normalizeProductionTime = (value: unknown): string => {
+  const text = normalizeTextValue(value);
+  if (!text) return '';
+
+  const numeric = toFiniteNumber(text, NaN);
+  if (Number.isFinite(numeric) && numeric > 0 && /^\d+([,.]\d+)?$/.test(text)) {
+    return `${numeric} ${numeric === 1 ? 'dia \u00fatil' : 'dias \u00fateis'}`;
+  }
+
+  return text;
+};
+
+const getRecordProductionTime = (record: Record<string, unknown>): string => {
+  return normalizeProductionTime(
+    record.production_time ??
+    record.production_days ??
+    record.delivery_time ??
+    record.lead_time ??
+    record.prazo ??
+    record.prazo_entrega ??
+    record.prazo_producao ??
+    record.turnaround_days ??
+    record.estimated_days
+  );
+};
+
+const getProductDefaultProductionTime = (product: ProductLike | null | undefined): string => {
+  const details = getPricingDetailsObject(product);
+  return normalizeProductionTime(
+    product?.delivery_time ??
+    details.delivery_time ??
+    details.production_time ??
+    details.production_days ??
+    details.lead_time ??
+    details.prazo ??
+    details.prazo_entrega ??
+    details.prazo_producao ??
+    details.turnaround_days ??
+    details.estimated_days
+  );
+};
+
 export function getNormalizedVolumePricing(product: ProductLike | null | undefined): NormalizedVolumePriceTier[] {
   const salesPrice = toFiniteNumber(product?.sales_price, NaN);
   const fallbackPrice = Number.isFinite(salesPrice)
@@ -170,13 +251,14 @@ export function getNormalizedVolumePricing(product: ProductLike | null | undefin
 
   return tiers
     .map((tier) => {
-      const tierRecord = tier as { min_qty?: unknown; quantity?: unknown; qty?: unknown; price?: unknown; unit_price?: unknown };
+      const tierRecord = tier as { min_qty?: unknown; quantity?: unknown; qty?: unknown; price?: unknown; unit_price?: unknown; production_time?: unknown; production_days?: unknown; delivery_time?: unknown; lead_time?: unknown; prazo?: unknown; prazo_entrega?: unknown; prazo_producao?: unknown; turnaround_days?: unknown; estimated_days?: unknown };
       const minQty = Math.max(0, toFiniteNumber(tierRecord.min_qty ?? tierRecord.quantity ?? tierRecord.qty, 0));
       const price = toFiniteNumber(tierRecord.price ?? tierRecord.unit_price, fallbackPrice);
       return {
         min_qty: minQty,
         price,
-        total: roundMoney(minQty * price)
+        total: roundMoney(minQty * price),
+        productionTime: getRecordProductionTime(tierRecord as Record<string, unknown>) || undefined
       };
     })
     .filter((tier) => tier.min_qty > 0 && tier.price >= 0)
@@ -202,7 +284,15 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
   const configurator = getConfiguratorObject(product);
   const matrix = parseMaybeJsonArray(
     configurator.variant_pricing_matrix ||
+    configurator.configuration_matrix ||
+    configurator.pricing_matrix ||
+    configurator.matrix_combinations ||
+    configurator.combinations ||
     details.variant_pricing_matrix ||
+    details.configuration_matrix ||
+    details.pricing_matrix ||
+    details.matrix_combinations ||
+    details.combinations ||
     product?.variant_pricing_matrix
   );
 
@@ -214,6 +304,7 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
         size?: unknown;
         colors?: unknown;
         finishing?: unknown;
+        active?: unknown;
         position?: unknown;
         sort_order?: unknown;
         tiers?: unknown;
@@ -223,7 +314,7 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
       const rawTiers = parseMaybeJsonArray(rowRecord.tiers || rowRecord.volume_pricing);
       const tiers = rawTiers
         .map((tier) => {
-          const tierRecord = tier as { quantity?: unknown; min_qty?: unknown; qty?: unknown; total_price?: unknown; total?: unknown; unit_price?: unknown; price?: unknown };
+          const tierRecord = tier as { quantity?: unknown; min_qty?: unknown; qty?: unknown; total_price?: unknown; total?: unknown; unit_price?: unknown; price?: unknown; production_time?: unknown; production_days?: unknown; delivery_time?: unknown; lead_time?: unknown; prazo?: unknown; prazo_entrega?: unknown; prazo_producao?: unknown; turnaround_days?: unknown; estimated_days?: unknown };
           const quantity = Math.max(0, toFiniteNumber(tierRecord.quantity ?? tierRecord.min_qty ?? tierRecord.qty, 0));
           const explicitTotal = toFiniteNumber(tierRecord.total_price ?? tierRecord.total, NaN);
           const unitPrice = toFiniteNumber(tierRecord.unit_price ?? tierRecord.price, Number.isFinite(explicitTotal) && quantity > 0 ? explicitTotal / quantity : 0);
@@ -231,7 +322,8 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
           return {
             min_qty: quantity,
             price: unitPrice,
-            total: Number.isFinite(explicitTotal) ? roundMoney(explicitTotal) : roundMoney(quantity * unitPrice)
+            total: Number.isFinite(explicitTotal) ? roundMoney(explicitTotal) : roundMoney(quantity * unitPrice),
+            productionTime: getRecordProductionTime(tierRecord as Record<string, unknown>) || undefined
           };
         })
         .filter((tier) => tier.min_qty > 0 && tier.price >= 0)
@@ -244,10 +336,11 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
         size: normalizeTextValue(rowRecord.size),
         colors: normalizeTextValue(rowRecord.colors),
         finishing: normalizeTextValue(rowRecord.finishing),
+        active: rowRecord.active !== false && rowRecord.active !== 'false',
         tiers
       };
     })
-    .filter((row) => row.tiers.length > 0)
+    .filter((row) => row.active !== false && row.tiers.length > 0)
     .sort((a, b) => a.position - b.position);
 }
 
@@ -317,6 +410,18 @@ export function findVariantPricingMatrixRow(
     (!row.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(selection.size)) &&
     (!row.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(selection.colors)) &&
     (!row.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(selection.finishing))
+  )) || null;
+}
+
+function findExactVariantPricingMatrixRow(
+  rows: NormalizedVariantPricingMatrixRow[],
+  selection: VariantPricingSelection
+): NormalizedVariantPricingMatrixRow | null {
+  return rows.find((row) => (
+    normalizeCombinationKey(row.material) === normalizeCombinationKey(selection.material) &&
+    normalizeCombinationKey(row.size) === normalizeCombinationKey(selection.size) &&
+    normalizeCombinationKey(row.colors) === normalizeCombinationKey(selection.colors) &&
+    normalizeCombinationKey(row.finishing) === normalizeCombinationKey(selection.finishing)
   )) || null;
 }
 
@@ -441,7 +546,7 @@ export function getProductUnitPrice(product: ProductLike | null | undefined, qua
   return matchingTier ? matchingTier.price : fallbackPrice;
 }
 
-function getOptionsSurcharge(config: NormalizedPricingConfig): number {
+function getOptionReplacementTotal(config: NormalizedPricingConfig): number {
   const customOptions = config.customOptions;
   if (!customOptions) return 0;
 
@@ -452,8 +557,9 @@ function getOptionsSurcharge(config: NormalizedPricingConfig): number {
     ? customOptions.selectedOptions
     : [];
 
-  return selectedOptions.reduce((sum, option) => {
-    return sum + Math.max(0, toFiniteNumber(option.price_delta, 0));
+  return selectedOptions.reduce((replacementTotal, option) => {
+    const optionFinalPrice = Math.max(0, toFiniteNumber(option.price_delta, 0));
+    return Math.max(replacementTotal, optionFinalPrice);
   }, 0);
 }
 
@@ -474,8 +580,12 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
     : pricingType === 'linear'
       ? length
       : 1;
-  const optionsTotal = roundMoney(getOptionsSurcharge(normalized));
-  const subtotal = roundMoney((unitPrice * multiplier + optionsTotal) * normalized.quantity);
+  const explicitBaseSubtotal = toFiniteNumber(normalized.customOptions?.baseSubtotal, NaN);
+  const baseSubtotal = Number.isFinite(explicitBaseSubtotal)
+    ? roundMoney(Math.max(0, explicitBaseSubtotal))
+    : roundMoney(unitPrice * multiplier * normalized.quantity);
+  const optionReplacementTotal = roundMoney(getOptionReplacementTotal(normalized));
+  const subtotal = optionReplacementTotal > 0 ? optionReplacementTotal : baseSubtotal;
   const baseUnitPrice = getProductUnitPrice(product, 1);
   const appliedVolumePrice = unitPrice !== baseUnitPrice ? unitPrice : null;
 
@@ -484,11 +594,166 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
     quantity: normalized.quantity,
     area,
     length,
-    optionsTotal,
+    baseSubtotal,
+    optionsTotal: optionReplacementTotal,
+    optionReplacementTotal,
     subtotal,
     pricingType,
     appliedVolumePrice,
     formattedTotal: formatCurrency(subtotal),
     formattedUnitPrice: formatUnitCurrency(unitPrice)
+  };
+}
+
+export function resolveProductPrice(product: ProductLike | null | undefined, config: PricingConfig = {}): ProductPriceResolution {
+  const normalized = normalizePricingConfig(config);
+  const selectedOptionsSnapshot = Array.isArray(normalized.customOptions?.selectedOptions)
+    ? normalized.customOptions.selectedOptions
+    : [];
+  const matrixRows = getNormalizedVariantPricingMatrix(product);
+  const volumeTiers = getNormalizedVolumePricing(product);
+  const selectedQuantityTier = volumeTiers.find((tier) => tier.min_qty === normalized.quantity) || null;
+  const productDefaultProductionTime = getProductDefaultProductionTime(product);
+  const resolveProductionTime = (matrixTier: NormalizedVolumePriceTier | null) => {
+    if (matrixTier?.productionTime) {
+      return { productionTime: matrixTier.productionTime, productionTimeSource: 'matrix' as const };
+    }
+    if (selectedQuantityTier?.productionTime) {
+      return { productionTime: selectedQuantityTier.productionTime, productionTimeSource: 'quantity_tier' as const };
+    }
+    if (productDefaultProductionTime) {
+      return { productionTime: productDefaultProductionTime, productionTimeSource: 'product_default' as const };
+    }
+    return { productionTime: 'Prazo sob consulta', productionTimeSource: 'fallback' as const };
+  };
+
+  if (matrixRows.length > 0) {
+    const variantSelection = normalized.customOptions?.variantSelection || {};
+    const requiredMatrixFields = (['material', 'size', 'colors', 'finishing'] as Array<keyof VariantPricingSelection>)
+      .filter((field) => matrixRows.some((row) => normalizeCombinationKey(row[field])));
+    const missingRequiredGroups = requiredMatrixFields
+      .filter((field) => !normalizeCombinationKey(variantSelection[field]))
+      .map((field) => matrixFieldLabels[field]);
+    const isComplete = missingRequiredGroups.length === 0;
+    const matchedMatrixRow = findExactVariantPricingMatrixRow(matrixRows, variantSelection);
+    const matchedTier = matchedMatrixRow?.tiers.find((tier) => tier.min_qty === normalized.quantity) || null;
+    const fallbackBreakdown = getPriceBreakdown(product, config);
+    const unresolvedProduction = resolveProductionTime(null);
+
+    if (!isComplete) {
+      return {
+        totalPrice: 0,
+        unitPrice: 0,
+        pricingMode: 'matrix',
+        isComplete: false,
+        missingRequiredGroups,
+        matchedMatrixRow: null,
+        matchedTier: null,
+        selectedQuantityTier,
+        productionTime: unresolvedProduction.productionTime,
+        productionTimeSource: unresolvedProduction.productionTimeSource,
+        selectedOptionsSnapshot,
+        canPurchase: false,
+        warningMessage: `Defina ${missingRequiredGroups.join(', ')} para saber o subtotal.`,
+        breakdown: {
+          ...fallbackBreakdown,
+          unitPrice: 0,
+          baseSubtotal: 0,
+          optionsTotal: 0,
+          optionReplacementTotal: 0,
+          subtotal: 0,
+          formattedTotal: formatCurrency(0),
+          formattedUnitPrice: formatUnitCurrency(0)
+        }
+      };
+    }
+
+    if (!matchedMatrixRow || !matchedTier) {
+      return {
+        totalPrice: 0,
+        unitPrice: 0,
+        pricingMode: 'matrix',
+        isComplete: true,
+        missingRequiredGroups: [],
+        matchedMatrixRow: matchedMatrixRow || null,
+        matchedTier: null,
+        selectedQuantityTier,
+        productionTime: unresolvedProduction.productionTime,
+        productionTimeSource: unresolvedProduction.productionTimeSource,
+        selectedOptionsSnapshot,
+        canPurchase: false,
+        warningMessage: 'Essa combina\u00e7\u00e3o ainda n\u00e3o possui pre\u00e7o cadastrado. Solicite or\u00e7amento pelo WhatsApp.',
+        breakdown: {
+          ...fallbackBreakdown,
+          unitPrice: 0,
+          baseSubtotal: 0,
+          optionsTotal: 0,
+          optionReplacementTotal: 0,
+          subtotal: 0,
+          formattedTotal: formatCurrency(0),
+          formattedUnitPrice: formatUnitCurrency(0)
+        }
+      };
+    }
+
+    const totalPrice = roundMoney(matchedTier.total);
+    const unitPrice = normalized.quantity > 0 ? totalPrice / normalized.quantity : 0;
+    const resolvedProduction = resolveProductionTime(matchedTier);
+    const breakdown: PriceBreakdown = {
+      ...fallbackBreakdown,
+      unitPrice,
+      quantity: normalized.quantity,
+      baseSubtotal: totalPrice,
+      optionsTotal: 0,
+      optionReplacementTotal: 0,
+      subtotal: totalPrice,
+      appliedVolumePrice: unitPrice,
+      formattedTotal: formatCurrency(totalPrice),
+      formattedUnitPrice: formatUnitCurrency(unitPrice)
+    };
+
+    return {
+      totalPrice,
+      unitPrice,
+      pricingMode: 'matrix',
+      isComplete: true,
+      missingRequiredGroups: [],
+      matchedMatrixRow,
+      matchedTier,
+      selectedQuantityTier,
+      productionTime: resolvedProduction.productionTime,
+      productionTimeSource: resolvedProduction.productionTimeSource,
+      selectedOptionsSnapshot,
+      canPurchase: totalPrice > 0,
+      warningMessage: totalPrice > 0 ? undefined : 'Essa combina\u00e7\u00e3o ainda n\u00e3o possui pre\u00e7o cadastrado. Solicite or\u00e7amento pelo WhatsApp.',
+      breakdown
+    };
+  }
+
+  const breakdown = getPriceBreakdown(product, config);
+  const resolvedProduction = resolveProductionTime(null);
+  const pricingType = (product?.pricing_type || 'unidade') as PricingType;
+  const pricingMode: ProductPriceResolution['pricingMode'] =
+    pricingType === 'm2' || pricingType === 'linear'
+      ? 'measure'
+      : getNormalizedVolumePricing(product).length > 0
+        ? 'volume'
+        : 'simple';
+
+  return {
+    totalPrice: breakdown.subtotal,
+    unitPrice: normalized.quantity > 0 ? breakdown.subtotal / normalized.quantity : breakdown.unitPrice,
+    pricingMode,
+    isComplete: true,
+    missingRequiredGroups: [],
+    matchedMatrixRow: null,
+    matchedTier: null,
+    selectedQuantityTier,
+    productionTime: resolvedProduction.productionTime,
+    productionTimeSource: resolvedProduction.productionTimeSource,
+    selectedOptionsSnapshot,
+    canPurchase: breakdown.subtotal > 0,
+    warningMessage: breakdown.subtotal > 0 ? undefined : 'Este produto ainda n\u00e3o possui pre\u00e7o cadastrado. Solicite or\u00e7amento pelo WhatsApp.',
+    breakdown
   };
 }

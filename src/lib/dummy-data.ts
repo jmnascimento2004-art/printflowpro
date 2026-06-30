@@ -225,10 +225,12 @@ export interface VariantPricingTier {
   quantity: number;
   unit_price: number;
   total_price?: number;
+  production_time?: string;
 }
 
 export interface VariantPricingMatrixRow {
   id: string;
+  active?: boolean;
   position?: number;
   sort_order?: number;
   material?: string;
@@ -259,6 +261,7 @@ export interface ProductConfiguratorSettings {
 export interface VolumePriceTier {
   min_qty: number;
   price: number;
+  production_time?: string;
 }
 
 export interface ProductOption {
@@ -319,6 +322,8 @@ export interface QuoteItem {
     }>;
     pricing_type?: Product['pricing_type'];
     production_days?: number;
+    production_time?: string;
+    production_time_source?: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
     configuration_summary?: string;
     configuration_snapshot?: {
       sale_mode: 'variant_matrix' | 'volume';
@@ -330,6 +335,8 @@ export interface QuoteItem {
       unit_price: number;
       total_price: number;
       display_label: string;
+      production_time?: string;
+      production_time_source?: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
     };
     notes?: string;
   };
@@ -391,6 +398,8 @@ export interface OrderItem {
     }>;
     pricing_type?: Product['pricing_type'];
     production_days?: number;
+    production_time?: string;
+    production_time_source?: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
     configuration_summary?: string;
     configuration_snapshot?: {
       sale_mode: 'variant_matrix' | 'volume';
@@ -402,6 +411,8 @@ export interface OrderItem {
       unit_price: number;
       total_price: number;
       display_label: string;
+      production_time?: string;
+      production_time_source?: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
     };
     notes?: string;
   };

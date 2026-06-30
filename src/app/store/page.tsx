@@ -58,7 +58,10 @@ interface CartItem {
   selected_options?: ProductConfiguratorCartPayload['selected_options'];
   pricing_type?: Product['pricing_type'];
   production_days?: number;
+  production_time?: string;
+  production_time_source?: ProductConfiguratorCartPayload['production_time_source'];
   configuration_summary?: string;
+  configuration_snapshot?: ProductConfiguratorCartPayload['configuration_snapshot'];
 }
 
 function getStoreInitials(name: string) {
@@ -599,7 +602,10 @@ export default function StorefrontPage() {
       selected_options: payload.selected_options,
       pricing_type: payload.pricing_type,
       production_days: payload.production_days,
-      configuration_summary: payload.configuration_summary
+      production_time: payload.production_time,
+      production_time_source: payload.production_time_source,
+      configuration_summary: payload.configuration_summary,
+      configuration_snapshot: payload.configuration_snapshot
     };
 
     setCart(prev => [...prev, newItem]);
@@ -622,7 +628,7 @@ export default function StorefrontPage() {
       dimensions: payload.dimensions,
       selectedOptions: payload.selected_options,
       productionDays: payload.production_days,
-      estimatedDeadline: payload.product.delivery_time || payload.product.pricing_details?.delivery_time,
+      estimatedDeadline: payload.production_time || payload.product.delivery_time || payload.product.pricing_details?.delivery_time,
       subtotal: payload.total_price,
       customerName: clientName,
       customerPhone: clientPhone,
@@ -682,7 +688,10 @@ export default function StorefrontPage() {
         selected_options: c.selected_options,
         pricing_type: c.pricing_type || c.product.pricing_type,
         production_days: c.production_days,
+        production_time: c.production_time,
+        production_time_source: c.production_time_source,
         configuration_summary: c.configuration_summary,
+        configuration_snapshot: c.configuration_snapshot,
         notes: ['Enviado pelo catálogo online', c.variant ? `Variação: ${c.variant}` : '', c.color ? `Cor: ${c.color}` : ''].filter(Boolean).join(' | ')
       }
     }));
@@ -695,6 +704,7 @@ export default function StorefrontPage() {
           item.length ? `metragem ${item.length}m` : '',
           item.variant ? `variacao ${item.variant}` : '',
           item.color ? `cor ${item.color}` : '',
+          item.production_time ? `prazo ${item.production_time}` : '',
           item.configuration_summary ? item.configuration_summary : ''
         ].filter(Boolean).join(', ');
         const config = dimensions ? ` (${dimensions})` : '';
@@ -1731,6 +1741,11 @@ export default function StorefrontPage() {
                         {item.configuration_summary && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium line-clamp-2">
                             {item.configuration_summary}
+                          </div>
+                        )}
+                        {item.production_time && (
+                          <div className="mt-1 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                            Prazo de produção: {item.production_time}
                           </div>
                         )}
                         <span className="text-[10px] text-slate-500 mt-0.5 block font-semibold">{item.quantity}x {formatUnitCurrency(item.calculatedPrice)}</span>
