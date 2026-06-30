@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '@/lib/supabaseClient';
 import { publicStoreSelect } from '@/lib/publicSupabaseClient';
 import { warnCaught } from '@/lib/safe-log';
+import { notifyStoreCatalogRefresh } from '@/lib/store-catalog-refresh';
 import {
   clearOperationalDemoSnapshots,
   getOrSetDemoSnapshot,
@@ -1422,6 +1423,7 @@ useEffect(() => {
         warnCaught('Erro ao salvar produto no Supabase:', error);
         showToast('Erro ao salvar produto no Supabase.', 'error');
       } else {
+        notifyStoreCatalogRefresh({ companyId: newProd.company_id, productId: newProd.id });
         showToast('Produto salvo com sucesso.', 'success');
       }
     });
@@ -1461,15 +1463,21 @@ useEffect(() => {
         warnCaught('Erro ao atualizar produto no Supabase:', error);
         showToast('Erro ao atualizar produto no Supabase.', 'error');
       } else {
+        notifyStoreCatalogRefresh({ companyId: prod.company_id, productId: prod.id });
         showToast('Produto atualizado com sucesso.', 'success');
       }
     });
 };
 
   const deleteProduct = (id: string) => {
+    const removedProduct = products.find((product) => product.id === id);
     setProducts(prev => prev.filter(p => p.id !== id));
     supabase.from('products').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir produto no Supabase:', error);
+      if (error) {
+        warnCaught('Erro ao excluir produto no Supabase:', error);
+      } else {
+        notifyStoreCatalogRefresh({ companyId: removedProduct?.company_id || currentCompanyId, productId: id });
+      }
     });
   };
 

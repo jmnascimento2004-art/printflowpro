@@ -39,6 +39,7 @@ import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNav
 import { StoreAccountMenu } from '@/components/store/StoreAccountMenu';
 import { StoreFooter } from '@/components/store/StoreFooter';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { STORE_CATALOG_REFRESH_CHANNEL, STORE_CATALOG_REFRESH_EVENT } from '@/lib/store-catalog-refresh';
 import { publicSupabase } from '@/lib/publicSupabaseClient';
 import { formatStoreAddress } from '@/lib/store-customer';
 import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
@@ -212,11 +213,28 @@ export default function StorefrontPage() {
         scheduleRefresh
       )
       .subscribe();
+    const handleLocalRefresh = (event: Event) => {
+      const detail = event instanceof MessageEvent
+        ? event.data
+        : event instanceof CustomEvent
+          ? event.detail
+          : null;
+      if (detail?.companyId && detail.companyId !== company.id) return;
+      scheduleRefresh();
+    };
+    const broadcastChannel = 'BroadcastChannel' in window
+      ? new BroadcastChannel(STORE_CATALOG_REFRESH_CHANNEL)
+      : null;
+    broadcastChannel?.addEventListener('message', handleLocalRefresh);
+    window.addEventListener(STORE_CATALOG_REFRESH_EVENT, handleLocalRefresh);
     const fallbackInterval = window.setInterval(scheduleRefresh, 60000);
 
     return () => {
       if (refreshTimeout) window.clearTimeout(refreshTimeout);
       window.clearInterval(fallbackInterval);
+      broadcastChannel?.removeEventListener('message', handleLocalRefresh);
+      broadcastChannel?.close();
+      window.removeEventListener(STORE_CATALOG_REFRESH_EVENT, handleLocalRefresh);
       publicSupabase.removeChannel(channel);
     };
   }, [company?.id, refreshStoreCatalog]);
