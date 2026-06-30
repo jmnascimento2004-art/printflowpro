@@ -182,6 +182,157 @@ type ConfiguratorInterfaceField = {
 
 type ProductRegistrationType = 'simple_unit' | 'measured' | 'tiered' | 'service' | 'custom_project';
 
+type ProductCategoryLookup = Pick<{ id: string; name: string }, 'id' | 'name'>;
+
+const normalizeProductLookupText = (value: unknown) => String(value ?? '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .trim();
+
+const tieredPrintKeywords = [
+  'panfleto',
+  'panfletos',
+  'folder',
+  'folders',
+  'cartao de visita',
+  'cartoes de visita',
+  'talao',
+  'taloes',
+  'tag',
+  'tags',
+  'bloco',
+  'blocos',
+  'calendario',
+  'calendarios',
+  'flyer',
+  'flyers',
+  'postal',
+  'postais',
+  'convite',
+  'convites',
+  'impresso',
+  'impressos',
+  'papelaria grafica'
+];
+
+const parseMaybeArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const hasArrayEntries = (value: unknown) => parseMaybeArray(value).length > 0;
+
+const hasTieredPricingEvidence = (product: Product) => {
+  const productRecord = product as Product & Record<string, unknown>;
+  const details = product.pricing_details as Record<string, unknown> | undefined;
+  const configurator = details?.configurator_options as Record<string, unknown> | undefined;
+  const directSaleModel = normalizeProductLookupText([
+    product.pricing_type,
+    productRecord.sale_model,
+    productRecord.saleModel,
+    productRecord.product_type,
+    productRecord.productType,
+    productRecord.type
+  ].join(' '));
+
+  if (getNormalizedVariantPricingMatrix(product).some((row) => row.tiers.length > 0)) return true;
+  if (getNormalizedVolumePricing(product).length > 0) return true;
+  if (/(volume|tiered|tiragem|lote|quantity|quantidade|atacado|matrix|matriz|variant_matrix)/.test(directSaleModel)) return true;
+
+  return [
+    product.volume_pricing,
+    configurator?.variant_pricing_matrix,
+    configurator?.pricing_matrix,
+    configurator?.configuration_matrix,
+    configurator?.matrix,
+    configurator?.matrix_combinations,
+    configurator?.combinations,
+    configurator?.tiers,
+    configurator?.quantity_tiers,
+    configurator?.volume_pricing,
+    details?.variant_pricing_matrix,
+    details?.pricing_matrix,
+    details?.configuration_matrix,
+    details?.matrix,
+    details?.matrix_combinations,
+    details?.combinations,
+    details?.tiers,
+    details?.quantity_tiers,
+    details?.volume_pricing
+  ].some(hasArrayEntries);
+};
+
+const hasTieredPrintCategoryOrName = (
+  product: Product,
+  categories: ProductCategoryLookup[]
+) => {
+  const categoryName = categories.find((category) => category.id === product.category_id)?.name || '';
+  const lookup = normalizeProductLookupText([
+    product.name,
+    product.sku,
+    categoryName
+  ].join(' '));
+
+  return tieredPrintKeywords.some((keyword) => lookup.includes(keyword));
+};
+
+const detectProductRegistrationPath = (
+  product: Product,
+  categories: ProductCategoryLookup[]
+): { registrationType: ProductRegistrationType; saleMode: ProductSaleModeDraft } => {
+  const configurator = product.pricing_details?.configurator_options as {
+    registration_type?: ProductRegistrationType;
+    sale_mode?: ProductSaleModeDraft;
+    max_width?: number;
+  } | undefined;
+  const configuredSaleMode = configurator?.sale_mode === 'linear' && configurator?.max_width
+    ? 'linear_width'
+    : configurator?.sale_mode;
+
+  if (hasTieredPricingEvidence(product) || hasTieredPrintCategoryOrName(product, categories)) {
+    return { registrationType: 'tiered', saleMode: 'volume' };
+  }
+
+  if (configurator?.registration_type) {
+    return {
+      registrationType: configurator.registration_type,
+      saleMode: configuredSaleMode || product.pricing_type
+    };
+  }
+
+  if (configuredSaleMode) {
+    if (configuredSaleMode === 'm2' || configuredSaleMode === 'linear_width' || configuredSaleMode === 'linear' || configuredSaleMode === 'width_height') {
+      return { registrationType: 'measured', saleMode: configuredSaleMode };
+    }
+    if (configuredSaleMode === 'custom') {
+      return { registrationType: product.stock_controlled === false ? 'service' : 'custom_project', saleMode: configuredSaleMode };
+    }
+    if (configuredSaleMode === 'size_grid') {
+      return { registrationType: 'simple_unit', saleMode: configuredSaleMode };
+    }
+    return { registrationType: 'simple_unit', saleMode: configuredSaleMode };
+  }
+
+  if (product.pricing_type === 'm2' || product.pricing_type === 'linear') {
+    return { registrationType: 'measured', saleMode: product.pricing_type };
+  }
+
+  if (product.variant_options?.length || product.color_options?.length) {
+    return { registrationType: 'simple_unit', saleMode: 'size_grid' };
+  }
+
+  return { registrationType: 'simple_unit', saleMode: product.pricing_type };
+};
+
 const registrationTypeCards: Array<{
   value: ProductRegistrationType;
   title: string;
@@ -1293,11 +1444,11 @@ export default function ProductsCRUDPage() {
     setVariantOptions(prod.variant_options || []);
     setColorOptions(prod.color_options || []);
     const configurator = prod.pricing_details?.configurator_options;
-    const nextSaleMode = configurator?.sale_mode === 'unidade' && (prod.volume_pricing?.length || 0) > 0
-      ? 'volume'
-      : configurator?.sale_mode || ((prod.volume_pricing?.length || 0) > 0 ? 'volume' : prod.pricing_type);
+    const detectedProductPath = detectProductRegistrationPath(prod, categories);
+    const nextSaleMode = detectedProductPath.saleMode;
     setSaleMode(nextSaleMode);
-    setRegistrationType(getRegistrationTypeForSaleMode(nextSaleMode, prod));
+    setPricingType(getPricingTypeForSaleMode(nextSaleMode));
+    setRegistrationType(detectedProductPath.registrationType);
     setIsAdvancedPricingOpen(false);
     setIsConfiguratorOpen(false);
     setAllowCustomMeasure(configurator?.allow_custom_measure !== false);
@@ -1314,7 +1465,10 @@ export default function ProductsCRUDPage() {
     setQuoteOnRequest(configurator?.quote_on_request || false);
     setCustomerMessage(configurator?.customer_message || '');
     setOptionGroups(configurator?.option_groups || []);
-    setVariantPricingMatrix(normalizeVariantMatrixRows(configurator?.variant_pricing_matrix || []));
+    const savedPricingMatrix = configurator?.variant_pricing_matrix ||
+      ((prod.pricing_details as Record<string, unknown> | undefined)?.variant_pricing_matrix as VariantPricingMatrixRow[] | undefined) ||
+      [];
+    setVariantPricingMatrix(normalizeVariantMatrixRows(savedPricingMatrix));
     setMatrixMaterial('');
     setMatrixSize('');
     setMatrixColors('');
@@ -1374,14 +1528,17 @@ export default function ProductsCRUDPage() {
     if (!name.trim()) return;
     const usesRequiredVolumePricing = saleMode === 'volume';
     const productVolumePricing = volumePricing.length > 0 ? volumePricing : undefined;
+    const hasMatrixPricingRows = normalizeVariantMatrixRows(variantPricingMatrix)
+      .some((row) => row.tiers.length > 0);
     const cleanDeliveryTime = deliveryTime.trim();
 
-    if (usesRequiredVolumePricing && volumePricing.length === 0) {
-      alert('Adicione pelo menos uma opcao de quantidade para produtos vendidos por quantidade/lote.');
+    if (usesRequiredVolumePricing && volumePricing.length === 0 && !hasMatrixPricingRows) {
+      alert('Adicione pelo menos uma opção de quantidade ou uma combinação na Matriz Inteligente para produtos vendidos por quantidade/lote.');
       return;
     }
     const cleanDescription = sanitizeRichTextHtml(description);
     const configuratorOptions = buildConfiguratorOptions();
+    const normalizedMatrixRows = configuratorOptions.variant_pricing_matrix;
     const normalizedGallery = prepareProductGallery(galleryImages, name.trim() || 'Produto');
     const primaryImageUrl = normalizedGallery.find((image) => image.is_primary)?.url || normalizedGallery[0]?.url || '';
     const pricingDetails = {
@@ -1395,6 +1552,7 @@ export default function ProductsCRUDPage() {
       calculated_price: salesPrice,
       delivery_time: cleanDeliveryTime || undefined,
       configurator_options: configuratorOptions,
+      variant_pricing_matrix: normalizedMatrixRows.length > 0 ? normalizedMatrixRows : undefined,
       gallery_images: normalizedGallery.length > 0 ? normalizedGallery : undefined
     };
 
@@ -1467,6 +1625,9 @@ export default function ProductsCRUDPage() {
   };
 
   const getProductSaleMode = (product: Product): ProductSaleModeDraft => {
+    const detectedPath = detectProductRegistrationPath(product, categories);
+    if (detectedPath.registrationType === 'tiered') return 'volume';
+
     const configuredMode = product.pricing_details?.configurator_options?.sale_mode;
     if (configuredMode === 'linear' && product.pricing_details?.configurator_options?.max_width) return 'linear_width';
     if (configuredMode) return configuredMode;
