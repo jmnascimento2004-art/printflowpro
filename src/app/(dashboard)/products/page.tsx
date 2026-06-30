@@ -22,7 +22,7 @@ import {
   Eraser
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
-import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductGalleryImage, ProductSaleMode, VariantPricingMatrixRow } from '@/lib/dummy-data';
+import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductGalleryImage, ProductSaleMode, VariantPricingMatrixRow, VolumePriceTier } from '@/lib/dummy-data';
 import {
   formatCurrencyInput,
   parseCurrencyInputToNumber,
@@ -374,6 +374,7 @@ type MatrixTierDraft = {
   quantity: string;
   unitPrice: string;
   totalPrice: string;
+  productionTime: string;
 };
 
 type MatrixRowDraft = {
@@ -469,9 +470,10 @@ export default function ProductsCRUDPage() {
   // Advanced States
   const [imageUrl, setImageUrl] = useState('');
   const [galleryImages, setGalleryImages] = useState<ProductGalleryImage[]>([]);
-  const [volumePricing, setVolumePricing] = useState<Array<{ min_qty: number, price: number }>>([]);
+  const [volumePricing, setVolumePricing] = useState<VolumePriceTier[]>([]);
   const [tempMinQty, setTempMinQty] = useState('');
   const [tempUnitPriceInput, setTempUnitPriceInput] = useState('');
+  const [tempProductionTime, setTempProductionTime] = useState('');
   const [variantOptions, setVariantOptions] = useState<Array<{ name: string }>>([]);
   const [colorOptions, setColorOptions] = useState<Array<{ name: string, hex?: string }>>([]);
   const [tempVariantName, setTempVariantName] = useState('');
@@ -502,6 +504,12 @@ export default function ProductsCRUDPage() {
   const [matrixFinishing, setMatrixFinishing] = useState('');
   const [matrixQuantity, setMatrixQuantity] = useState('');
   const [matrixUnitPriceInput, setMatrixUnitPriceInput] = useState('');
+  const [matrixProductionTime, setMatrixProductionTime] = useState('');
+  const [matrixFilterQuantity, setMatrixFilterQuantity] = useState('');
+  const [matrixFilterMaterial, setMatrixFilterMaterial] = useState('');
+  const [matrixFilterSize, setMatrixFilterSize] = useState('');
+  const [matrixFilterColors, setMatrixFilterColors] = useState('');
+  const [matrixFilterFinishing, setMatrixFilterFinishing] = useState('');
   const [editingMatrixRowId, setEditingMatrixRowId] = useState<string | null>(null);
   const [matrixEditDraft, setMatrixEditDraft] = useState<MatrixRowDraft | null>(null);
 
@@ -588,7 +596,8 @@ export default function ProductsCRUDPage() {
         draftId: `${row.id}-tier-${tier.quantity}-${index}`,
         quantity: String(tier.quantity || ''),
         unitPrice: formatDecimalDraft(tier.unit_price),
-        totalPrice: formatDecimalDraft(tier.total_price || Math.round(tier.quantity * tier.unit_price * 100) / 100)
+        totalPrice: formatDecimalDraft(tier.total_price || Math.round(tier.quantity * tier.unit_price * 100) / 100),
+        productionTime: tier.production_time || ''
       }))
   });
 
@@ -659,7 +668,8 @@ export default function ProductsCRUDPage() {
       const tier = {
         quantity,
         unit_price: unitPrice,
-        total_price: matrixCalculatedTotal
+        total_price: matrixCalculatedTotal,
+        production_time: matrixProductionTime.trim() || undefined
       };
 
       if (existingRow) {
@@ -676,6 +686,7 @@ export default function ProductsCRUDPage() {
         ...current,
         {
           id: `matrix-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          active: true,
           position: current.length,
           sort_order: current.length,
           material,
@@ -688,6 +699,29 @@ export default function ProductsCRUDPage() {
     });
     setMatrixQuantity('');
     setMatrixUnitPriceInput('');
+    setMatrixProductionTime('');
+  };
+
+  const duplicateVariantMatrixRow = (row: VariantPricingMatrixRow) => {
+    setVariantPricingMatrix((current) => reindexVariantMatrixRows([
+      ...current,
+      {
+        ...row,
+        id: `matrix-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        active: row.active !== false,
+        position: current.length,
+        sort_order: current.length,
+        tiers: row.tiers.map((tier) => ({ ...tier }))
+      }
+    ]));
+  };
+
+  const toggleVariantMatrixRowActive = (rowId: string) => {
+    setVariantPricingMatrix((current) => reindexVariantMatrixRows(current.map((row) => (
+      row.id === rowId
+        ? { ...row, active: row.active === false }
+        : row
+    ))));
   };
 
   const removeVariantMatrixRow = (rowId: string) => {
@@ -734,12 +768,16 @@ export default function ProductsCRUDPage() {
     setMatrixEditDraft((current) => current ? { ...current, [field]: value } : current);
   };
 
-  const updateMatrixEditTier = (tierIndex: number, field: 'quantity' | 'unitPrice' | 'totalPrice', value: string) => {
+  const updateMatrixEditTier = (tierIndex: number, field: 'quantity' | 'unitPrice' | 'totalPrice' | 'productionTime', value: string) => {
     setMatrixEditDraft((current) => {
       if (!current) return current;
 
       const tiers = current.tiers.map((tier, index) => {
         if (index !== tierIndex) return tier;
+
+        if (field === 'productionTime') {
+          return { ...tier, productionTime: value };
+        }
 
         if (field === 'quantity') {
           const quantity = value.replace(/\D/g, '');
@@ -782,7 +820,8 @@ export default function ProductsCRUDPage() {
           draftId: `draft-tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           quantity: '',
           unitPrice: '',
-          totalPrice: ''
+          totalPrice: '',
+          productionTime: ''
         }
       ]
     } : current);
@@ -839,7 +878,8 @@ export default function ProductsCRUDPage() {
       return {
         quantity,
         unit_price: effectiveUnitPrice,
-        total_price: effectiveTotal
+        total_price: effectiveTotal,
+        production_time: tier.productionTime.trim() || undefined
       };
     });
 
@@ -980,11 +1020,12 @@ export default function ProductsCRUDPage() {
       return;
     }
 
-    const updated = [...volumePricing, { min_qty: qty, price: unitPrice }]
+    const updated = [...volumePricing, { min_qty: qty, price: unitPrice, production_time: tempProductionTime.trim() || undefined }]
       .sort((a, b) => a.min_qty - b.min_qty);
     setVolumePricing(updated);
     setTempMinQty('');
     setTempUnitPriceInput('');
+    setTempProductionTime('');
   };
 
   const removeVolumeTier = (qty: number) => {
@@ -1146,7 +1187,8 @@ export default function ProductsCRUDPage() {
           .map((tier) => ({
             quantity: tier.quantity,
             unit_price: tier.unit_price,
-            total_price: tier.total_price || Math.round(tier.quantity * tier.unit_price * 100) / 100
+            total_price: tier.total_price || Math.round(tier.quantity * tier.unit_price * 100) / 100,
+            production_time: tier.production_time?.trim() || undefined
           }))
           .sort((a, b) => a.quantity - b.quantity)
       }))
@@ -1506,7 +1548,8 @@ export default function ProductsCRUDPage() {
     .map((tier) => ({
       min_qty: tier.min_qty,
       price: tier.price,
-      total: Math.round(tier.min_qty * tier.price * 100) / 100
+      total: Math.round(tier.min_qty * tier.price * 100) / 100,
+      production_time: tier.production_time
     }))
     .filter((tier) => tier.min_qty > 0 && tier.price >= 0)
     .sort((a, b) => a.min_qty - b.min_qty);
@@ -1518,16 +1561,44 @@ export default function ProductsCRUDPage() {
   const isCustomProjectRegistration = registrationType === 'custom_project';
   const shouldShowSaleModelSection = !isServiceRegistration && !isCustomProjectRegistration;
   const shouldShowStockSection = isSimpleRegistration || isMeasuredRegistration || isTieredRegistration;
-  const shouldShowConfiguratorSection = isConfiguratorOpen;
-  const shouldShowVolumePricingSection = isTieredRegistration || saleMode === 'volume';
-  const shouldShowAdvancedConfiguratorTools = isConfiguratorOpen;
+  const isMatrixSaleMode = saleMode === 'size_grid';
+  const hasConfigurableOptionGroups = optionGroups.some((group) => (
+    group.name.trim() || group.options.some((option) => option.name.trim())
+  ));
+  const hasCatalogVariationChoices = (
+    variantOptions.some((option) => option.name.trim()) ||
+    colorOptions.some((option) => option.name.trim())
+  );
+  const hasActivePricingMatrix = variantPricingMatrix.some((row) => (
+    row.active !== false && row.tiers.length > 0
+  ));
+  const hasConfigurablePricingOptions = (
+    isMatrixSaleMode ||
+    hasConfigurableOptionGroups ||
+    hasCatalogVariationChoices ||
+    hasActivePricingMatrix
+  );
+  const isSimpleQuantityMode = saleMode === 'volume';
+  const shouldUseMatrixPricingSection = isMatrixSaleMode || (isSimpleQuantityMode && hasConfigurablePricingOptions);
+  const shouldShowConfiguratorSection = isConfiguratorOpen || shouldUseMatrixPricingSection;
+  const shouldShowVolumePricingSection = isSimpleQuantityMode && !hasConfigurablePricingOptions;
+  const shouldShowMatrixPricingSection = shouldUseMatrixPricingSection;
+  const shouldShowSimpleVolumeInterfaceFields = isSimpleQuantityMode && !hasConfigurablePricingOptions;
+  const shouldShowAdvancedConfiguratorTools = isConfiguratorOpen || shouldUseMatrixPricingSection;
+  const saleModeGuidanceMode: ProductSaleModeDraft = shouldUseMatrixPricingSection ? 'size_grid' : saleMode;
+  const shouldHideCatalogOptionsForTieredProduct = isTieredRegistration && shouldUseMatrixPricingSection;
+  const shouldShowCatalogOptionsSection = shouldShowConfiguratorSection && !shouldHideCatalogOptionsForTieredProduct;
+  const pricingSectionNumber = shouldShowCatalogOptionsSection ? 4 : 3;
+  const catalogSectionNumber = pricingSectionNumber + 1;
+  const mediaSectionNumber = catalogSectionNumber + 1;
+  const stockSectionNumber = mediaSectionNumber + 1;
   const visibleSaleModeOptions = saleModeOptions.filter((option) => {
     if (isSimpleRegistration) return ['unidade', 'pacote', 'kit'].includes(option.value);
     if (isMeasuredRegistration) return ['m2', 'linear_width', 'linear', 'width_height'].includes(option.value);
     if (isTieredRegistration) return ['volume', 'size_grid'].includes(option.value);
     return ['custom', 'unidade'].includes(option.value);
   });
-  const firstMatrixPreviewRow = variantPricingMatrix.find((row) => row.tiers.length > 0);
+  const firstMatrixPreviewRow = variantPricingMatrix.find((row) => row.active !== false && row.tiers.length > 0);
   const firstMatrixPreviewTier = firstMatrixPreviewRow
     ? [...firstMatrixPreviewRow.tiers].sort((a, b) => a.quantity - b.quantity)[0]
     : undefined;
@@ -1539,6 +1610,24 @@ export default function ProductsCRUDPage() {
         matrixLabel: [firstMatrixPreviewRow?.material, firstMatrixPreviewRow?.size, firstMatrixPreviewRow?.colors, firstMatrixPreviewRow?.finishing].filter(Boolean).join(' | ')
       }
     : initialVolumeTier;
+  const activeMatrixRows = variantPricingMatrix.filter((row) => row.active !== false && row.tiers.length > 0);
+  const matrixFinalTotals = activeMatrixRows.flatMap((row) => row.tiers.map((tier) => tier.total_price || tier.quantity * tier.unit_price));
+  const matrixMinTotal = matrixFinalTotals.length > 0 ? Math.min(...matrixFinalTotals) : 0;
+  const matrixFilterValues = {
+    quantities: Array.from(new Set(variantPricingMatrix.flatMap((row) => row.tiers.map((tier) => String(tier.quantity))))).filter(Boolean).sort((a, b) => Number(a) - Number(b)),
+    materials: Array.from(new Set(variantPricingMatrix.map((row) => row.material).filter(Boolean))).sort(),
+    sizes: Array.from(new Set(variantPricingMatrix.map((row) => row.size).filter(Boolean))).sort(),
+    colors: Array.from(new Set(variantPricingMatrix.map((row) => row.colors).filter(Boolean))).sort(),
+    finishings: Array.from(new Set(variantPricingMatrix.map((row) => row.finishing).filter(Boolean))).sort()
+  };
+  const filteredVariantPricingMatrix = normalizeVariantMatrixRows(variantPricingMatrix).filter((row) => {
+    const quantityMatches = !matrixFilterQuantity || row.tiers.some((tier) => String(tier.quantity) === matrixFilterQuantity);
+    return quantityMatches &&
+      (!matrixFilterMaterial || normalizeCombinationKey(row.material) === normalizeCombinationKey(matrixFilterMaterial)) &&
+      (!matrixFilterSize || normalizeCombinationKey(row.size) === normalizeCombinationKey(matrixFilterSize)) &&
+      (!matrixFilterColors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(matrixFilterColors)) &&
+      (!matrixFilterFinishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(matrixFilterFinishing));
+  });
   const selectedCategoryName = categories.find((category) => category.id === categoryId)?.name || 'Sem categoria';
   const normalizedCategoryName = selectedCategoryName.toLowerCase();
   const categoryGuidance = normalizedCategoryName.includes('serralharia')
@@ -2589,7 +2678,7 @@ export default function ProductsCRUDPage() {
                     <label className="text-xs font-semibold text-muted-foreground">Como este produto será vendido?</label>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {visibleSaleModeOptions.map((option) => {
-                        const selected = saleMode === option.value;
+                        const selected = saleModeGuidanceMode === option.value;
                         return (
                           <button
                             key={option.value}
@@ -2609,13 +2698,13 @@ export default function ProductsCRUDPage() {
                     </div>
                     <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-[11px] leading-relaxed">
                       <span className="block text-xs font-black text-foreground">
-                        {saleModeOperatorGuidance[saleMode].title}
+                        {saleModeOperatorGuidance[saleModeGuidanceMode].title}
                       </span>
                       <span className="mt-1 block text-muted-foreground">
-                        {saleModeOperatorGuidance[saleMode].impact}
+                        {saleModeOperatorGuidance[saleModeGuidanceMode].impact}
                       </span>
                       <span className="mt-1 block font-semibold text-primary">
-                        {saleModeOperatorGuidance[saleMode].catalog}
+                        {saleModeOperatorGuidance[saleModeGuidanceMode].catalog}
                       </span>
                     </div>
                   </div>
@@ -2634,7 +2723,7 @@ export default function ProductsCRUDPage() {
                       </div>
                     )}
 
-                    {saleMode === 'volume' && (
+                    {shouldShowVolumePricingSection && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
                         <div className="rounded-lg bg-white border border-emerald-500/20 p-3">
                           <span className="font-bold text-foreground block">Tabela de tiragens obrigatoria</span>
@@ -2747,8 +2836,11 @@ export default function ProductsCRUDPage() {
                       </div>
                     )}
 
-                    {saleMode === 'size_grid' && (
+                    {shouldUseMatrixPricingSection && (
                       <div className="space-y-3">
+                        <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-[11px] font-semibold leading-relaxed text-muted-foreground">
+                          Neste modo, as opções abaixo apenas definem o que o cliente poderá escolher. O preço final fica na Matriz Inteligente de Preços.
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                           {sizeOptions.map((option, index) => (
                             <div key={`${option.name}-${index}`} className="rounded-lg border border-border bg-white p-2 space-y-2">
@@ -2759,7 +2851,9 @@ export default function ProductsCRUDPage() {
                                   Padrão
                                 </label>
                               </div>
-                              <input type="text" value={formatCurrencyInput(option.price_delta)} onChange={(e) => updateSizeOption(index, { price_delta: parseCurrencyInputToNumber(e.target.value) })} className="w-full px-2 py-1.5 rounded border border-border bg-secondary/30 text-[11px] font-bold text-foreground" />
+                              <span className="block rounded border border-dashed border-border bg-secondary/20 px-2 py-1.5 text-[10px] font-semibold text-muted-foreground">
+                                Sem preço aqui. Cadastre o valor final na matriz.
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -2873,7 +2967,7 @@ export default function ProductsCRUDPage() {
 
               <section className="order-5 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
                 <div className="border-b border-border/60 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wide text-primary">5. Catálogo Online</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">{catalogSectionNumber}. Catálogo Online</span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                     Controle como este produto aparece para o cliente no catálogo.
                   </p>
@@ -2975,7 +3069,7 @@ export default function ProductsCRUDPage() {
 
               <details className="order-6 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
                 <summary className="cursor-pointer list-none border-b border-border/60 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wide text-primary">6. Imagem e descrição completa</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">{mediaSectionNumber}. Imagem e descrição completa</span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                     Opcional: imagem, prévia visual e detalhes completos para produção e apresentação.
                   </p>
@@ -3061,15 +3155,23 @@ export default function ProductsCRUDPage() {
               </div>
               </details>
 
-              <section className="order-4 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
+              <section className={`order-4 rounded-2xl border bg-white p-4 shadow-sm space-y-4 ${
+                shouldShowMatrixPricingSection ? 'border-sky-500/30 ring-2 ring-sky-500/10' : 'border-border'
+              }`}>
                 <div className="border-b border-border/60 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wide text-primary">4. Precificação</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">
+                    {pricingSectionNumber}. {shouldShowMatrixPricingSection ? 'Matriz Inteligente de Preços' : 'Precificação'}
+                  </span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                    Custos, preço de venda, margens e regras de preço por quantidade.
+                    {shouldShowMatrixPricingSection
+                      ? 'Cadastre o preço final e o prazo de cada combinação vendável. O valor informado aqui será exatamente o valor exibido no catálogo.'
+                      : 'Custos, preço de venda, margens e regras de preço por quantidade.'}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {!shouldShowMatrixPricingSection && (
+              <>
               {/* Cost Price */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Custo de Matéria-Prima / Aquisição (R$)</label>
@@ -3157,6 +3259,8 @@ export default function ProductsCRUDPage() {
                   </div>
                 </div>
               </details>
+              </>
+              )}
 
               {/* Volume pricing tiers */}
               {shouldShowVolumePricingSection && (
@@ -3168,7 +3272,7 @@ export default function ProductsCRUDPage() {
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end bg-secondary/15 p-3 rounded-xl border border-border">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end bg-secondary/15 p-3 rounded-xl border border-border">
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase">Quantidade</label>
                     <input
@@ -3203,6 +3307,17 @@ export default function ProductsCRUDPage() {
                       )}
                     </div>
                   </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground uppercase">Prazo de produção desta quantidade</label>
+                    <input
+                      type="text"
+                      value={tempProductionTime}
+                      onChange={(e) => setTempProductionTime(e.target.value)}
+                      placeholder="Ex: 5 dias úteis"
+                      className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
+                    />
+                  </div>
                   
                   <button
                     type="button"
@@ -3212,6 +3327,9 @@ export default function ProductsCRUDPage() {
                     + Adicionar
                   </button>
                 </div>
+                <p className="text-[10px] font-semibold leading-relaxed text-muted-foreground">
+                  Este prazo será exibido no catálogo quando o cliente selecionar esta quantidade. Em produtos com matriz de preços, o prazo da matriz terá prioridade.
+                </p>
 
                 {normalizedVolumePricingPreview.length > 0 && (
                   <div className="space-y-2">
@@ -3220,7 +3338,7 @@ export default function ProductsCRUDPage() {
                         {normalizedVolumePricingPreview.length} faixa(s) cadastrada(s)
                       </span>
                       <span className="text-[10px] font-semibold text-muted-foreground">
-                        Quantidade · unitário · total
+                        Quantidade · unitário · total · prazo
                       </span>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -3233,6 +3351,9 @@ export default function ProductsCRUDPage() {
                                 <span className="block text-xs font-black text-foreground">A partir de {formattedTier.quantity}</span>
                                 <span className="mt-1 block text-[11px] font-bold text-primary">{formattedTier.unit}</span>
                                 <span className="mt-0.5 block text-[10px] font-semibold text-muted-foreground">{formattedTier.total}</span>
+                                <span className="mt-1 inline-flex rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-700">
+                                  Prazo: {tier.production_time || 'Prazo sob consulta'}
+                                </span>
                               </div>
                               <button
                                 type="button"
@@ -3252,13 +3373,29 @@ export default function ProductsCRUDPage() {
               </div>
               )}
 
-              {shouldShowVolumePricingSection && (
-                <div className="md:col-span-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 space-y-3">
+              {shouldShowMatrixPricingSection && (
+                <div className="md:col-span-2 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4 space-y-4 shadow-sm">
                   <div>
-                    <span className="font-bold text-xs text-foreground block">Matriz de Preços por Configuração</span>
-                    <span className="text-[9px] text-muted-foreground mt-0.5 block">
-                      Use quando material, tamanho, cores ou acabamento mudam o preço final. A tabela global acima continua como fallback para produtos simples.
+                    <span className="font-black text-sm text-foreground block">Matriz Inteligente de Preços</span>
+                    <span className="text-[11px] text-muted-foreground mt-1 block leading-relaxed">
+                      {isTieredRegistration
+                        ? 'Para produtos por tiragem, as opções exibidas no catálogo são geradas pela matriz de preços: material, tamanho, cores, acabamento, quantidade, prazo e valor.'
+                        : 'Cadastre o preço final e o prazo de cada combinação vendável. O valor informado aqui será exatamente o valor exibido no catálogo.'}
                     </span>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-xl border border-sky-500/20 bg-white px-3 py-2">
+                        <span className="block text-[9px] font-black uppercase text-muted-foreground">Combinações ativas</span>
+                        <span className="mt-1 block text-lg font-black text-sky-700">{activeMatrixRows.length}</span>
+                      </div>
+                      <div className="rounded-xl border border-sky-500/20 bg-white px-3 py-2">
+                        <span className="block text-[9px] font-black uppercase text-muted-foreground">Faixas cadastradas</span>
+                        <span className="mt-1 block text-lg font-black text-sky-700">{activeMatrixRows.reduce((sum, row) => sum + row.tiers.length, 0)}</span>
+                      </div>
+                      <div className="rounded-xl border border-sky-500/20 bg-white px-3 py-2">
+                        <span className="block text-[9px] font-black uppercase text-muted-foreground">Preço a partir de</span>
+                        <span className="mt-1 block text-lg font-black text-sky-700">{matrixMinTotal > 0 ? formatCurrency(matrixMinTotal) : 'Não definido'}</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-background/80 p-3 rounded-xl border border-border">
@@ -3304,7 +3441,7 @@ export default function ProductsCRUDPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end bg-secondary/15 p-3 rounded-xl border border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end bg-secondary/15 p-3 rounded-xl border border-border">
                     <div className="space-y-1">
                       <label className="text-[10px] font-semibold text-muted-foreground uppercase">Quantidade</label>
                       <input
@@ -3337,32 +3474,80 @@ export default function ProductsCRUDPage() {
                         )}
                       </div>
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground uppercase">Prazo da configuração</label>
+                      <input
+                        type="text"
+                        value={matrixProductionTime}
+                        onChange={(e) => setMatrixProductionTime(e.target.value)}
+                        placeholder="Ex: 5 dias úteis"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={addVariantMatrixTier}
                       className="py-2 px-3 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all h-8 flex items-center justify-center w-full"
                     >
-                      + Adicionar faixa
+                      + Adicionar linha
                     </button>
                   </div>
+                  <p className="text-[10px] font-semibold leading-relaxed text-muted-foreground">
+                    Quando preenchido, este prazo substitui o prazo da tiragem para esta combinação específica.
+                  </p>
 
                   {variantPricingMatrix.length > 0 && (
-                    <div className="space-y-2">
-                      {variantPricingMatrix.map((row, rowIndex) => (
-                        <div key={row.id} className="rounded-xl border border-border bg-white p-3 text-[11px]">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
+                    <div className="rounded-2xl border border-sky-500/20 bg-white p-4 shadow-sm">
+                      <div className="mb-3 flex flex-col gap-1">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-sky-700">Filtros rápidos da matriz</span>
+                        <span className="text-[10px] font-semibold text-muted-foreground">Use para revisar combinações por tiragem, material, tamanho, cores e acabamento.</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <select value={matrixFilterQuantity} onChange={(e) => setMatrixFilterQuantity(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                          <option value="">Todas as quantidades</option>
+                          {matrixFilterValues.quantities.map((quantity) => <option key={quantity} value={quantity}>{quantity} un</option>)}
+                        </select>
+                        <select value={matrixFilterMaterial} onChange={(e) => setMatrixFilterMaterial(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                          <option value="">Todos os materiais</option>
+                          {matrixFilterValues.materials.map((material) => <option key={material} value={material}>{material}</option>)}
+                        </select>
+                        <select value={matrixFilterSize} onChange={(e) => setMatrixFilterSize(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                          <option value="">Todos os tamanhos</option>
+                          {matrixFilterValues.sizes.map((size) => <option key={size} value={size}>{size}</option>)}
+                        </select>
+                        <select value={matrixFilterColors} onChange={(e) => setMatrixFilterColors(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                          <option value="">Todas as cores</option>
+                          {matrixFilterValues.colors.map((colors) => <option key={colors} value={colors}>{colors}</option>)}
+                        </select>
+                        <select value={matrixFilterFinishing} onChange={(e) => setMatrixFilterFinishing(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                          <option value="">Todos os acabamentos</option>
+                          {matrixFilterValues.finishings.map((finishing) => <option key={finishing} value={finishing}>{finishing}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {variantPricingMatrix.length > 0 && (
+                    <div className="space-y-3">
+                      {filteredVariantPricingMatrix.map((row, rowIndex) => (
+                        <div key={row.id} className={`rounded-2xl border p-4 text-[11px] shadow-sm ${
+                          row.active === false ? 'border-amber-500/25 bg-amber-50/70 opacity-80' : 'border-border bg-white'
+                        }`}>
+                          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="min-w-0 flex-1">
                               <span className="mb-1 inline-flex rounded-full bg-sky-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-sky-700">
                                 Ordem {rowIndex + 1}
                               </span>
-                              <p className="font-black text-foreground">
+                              <p className="mt-1 break-words text-sm font-black leading-snug text-foreground">
                                 {row.material} | {row.size} | {row.colors} | {row.finishing}
                               </p>
                               <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
-                                Esta combinação aparecerá no catálogo com as faixas abaixo.
+                                {row.active === false
+                                  ? 'Combinação inativa: não aparece no catálogo até ser reativada.'
+                                  : 'Esta combinação aparecerá no catálogo com as faixas abaixo.'}
                               </p>
                             </div>
-                            <div className="flex items-center gap-1.5 self-start">
+                            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                               <button
                                 type="button"
                                 onClick={() => startEditVariantMatrixRow(row)}
@@ -3372,6 +3557,26 @@ export default function ProductsCRUDPage() {
                               >
                                 <Edit3 className="mr-1 inline h-3.5 w-3.5" />
                                 Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => duplicateVariantMatrixRow(row)}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-600 transition hover:border-primary/30 hover:text-primary"
+                                title="Duplicar linha"
+                              >
+                                <Copy className="mr-1 inline h-3.5 w-3.5" />
+                                Duplicar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleVariantMatrixRowActive(row.id)}
+                                className={`rounded-lg border px-2 py-1.5 text-[10px] font-bold transition ${
+                                  row.active === false
+                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20'
+                                    : 'border-amber-500/20 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20'
+                                }`}
+                              >
+                                {row.active === false ? 'Ativar' : 'Inativar'}
                               </button>
                               <button
                                 type="button"
@@ -3394,21 +3599,21 @@ export default function ProductsCRUDPage() {
                                   event.stopPropagation();
                                   moveVariantMatrixRow(row.id, 'down');
                                 }}
-                                disabled={rowIndex === variantPricingMatrix.length - 1}
+                                disabled={rowIndex === filteredVariantPricingMatrix.length - 1}
                                 className="rounded-lg border border-sky-500/20 bg-sky-500/10 p-1.5 text-sky-700 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                                 title="Mover para baixo"
                                 aria-label="Mover combinacao para baixo"
                               >
                                 <ArrowDown className="h-3.5 w-3.5" />
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => removeVariantMatrixRow(row.id)}
+                                className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-2 py-1.5 text-[10px] font-bold text-rose-500"
+                              >
+                                Remover
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removeVariantMatrixRow(row.id)}
-                              className="self-start rounded-lg border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-500"
-                            >
-                              Remover combinação
-                            </button>
                           </div>
                           {editingMatrixRowId === row.id && matrixEditDraft && (
                             <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
@@ -3438,7 +3643,7 @@ export default function ProductsCRUDPage() {
                                   </button>
                                 </div>
                                 {matrixEditDraft.tiers.map((tierDraft, tierIndex) => (
-                                  <div key={tierDraft.draftId} className="grid gap-2 rounded-lg border border-border bg-white p-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+                                  <div key={tierDraft.draftId} className="grid gap-2 rounded-lg border border-border bg-white p-2 md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                                     <div className="space-y-1">
                                       <label className="text-[9px] font-black uppercase text-muted-foreground">Quantidade</label>
                                       <input value={tierDraft.quantity} onChange={(event) => updateMatrixEditTier(tierIndex, 'quantity', event.target.value)} placeholder="Ex: 1000" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
@@ -3450,6 +3655,10 @@ export default function ProductsCRUDPage() {
                                     <div className="space-y-1">
                                       <label className="text-[9px] font-black uppercase text-muted-foreground">Total do lote</label>
                                       <input value={tierDraft.totalPrice} onChange={(event) => updateMatrixEditTier(tierIndex, 'totalPrice', event.target.value)} placeholder="Ex: 167,50" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] font-black uppercase text-muted-foreground">Prazo</label>
+                                      <input value={tierDraft.productionTime} onChange={(event) => updateMatrixEditTier(tierIndex, 'productionTime', event.target.value)} placeholder="Ex: 5 dias úteis" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
                                     </div>
                                     <button type="button" onClick={() => removeMatrixEditTier(tierIndex)} className="self-end rounded-lg border border-rose-500/20 bg-rose-500/10 p-2 text-rose-500" title="Remover faixa">
                                       <Trash2 className="h-3.5 w-3.5" />
@@ -3467,27 +3676,31 @@ export default function ProductsCRUDPage() {
                               </div>
                             </div>
                           )}
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
                             {row.tiers.map((tier) => (
-                              <div key={tier.quantity} className="flex items-start justify-between gap-2 rounded-lg border border-sky-500/15 bg-sky-500/5 px-3 py-2">
-                                <div className="grid min-w-0 flex-1 grid-cols-3 gap-2">
-                                  <div>
+                              <div key={tier.quantity} className="relative rounded-2xl border border-sky-500/15 bg-sky-500/5 p-3 pr-10">
+                                <div className="grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-4">
+                                  <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
                                     <span className="block text-[9px] font-bold uppercase text-muted-foreground">Tiragem</span>
-                                    <span className="block font-black text-foreground">{tier.quantity} un</span>
+                                    <span className="mt-0.5 block whitespace-nowrap font-black text-foreground">{tier.quantity} un</span>
                                   </div>
-                                  <div>
+                                  <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
                                     <span className="block text-[9px] font-bold uppercase text-muted-foreground">Unitário</span>
-                                    <span className="block font-black text-primary">{formatUnitCurrency(tier.unit_price)}/un</span>
+                                    <span className="mt-0.5 block whitespace-nowrap font-black text-primary">{formatUnitCurrency(tier.unit_price)}/un</span>
                                   </div>
-                                  <div>
+                                  <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
                                     <span className="block text-[9px] font-bold uppercase text-muted-foreground">Total</span>
-                                    <span className="block font-black text-foreground">{formatCurrency(tier.total_price || tier.quantity * tier.unit_price)}</span>
+                                    <span className="mt-0.5 block whitespace-nowrap font-black text-foreground">{formatCurrency(tier.total_price || tier.quantity * tier.unit_price)}</span>
+                                  </div>
+                                  <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
+                                    <span className="block text-[9px] font-bold uppercase text-muted-foreground">Prazo</span>
+                                    <span className="mt-0.5 block break-words font-black leading-snug text-emerald-700">{tier.production_time || 'Prazo sob consulta'}</span>
                                   </div>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => removeVariantMatrixTier(row.id, tier.quantity)}
-                                  className="rounded bg-rose-500/10 p-1 text-rose-500"
+                                  className="absolute right-2 top-2 rounded-lg bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20"
                                   title="Excluir faixa"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -3497,6 +3710,11 @@ export default function ProductsCRUDPage() {
                           </div>
                         </div>
                       ))}
+                      {filteredVariantPricingMatrix.length === 0 && (
+                        <div className="rounded-xl border border-dashed border-sky-500/30 bg-white px-4 py-6 text-center text-xs font-bold text-muted-foreground">
+                          Nenhuma combinação encontrada para os filtros selecionados.
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -3504,7 +3722,7 @@ export default function ProductsCRUDPage() {
                 </div>
               </section>
 
-              {(isMeasuredRegistration || isTieredRegistration || saleMode === 'size_grid') && !shouldShowConfiguratorSection && (
+              {(isMeasuredRegistration || saleMode === 'size_grid') && !shouldShowConfiguratorSection && (
                 <button
                   type="button"
                   onClick={() => setIsConfiguratorOpen(true)}
@@ -3514,19 +3732,24 @@ export default function ProductsCRUDPage() {
                 </button>
               )}
 
-              {shouldShowConfiguratorSection && (
+              {shouldShowCatalogOptionsSection && (
               <section className="order-3 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
                 <div className="border-b border-border/60 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wide text-primary">3. Configurador do Produto</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">
+                    3. {shouldUseMatrixPricingSection ? 'Opções disponíveis no catálogo' : 'Configurador do Produto'}
+                  </span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                    Variações, cores e grupos de opções usados para montar o produto no catálogo online.
+                    {shouldUseMatrixPricingSection
+                      ? 'Cadastre aqui somente as escolhas que o cliente poderá selecionar. A matriz define o preço final.'
+                      : 'Variações, cores e grupos de opções usados para montar o produto no catálogo online.'}
                   </p>
                 </div>
 
+                {shouldShowSimpleVolumeInterfaceFields && (
                 <div key={saleMode} className="rounded-xl border border-primary/15 bg-primary/5 p-3 space-y-3">
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-black uppercase tracking-wide text-primary">
-                      Campos exibidos para {saleModeOptions.find((option) => option.value === saleMode)?.label}
+                      Campos exibidos para preço por quantidade / lote simples
                     </span>
                     <span className="text-[11px] leading-relaxed text-muted-foreground">
                       {saleModeDescriptions[saleMode]}
@@ -3577,6 +3800,7 @@ export default function ProductsCRUDPage() {
                     })}
                   </div>
                 </div>
+                )}
 
               {shouldShowAdvancedConfiguratorTools && (
               <>
@@ -3689,6 +3913,11 @@ export default function ProductsCRUDPage() {
                     <span className="text-[9px] text-muted-foreground mt-0.5 block">
                       Prepare materiais, acabamentos, extras, prazos e outras escolhas para o futuro configurador online.
                     </span>
+                    {shouldUseMatrixPricingSection && (
+                      <span className="mt-1 block rounded-lg border border-sky-500/20 bg-sky-500/5 px-2 py-1 text-[10px] font-bold text-sky-700">
+                        No modo matriz, opções não têm acréscimo: elas só montam a combinação. O preço cobrado vem da Matriz Inteligente.
+                      </span>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -3750,7 +3979,9 @@ export default function ProductsCRUDPage() {
 
                         <div className="space-y-2">
                           {group.options.map((option, optionIndex) => (
-                            <div key={optionIndex} className="grid grid-cols-1 md:grid-cols-[1fr_120px_120px_110px_36px] gap-2 items-end rounded-lg bg-white border border-border p-2">
+                            <div key={optionIndex} className={`grid grid-cols-1 gap-2 items-end rounded-lg bg-white border border-border p-2 ${
+                              shouldUseMatrixPricingSection ? 'md:grid-cols-[1fr_120px_110px_36px]' : 'md:grid-cols-[1fr_120px_120px_110px_36px]'
+                            }`}>
                               <input
                                 type="text"
                                 value={option.name}
@@ -3758,13 +3989,16 @@ export default function ProductsCRUDPage() {
                                 placeholder="Nome da opcao"
                                 className="px-3 py-2 bg-secondary/30 border border-border rounded-lg text-xs text-foreground"
                               />
-                              <input
-                                type="text"
-                                value={formatCurrencyInput(option.price_delta)}
-                                onChange={(e) => updateGroupOption(group.id, optionIndex, { price_delta: parseCurrencyInputToNumber(e.target.value) })}
-                                className="px-3 py-2 bg-secondary/30 border border-border rounded-lg text-xs text-foreground font-bold"
-                                title="Acrescimo em R$"
-                              />
+                              {!shouldUseMatrixPricingSection && (
+                                <input
+                                  type="text"
+                                  value={formatCurrencyInput(option.price_delta)}
+                                  onChange={(e) => updateGroupOption(group.id, optionIndex, { price_delta: parseCurrencyInputToNumber(e.target.value) })}
+                                  className="px-3 py-2 bg-secondary/30 border border-border rounded-lg text-xs text-foreground font-bold"
+                                  placeholder="Valor final"
+                                  title={'Quando preenchido, este valor substitui o pre\u00e7o base da tiragem selecionada.'}
+                                />
+                              )}
                               <input
                                 type="number"
                                 min="0"
@@ -3813,7 +4047,7 @@ export default function ProductsCRUDPage() {
               {shouldShowStockSection && (
               <details className="order-7 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
                 <summary className="cursor-pointer list-none border-b border-border/60 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wide text-primary">7. Estoque</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">{stockSectionNumber}. Estoque</span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                     Controle de estoque, alerta mínimo e lançamento inicial quando aplicável.
                   </p>
