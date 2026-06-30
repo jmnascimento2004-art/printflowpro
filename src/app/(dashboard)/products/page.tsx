@@ -736,6 +736,72 @@ export default function ProductsCRUDPage() {
     return Number.isFinite(value) ? String(value).replace('.', ',') : '';
   };
 
+  const parseCurrencyBR = (value: unknown): number => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+    const text = String(value ?? '').trim();
+    if (!text) return 0;
+
+    const clean = text
+      .replace(/R\$/gi, '')
+      .replace(/\s+/g, '')
+      .replace(/[^\d,.-]/g, '');
+    if (!clean || clean === '-' || clean === '.' || clean === ',') return 0;
+
+    let normalized = clean;
+    const hasComma = clean.includes(',');
+    const hasDot = clean.includes('.');
+
+    if (hasComma) {
+      normalized = clean.replace(/\./g, '').replace(',', '.');
+    } else if (hasDot) {
+      const dotParts = clean.split('.');
+      const decimalPart = dotParts[dotParts.length - 1] || '';
+      normalized = dotParts.length > 2 || decimalPart.length === 3
+        ? clean.replace(/\./g, '')
+        : clean;
+    }
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const roundMoneyValue = (value: number) => Math.round(value * 100) / 100;
+  const roundUnitValue = (value: number) => Math.round(value * 10000) / 10000;
+
+  const getEffectiveMatrixTierTotal = (tier: { quantity?: unknown; unit_price?: unknown; price?: unknown; total_price?: unknown; total?: unknown }) => {
+    const quantity = Math.max(0, Math.round(parseCurrencyBR(tier.quantity)));
+    const unitPrice = parseUnitCurrencyInputToNumber(String(tier.unit_price ?? tier.price ?? ''));
+    const explicitTotal = parseCurrencyBR(tier.total_price ?? tier.total);
+
+    if (explicitTotal > 0) return roundMoneyValue(explicitTotal);
+    return quantity > 0 && unitPrice > 0 ? roundMoneyValue(quantity * unitPrice) : 0;
+  };
+
+  const normalizeMatrixTier = (tier: unknown) => {
+    const tierRecord = tier as { quantity?: unknown; min_qty?: unknown; qty?: unknown; unit_price?: unknown; price?: unknown; total_price?: unknown; total?: unknown; production_time?: unknown };
+    const quantity = Math.max(0, Math.round(parseCurrencyBR(tierRecord.quantity ?? tierRecord.min_qty ?? tierRecord.qty)));
+    const explicitTotal = parseCurrencyBR(tierRecord.total_price ?? tierRecord.total);
+    const parsedUnitPrice = parseUnitCurrencyInputToNumber(String(tierRecord.unit_price ?? tierRecord.price ?? ''));
+    const totalPrice = explicitTotal > 0
+      ? roundMoneyValue(explicitTotal)
+      : quantity > 0 && parsedUnitPrice > 0
+        ? roundMoneyValue(quantity * parsedUnitPrice)
+        : 0;
+    const unitPrice = parsedUnitPrice > 0
+      ? parsedUnitPrice
+      : quantity > 0 && totalPrice > 0
+        ? roundUnitValue(totalPrice / quantity)
+        : 0;
+
+    return {
+      quantity,
+      unit_price: unitPrice,
+      total_price: totalPrice,
+      production_time: String(tierRecord.production_time ?? '').trim() || undefined
+    };
+  };
+
   const buildMatrixDraft = (row: VariantPricingMatrixRow): MatrixRowDraft => ({
     material: row.material || '',
     size: row.size || '',
@@ -747,7 +813,7 @@ export default function ProductsCRUDPage() {
         draftId: `${row.id}-tier-${tier.quantity}-${index}`,
         quantity: String(tier.quantity || ''),
         unitPrice: formatDecimalDraft(tier.unit_price),
-        totalPrice: formatDecimalDraft(tier.total_price || Math.round(tier.quantity * tier.unit_price * 100) / 100),
+        totalPrice: formatDecimalDraft(getEffectiveMatrixTierTotal(tier)),
         productionTime: tier.production_time || ''
       }))
   });
@@ -766,11 +832,15 @@ export default function ProductsCRUDPage() {
       .map((row, index) => {
         const savedOrder = row.position ?? row.sort_order;
         const position = Number.isFinite(savedOrder) ? Number(savedOrder) : index;
+        const normalizedTiers = Array.isArray(row.tiers)
+          ? row.tiers.map(normalizeMatrixTier).filter((tier) => tier.quantity > 0)
+          : [];
 
         return {
           ...row,
           position,
-          sort_order: position
+          sort_order: position,
+          tiers: normalizedTiers
         };
       })
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)));
@@ -951,9 +1021,9 @@ export default function ProductsCRUDPage() {
 
         const totalPrice = sanitizeDecimalInput(value, 2);
         const quantity = Number(tier.quantity || 0);
-        const numericTotal = parseCurrencyInputToNumber(totalPrice);
+        const numericTotal = parseCurrencyBR(totalPrice);
         const unitPrice = quantity > 0 && numericTotal > 0
-          ? formatDecimalDraft(Math.round((numericTotal / quantity) * 10000) / 10000)
+          ? formatDecimalDraft(roundUnitValue(numericTotal / quantity))
           : tier.unitPrice;
         return { ...tier, totalPrice, unitPrice };
       });
@@ -1014,16 +1084,16 @@ export default function ProductsCRUDPage() {
     const normalizedTiers = matrixEditDraft.tiers.map((tier) => {
       const quantity = Number(tier.quantity || 0);
       const unitPrice = parseUnitCurrencyInputToNumber(tier.unitPrice);
-      const totalPrice = parseCurrencyInputToNumber(tier.totalPrice);
+      const totalPrice = parseCurrencyBR(tier.totalPrice);
       const effectiveTotal = totalPrice > 0
         ? totalPrice
         : quantity > 0 && unitPrice > 0
-          ? Math.round(quantity * unitPrice * 100) / 100
+          ? roundMoneyValue(quantity * unitPrice)
           : 0;
       const effectiveUnitPrice = unitPrice > 0
         ? unitPrice
         : quantity > 0 && effectiveTotal > 0
-          ? Math.round((effectiveTotal / quantity) * 10000) / 10000
+          ? roundUnitValue(effectiveTotal / quantity)
           : 0;
 
       return {
@@ -1339,7 +1409,7 @@ export default function ProductsCRUDPage() {
           .map((tier) => ({
             quantity: tier.quantity,
             unit_price: tier.unit_price,
-            total_price: tier.total_price || Math.round(tier.quantity * tier.unit_price * 100) / 100,
+            total_price: getEffectiveMatrixTierTotal(tier),
             production_time: tier.production_time?.trim() || undefined
           }))
           .sort((a, b) => a.quantity - b.quantity)
