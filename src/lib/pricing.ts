@@ -321,6 +321,21 @@ export function findVariantPricingMatrixRow(
 }
 
 export function getCatalogPricePresentation(product: ProductLike | null | undefined): CatalogPricePresentation {
+  const matrixTier = getNormalizedVariantPricingMatrix(product)
+    .flatMap((row) => row.tiers)
+    .filter((tier) => tier.min_qty > 0 && tier.total > 0)
+    .sort((a, b) => a.min_qty - b.min_qty || a.total - b.total)[0];
+
+  if (matrixTier) {
+    return {
+      hasVolumeTiers: true,
+      quantity: matrixTier.min_qty,
+      unitPrice: matrixTier.price,
+      totalPrice: matrixTier.total,
+      tier: matrixTier
+    };
+  }
+
   const initialTier = getInitialVolumePricingTier(product);
   if (initialTier) {
     return {

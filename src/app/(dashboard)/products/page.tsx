@@ -1724,11 +1724,11 @@ export default function ProductsCRUDPage() {
   };
 
   const getProductPriceLabel = (product: Product) => {
-    const firstVolumeTier = getNormalizedVolumePricing(product)[0];
-    if (firstVolumeTier) return `A partir de ${formatCurrency(firstVolumeTier.total)}`;
-
     const firstMatrixTier = getNormalizedVariantPricingMatrix(product)[0]?.tiers[0];
     if (firstMatrixTier) return `A partir de ${formatCurrency(firstMatrixTier.total)}`;
+
+    const firstVolumeTier = getNormalizedVolumePricing(product)[0];
+    if (firstVolumeTier) return `A partir de ${formatCurrency(firstVolumeTier.total)}`;
 
     if (!product.sales_price || product.sales_price <= 0) return 'Preço não definido';
     return formatCurrency(product.sales_price);
@@ -1822,7 +1822,8 @@ export default function ProductsCRUDPage() {
   const shouldShowCatalogOptionsSection = shouldShowConfiguratorSection && !shouldHideCatalogOptionsForTieredProduct;
   const shouldShowCatalogDeliveryTime = !isTieredProduct;
   const pricingSectionNumber = shouldShowCatalogOptionsSection ? 4 : 3;
-  const catalogSectionNumber = pricingSectionNumber + 1;
+  const matrixSectionNumber = pricingSectionNumber + 1;
+  const catalogSectionNumber = pricingSectionNumber + (shouldShowMatrixPricingSection ? 2 : 1);
   const mediaSectionNumber = catalogSectionNumber + 1;
   const stockSectionNumber = mediaSectionNumber + 1;
   const visibleSaleModeOptions = saleModeOptions.filter((option) => {
@@ -1831,10 +1832,13 @@ export default function ProductsCRUDPage() {
     if (isTieredRegistration) return option.value === 'volume';
     return ['custom', 'unidade'].includes(option.value);
   });
-  const firstMatrixPreviewRow = variantPricingMatrix.find((row) => row.active !== false && row.tiers.length > 0);
-  const firstMatrixPreviewTier = firstMatrixPreviewRow
-    ? [...firstMatrixPreviewRow.tiers].sort((a, b) => a.quantity - b.quantity)[0]
-    : undefined;
+  const activeMatrixRows = variantPricingMatrix.filter((row) => row.active !== false && row.tiers.length > 0);
+  const firstMatrixPreviewEntry = activeMatrixRows
+    .flatMap((row) => row.tiers.map((tier) => ({ row, tier })))
+    .filter((entry) => entry.tier.quantity > 0 && (entry.tier.total_price || entry.tier.quantity * entry.tier.unit_price) > 0)
+    .sort((a, b) => a.tier.quantity - b.tier.quantity || (a.tier.total_price || 0) - (b.tier.total_price || 0))[0];
+  const firstMatrixPreviewRow = firstMatrixPreviewEntry?.row;
+  const firstMatrixPreviewTier = firstMatrixPreviewEntry?.tier;
   const catalogPreviewTier = firstMatrixPreviewTier
     ? {
         min_qty: firstMatrixPreviewTier.quantity,
@@ -1843,7 +1847,6 @@ export default function ProductsCRUDPage() {
         matrixLabel: [firstMatrixPreviewRow?.material, firstMatrixPreviewRow?.size, firstMatrixPreviewRow?.colors, firstMatrixPreviewRow?.finishing].filter(Boolean).join(' | ')
       }
     : initialVolumeTier;
-  const activeMatrixRows = variantPricingMatrix.filter((row) => row.active !== false && row.tiers.length > 0);
   const matrixFinalTotals = activeMatrixRows.flatMap((row) => row.tiers.map((tier) => tier.total_price || tier.quantity * tier.unit_price));
   const matrixMinTotal = matrixFinalTotals.length > 0 ? Math.min(...matrixFinalTotals) : 0;
   const matrixFilterValues = {
@@ -3388,23 +3391,19 @@ export default function ProductsCRUDPage() {
               </div>
               </details>
 
-              <section className={`order-4 rounded-2xl border bg-white p-4 shadow-sm space-y-4 ${
-                shouldShowMatrixPricingSection ? 'border-sky-500/30 ring-2 ring-sky-500/10' : 'border-border'
-              }`}>
+              <section className={`${shouldShowCatalogOptionsSection ? 'order-4' : 'order-3'} rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4`}>
                 <div className="border-b border-border/60 pb-3">
                   <span className="text-xs font-black uppercase tracking-wide text-primary">
-                    {pricingSectionNumber}. {shouldShowMatrixPricingSection ? 'Matriz Inteligente de Preços' : 'Precificação'}
+                    {pricingSectionNumber}. Precificação
                   </span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                    {shouldShowMatrixPricingSection
-                      ? 'Cadastre o preço final e o prazo de cada combinação vendável. O valor informado aqui será exatamente o valor exibido no catálogo.'
+                    {isTieredProduct
+                      ? 'Use esta seção para definir custo, margem e preço base do produto. Os preços finais exibidos ao cliente serão definidos pela Matriz Inteligente de Preços.'
                       : 'Custos, preço de venda, margens e regras de preço por quantidade.'}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {!shouldShowMatrixPricingSection && (
-              <>
               {/* Cost Price */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Custo de Matéria-Prima / Aquisição (R$)</label>
@@ -3492,9 +3491,6 @@ export default function ProductsCRUDPage() {
                   </div>
                 </div>
               </details>
-              </>
-              )}
-
               {/* Volume pricing tiers */}
               {shouldShowVolumePricingSection && (
               <div className="md:col-span-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-3">
@@ -3605,9 +3601,20 @@ export default function ProductsCRUDPage() {
                 )}
               </div>
               )}
+                </div>
+              </section>
 
               {shouldShowMatrixPricingSection && (
-                <div className="md:col-span-2 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4 space-y-4 shadow-sm">
+              <section className="order-4 rounded-2xl border border-sky-500/30 bg-white p-4 shadow-sm ring-2 ring-sky-500/10 space-y-4">
+                <div className="border-b border-border/60 pb-3">
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">
+                    {matrixSectionNumber}. Matriz Inteligente de Preços
+                  </span>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Cadastre o preço final e o prazo de cada combinação vendável. O valor informado aqui será exatamente o valor exibido no catálogo.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4 space-y-4 shadow-sm">
                   <div>
                     <span className="font-black text-sm text-foreground block">Matriz Inteligente de Preços</span>
                     <span className="text-[11px] text-muted-foreground mt-1 block leading-relaxed">
@@ -3951,9 +3958,8 @@ export default function ProductsCRUDPage() {
                     </div>
                   )}
                 </div>
-              )}
-                </div>
               </section>
+              )}
 
               {(isMeasuredRegistration || saleMode === 'size_grid') && !shouldShowConfiguratorSection && (
                 <button
