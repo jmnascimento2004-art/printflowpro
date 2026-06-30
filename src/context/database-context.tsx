@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { publicStoreSelect } from '@/lib/publicSupabaseClient';
 import { warnCaught } from '@/lib/safe-log';
@@ -196,6 +196,7 @@ interface DatabaseContextType {
   updateRolePermissions: (permissions: Record<string, string[]>) => void;
 
   // Helpers
+  refreshStoreCatalog: () => Promise<void>;
   resetDatabase: () => void;
   showToast: (message: string, type?: 'success' | 'error') => void;
 }
@@ -467,6 +468,82 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const activeSession = sessions.find(s => s.status === 'aberto') || null;
   const currentCompanyId = company.id || DUMMY_COMPANY.id;
 
+  const refreshStoreCatalog = useCallback(async () => {
+    const hostname = getCurrentHostname();
+    const storeResponse = await fetch('/api/store/public-data', { cache: 'no-store' });
+
+    if (!storeResponse.ok) {
+      const errorBody = await storeResponse.text().catch(() => '');
+      throw new Error(`Public store loader failed: ${storeResponse.status} ${errorBody}`);
+    }
+
+    const storeData = (await storeResponse.json()) as PublicStoreDataResponse;
+    const activeCompany = storeData.company;
+    const activeCompanyId = activeCompany?.id || null;
+    const scopedProducts = storeData.products || [];
+    const scopedCategories = (storeData.categories || []).map((category) => ({
+      ...category,
+      show_in_catalog: category.show_in_catalog ?? true
+    }));
+    const activeProductCount = scopedProducts.filter((product) => product.active !== false).length;
+    const catalogProductCount = scopedProducts.filter(
+      (product) => product.active !== false && product.catalog_active !== false
+    ).length;
+
+    logStoreDebug('context-load', {
+      hostname,
+      pathname: window.location.pathname,
+      companiesCount: storeData.debug?.companies_count || null,
+      resolvedCompany: activeCompany
+        ? {
+            id: activeCompany.id,
+            name: activeCompany.name,
+            admin_domain: activeCompany.admin_domain,
+            store_domain: activeCompany.store_domain,
+            custom_domain: activeCompany.custom_domain
+          }
+        : null,
+      resolvedCompanyId: activeCompanyId,
+      loader: storeData.debug || null,
+      productsRawCount: scopedProducts.length,
+      productsCompanyCount: scopedProducts.length,
+      productsActiveCount: activeProductCount,
+      productsCatalogActiveCount: catalogProductCount,
+      categoriesRawCount: scopedCategories.length,
+      categoriesCompanyCount: scopedCategories.length
+    });
+
+    if (!activeCompany || !activeCompanyId) {
+      warnCaught('[STORE DEBUG] Empresa da loja nao resolvida para o dominio:', {
+        hostname,
+        companiesCount: storeData.debug?.companies_count || null
+      });
+    }
+
+    setCompany(activeCompany || createUnprovisionedCompany(DUMMY_COMPANY));
+    setSettings(storeData.settings
+      ? mergeSettingsWithDefaults(storeData.settings as Partial<typeof DUMMY_SETTINGS>)
+      : DUMMY_SETTINGS
+    );
+    setCustomers([]);
+    setSuppliers([]);
+    setCategories(scopedCategories);
+    setProducts(scopedProducts);
+    setQuotes([]);
+    setOrders([]);
+    setProduction([]);
+    setFinancial([]);
+    setShipments([]);
+    setStockMovements([]);
+    setPickupPoints(storeData.pickupPoints || []);
+    setBanners(storeData.banners || []);
+    setProfiles([]);
+    setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+    setSessions([]);
+    setRegisterTransactions([]);
+    setInitialized(true);
+  }, []);
+
   // Load from Supabase on mount; demo/localStorage fallback is explicit opt-in only.
   useEffect(() => {
     if (!isBrowser()) return;
@@ -479,82 +556,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         const skipPrivateData = Promise.resolve({ data: null, error: null });
 
         if (isStoreRoute) {
-          const hostname = getCurrentHostname();
-          const storeResponse = await fetch('/api/store/public-data', { cache: 'no-store' });
-
-          if (!storeResponse.ok) {
-            const errorBody = await storeResponse.text().catch(() => '');
-            throw new Error(`Public store loader failed: ${storeResponse.status} ${errorBody}`);
-          }
-
-          const storeData = (await storeResponse.json()) as PublicStoreDataResponse;
-          const activeCompany = storeData.company;
-          const activeCompanyId = activeCompany?.id || null;
-          const scopedProducts = storeData.products || [];
-          const scopedCategories = (storeData.categories || []).map((category) => ({
-            ...category,
-            show_in_catalog: category.show_in_catalog ?? true
-          }));
-          const activeProductCount = scopedProducts.filter((product) => product.active !== false).length;
-          const catalogProductCount = scopedProducts.filter(
-            (product) => product.active !== false && product.catalog_active !== false
-          ).length;
-
-          logStoreDebug('context-load', {
-            hostname,
-            pathname: window.location.pathname,
-            companiesCount: storeData.debug?.companies_count || null,
-            resolvedCompany: activeCompany
-              ? {
-                  id: activeCompany.id,
-                  name: activeCompany.name,
-                  admin_domain: activeCompany.admin_domain,
-                  store_domain: activeCompany.store_domain,
-                  custom_domain: activeCompany.custom_domain
-                }
-              : null,
-            resolvedCompanyId: activeCompanyId,
-            loader: storeData.debug || null,
-            productsRawCount: scopedProducts.length,
-            productsCompanyCount: scopedProducts.length,
-            productsActiveCount: activeProductCount,
-            productsCatalogActiveCount: catalogProductCount,
-            categoriesRawCount: scopedCategories.length,
-            categoriesCompanyCount: scopedCategories.length
-          });
-
-          if (!activeCompany || !activeCompanyId) {
-            warnCaught('[STORE DEBUG] Empresa da loja nao resolvida para o dominio:', {
-              hostname,
-              companiesCount: storeData.debug?.companies_count || null
-            });
-          }
-
-          setCompany(activeCompany || createUnprovisionedCompany(DUMMY_COMPANY));
-
-          if (storeData.settings) {
-            setSettings(mergeSettingsWithDefaults(storeData.settings as Partial<typeof DUMMY_SETTINGS>));
-          } else {
-            setSettings(DUMMY_SETTINGS);
-          }
-
-          setCustomers([]);
-          setSuppliers([]);
-          setCategories(scopedCategories);
-          setProducts(scopedProducts);
-          setQuotes([]);
-          setOrders([]);
-          setProduction([]);
-          setFinancial([]);
-          setShipments([]);
-          setStockMovements([]);
-          setPickupPoints(storeData.pickupPoints || []);
-          setBanners(storeData.banners || []);
-          setProfiles([]);
-          setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
-          setSessions([]);
-          setRegisterTransactions([]);
-          setInitialized(true);
+          await refreshStoreCatalog();
           return;
         }
 
@@ -822,7 +824,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     };
 
     init();
-  }, []);
+  }, [refreshStoreCatalog]);
 
   useEffect(() => {
     if (!isBrowser() || !isDemoFallbackAllowed()) return;
@@ -2635,6 +2637,7 @@ useEffect(() => {
         deleteProfile,
         rolePermissions,
         updateRolePermissions,
+        refreshStoreCatalog,
         showToast
       }}
     >

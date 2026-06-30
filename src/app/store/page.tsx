@@ -39,6 +39,7 @@ import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNav
 import { StoreAccountMenu } from '@/components/store/StoreAccountMenu';
 import { StoreFooter } from '@/components/store/StoreFooter';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { publicSupabase } from '@/lib/publicSupabaseClient';
 import { formatStoreAddress } from '@/lib/store-customer';
 import { STORE_ROUTES, withStoreRedirect } from '@/lib/store-routes';
 import {
@@ -129,7 +130,7 @@ function getThemeColorShade(hex: string, percent: number, opacity?: number) {
 
 export default function StorefrontPage() {
   const searchParams = useSearchParams();
-  const { products, categories, orders, addQuote, addCustomer, pickupPoints, banners, company, settings } = useDatabase();
+  const { products, categories, orders, addQuote, addCustomer, pickupPoints, banners, company, settings, refreshStoreCatalog } = useDatabase();
   const {
     isAuthenticated: storeCustomerAuthenticated,
     customer: storeCustomer,
@@ -182,6 +183,43 @@ export default function StorefrontPage() {
   };
 
   const favoriteProductIdSet = useMemo(() => new Set(favoriteProductIds), [favoriteProductIds]);
+
+  useEffect(() => {
+    if (!company?.id) return;
+
+    let refreshTimeout: number | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimeout) window.clearTimeout(refreshTimeout);
+      refreshTimeout = window.setTimeout(() => {
+        refreshStoreCatalog().catch((error) => {
+          if (isStoreDebugEnabled()) {
+            console.warn('[STORE DEBUG] realtime refresh failed', error);
+          }
+        });
+      }, 400);
+    };
+
+    const channel = publicSupabase
+      .channel(`store-products-${company.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products',
+          filter: `company_id=eq.${company.id}`
+        },
+        scheduleRefresh
+      )
+      .subscribe();
+    const fallbackInterval = window.setInterval(scheduleRefresh, 60000);
+
+    return () => {
+      if (refreshTimeout) window.clearTimeout(refreshTimeout);
+      window.clearInterval(fallbackInterval);
+      publicSupabase.removeChannel(channel);
+    };
+  }, [company?.id, refreshStoreCatalog]);
 
   useEffect(() => {
     if (!favoriteNotice) return;
