@@ -14,7 +14,7 @@ import { FinancialTransaction } from '@/lib/dummy-data';
 import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
 
 export default function FinancialPage() {
-  const { financial, addTransaction, updateTransactionStatus } = useDatabase();
+  const { financial, orders, addTransaction, updateTransactionStatus } = useDatabase();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'todos' | 'receita' | 'despesa'>('todos');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pago' | 'pendente'>('todos');
@@ -42,8 +42,23 @@ export default function FinancialPage() {
 
   const netCashFlow = totalReceived - totalPaid;
 
+  const canceledOrderKeys = new Set(
+    orders
+      .filter(order => order.status === 'cancelado')
+      .flatMap(order => [order.id, order.number])
+      .filter(Boolean)
+  );
+
+  const isCanceledOrderTransaction = (transaction: FinancialTransaction) => (
+    transaction.type === 'receita' &&
+    (
+      Boolean(transaction.order_id && canceledOrderKeys.has(transaction.order_id)) ||
+      Boolean(transaction.order_number && canceledOrderKeys.has(transaction.order_number))
+    )
+  );
+
   const accountsReceivable = financial
-    .filter(f => f.type === 'receita' && f.status === 'pendente')
+    .filter(f => f.type === 'receita' && f.status === 'pendente' && !isCanceledOrderTransaction(f))
     .reduce((sum, f) => sum + f.amount, 0);
 
   const accountsPayable = financial

@@ -8,12 +8,14 @@ import {
   X, 
   Check, 
   AlertCircle,
+  Ban,
   Download,
   Eye,
   Edit3,
   RefreshCw
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
+import { useAuth } from '@/context/auth-context';
 import { Order } from '@/lib/dummy-data';
 import type { AdditionalService } from '@/lib/dummy-data';
 import { AdditionalServicesSection, getAdditionalServicesTotal } from '@/components/commercial/AdditionalServicesSection';
@@ -41,6 +43,7 @@ type PdfPreviewState = {
 };
 
 export default function OrdersPage() {
+  const { activeProfile, hasRole } = useAuth();
   const { 
     orders, 
     updateOrderStatus, 
@@ -62,7 +65,9 @@ export default function OrdersPage() {
   const [paymentDateInput, setPaymentDateInput] = useState(new Date().toISOString().split('T')[0]);
   const [paymentNotesInput, setPaymentNotesInput] = useState('');
   const [showPixCode, setShowPixCode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'todos' | 'orcamento' | 'producao' | 'finalizado' | 'cancelado'>('todos');
+  const [activeTab, setActiveTab] = useState<'ativos' | 'todos' | 'orcamento' | 'producao' | 'finalizado' | 'cancelado'>('ativos');
+  const [cancelingOrder, setCancelingOrder] = useState<Order | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   // Edit Order state
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -402,6 +407,66 @@ export default function OrdersPage() {
     setEditingOrder(null);
   };
 
+  const canCancelOrders = hasRole(['admin', 'gerente', 'financeiro']);
+
+  const getOpenBalance = (order: Order) => Math.max(0, order.total_amount - (order.paid_amount || 0));
+
+  const getEffectiveOpenBalance = (order: Order) => order.status === 'cancelado' ? 0 : getOpenBalance(order);
+
+  const getPaymentStatusAfterCancel = (order: Order): Order['payment_status'] => {
+    const paidAmount = order.paid_amount || 0;
+
+    if (paidAmount >= order.total_amount && paidAmount > 0) return 'pago';
+    if (paidAmount > 0) return 'parcial';
+    return 'pendente';
+  };
+
+  const handleOpenCancelOrder = (order: Order) => {
+    if (order.status === 'cancelado') return;
+
+    if (!canCancelOrders) {
+      alert('Voce nao tem permissao para cancelar pedidos. Solicite autorizacao de um administrador.');
+      return;
+    }
+
+    setCancelingOrder(order);
+    setCancelReason('');
+  };
+
+  const handleConfirmCancelOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cancelingOrder) return;
+
+    const reason = cancelReason.trim();
+    if (reason.length < 5) {
+      alert('Informe um motivo para o cancelamento.');
+      return;
+    }
+
+    const cancelledAt = new Date();
+    const auditLine = [
+      `[Cancelamento] Pedido ${cancelingOrder.number} cancelado por ${activeProfile.name || 'Usuario autorizado'}`,
+      `em ${cancelledAt.toLocaleString('pt-BR')}.`,
+      `Motivo: ${reason}`
+    ].join(' ');
+
+    const updatedOrder: Order = {
+      ...cancelingOrder,
+      status: 'cancelado',
+      payment_status: getPaymentStatusAfterCancel(cancelingOrder),
+      notes: [cancelingOrder.notes?.trim(), auditLine].filter(Boolean).join('\n')
+    };
+
+    updateOrder(updatedOrder);
+
+    if (selectedOrder?.id === updatedOrder.id) {
+      setSelectedOrder(updatedOrder);
+    }
+
+    setCancelingOrder(null);
+    setCancelReason('');
+  };
+
   const handlePrintOrderPdf = (order: Order) => {
     setSelectedPdfPreview({
       title: `Pedido ${order.number}`,
@@ -461,12 +526,14 @@ export default function OrdersPage() {
 
   const getFilteredOrdersByTab = (tab: typeof activeTab) => {
     switch (tab) {
+      case 'ativos':
+        return filteredOrders.filter(o => o.status !== 'cancelado');
       case 'orcamento':
-        return filteredOrders.filter(o => ['orcamento', 'aguardando_aprovacao', 'aguardando_pagamento'].includes(o.status));
+        return filteredOrders.filter(o => o.status !== 'cancelado' && ['orcamento', 'aguardando_aprovacao', 'aguardando_pagamento'].includes(o.status));
       case 'producao':
-        return filteredOrders.filter(o => ['producao', 'impressao', 'acabamento'].includes(o.status));
+        return filteredOrders.filter(o => o.status !== 'cancelado' && ['producao', 'impressao', 'acabamento'].includes(o.status));
       case 'finalizado':
-        return filteredOrders.filter(o => ['expedicao', 'entregue', 'finalizado'].includes(o.status));
+        return filteredOrders.filter(o => o.status !== 'cancelado' && ['expedicao', 'entregue', 'finalizado'].includes(o.status));
       case 'cancelado':
         return filteredOrders.filter(o => o.status === 'cancelado');
       default:
@@ -480,7 +547,12 @@ export default function OrdersPage() {
   const handleRegisterPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrder || paymentAmount <= 0) return;
-    const currentBalance = Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount);
+    if (selectedOrder.status === 'cancelado') {
+      alert('Pedido cancelado nao pode receber novos pagamentos.');
+      return;
+    }
+
+    const currentBalance = getOpenBalance(selectedOrder);
     if (paymentAmount > currentBalance) {
       alert(`O valor recebido nao pode ser maior que o saldo pendente (${formatCurrency(currentBalance)}).`);
       return;
@@ -646,10 +718,11 @@ export default function OrdersPage() {
   };
 
   // Stats Calculations
-  const totalOrdersCount = orders.length;
-  const pendingPaymentOrdersCount = orders.filter(o => o.payment_status === 'pendente').length;
-  const pendingAmount = orders.reduce((sum, o) => sum + (o.total_amount - o.paid_amount), 0);
-  const activeProductionCount = orders.filter(o => ['producao', 'impressao', 'acabamento'].includes(o.status)).length;
+  const activeOrders = orders.filter(o => o.status !== 'cancelado');
+  const totalOrdersCount = activeOrders.length;
+  const pendingPaymentOrdersCount = activeOrders.filter(o => o.payment_status === 'pendente').length;
+  const pendingAmount = activeOrders.reduce((sum, o) => sum + getOpenBalance(o), 0);
+  const activeProductionCount = activeOrders.filter(o => ['producao', 'impressao', 'acabamento'].includes(o.status)).length;
   const corporateB2BFaturado = customers.reduce((sum, c) => sum + (c.credit_used || 0), 0);
 
   const selectedOrderTransactions = selectedOrder
@@ -679,6 +752,92 @@ export default function OrdersPage() {
           directPdfUrl={selectedPdfPreview.directPdfUrl}
           downloadLabel={selectedPdfPreview.downloadLabel}
         />
+      )}
+
+      {cancelingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 no-print">
+          <form
+            onSubmit={handleConfirmCancelOrder}
+            className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl text-foreground"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-500">Cancelamento seguro</span>
+                <h3 className="mt-1 text-lg font-black">Cancelar pedido {cancelingOrder.number}</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Esta acao remove o pedido das filas ativas, mas preserva pagamentos, historico e comprovantes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelingOrder(null);
+                  setCancelReason('');
+                }}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                aria-label="Fechar cancelamento"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 py-4 text-xs sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-secondary/20 p-3">
+                <span className="block text-[10px] font-bold uppercase text-muted-foreground">Cliente</span>
+                <strong className="mt-1 block text-foreground">{cancelingOrder.customer_name}</strong>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/20 p-3">
+                <span className="block text-[10px] font-bold uppercase text-muted-foreground">Status financeiro</span>
+                <div className="mt-1">{getPaymentStatusBadge(cancelingOrder.payment_status)}</div>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/20 p-3">
+                <span className="block text-[10px] font-bold uppercase text-muted-foreground">Total do pedido</span>
+                <strong className="mt-1 block text-foreground">{formatCurrency(cancelingOrder.total_amount)}</strong>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/20 p-3">
+                <span className="block text-[10px] font-bold uppercase text-muted-foreground">Recebido / saldo</span>
+                <strong className="mt-1 block text-foreground">
+                  {formatCurrency(cancelingOrder.paid_amount || 0)} / {formatCurrency(getOpenBalance(cancelingOrder))}
+                </strong>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-700">
+              O saldo em aberto deixara de contar no financeiro. Valores ja recebidos continuam registrados e vinculados ao pedido.
+            </div>
+
+            <label className="mt-4 block space-y-1.5">
+              <span className="text-xs font-bold text-muted-foreground">Motivo do cancelamento *</span>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                required
+                rows={4}
+                placeholder="Descreva o motivo para auditoria interna"
+                className="w-full resize-none rounded-xl border border-border bg-secondary/35 px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-rose-500/40"
+              />
+            </label>
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelingOrder(null);
+                  setCancelReason('');
+                }}
+                className="rounded-xl border border-border bg-secondary px-4 py-2 text-xs font-bold text-foreground hover:bg-secondary/80"
+              >
+                Voltar
+              </button>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow shadow-rose-600/25 hover:bg-rose-500"
+              >
+                <Ban className="h-4 w-4" /> Confirmar cancelamento
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {editingOrder ? (
@@ -730,7 +889,6 @@ export default function OrdersPage() {
                   <option value="expedicao">Expedição</option>
                   <option value="entregue">Entregue</option>
                   <option value="finalizado">Finalizado</option>
-                  <option value="cancelado">Cancelado</option>
                 </select>
               </div>
 
@@ -1057,6 +1215,12 @@ export default function OrdersPage() {
             </div>
             <div className="flex items-center gap-1.5 shrink-0 bg-secondary/35 p-1 rounded-xl border border-border text-xs font-semibold">
               <button
+                onClick={() => setActiveTab('ativos')}
+                className={`px-3 py-1.5 rounded-lg transition-all ${activeTab === 'ativos' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Ativos
+              </button>
+              <button
                 onClick={() => setActiveTab('todos')}
                 className={`px-3 py-1.5 rounded-lg transition-all ${activeTab === 'todos' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
@@ -1111,7 +1275,7 @@ export default function OrdersPage() {
                       const overdue = isOverdue(order.deadline, order.status);
 
                       return (
-                        <tr key={order.id} className="hover:bg-secondary/15 transition-colors">
+                        <tr key={order.id} className={`hover:bg-secondary/15 transition-colors ${order.status === 'cancelado' ? 'bg-rose-500/5 opacity-80' : ''}`}>
                           <td className="px-3 py-2.5 font-bold text-foreground text-left whitespace-nowrap">{order.number}</td>
                           <td className="px-3 py-2.5 font-semibold text-foreground text-left">{order.customer_name}</td>
                           <td className="px-3 py-2.5 text-muted-foreground text-left">
@@ -1157,6 +1321,17 @@ export default function OrdersPage() {
                               >
                                 <Edit3 className="h-3.5 w-3.5" />
                               </button>
+                              {order.status !== 'cancelado' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCancelOrder(order)}
+                                  className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20"
+                                  title="Cancelar pedido"
+                                  aria-label="Cancelar pedido"
+                                >
+                                  <Ban className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handlePrintOrderPdf(order)}
@@ -1175,7 +1350,7 @@ export default function OrdersPage() {
                               >
                                 <Download className="h-3.5 w-3.5" />
                               </button>
-                              {order.payment_status !== 'pago' && (
+                              {order.payment_status !== 'pago' && order.status !== 'cancelado' && (
                                 <button
                                   type="button"
                                   onClick={() => sendPixWhatsApp(order)}
@@ -1242,13 +1417,13 @@ export default function OrdersPage() {
                 </div>
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
                   <span className="block text-[10px] font-bold uppercase text-amber-600">Saldo</span>
-                  <span className="mt-1 block text-sm font-black text-amber-600">{formatCurrency(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount))}</span>
+                  <span className="mt-1 block text-sm font-black text-amber-600">{formatCurrency(getEffectiveOpenBalance(selectedOrder))}</span>
                 </div>
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              {selectedOrder.payment_status !== 'pago' && (
+              {selectedOrder.payment_status !== 'pago' && selectedOrder.status !== 'cancelado' && (
                 <button
                   onClick={() => sendPixWhatsApp(selectedOrder)}
                   className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow shadow-emerald-600/25"
@@ -1292,6 +1467,16 @@ export default function OrdersPage() {
               >
                 <Edit3 className="h-4 w-4" /> Editar pedido
               </button>
+              {selectedOrder.status !== 'cancelado' && (
+                <button
+                  onClick={() => handleOpenCancelOrder(selectedOrder)}
+                  className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow shadow-rose-600/25"
+                  title="Cancelar pedido"
+                  aria-label="Cancelar pedido"
+                >
+                  <Ban className="h-4 w-4" /> Cancelar pedido
+                </button>
+              )}
             </div>
           </div>
 
@@ -1397,7 +1582,7 @@ export default function OrdersPage() {
             <div className="md:col-span-2 space-y-4">
               <div className="flex justify-between items-center text-xs">
                 <h4 className="font-bold text-foreground uppercase tracking-wider">Histórico de Quitação</h4>
-                <span className="text-muted-foreground font-semibold">Saldo Devedor: <span className="font-bold text-foreground">{formatCurrency(selectedOrder.total_amount - selectedOrder.paid_amount)}</span></span>
+                <span className="text-muted-foreground font-semibold">Saldo Devedor: <span className="font-bold text-foreground">{formatCurrency(getEffectiveOpenBalance(selectedOrder))}</span></span>
               </div>
               
               <div className="p-4 rounded-xl bg-secondary/20 border border-border text-xs space-y-2.5">
@@ -1412,14 +1597,14 @@ export default function OrdersPage() {
                   </div>
                   <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
                     <span className="text-[10px] font-bold uppercase text-amber-600">Saldo pendente</span>
-                    <p className="mt-1 font-black text-amber-500">{formatCurrency(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount))}</p>
+                    <p className="mt-1 font-black text-amber-500">{formatCurrency(getEffectiveOpenBalance(selectedOrder))}</p>
                   </div>
                 </div>
 
-                {selectedOrder.payment_status !== 'pago' && !isAddingPayment && (
+                {selectedOrder.payment_status !== 'pago' && selectedOrder.status !== 'cancelado' && !isAddingPayment && (
                   <button
                     onClick={() => {
-                      const balance = Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount);
+                      const balance = getOpenBalance(selectedOrder);
                       setPaymentAmount(balance);
                       setPaymentKind(selectedOrder.paid_amount > 0 ? 'saldo' : 'adiantamento');
                       setPaymentDateInput(new Date().toISOString().split('T')[0]);
@@ -1442,7 +1627,7 @@ export default function OrdersPage() {
                           value={formatCurrencyInput(paymentAmount)}
                           onChange={(e) => {
                             const val = parseCurrencyInputToNumber(e.target.value);
-                            setPaymentAmount(Math.min(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount), val));
+                            setPaymentAmount(Math.min(getOpenBalance(selectedOrder), val));
                           }}
                           placeholder="R$ 0,00"
                           className="w-full px-2.5 py-1.5 bg-card border border-border rounded-lg text-xs font-bold text-foreground"

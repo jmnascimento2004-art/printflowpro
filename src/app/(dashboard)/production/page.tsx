@@ -81,10 +81,18 @@ export default function ProductionPage() {
     .map(p => p.name);
 
   // 1. Filter production queue based on search
-  const filteredQueue = production.filter(p => 
-    p.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.order_number.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredQueue = production.filter(p => {
+    const linkedOrder = orders.find(o => o.id === p.order_id || o.number === p.order_number);
+
+    if (linkedOrder?.status === 'cancelado') {
+      return false;
+    }
+
+    return (
+      p.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.order_number.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   // Kanban columns configuration
   const columns: { id: ProductionItem['status']; label: string; color: string; borderTop: string }[] = [
