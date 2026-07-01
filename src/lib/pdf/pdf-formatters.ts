@@ -15,6 +15,10 @@ export function formatPdfUnitCurrency(value?: number | string | null) {
   return formatPdfCurrency(value, { maximumFractionDigits: 4 });
 }
 
+function formatDateParts(year: string, month: string, day: string) {
+  return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+}
+
 function toFinitePdfNumber(value: unknown, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
@@ -36,8 +40,19 @@ export function getPdfDisplayUnitPrice(item: QuoteItem | OrderItem) {
   return Number.isFinite(unitPrice) ? unitPrice : 0;
 }
 
-export function formatPdfDate(value?: string | null) {
+export function formatPdfDate(value?: string | Date | null) {
   if (!value) return 'Não informado';
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return 'Não informado';
+    return value.toLocaleDateString('pt-BR');
+  }
+
+  const dateOnlyMatch = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return formatDateParts(year, month, day);
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Não informado';
   return date.toLocaleDateString('pt-BR');
