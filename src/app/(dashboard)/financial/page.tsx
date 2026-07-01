@@ -17,7 +17,7 @@ export default function FinancialPage() {
   const { financial, orders, addTransaction, updateTransactionStatus } = useDatabase();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'todos' | 'receita' | 'despesa'>('todos');
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'pago' | 'pendente'>('todos');
+  const [statusFilter, setStatusFilter] = useState<'todos' | FinancialTransaction['status']>('todos');
   
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
 
@@ -190,6 +190,7 @@ export default function FinancialPage() {
               <option value="todos">Todos os Status</option>
               <option value="pago">Apenas Pagos</option>
               <option value="pendente">Apenas Pendentes</option>
+              <option value="cancelado">Cancelados</option>
             </select>
           </div>
         </div>
@@ -431,7 +432,11 @@ export default function FinancialPage() {
 
                       {/* Status Check trigger */}
                       <td className="px-5 py-3.5 text-center">
-                        {trans.status === 'pago' ? (
+                        {trans.status === 'cancelado' ? (
+                          <span className="text-[10px] text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                            Cancelado
+                          </span>
+                        ) : trans.status === 'pago' ? (
                           <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                             Confirmado
                           </span>

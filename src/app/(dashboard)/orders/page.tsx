@@ -12,11 +12,12 @@ import {
   Download,
   Eye,
   Edit3,
-  RefreshCw
+  RefreshCw,
+  RotateCcw
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
-import { Order } from '@/lib/dummy-data';
+import { FinancialTransaction, Order } from '@/lib/dummy-data';
 import type { AdditionalService } from '@/lib/dummy-data';
 import { AdditionalServicesSection, getAdditionalServicesTotal } from '@/components/commercial/AdditionalServicesSection';
 import {
@@ -52,7 +53,8 @@ export default function OrdersPage() {
     settings,
     company,
     financial,
-    updateOrder
+    updateOrder,
+    cancelOrderPayment
   } = useDatabase();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,6 +70,8 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<'ativos' | 'todos' | 'orcamento' | 'producao' | 'finalizado' | 'cancelado'>('ativos');
   const [cancelingOrder, setCancelingOrder] = useState<Order | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelingPayment, setCancelingPayment] = useState<FinancialTransaction | null>(null);
+  const [cancelPaymentReason, setCancelPaymentReason] = useState('');
 
   // Edit Order state
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -408,8 +412,27 @@ export default function OrdersPage() {
   };
 
   const canCancelOrders = hasRole(['admin', 'gerente', 'financeiro']);
+  const canCancelPayments = hasRole(['admin', 'gerente', 'financeiro']);
 
-  const getOpenBalance = (order: Order) => Math.max(0, order.total_amount - (order.paid_amount || 0));
+  const getOrderTransactions = (order: Order) => financial.filter((transaction) =>
+    transaction.type === 'receita' &&
+    (transaction.order_id === order.id || transaction.order_number === order.number)
+  );
+
+  const getActivePaidAmount = (order: Order, sourceTransactions = getOrderTransactions(order)) => {
+    if (sourceTransactions.length === 0) {
+      return Math.min(order.total_amount, Math.max(0, order.paid_amount || 0));
+    }
+
+    return Math.min(
+      order.total_amount,
+      sourceTransactions
+        .filter((transaction) => transaction.status === 'pago')
+        .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0)
+    );
+  };
+
+  const getOpenBalance = (order: Order) => Math.max(0, order.total_amount - getActivePaidAmount(order));
 
   const getEffectiveOpenBalance = (order: Order) => order.status === 'cancelado' ? 0 : getOpenBalance(order);
 
@@ -465,6 +488,61 @@ export default function OrdersPage() {
 
     setCancelingOrder(null);
     setCancelReason('');
+  };
+
+  const getTransactionKey = (transaction: FinancialTransaction, index: number) => (
+    transaction.id ||
+    [
+      transaction.order_id || transaction.order_number || 'payment',
+      transaction.description,
+      transaction.amount,
+      transaction.payment_method,
+      transaction.status,
+      transaction.paid_at || transaction.due_date || transaction.created_at || index
+    ].join('|')
+  );
+
+  const handleOpenCancelPayment = (transaction: FinancialTransaction) => {
+    if (transaction.status === 'cancelado') return;
+
+    if (!canCancelPayments) {
+      alert('Voce nao tem permissao para cancelar pagamentos.');
+      return;
+    }
+
+    setCancelingPayment(transaction);
+    setCancelPaymentReason('');
+  };
+
+  const handleConfirmCancelPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cancelingPayment || !selectedOrder) return;
+
+    const reason = cancelPaymentReason.trim();
+    if (reason.length < 5) {
+      alert('Informe um motivo para o cancelamento do pagamento.');
+      return;
+    }
+
+    cancelOrderPayment(cancelingPayment.id, reason, activeProfile.name || 'Usuario autorizado');
+
+    const nextTransactions = getOrderTransactions(selectedOrder).map((transaction) =>
+      transaction.id === cancelingPayment.id
+        ? { ...transaction, status: 'cancelado' as const }
+        : transaction
+    );
+    const nextPaidAmount = getActivePaidAmount(selectedOrder, nextTransactions);
+    setSelectedOrder({
+      ...selectedOrder,
+      paid_amount: nextPaidAmount,
+      payment_status: getPaymentStatusAfterCancel({
+        ...selectedOrder,
+        paid_amount: nextPaidAmount
+      })
+    });
+
+    setCancelingPayment(null);
+    setCancelPaymentReason('');
   };
 
   const handlePrintOrderPdf = (order: Order) => {
@@ -581,8 +659,8 @@ export default function OrdersPage() {
     }
 
     const newPaid = paymentMethod === 'faturado'
-      ? selectedOrder.paid_amount
-      : Math.min(selectedOrder.total_amount, selectedOrder.paid_amount + paymentAmount);
+      ? selectedOrderActivePaid
+      : Math.min(selectedOrder.total_amount, selectedOrderActivePaid + paymentAmount);
     const updatedSelectedOrder: Order = {
       ...selectedOrder,
       paid_amount: newPaid,
@@ -731,12 +809,15 @@ export default function OrdersPage() {
           financial
             .filter((transaction) => transaction.order_id === selectedOrder.id || transaction.order_number === selectedOrder.number)
             .map((transaction, index) => [
-              transaction.id || `${transaction.order_id || transaction.order_number || 'payment'}-${transaction.created_at || index}`,
+              getTransactionKey(transaction, index),
               transaction
             ])
         ).values()
       )
     : [];
+
+  const selectedOrderActivePaid = selectedOrder ? getActivePaidAmount(selectedOrder, selectedOrderTransactions) : 0;
+  const selectedOrderOpenBalance = selectedOrder ? Math.max(0, selectedOrder.total_amount - selectedOrderActivePaid) : 0;
   
   return (
     <div className="space-y-6">
@@ -834,6 +915,88 @@ export default function OrdersPage() {
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow shadow-rose-600/25 hover:bg-rose-500"
               >
                 <Ban className="h-4 w-4" /> Confirmar cancelamento
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {cancelingPayment && selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 no-print">
+          <form
+            onSubmit={handleConfirmCancelPayment}
+            className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl text-foreground"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-500">Cancelar pagamento</span>
+                <h3 className="mt-1 text-lg font-black">Pagamento do pedido {selectedOrder.number}</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  O pagamento sera removido do calculo de quitacao, mas continuara no historico financeiro.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelingPayment(null);
+                  setCancelPaymentReason('');
+                }}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                aria-label="Fechar cancelamento de pagamento"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 py-4 text-xs sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-secondary/20 p-3">
+                <span className="block text-[10px] font-bold uppercase text-muted-foreground">Valor</span>
+                <strong className="mt-1 block text-foreground">{formatCurrency(cancelingPayment.amount)}</strong>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/20 p-3">
+                <span className="block text-[10px] font-bold uppercase text-muted-foreground">Forma</span>
+                <strong className="mt-1 block text-foreground uppercase">{cancelingPayment.payment_method.replace('_', ' ')}</strong>
+              </div>
+              <div className="rounded-xl border border-border bg-secondary/20 p-3 sm:col-span-2">
+                <span className="block text-[10px] font-bold uppercase text-muted-foreground">Data do pagamento</span>
+                <strong className="mt-1 block text-foreground">
+                  {new Date(cancelingPayment.paid_at || cancelingPayment.due_date || cancelingPayment.created_at).toLocaleDateString('pt-BR')}
+                </strong>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-700">
+              O valor original, a forma de pagamento e o vinculo com o pedido serao preservados para auditoria.
+            </div>
+
+            <label className="mt-4 block space-y-1.5">
+              <span className="text-xs font-bold text-muted-foreground">Motivo do cancelamento *</span>
+              <textarea
+                value={cancelPaymentReason}
+                onChange={(e) => setCancelPaymentReason(e.target.value)}
+                required
+                rows={4}
+                placeholder="Ex: pagamento lancado em duplicidade"
+                className="w-full resize-none rounded-xl border border-border bg-secondary/35 px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-rose-500/40"
+              />
+            </label>
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelingPayment(null);
+                  setCancelPaymentReason('');
+                }}
+                className="rounded-xl border border-border bg-secondary px-4 py-2 text-xs font-bold text-foreground hover:bg-secondary/80"
+              >
+                Voltar
+              </button>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow shadow-rose-600/25 hover:bg-rose-500"
+              >
+                <RotateCcw className="h-4 w-4" /> Confirmar cancelamento
               </button>
             </div>
           </form>
@@ -1593,11 +1756,11 @@ export default function OrdersPage() {
                   </div>
                   <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2">
                     <span className="text-[10px] font-bold uppercase text-emerald-600">Total pago</span>
-                    <p className="mt-1 font-black text-emerald-500">{formatCurrency(selectedOrder.paid_amount)}</p>
+                    <p className="mt-1 font-black text-emerald-500">{formatCurrency(selectedOrderActivePaid)}</p>
                   </div>
                   <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
                     <span className="text-[10px] font-bold uppercase text-amber-600">Saldo pendente</span>
-                    <p className="mt-1 font-black text-amber-500">{formatCurrency(getEffectiveOpenBalance(selectedOrder))}</p>
+                    <p className="mt-1 font-black text-amber-500">{formatCurrency(selectedOrder.status === 'cancelado' ? 0 : selectedOrderOpenBalance)}</p>
                   </div>
                 </div>
 
@@ -1606,7 +1769,7 @@ export default function OrdersPage() {
                     onClick={() => {
                       const balance = getOpenBalance(selectedOrder);
                       setPaymentAmount(balance);
-                      setPaymentKind(selectedOrder.paid_amount > 0 ? 'saldo' : 'adiantamento');
+                      setPaymentKind(selectedOrderActivePaid > 0 ? 'saldo' : 'adiantamento');
                       setPaymentDateInput(new Date().toISOString().split('T')[0]);
                       setPaymentNotesInput('');
                       setIsAddingPayment(true);
@@ -1712,27 +1875,57 @@ export default function OrdersPage() {
                   <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Pagamentos registrados</h5>
                   <div className="mt-2 space-y-2">
                     {selectedOrderTransactions.length > 0 ? (
-                      selectedOrderTransactions.map((transaction, index) => (
-                        <div
-                          key={transaction.id || `${transaction.order_id || transaction.order_number || 'payment'}-${transaction.created_at || index}`}
-                          className="rounded-lg border border-border bg-card px-3 py-2"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-bold text-foreground">{transaction.description}</p>
-                              <p className="mt-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                                {transaction.payment_method.replace('_', ' ')} - {transaction.status === 'pago' ? 'Confirmado' : 'Pendente'}
-                              </p>
-                            </div>
-                            <div className="shrink-0 text-right">
-                              <p className="text-xs font-black text-emerald-500">{formatCurrency(transaction.amount)}</p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {new Date(transaction.paid_at || transaction.due_date || transaction.created_at).toLocaleDateString('pt-BR')}
-                              </p>
+                      selectedOrderTransactions.map((transaction, index) => {
+                        const isCanceledPayment = transaction.status === 'cancelado';
+                        const statusLabel = isCanceledPayment
+                          ? 'Cancelado'
+                          : transaction.status === 'pago'
+                            ? 'Confirmado'
+                            : 'Pendente';
+
+                        return (
+                          <div
+                            key={getTransactionKey(transaction, index)}
+                            className={`rounded-lg border px-3 py-2 ${
+                              isCanceledPayment
+                                ? 'border-rose-500/20 bg-rose-500/5 opacity-80'
+                                : 'border-border bg-card'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className={`truncate text-xs font-bold ${isCanceledPayment ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                                  {transaction.description}
+                                </p>
+                                <p className={`mt-0.5 text-[10px] font-semibold uppercase ${isCanceledPayment ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                                  {transaction.payment_method.replace('_', ' ')} - {statusLabel}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-start gap-2 text-right">
+                                <div>
+                                  <p className={`text-xs font-black ${isCanceledPayment ? 'text-muted-foreground line-through' : 'text-emerald-500'}`}>
+                                    {formatCurrency(transaction.amount)}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {new Date(transaction.paid_at || transaction.due_date || transaction.created_at).toLocaleDateString('pt-BR')}
+                                  </p>
+                                </div>
+                                {!isCanceledPayment && selectedOrder.status !== 'cancelado' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenCancelPayment(transaction)}
+                                    className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20"
+                                    title="Cancelar pagamento"
+                                    aria-label="Cancelar pagamento"
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <p className="rounded-lg border border-dashed border-border bg-card px-3 py-3 text-center text-[11px] font-semibold text-muted-foreground">
                         Nenhum pagamento registrado para este pedido.

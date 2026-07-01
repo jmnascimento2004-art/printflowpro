@@ -169,6 +169,7 @@ interface DatabaseContextType {
   // Financial
   addTransaction: (trans: Omit<FinancialTransaction, 'id' | 'company_id' | 'created_at'>) => FinancialTransaction;
   updateTransactionStatus: (id: string, status: 'pendente' | 'pago') => void;
+  cancelOrderPayment: (id: string, reason: string, cancelledBy: string) => void;
 
   // Shipments
   updateShipmentStatus: (id: string, status: Shipment['status'], tracking?: string, carrier?: string) => void;
@@ -1613,15 +1614,19 @@ useEffect(() => {
   };
 
   const getPaidAmountForOrder = (order: Order) => {
-    const paidTransactionsTotal = financial
+    const orderTransactions = financial
       .filter((transaction) =>
         transaction.type === 'receita' &&
-        transaction.status === 'pago' &&
         (transaction.order_id === order.id || transaction.order_number === order.number)
-      )
-      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+      );
 
-    return Math.max(Number(order.paid_amount || 0), paidTransactionsTotal);
+    if (orderTransactions.length === 0) {
+      return Number(order.paid_amount || 0);
+    }
+
+    return orderTransactions
+      .filter((transaction) => transaction.status === 'pago')
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
   };
 
   const getPaymentStatusForTotal = (paidAmount: number, totalAmount: number): Order['payment_status'] => {
@@ -2284,6 +2289,71 @@ useEffect(() => {
     });
   };
 
+  const cancelOrderPayment = (id: string, reason: string, cancelledBy: string) => {
+    const transaction = financial.find(f => f.id === id);
+    if (!transaction || transaction.status === 'cancelado') return;
+
+    const cancelledAt = new Date().toISOString();
+    const auditSuffix = `[Cancelado em ${new Date(cancelledAt).toLocaleString('pt-BR')} por ${cancelledBy || 'Usuario autorizado'}. Motivo: ${reason.trim()}]`;
+    const nextDescription = transaction.description.includes('[Cancelado em')
+      ? transaction.description
+      : `${transaction.description} ${auditSuffix}`;
+
+    const nextTransaction: FinancialTransaction = {
+      ...transaction,
+      status: 'cancelado',
+      description: nextDescription
+    };
+
+    const nextFinancial = financial.map(item => item.id === id ? nextTransaction : item);
+    setFinancial(nextFinancial);
+
+    const linkedOrder = orders.find(order =>
+      order.id === transaction.order_id ||
+      order.number === transaction.order_number
+    );
+
+    if (linkedOrder) {
+      const activePaidTotal = nextFinancial
+        .filter(item =>
+          item.type === 'receita' &&
+          item.status === 'pago' &&
+          (item.order_id === linkedOrder.id || item.order_number === linkedOrder.number)
+        )
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const nextPaidAmount = Math.min(linkedOrder.total_amount, Math.max(0, activePaidTotal));
+      const nextPaymentStatus = getPaymentStatusForTotal(nextPaidAmount, linkedOrder.total_amount);
+
+      setOrders(prev => {
+        const nextOrders = prev.map(order =>
+          order.id === linkedOrder.id
+            ? {
+                ...order,
+                paid_amount: nextPaidAmount,
+                payment_status: nextPaymentStatus
+              }
+            : order
+        );
+        persistOrdersSnapshot(nextOrders);
+        return nextOrders;
+      });
+
+      supabase.from('orders').update({
+        paid_amount: nextPaidAmount,
+        payment_status: nextPaymentStatus
+      }).eq('id', linkedOrder.id).then(({ error }) => {
+        if (error) warnCaught('Erro ao recalcular pedido apos cancelamento de pagamento no Supabase:', error);
+      });
+    }
+
+    supabase.from('financial_transactions').update({
+      status: 'cancelado',
+      description: nextDescription
+    }).eq('id', id).then(({ error }) => {
+      if (error) warnCaught('Erro ao cancelar pagamento no Supabase:', error);
+    });
+  };
+
   // ----------------------------------------------------
   // SHIPMENTS API
   // ----------------------------------------------------
@@ -2706,6 +2776,7 @@ useEffect(() => {
         assignProductionResponsible,
         addTransaction,
         updateTransactionStatus,
+        cancelOrderPayment,
         updateShipmentStatus,
         updateSettings,
         resetDatabase,

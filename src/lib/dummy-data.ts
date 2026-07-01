@@ -506,7 +506,7 @@ export interface FinancialTransaction {
   amount: number;
   description: string;
   payment_method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado';
-  status: 'pendente' | 'pago';
+  status: 'pendente' | 'pago' | 'cancelado';
   due_date: string;
   paid_at?: string;
   created_at: string;
