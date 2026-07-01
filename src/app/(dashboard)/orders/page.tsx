@@ -78,6 +78,7 @@ export default function OrdersPage() {
   const [editDeliveryType, setEditDeliveryType] = useState<'retirada' | 'motoboy' | 'carro' | 'correios'>('retirada');
   const [editDeliveryAddress, setEditDeliveryAddress] = useState('');
   const [editDeliveryDistanceKm, setEditDeliveryDistanceKm] = useState(0);
+  const [editDeliveryDistanceInput, setEditDeliveryDistanceInput] = useState('');
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [lastCalculatedAddress, setLastCalculatedAddress] = useState('');
@@ -111,6 +112,19 @@ export default function OrdersPage() {
     company?.cep,
     settings.company_address
   ]);
+
+  const parseDecimalBR = (value: string | number) => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+    const normalized = value.trim().replace(/\s/g, '').replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const formatDecimalBR = (value: number) => {
+    if (!Number.isFinite(value)) return '';
+    return String(value).replace('.', ',');
+  };
 
   // Helper para decodificar o endereço concatenado salvo no pedido
   const parseDeliveryAddress = (addrStr: string) => {
@@ -188,6 +202,7 @@ export default function OrdersPage() {
 
       const dist = await calculateRouteDistance(companyOrigin, editDeliveryAddress);
       setEditDeliveryDistanceKm(dist);
+      setEditDeliveryDistanceInput(formatDecimalBR(dist));
       
       const pricePerKm = editDeliveryType === 'motoboy' 
         ? (settings.delivery_motoboy_price_km || 2.50)
@@ -227,6 +242,7 @@ export default function OrdersPage() {
 
         const dist = await calculateRouteDistance(companyOrigin, editDeliveryAddress);
         setEditDeliveryDistanceKm(dist);
+        setEditDeliveryDistanceInput(formatDecimalBR(dist));
         
         const pricePerKm = editDeliveryType === 'motoboy' 
           ? (settings.delivery_motoboy_price_km || 2.50)
@@ -251,7 +267,9 @@ export default function OrdersPage() {
     return () => clearTimeout(timer);
   }, [editDeliveryAddress, editDeliveryType, lastCalculatedAddress, settings, buildOrderOriginAddress, editShipping]);
 
-  const handleEditDistanceChange = (km: number) => {
+  const handleEditDistanceChange = (value: string) => {
+    setEditDeliveryDistanceInput(value);
+    const km = parseDecimalBR(value);
     setEditDeliveryDistanceKm(km);
     const pricePerKm = editDeliveryType === 'motoboy' 
       ? (settings.delivery_motoboy_price_km || 2.50)
@@ -272,6 +290,7 @@ export default function OrdersPage() {
       setEditShipping(0);
       setEditTotal(prev => Math.max(0, prev + diff));
       setEditDeliveryDistanceKm(0);
+      setEditDeliveryDistanceInput('');
       setEditDeliveryAddress('');
       setEditDeliveryStreet('');
       setEditDeliveryNumber('');
@@ -281,6 +300,7 @@ export default function OrdersPage() {
       setEditDeliveryZipCode('');
     } else if (type === 'correios') {
       setEditDeliveryDistanceKm(0);
+      setEditDeliveryDistanceInput('');
     } else if (['motoboy', 'carro'].includes(type)) {
       const pricePerKm = type === 'motoboy' 
         ? (settings.delivery_motoboy_price_km || 2.50)
@@ -308,6 +328,7 @@ export default function OrdersPage() {
     setEditDeliveryType(order.delivery_type || 'retirada');
     setEditDeliveryAddress(order.delivery_address || '');
     setEditDeliveryDistanceKm(order.delivery_distance_km || 0);
+    setEditDeliveryDistanceInput(formatDecimalBR(order.delivery_distance_km || 0));
     setLastCalculatedAddress(order.delivery_address || '');
     
     // Preenche campos estruturados a partir da string salva no pedido
@@ -355,6 +376,9 @@ export default function OrdersPage() {
     const productsTotal = editingOrder.items.reduce((sum, item) => sum + item.total_price, 0);
     const servicesTotal = getAdditionalServicesTotal(editAdditionalServices);
     const nextTotal = Math.max(0, productsTotal + servicesTotal + editShipping);
+    const parsedDeliveryDistanceKm = ['motoboy', 'carro'].includes(editDeliveryType)
+      ? parseDecimalBR(editDeliveryDistanceInput)
+      : 0;
 
     if (editStatus !== editingOrder.status) {
       updateOrderStatus(editingOrder.id, editStatus);
@@ -372,7 +396,7 @@ export default function OrdersPage() {
       additional_services: editAdditionalServices,
       delivery_type: editDeliveryType,
       delivery_address: editDeliveryType !== 'retirada' ? editDeliveryAddress : undefined,
-      delivery_distance_km: ['motoboy', 'carro'].includes(editDeliveryType) ? editDeliveryDistanceKm : undefined
+      delivery_distance_km: ['motoboy', 'carro'].includes(editDeliveryType) ? parsedDeliveryDistanceKm : undefined
     });
 
     setEditingOrder(null);
@@ -874,11 +898,11 @@ export default function OrdersPage() {
                           <div className="space-y-1">
                             <label className="text-[9px] font-bold text-muted-foreground uppercase">Distância Estimada (KM)</label>
                             <input
-                              type="number"
-                              step="0.01;any"
-                              min="0"
-                              value={editDeliveryDistanceKm}
-                              onChange={(e) => handleEditDistanceChange(Number(e.target.value) || 0)}
+                              type="text"
+                              inputMode="decimal"
+                              value={editDeliveryDistanceInput}
+                              onChange={(e) => handleEditDistanceChange(e.target.value)}
+                              placeholder="0,00"
                               className="w-full px-2 py-1 bg-card border border-border rounded-md text-xs font-semibold text-center"
                             />
                           </div>
