@@ -7,13 +7,14 @@ import {
   Search, 
   Trash2, 
   Check, 
-  Printer, 
   Download,
+  Eye,
   X, 
   PlusCircle,
   Edit2,
   Truck,
-  RefreshCw
+  RefreshCw,
+  MessageCircle
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Quote, QuoteItem } from '@/lib/dummy-data';
@@ -917,10 +918,10 @@ export default function QuotesPage() {
                             type="button"
                             onClick={() => openQuotePdf(quote)}
                             className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/15 text-primary border border-primary/20"
-                            title="Visualizar PDF"
-                            aria-label={`Visualizar PDF do orçamento ${quote.number}`}
+                            title="Visualizar orçamento"
+                            aria-label="Visualizar orçamento"
                           >
-                            <Printer className="h-3.5 w-3.5" />
+                            <Eye className="h-3.5 w-3.5" />
                           </button>
 
                           <button
@@ -928,7 +929,7 @@ export default function QuotesPage() {
                             onClick={() => downloadQuotePdf(quote)}
                             className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                             title="Baixar PDF"
-                            aria-label={`Baixar PDF do orçamento ${quote.number}`}
+                            aria-label="Baixar PDF do orçamento"
                           >
                             <Download className="h-3.5 w-3.5" />
                           </button>
@@ -937,7 +938,8 @@ export default function QuotesPage() {
                             type="button"
                             onClick={() => handleStartEdit(quote)}
                             className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
-                            title="Editar Orçamento"
+                            title="Editar orçamento"
+                            aria-label="Editar orçamento"
                           >
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
@@ -951,7 +953,8 @@ export default function QuotesPage() {
                                 }
                               }}
                               className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/25 border border-emerald-500/20"
-                              title="Aprovar e Converter em Pedido"
+                              title="Aprovar orçamento"
+                              aria-label="Aprovar orçamento"
                             >
                               <Check className="h-3.5 w-3.5" />
                             </button>
@@ -961,11 +964,10 @@ export default function QuotesPage() {
                             type="button"
                             onClick={() => sendQuoteProposalWhatsApp(quote)}
                             className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/25 border border-emerald-500/20"
-                            title="Enviar proposta via WhatsApp Web"
+                            title="Enviar pelo WhatsApp"
+                            aria-label="Enviar pelo WhatsApp"
                           >
-                            <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
-                              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.863-9.864.001-2.63-1.023-5.101-2.883-6.963C16.588 1.843 14.116.822 11.5.822 6.066.822 1.641 5.242 1.638 10.682c-.001 1.666.436 3.292 1.267 4.724L1.878 20.1l4.769-1.25zM17.51 14.86c-.3-.149-1.772-.875-2.046-.975-.276-.1-.476-.149-.676.15-.2.3-.777.975-.951 1.174-.176.2-.351.224-.651.075-.3-.149-1.268-.467-2.417-1.493-.892-.796-1.495-1.78-1.67-2.079-.176-.3-.019-.462.13-.611.134-.133.3-.35.45-.525.15-.175.2-.299.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.582-.491-.504-.676-.513-.175-.008-.375-.01-.575-.01-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.494 1.707.632.716.227 1.368.195 1.884.118.574-.085 1.772-.724 2.022-1.424.25-.7.25-1.299.175-1.424-.075-.125-.275-.199-.575-.349z" />
-                            </svg>
+                            <MessageCircle className="h-3.5 w-3.5" />
                           </button>
 
                           <button
@@ -976,7 +978,8 @@ export default function QuotesPage() {
                               }
                             }}
                             className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/25 border border-rose-500/20"
-                            title="Excluir Orçamento"
+                            title="Excluir orçamento"
+                            aria-label="Excluir orçamento"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
