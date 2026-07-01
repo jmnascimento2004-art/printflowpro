@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Plus, 
   FileText, 
@@ -19,6 +19,7 @@ import { useDatabase } from '@/context/database-context';
 import { Quote, QuoteItem } from '@/lib/dummy-data';
 import type { AdditionalService } from '@/lib/dummy-data';
 import { AdditionalServicesSection, getAdditionalServicesTotal } from '@/components/commercial/AdditionalServicesSection';
+import { QuoteItemModal, type QuoteItemDraft } from '@/components/quotes/QuoteItemModal';
 import {
   formatCurrencyInput,
   parseCurrencyInputToNumber,
@@ -31,18 +32,9 @@ import { warnCaught } from '@/lib/safe-log';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
 import {
-  findVariantPricingMatrixRow,
-  formatUnitCurrency,
-  getNormalizedVariantPricingMatrix,
-  getNormalizedVolumePricing,
-  getVariantPricingOptions,
-  normalizeCombinationKey,
-  NormalizedVolumePriceTier
+  formatUnitCurrency
 } from '@/lib/pricing';
 
-type ItemConfigurationSnapshot = NonNullable<QuoteItem['details']>['configuration_snapshot'];
-
-type MatrixSelectionField = 'material' | 'size' | 'colors' | 'finishing';
 type DraftQuoteItem = Omit<QuoteItem, 'id' | 'total_price'> & {
   id?: string;
   total_price?: number;
@@ -60,17 +52,6 @@ const formatQuoteMoney = (value: number) => {
     style: 'currency',
     currency: 'BRL'
   }).format(value || 0);
-};
-
-const buildConfigurationLabel = (snapshot: ItemConfigurationSnapshot) => {
-  if (!snapshot) return '';
-  return [
-    snapshot.material,
-    snapshot.size,
-    snapshot.colors,
-    snapshot.finishing,
-    `${snapshot.quantity_tier} un`
-  ].filter(Boolean).join(' | ');
 };
 
 const getItemConfigurationSnapshot = (item: Pick<QuoteItem, 'details'>) => item.details?.configuration_snapshot;
@@ -254,6 +235,8 @@ export default function QuotesPage() {
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<DraftQuoteItem[]>([]);
   const [additionalServices, setAdditionalServices] = useState<AdditionalService[]>([]);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
 
   // Delivery Form States
   const [deliveryType, setDeliveryType] = useState<'retirada' | 'motoboy' | 'carro' | 'correios'>('retirada');
@@ -492,199 +475,37 @@ export default function QuotesPage() {
     setDeliveryFee(Math.round(Math.max(rawFee, minFee) * 100) / 100);
   };
 
-  // Item Form State (Temporary row inputs)
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [itemQty, setItemQty] = useState(1);
-  const [itemWidth, setItemWidth] = useState(1.0);
-  const [itemHeight, setItemHeight] = useState(1.0);
-  const [selectedMaterial, setSelectedMaterial] = useState('');
-  const [selectedMatrixSize, setSelectedMatrixSize] = useState('');
-  const [selectedMatrixColors, setSelectedMatrixColors] = useState('');
-  const [selectedFinishing, setSelectedFinishing] = useState('');
-
-  const getProductVolumeTiers = (prodId: string) => {
-    const prod = products.find(p => p.id === prodId);
-    return getNormalizedVolumePricing(prod).sort((a, b) => a.min_qty - b.min_qty);
-  };
-
-  const selectedProduct = products.find(p => p.id === selectedProductId);
-  const selectedVariantPricingRows = useMemo(() => (
-    getNormalizedVariantPricingMatrix(selectedProduct)
-  ), [selectedProduct]);
-  const hasVariantPricingMatrix = selectedVariantPricingRows.length > 0;
-  const matrixSelection = useMemo(() => ({
-    material: selectedMaterial,
-    size: selectedMatrixSize,
-    colors: selectedMatrixColors,
-    finishing: selectedFinishing
-  }), [selectedMaterial, selectedMatrixSize, selectedMatrixColors, selectedFinishing]);
-  const selectedMatrixRow = useMemo(() => (
-    hasVariantPricingMatrix ? findVariantPricingMatrixRow(selectedVariantPricingRows, matrixSelection) : null
-  ), [hasVariantPricingMatrix, selectedVariantPricingRows, matrixSelection]);
-  const effectiveQuantityTiers: NormalizedVolumePriceTier[] = useMemo(() => {
-    if (hasVariantPricingMatrix) return selectedMatrixRow?.tiers || [];
-    return getNormalizedVolumePricing(selectedProduct).sort((a, b) => a.min_qty - b.min_qty);
-  }, [hasVariantPricingMatrix, selectedMatrixRow, selectedProduct]);
-  const selectedQuantityTier = effectiveQuantityTiers.find((tier) => tier.min_qty === itemQty) || effectiveQuantityTiers[0] || null;
-  const requiresTierSelection = Boolean(selectedProductId && effectiveQuantityTiers.length > 0);
-  const matrixMaterialOptions = getVariantPricingOptions(selectedVariantPricingRows, 'material');
-  const matrixSizeOptions = getVariantPricingOptions(selectedVariantPricingRows, 'size', { material: selectedMaterial });
-  const matrixColorOptions = getVariantPricingOptions(selectedVariantPricingRows, 'colors', { material: selectedMaterial, size: selectedMatrixSize });
-  const matrixFinishingOptions = getVariantPricingOptions(selectedVariantPricingRows, 'finishing', matrixSelection);
-
-  const applyMatrixRow = (row: ReturnType<typeof findVariantPricingMatrixRow>) => {
-    setSelectedMaterial(row?.material || '');
-    setSelectedMatrixSize(row?.size || '');
-    setSelectedMatrixColors(row?.colors || '');
-    setSelectedFinishing(row?.finishing || '');
-    setItemQty(row?.tiers[0]?.min_qty || 1);
-  };
-
-  const initializeProductConfiguration = (productId: string) => {
-    const product = products.find(p => p.id === productId);
-    const rows = getNormalizedVariantPricingMatrix(product);
-    if (rows.length > 0) {
-      applyMatrixRow(rows[0]);
-      return;
-    }
-
-    setSelectedMaterial('');
-    setSelectedMatrixSize('');
-    setSelectedMatrixColors('');
-    setSelectedFinishing('');
-    setItemQty(getNormalizedVolumePricing(product)[0]?.min_qty || 1);
-  };
-
-  const handleMatrixOptionSelect = (field: MatrixSelectionField, value: string) => {
-    const nextSelection = {
-      material: field === 'material' ? value : selectedMaterial,
-      size: field === 'size' ? value : selectedMatrixSize,
-      colors: field === 'colors' ? value : selectedMatrixColors,
-      finishing: field === 'finishing' ? value : selectedFinishing
-    };
-    const matchingRow = selectedVariantPricingRows.find((row) => (
-      (!nextSelection.material || normalizeCombinationKey(row.material) === normalizeCombinationKey(nextSelection.material)) &&
-      (!nextSelection.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(nextSelection.size)) &&
-      (!nextSelection.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(nextSelection.colors)) &&
-      (!nextSelection.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(nextSelection.finishing))
-    )) || selectedVariantPricingRows[0] || null;
-
-    applyMatrixRow(matchingRow);
-  };
-
   // 1. Filter Quotes
   const filteredQuotes = quotes.filter(q => 
     q.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     q.number.toString().includes(searchQuery)
   );
 
-  // 2. Dynamic Price calculation for item addition
-  const getProductPriceInfo = (prodId: string, qty = itemQty) => {
-    const prod = products.find(p => p.id === prodId);
-    if (!prod) return { price: 0, type: 'unidade', volumeTier: null, hasVolumePricing: false };
-
-    const volumeTiers = prodId === selectedProductId ? effectiveQuantityTiers : getProductVolumeTiers(prodId);
-    const volumeTier = [...volumeTiers].reverse().find(tier => qty >= tier.min_qty) || null;
-    const baseUnitPrice = volumeTier?.price ?? prod.sales_price;
-    let price = baseUnitPrice;
-
-    if (prod.pricing_type === 'm2') {
-      price = baseUnitPrice * itemWidth * itemHeight;
-    } else if (prod.pricing_type === 'linear') {
-      price = baseUnitPrice * itemWidth;
-    }
-
-    return {
-      price,
-      type: prod.pricing_type,
-      volumeTier,
-      hasVolumePricing: volumeTiers.length > 0
-    };
-  };
-
-  const handleAddItem = () => {
-    const prod = products.find(p => p.id === selectedProductId);
-    if (!prod) return;
-
-    const volumeTiers = requiresTierSelection ? effectiveQuantityTiers : getProductVolumeTiers(selectedProductId);
-    const minAllowedQty = volumeTiers[0]?.min_qty || 1;
-    const configuredTier = requiresTierSelection ? selectedQuantityTier : null;
-    if (requiresTierSelection && !configuredTier) return;
-
-    const normalizedQty = configuredTier?.min_qty || Math.max(itemQty, minAllowedQty);
-    const originalQty = itemQty;
-    if (normalizedQty !== originalQty) setItemQty(normalizedQty);
-
-    const { price, volumeTier } = configuredTier
-      ? { price: configuredTier.price, volumeTier: configuredTier }
-      : getProductPriceInfo(selectedProductId, normalizedQty);
-    const configurationSnapshot = volumeTier ? {
-      sale_mode: hasVariantPricingMatrix ? 'variant_matrix' as const : 'volume' as const,
-      material: hasVariantPricingMatrix ? selectedMatrixRow?.material || selectedMaterial : undefined,
-      size: hasVariantPricingMatrix ? selectedMatrixRow?.size || selectedMatrixSize : undefined,
-      colors: hasVariantPricingMatrix ? selectedMatrixRow?.colors || selectedMatrixColors : undefined,
-      finishing: hasVariantPricingMatrix ? selectedMatrixRow?.finishing || selectedFinishing : undefined,
-      quantity_tier: volumeTier.min_qty,
-      unit_price: volumeTier.price,
-      total_price: volumeTier.total,
-      display_label: buildConfigurationLabel({
-        sale_mode: hasVariantPricingMatrix ? 'variant_matrix' : 'volume',
-        material: hasVariantPricingMatrix ? selectedMatrixRow?.material || selectedMaterial : undefined,
-        size: hasVariantPricingMatrix ? selectedMatrixRow?.size || selectedMatrixSize : undefined,
-        colors: hasVariantPricingMatrix ? selectedMatrixRow?.colors || selectedMatrixColors : undefined,
-        finishing: hasVariantPricingMatrix ? selectedMatrixRow?.finishing || selectedFinishing : undefined,
-        quantity_tier: volumeTier.min_qty,
-        unit_price: volumeTier.price,
-        total_price: volumeTier.total,
-        display_label: ''
-      })
-    } : undefined;
-    const selectedOptions = configurationSnapshot && hasVariantPricingMatrix
-      ? [
-          configurationSnapshot.material ? { name: configurationSnapshot.material, option_name: configurationSnapshot.material, group_name: 'Material', price_delta: 0, additional_days: 0 } : null,
-          configurationSnapshot.size ? { name: configurationSnapshot.size, option_name: configurationSnapshot.size, group_name: 'Tamanho', price_delta: 0, additional_days: 0 } : null,
-          configurationSnapshot.colors ? { name: configurationSnapshot.colors, option_name: configurationSnapshot.colors, group_name: 'Cores', price_delta: 0, additional_days: 0 } : null,
-          configurationSnapshot.finishing ? { name: configurationSnapshot.finishing, option_name: configurationSnapshot.finishing, group_name: 'Acabamento', price_delta: 0, additional_days: 0 } : null
-        ].filter(Boolean) as NonNullable<QuoteItem['details']>['selected_options']
-      : undefined;
-
-    const newItem = {
-      product_id: prod.id,
-      product_name: prod.name,
-      quantity: normalizedQty,
-      unit_price: price,
-      details: {
-        width: prod.pricing_type === 'm2' || prod.pricing_type === 'linear' ? itemWidth : undefined,
-        height: prod.pricing_type === 'm2' ? itemHeight : undefined,
-        selected_options: selectedOptions,
-        pricing_type: prod.pricing_type,
-        configuration_summary: configurationSnapshot?.display_label,
-        configuration_snapshot: configurationSnapshot,
-        notes: volumeTier
-          ? `Faixa de preco aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un, ${formatCurrency(volumeTier.total)} total).`
-          : ''
-      }
-    };
-
-    setItems(prev => [...prev, newItem]);
-    
-    // Reset Row Inputs
-    setSelectedProductId('');
-    setItemQty(1);
-    setItemWidth(1.0);
-    setItemHeight(1.0);
-    setSelectedMaterial('');
-    setSelectedMatrixSize('');
-    setSelectedMatrixColors('');
-    setSelectedFinishing('');
-  };
-
   const handleRemoveItem = (index: number) => {
     setItems(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleOpenNewItemModal = () => {
+    setEditingItemIndex(null);
+    setIsItemModalOpen(true);
+  };
+
+  const handleOpenEditItemModal = (index: number) => {
+    setEditingItemIndex(index);
+    setIsItemModalOpen(true);
+  };
+
+  const handleSaveModalItem = (item: QuoteItemDraft) => {
+    setItems(prev => {
+      if (editingItemIndex === null) return [...prev, item];
+      return prev.map((currentItem, index) => (index === editingItemIndex ? item : currentItem));
+    });
+    setEditingItemIndex(null);
+    setIsItemModalOpen(false);
+  };
+
   const getSubtotal = () => {
-    return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    return items.reduce((sum, item) => sum + Number(item.total_price ?? item.quantity * item.unit_price), 0);
   };
 
   const getServicesTotal = () => getAdditionalServicesTotal(additionalServices);
@@ -707,14 +528,8 @@ export default function QuotesPage() {
     setNotes('');
     setItems([]);
     setAdditionalServices([]);
-    setSelectedProductId('');
-    setItemQty(1);
-    setItemWidth(1.0);
-    setItemHeight(1.0);
-    setSelectedMaterial('');
-    setSelectedMatrixSize('');
-    setSelectedMatrixColors('');
-    setSelectedFinishing('');
+    setIsItemModalOpen(false);
+    setEditingItemIndex(null);
     setDeliveryType('retirada');
     setDeliveryAddress('');
     setDeliveryDistanceKm(0);
@@ -745,7 +560,7 @@ export default function QuotesPage() {
     const finalItems: QuoteItem[] = items.map((it, idx) => ({
       ...it,
       id: it.id || `qi-${idx}-${Date.now()}`,
-      total_price: it.quantity * it.unit_price
+      total_price: Number(it.total_price ?? it.quantity * it.unit_price)
     }));
 
     const finalTotal = sub + servicesTotal + deliveryFee - discount;
@@ -1259,181 +1074,22 @@ export default function QuotesPage() {
 
           {/* Item Adder Section */}
           <div className="border border-border rounded-xl p-4 space-y-4 bg-secondary/15">
-            <h4 className="text-xs font-bold text-foreground flex items-center gap-1">
-              <PlusCircle className="h-3.5 w-3.5 text-primary" /> Adicionar Produtos ao Orçamento
-            </h4>
-            
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-              {/* Product select */}
-              <div className="md:col-span-4 space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">Produto / Serviço</label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => {
-                    const nextProductId = e.target.value;
-                    setSelectedProductId(nextProductId);
-                    initializeProductConfiguration(nextProductId);
-                  }}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
-                >
-                  <option value="">Selecione...</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.pricing_type} - {formatCurrency(p.sales_price)})
-                    </option>
-                  ))}
-                </select>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-foreground flex items-center gap-1">
+                  <PlusCircle className="h-3.5 w-3.5 text-primary" /> Itens do Orcamento
+                </h4>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Adicione produtos cadastrados com preco ajustado ou itens personalizados sem alterar o cadastro original.
+                </p>
               </div>
-
-              {/* Dynamic Dimension Inputs */}
-              {selectedProductId && ['m2', 'linear'].includes(getProductPriceInfo(selectedProductId).type) && (
-                <>
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Largura / Compr. (cm)</label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      value={Number((itemWidth * 100).toFixed(2))}
-                      onChange={(e) => setItemWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
-                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                    />
-                  </div>
-                  {getProductPriceInfo(selectedProductId).type === 'm2' && (
-                    <div className="md:col-span-2 space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
-                      <input
-                        type="number"
-                        step="1"
-                        min="1"
-                        value={Number((itemHeight * 100).toFixed(2))}
-                        onChange={(e) => setItemHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
-                        className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Quantity */}
-              {!requiresTierSelection && (
-                <div className="md:col-span-2 space-y-1">
-                  <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={itemQty}
-                    onChange={(e) => {
-                      setItemQty(Math.max(1, parseInt(e.target.value) || 1));
-                    }}
-                    className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                  />
-                </div>
-              )}
-
-              {selectedProductId && hasVariantPricingMatrix && (
-                <div className="md:col-span-12 rounded-xl border border-border bg-card px-4 py-3">
-                  <div className="flex flex-col gap-1">
-                    <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Configure o produto</h5>
-                    <p className="text-[11px] text-muted-foreground">
-                      Escolha a combinação cadastrada para liberar as tiragens e preços disponíveis.
-                    </p>
-                  </div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                    {[
-                      { label: 'Material', field: 'material' as const, value: selectedMaterial, options: matrixMaterialOptions },
-                      { label: 'Tamanho', field: 'size' as const, value: selectedMatrixSize, options: matrixSizeOptions },
-                      { label: 'Cores', field: 'colors' as const, value: selectedMatrixColors, options: matrixColorOptions },
-                      { label: 'Acabamento', field: 'finishing' as const, value: selectedFinishing, options: matrixFinishingOptions }
-                    ].filter((group) => group.options.length > 0).map((group) => (
-                      <div key={group.label} className="rounded-lg border border-border bg-secondary/20 p-2.5">
-                        <span className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">{group.label}</span>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {group.options.map((option) => (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => handleMatrixOptionSelect(group.field, option)}
-                              className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition-all ${
-                                normalizeCombinationKey(group.value) === normalizeCombinationKey(option)
-                                  ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/10'
-                                  : 'border-border bg-card text-foreground hover:border-primary/50'
-                              }`}
-                            >
-                              {option}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {!selectedMatrixRow && (
-                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
-                      Essa combinação não possui preço cadastrado. Escolha outra opção.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {selectedProductId && requiresTierSelection && (
-                <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground space-y-2">
-                  <div>
-                    <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Faixas de quantidade</h5>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Clique na tiragem cadastrada. A quantidade, o unitário e o total serão aplicados ao item.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {effectiveQuantityTiers.map((tier) => (
-                      <button
-                        key={tier.min_qty}
-                        type="button"
-                        onClick={() => setItemQty(tier.min_qty)}
-                        className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${
-                          itemQty === tier.min_qty
-                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                            : 'bg-card text-foreground border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <span className="block">A partir de {tier.min_qty} un</span>
-                        <span className="block">{formatUnitCurrency(tier.price)} / un</span>
-                        <span className="block text-[9px] opacity-80">{formatCurrency(tier.total)} total</span>
-                      </button>
-                    ))}
-                  </div>
-                  {selectedQuantityTier ? (
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="font-semibold">
-                        Faixa aplicada: a partir de {selectedQuantityTier.min_qty} un
-                      </span>
-                      <span className="font-bold text-primary">
-                        {formatUnitCurrency(selectedQuantityTier.price)} / un
-                        {' | '}
-                        {formatCurrency(selectedQuantityTier.total)} total
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="font-semibold text-amber-600">
-                        Este produto possui tabela por quantidade, mas a quantidade informada ainda nao atingiu a primeira faixa.
-                      </span>
-                      <span className="font-bold text-foreground">
-                        Preco base: {formatUnitCurrency(getProductPriceInfo(selectedProductId).price)} / un
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="md:col-span-2">
-                <button
-                  type="button"
-                  onClick={handleAddItem}
-                  className="w-full py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold transition-all"
-                >
-                  Incluir Item
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleOpenNewItemModal}
+                className="pf-button-primary px-4 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5" /> Adicionar item
+              </button>
             </div>
 
             {/* Added Items table */}
@@ -1457,7 +1113,7 @@ export default function QuotesPage() {
                           {(() => {
                             const configLines = getItemConfigurationSummaryLines({
                               ...item,
-                              total_price: item.quantity * item.unit_price
+                              total_price: Number(item.total_price ?? item.quantity * item.unit_price)
                             });
                             if (!configLines) return null;
                             return (
@@ -1482,12 +1138,21 @@ export default function QuotesPage() {
                         </td>
                         <td className="px-4 py-2 text-center font-semibold text-muted-foreground">{item.quantity}</td>
                         <td className="px-4 py-2 text-right text-muted-foreground">{formatUnitCurrency(item.unit_price)}</td>
-                        <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(item.quantity * item.unit_price)}</td>
+                        <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(Number(item.total_price ?? item.quantity * item.unit_price))}</td>
                         <td className="px-4 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditItemModal(idx)}
+                            className="mr-1 p-1 rounded bg-primary/10 text-primary hover:bg-primary/20"
+                            title="Editar item"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(idx)}
                             className="p-1 rounded bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"
+                            title="Remover item"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -1777,6 +1442,16 @@ export default function QuotesPage() {
           </div>
         </div>
       )}
+      <QuoteItemModal
+        open={isItemModalOpen}
+        products={products}
+        item={editingItemIndex === null ? null : items[editingItemIndex] || null}
+        onClose={() => {
+          setIsItemModalOpen(false);
+          setEditingItemIndex(null);
+        }}
+        onSave={handleSaveModalItem}
+      />
     </div>
   );
 }
