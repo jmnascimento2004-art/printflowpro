@@ -389,6 +389,7 @@ export interface Quote {
   delivery_address?: string;
   delivery_distance_km?: number;
   delivery_fee?: number;
+  linked_order_id?: string;
 }
 
 export interface OrderItem {
@@ -474,6 +475,8 @@ export interface Order {
   delivery_origin_address?: string;
   delivery_address?: string;
   delivery_distance_km?: number;
+  source_quote_id?: string;
+  source_quote_number?: number;
 }
 
 export interface ProductionItem {

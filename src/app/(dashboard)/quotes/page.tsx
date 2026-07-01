@@ -76,6 +76,7 @@ export default function QuotesPage() {
     updateQuote,
     deleteQuote, 
     approveQuote, 
+    orders,
     customers, 
     products,
     settings,
@@ -517,6 +518,18 @@ export default function QuotesPage() {
       ? 'PJ'
       : 'PF'
     : '';
+  const editingQuote = editingQuoteId ? quotes.find((quote) => quote.id === editingQuoteId) : null;
+  const editingLinkedOrder = editingQuote
+    ? orders.find((order) => {
+        const quoteNumberPattern = new RegExp(`Or(?:ç|c)amento\\s*#?${editingQuote.number}\\b`, 'i');
+        return (
+          order.source_quote_id === editingQuote.id ||
+          order.source_quote_number === editingQuote.number ||
+          editingQuote.linked_order_id === order.id ||
+          quoteNumberPattern.test(order.notes || '')
+        );
+      })
+    : null;
 
   const resetForm = () => {
     setIsCreating(false);
@@ -572,13 +585,14 @@ export default function QuotesPage() {
 
     if (editingQuoteId) {
       const match = quotes.find(q => q.id === editingQuoteId);
+      const nextStatus = match?.status === 'aprovado' ? 'aprovado' : status;
       updateQuote({
         id: editingQuoteId,
         company_id: match?.company_id || 'c1',
         customer_id: client.id,
         customer_name: client.name,
         number: match?.number || 0,
-        status,
+        status: nextStatus,
         total_amount: finalTotal,
         discount,
         valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -1012,6 +1026,12 @@ export default function QuotesPage() {
               <X className="h-4 w-4" />
             </button>
           </div>
+
+          {editingLinkedOrder && (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-700">
+              Este orçamento possui um pedido vinculado. Ao salvar, o pedido será atualizado com as alterações comerciais, preservando pagamentos e histórico.
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Customer select */}

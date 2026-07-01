@@ -1601,9 +1601,83 @@ useEffect(() => {
     });
   };
 
+  const findLinkedOrderForQuote = (quote: Quote, sourceOrders: Order[] = orders) => {
+    const quoteNumberPattern = new RegExp(`Or(?:ç|c)amento\\s*#?${quote.number}\\b`, 'i');
+
+    return sourceOrders.find((order) =>
+      order.source_quote_id === quote.id ||
+      order.source_quote_number === quote.number ||
+      quote.linked_order_id === order.id ||
+      quoteNumberPattern.test(order.notes || '')
+    ) || null;
+  };
+
+  const getPaidAmountForOrder = (order: Order) => {
+    const paidTransactionsTotal = financial
+      .filter((transaction) =>
+        transaction.type === 'receita' &&
+        transaction.status === 'pago' &&
+        (transaction.order_id === order.id || transaction.order_number === order.number)
+      )
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+    return Math.max(Number(order.paid_amount || 0), paidTransactionsTotal);
+  };
+
+  const getPaymentStatusForTotal = (paidAmount: number, totalAmount: number): Order['payment_status'] => {
+    if (paidAmount >= totalAmount && totalAmount > 0) return 'pago';
+    if (paidAmount > 0) return 'parcial';
+    return 'pendente';
+  };
+
+  const buildSyncedOrderFromQuote = (order: Order, quote: Quote): Order => {
+    const paidAmount = getPaidAmountForOrder(order);
+    const nextTotal = Number(quote.total_amount || 0);
+
+    return {
+      ...order,
+      customer_id: quote.customer_id || order.customer_id,
+      customer_name: quote.customer_name || order.customer_name,
+      total_amount: nextTotal,
+      paid_amount: paidAmount,
+      payment_status: getPaymentStatusForTotal(paidAmount, nextTotal),
+      shipping_cost: Number(quote.delivery_fee || 0),
+      notes: order.notes || `Convertido do Orçamento #${quote.number}. ${quote.notes || ''}`.trim(),
+      additional_services: quote.additional_services || [],
+      items: quote.items.map((item, index) => ({
+        id: order.items[index]?.id || `oi-${Math.random().toString(36).slice(2, 11)}`,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        quantity: Number(item.quantity || 0),
+        unit_price: Number(item.unit_price || 0),
+        total_price: Number(item.total_price || 0),
+        details: item.details,
+        outsourced: order.items[index]?.outsourced || false,
+        supplier_id: order.items[index]?.supplier_id,
+        supplier_name: order.items[index]?.supplier_name,
+        outsourced_cost: order.items[index]?.outsourced_cost
+      })),
+      delivery_type: quote.delivery_type,
+      delivery_origin_address: quote.delivery_origin_address || order.delivery_origin_address,
+      delivery_address: quote.delivery_address,
+      delivery_distance_km: quote.delivery_distance_km,
+      source_quote_id: order.source_quote_id || quote.id,
+      source_quote_number: order.source_quote_number || quote.number
+    };
+  };
+
+  const syncLinkedOrderFromQuote = async (quote: Quote) => {
+    const linkedOrder = findLinkedOrderForQuote(quote);
+    if (!linkedOrder) return null;
+
+    const syncedOrder = buildSyncedOrderFromQuote(linkedOrder, quote);
+    return saveOrderWithItems(syncedOrder, `sincronizado do orçamento #${quote.number}`);
+  };
+
   const saveQuoteWithItems = async (quote: Quote, errorContext: string) => {
     const { items, ...parentQuote } = quote;
-    const p_quote = parentQuote;
+    const p_quote = { ...parentQuote };
+    delete (p_quote as Partial<Quote>).linked_order_id;
     const p_items = items;
     const invalidItem = p_items.find(
       item =>
@@ -1670,6 +1744,8 @@ useEffect(() => {
 
   const saveOrderWithItems = async (order: Order, errorContext: string) => {
     const { items, ...parentOrder } = order;
+    delete (parentOrder as Partial<Order>).source_quote_id;
+    delete (parentOrder as Partial<Order>).source_quote_number;
     const { data, error } = await supabase.rpc('save_order_with_items', {
       p_order: parentOrder,
       p_items: items
@@ -1712,7 +1788,10 @@ useEffect(() => {
       company_id: quote.company_id || currentCompanyId
     };
 
-    void saveQuoteWithItems(nextQuote, 'atualizado');
+    void saveQuoteWithItems(nextQuote, 'atualizado').then((savedQuote) => {
+      if (!savedQuote) return;
+      void syncLinkedOrderFromQuote(savedQuote);
+    });
   };
 
   const deleteQuote = (id: string) => {
