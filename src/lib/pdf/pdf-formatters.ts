@@ -15,6 +15,27 @@ export function formatPdfUnitCurrency(value?: number | string | null) {
   return formatPdfCurrency(value, { maximumFractionDigits: 4 });
 }
 
+function toFinitePdfNumber(value: unknown, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+export function getPdfDisplayUnitPrice(item: QuoteItem | OrderItem) {
+  const quantity = toFinitePdfNumber(item.quantity);
+  const total = toFinitePdfNumber(item.total_price);
+
+  if (quantity > 0 && total > 0) {
+    return total / quantity;
+  }
+
+  const snapshot = item.details?.configuration_snapshot;
+  const quotedUnitPrice = toFinitePdfNumber(snapshot?.quoted_unit_price, NaN);
+  if (Number.isFinite(quotedUnitPrice)) return quotedUnitPrice;
+
+  const unitPrice = toFinitePdfNumber(item.unit_price, NaN);
+  return Number.isFinite(unitPrice) ? unitPrice : 0;
+}
+
 export function formatPdfDate(value?: string | null) {
   if (!value) return 'Não informado';
   const date = new Date(value);
