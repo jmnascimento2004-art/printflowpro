@@ -18,13 +18,18 @@ import {
 import { useDatabase } from '@/context/database-context';
 import { FinancialTransaction } from '@/lib/dummy-data';
 import {
-  calculateOrderBalance,
+  calculateAccountsReceivable,
+  calculateActiveCashBalance,
+  calculatePeriodExpenses,
+  calculatePeriodRevenue,
   dedupeFinancialTransactions,
+  isActivePaymentTransaction,
   isActiveFinancialTransaction,
   isCancelledTransaction,
+  isExpenseTransaction,
   normalizeFinanceStatus
 } from '@/lib/finance-rules';
-import { isCancelledOrder, isFinanciallyActiveOrder } from '@/lib/order-status';
+import { isActiveOrder, isCancelledOrder, isFinanciallyActiveOrder } from '@/lib/order-status';
 import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
 
 export default function FinancialPage() {
@@ -88,26 +93,27 @@ export default function FinancialPage() {
   });
 
   // 1. Calculations
-  const totalReceived = periodTransactions
-    .filter(f => f.type === 'receita' && f.status === 'pago')
-    .reduce((sum, f) => sum + f.amount, 0);
+  const totalReceived = calculatePeriodRevenue(reconciledTransactions, isInSelectedPeriod, findTransactionOrder);
 
-  const totalPaid = periodTransactions
-    .filter(f => f.type === 'despesa' && f.status === 'pago')
-    .reduce((sum, f) => sum + f.amount, 0);
+  const totalPaid = calculatePeriodExpenses(reconciledTransactions, isInSelectedPeriod, findTransactionOrder);
 
-  const netCashFlow = totalReceived - totalPaid;
+  const netCashFlow = calculateActiveCashBalance(reconciledTransactions, findTransactionOrder);
 
-  const accountsReceivable = orders
-    .filter(isFinanciallyActiveOrder)
-    .reduce((sum, order) => sum + calculateOrderBalance(order, reconciledTransactions), 0);
+  const accountsReceivable = calculateAccountsReceivable(orders.filter(isActiveOrder), reconciledTransactions);
 
   const accountsPayable = activeTransactions
-    .filter(f => f.type === 'despesa' && f.status === 'pendente')
+    .filter((transaction) =>
+      isExpenseTransaction(transaction, findTransactionOrder(transaction)) &&
+      normalizeFinanceStatus(transaction.status) === 'pendente'
+    )
     .reduce((sum, f) => sum + f.amount, 0);
 
-  const periodIncome = periodTransactions.filter(f => f.type === 'receita');
-  const periodExpenses = periodTransactions.filter(f => f.type === 'despesa');
+  const periodIncome = periodTransactions.filter((transaction) =>
+    isActivePaymentTransaction(transaction, findTransactionOrder(transaction))
+  );
+  const periodExpenses = periodTransactions.filter((transaction) =>
+    isExpenseTransaction(transaction, findTransactionOrder(transaction))
+  );
   const cancelledAmount = reconciledTransactions
     .filter((transaction) => isCancelledTransaction(transaction) || isCancelledOrder(findTransactionOrder(transaction)))
     .filter((transaction) => transaction.type === 'receita')

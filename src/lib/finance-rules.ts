@@ -1,5 +1,5 @@
 import type { FinancialTransaction, Order } from '@/lib/dummy-data';
-import { isFinanciallyActiveOrder, normalizeStatus } from '@/lib/order-status';
+import { isActiveOrder, isFinanciallyActiveOrder, normalizeStatus } from '@/lib/order-status';
 
 type TransactionLike = Partial<FinancialTransaction> & {
   amount?: unknown;
@@ -26,11 +26,6 @@ const CANCELLED_TRANSACTION_MARKERS = new Set([
 ]);
 
 export const normalizeFinanceStatus = normalizeStatus;
-
-const getTransactionTime = (value: unknown): number => {
-  const time = new Date(String(value || '')).getTime();
-  return Number.isFinite(time) ? time : 0;
-};
 
 export const isCancelledTransaction = (transaction?: TransactionLike | null): boolean => {
   if (!transaction) return false;
@@ -63,6 +58,24 @@ export const isActiveFinancialTransaction = (
   return Number(transaction.amount || 0) > 0;
 };
 
+export const getTransactionOrderId = (transaction?: TransactionLike | null): string =>
+  normalizeFinanceStatus(transaction?.order_id || transaction?.order_number);
+
+export const isActivePaymentTransaction = (
+  transaction?: TransactionLike | null,
+  order?: Order | null
+): boolean =>
+  isActiveFinancialTransaction(transaction, order) &&
+  normalizeFinanceStatus(transaction?.type) === 'receita' &&
+  normalizeFinanceStatus(transaction?.status) === 'pago';
+
+export const isExpenseTransaction = (
+  transaction?: TransactionLike | null,
+  order?: Order | null
+): boolean =>
+  isActiveFinancialTransaction(transaction, order) &&
+  normalizeFinanceStatus(transaction?.type) === 'despesa';
+
 const buildFallbackTransactionKey = (transaction: TransactionLike) => [
   normalizeFinanceStatus(transaction.order_id),
   normalizeFinanceStatus(transaction.order_number),
@@ -87,45 +100,56 @@ export const dedupeTransactionsById = <T extends TransactionLike>(transactions: 
   });
 };
 
-const buildOperationalDuplicateKey = (transaction: TransactionLike) => [
-  normalizeFinanceStatus(transaction.order_id),
-  normalizeFinanceStatus(transaction.order_number),
-  normalizeFinanceStatus(transaction.type),
-  normalizeFinanceStatus(transaction.status),
-  Number(transaction.amount || 0).toFixed(2),
-  normalizeFinanceStatus(transaction.description),
-  normalizeFinanceStatus(transaction.payment_method),
-  normalizeFinanceStatus(transaction.paid_at || transaction.due_date)
-].join('|');
-
 export const dedupeFinancialTransactions = <T extends TransactionLike>(transactions: T[]): T[] => {
-  const byId = dedupeTransactionsById(transactions);
-  const grouped = new Map<string, T[]>();
-
-  byId.forEach((transaction) => {
-    const key = buildOperationalDuplicateKey(transaction);
-    const current = grouped.get(key) || [];
-    current.push(transaction);
-    grouped.set(key, current);
-  });
-
-  return Array.from(grouped.values()).flatMap((group) => {
-    const sorted = [...group].sort((a, b) => getTransactionTime(a.created_at) - getTransactionTime(b.created_at));
-    const kept: T[] = [];
-
-    sorted.forEach((transaction) => {
-      const createdAt = getTransactionTime(transaction.created_at);
-      const isNearDuplicate = kept.some((keptTransaction) => {
-        const keptCreatedAt = getTransactionTime(keptTransaction.created_at);
-        return createdAt > 0 && keptCreatedAt > 0 && Math.abs(createdAt - keptCreatedAt) <= 2000;
-      });
-
-      if (!isNearDuplicate) kept.push(transaction);
-    });
-
-    return kept;
-  });
+  return dedupeTransactionsById(transactions);
 };
+
+type FindOrderForTransaction = (transaction: FinancialTransaction) => Order | undefined;
+type PeriodPredicate = (transaction: FinancialTransaction) => boolean;
+
+export const calculateActiveCashBalance = (
+  transactions: FinancialTransaction[],
+  findOrderForTransaction: FindOrderForTransaction
+): number =>
+  dedupeFinancialTransactions(transactions).reduce((sum, transaction) => {
+    const order = findOrderForTransaction(transaction);
+    if (isActivePaymentTransaction(transaction, order)) return sum + Number(transaction.amount || 0);
+    if (isExpenseTransaction(transaction, order) && normalizeFinanceStatus(transaction.status) === 'pago') {
+      return sum - Number(transaction.amount || 0);
+    }
+    return sum;
+  }, 0);
+
+export const calculatePeriodRevenue = (
+  transactions: FinancialTransaction[],
+  isInPeriod: PeriodPredicate,
+  findOrderForTransaction: FindOrderForTransaction
+): number =>
+  dedupeFinancialTransactions(transactions)
+    .filter(isInPeriod)
+    .filter((transaction) => isActivePaymentTransaction(transaction, findOrderForTransaction(transaction)))
+    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+export const calculatePeriodExpenses = (
+  transactions: FinancialTransaction[],
+  isInPeriod: PeriodPredicate,
+  findOrderForTransaction: FindOrderForTransaction
+): number =>
+  dedupeFinancialTransactions(transactions)
+    .filter(isInPeriod)
+    .filter((transaction) =>
+      isExpenseTransaction(transaction, findOrderForTransaction(transaction)) &&
+      normalizeFinanceStatus(transaction.status) === 'pago'
+    )
+    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+export const calculateAccountsReceivable = (
+  activeOrders: Order[],
+  transactions: FinancialTransaction[]
+): number =>
+  activeOrders
+    .filter(isActiveOrder)
+    .reduce((sum, order) => sum + calculateOrderBalance(order, transactions), 0);
 
 export const getActivePaymentsForOrder = (
   orderId: string,
@@ -133,9 +157,7 @@ export const getActivePaymentsForOrder = (
 ): FinancialTransaction[] =>
   dedupeFinancialTransactions(transactions).filter((transaction) =>
     transaction.order_id === orderId &&
-    transaction.type === 'receita' &&
-    transaction.status === 'pago' &&
-    isActiveFinancialTransaction(transaction)
+    isActivePaymentTransaction(transaction)
   );
 
 export const calculateOrderPaidAmount = (
