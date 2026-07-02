@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { 
   Package, 
   Search, 
-  AlertTriangle, 
   PlusCircle, 
   Check, 
   X,
@@ -32,6 +31,20 @@ export default function StockPage() {
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.sku.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const filteredStockMovements = stockMovements.filter(move =>
+    move.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    move.reason.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const pricingTypeLabels: Record<string, string> = {
+    unidade: 'Unidade',
+    m2: 'M²',
+    linear: 'Metro linear',
+    pacote: 'Pacote',
+    kit: 'Kit',
+    servico: 'Serviço',
+    custom: 'Outro'
+  };
 
   const handleAdjustStock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +62,43 @@ export default function StockPage() {
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  };
+
+  const getStockStatus = (product: typeof products[number]) => {
+    if (!product.stock_controlled) {
+      return {
+        label: 'Não controlado',
+        className: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20'
+      };
+    }
+
+    if (product.current_stock <= 0) {
+      return {
+        label: 'Sem estoque',
+        className: 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+      };
+    }
+
+    if (product.current_stock <= product.min_stock) {
+      return {
+        label: 'Baixo estoque',
+        className: 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+      };
+    }
+
+    return {
+      label: 'Disponível',
+      className: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+    };
+  };
+
+  const openStockAdjustment = (productId?: string) => {
+    setSelectedProductId(productId || '');
+    setQuantity(0);
+    setCost(0);
+    setReason('Compra');
+    setAdjustType('entrada');
+    setIsAdjusting(true);
   };
 
   return (
@@ -92,7 +142,7 @@ export default function StockPage() {
             />
           </div>
           <button
-            onClick={() => setIsAdjusting(true)}
+            onClick={() => openStockAdjustment()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all shrink-0"
           >
             <PlusCircle className="h-4 w-4" /> Ajustar Estoque
@@ -214,69 +264,95 @@ export default function StockPage() {
       <div className={isAdjusting ? 'hidden' : ''}>
         {/* 4. Active Tab content */}
       {activeTab === 'inventory' ? (
-        /* Inventory Table */
+        /* Inventory Cards */
         <div className="bg-card border border-border rounded-2xl shadow-sm">
           <div className="px-5 py-4 border-b border-border bg-secondary/10 flex justify-between items-center">
             <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Ficha de Estoque & Insumos</h3>
             <span className="text-[11px] text-muted-foreground font-semibold">Exibindo {filteredProducts.length} itens cadastrados</span>
           </div>
 
-          <div className="w-full overflow-x-auto">
-            <table className="min-w-[980px] w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-secondary/40 text-[9px] uppercase font-bold text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3">Código SKU</th>
-                  <th className="px-5 py-3">Produto / Matéria-Prima</th>
-                  <th className="px-5 py-3">Cálculo</th>
-                  <th className="px-5 py-3 text-right">Custo Base</th>
-                  <th className="px-5 py-3 text-right">Valor Venda</th>
-                  <th className="px-5 py-3 text-center">Mínimo</th>
-                  <th className="px-5 py-3 text-center">Qtd. Atual</th>
-                  <th className="px-5 py-3 text-center whitespace-nowrap min-w-[140px]">Status Estoque</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+          <div className="p-4">
+            {filteredProducts.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                 {filteredProducts.map((p) => {
-                  const belowMin = p.stock_controlled && p.current_stock < p.min_stock;
+                  const status = getStockStatus(p);
+                  const description = stripRichTextHtml(p.description);
 
                   return (
-                    <tr key={p.id} className="hover:bg-secondary/15 transition-colors">
-                      <td className="px-5 py-3.5 font-bold text-foreground">{p.sku}</td>
-                      <td className="px-5 py-3.5">
-                        <div>
-                          <div className="font-semibold text-foreground">{p.name}</div>
-                          <div className="text-[10px] text-muted-foreground max-w-sm truncate">{stripRichTextHtml(p.description)}</div>
+                    <article
+                      key={p.id}
+                      className="group flex min-h-[260px] flex-col rounded-xl border border-border bg-secondary/20 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:bg-secondary/30 hover:shadow-md"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-mono text-[9px] font-black uppercase tracking-wide text-muted-foreground">
+                            SKU {p.sku || 'Sem SKU'}
+                          </p>
+                          <h4 className="mt-1 line-clamp-2 text-sm font-black leading-snug text-foreground">
+                            {p.name}
+                          </h4>
                         </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-muted-foreground font-medium uppercase">{p.pricing_type}</td>
-                      <td className="px-5 py-3.5 text-right font-medium text-muted-foreground">{formatCurrency(p.base_cost)}</td>
-                      <td className="px-5 py-3.5 text-right font-bold text-foreground">{formatCurrency(p.sales_price)}</td>
-                      <td className="px-5 py-3.5 text-center text-muted-foreground font-semibold">
-                        {p.stock_controlled ? p.min_stock : '-'}
-                      </td>
-                      <td className="px-5 py-3.5 text-center font-bold text-foreground">
-                        {p.current_stock}
-                      </td>
-                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                        {!p.stock_controlled ? (
-                          <span className="inline-flex w-max items-center justify-center whitespace-nowrap text-[10px] text-zinc-400 font-semibold bg-zinc-500/5 px-2 py-0.5 rounded border border-zinc-500/10">
-                            Sem Controle
-                          </span>
-                        ) : belowMin ? (
-                          <span className="text-[10px] text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 flex items-center gap-1 w-max mx-auto animate-pulse">
-                            <AlertTriangle className="h-3 w-3" /> Abaixo Mín.
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1 w-max mx-auto">
-                            Regular
-                          </span>
-                        )}
-                      </td>
-                    </tr>
+                        <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${status.className}`}>
+                          {status.label}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 line-clamp-2 min-h-[32px] text-[10px] font-medium leading-relaxed text-muted-foreground">
+                        {description || 'Sem descrição cadastrada.'}
+                      </p>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+                        <div className="rounded-lg border border-border/70 bg-card/80 p-2">
+                          <span className="block font-bold uppercase text-muted-foreground">Cálculo</span>
+                          <strong className="mt-0.5 block text-xs text-foreground">{pricingTypeLabels[p.pricing_type] || 'Outro'}</strong>
+                        </div>
+                        <div className="rounded-lg border border-border/70 bg-card/80 p-2 text-right">
+                          <span className="block font-bold uppercase text-muted-foreground">Qtd. atual</span>
+                          <strong className="mt-0.5 block text-xs text-foreground">{p.stock_controlled ? p.current_stock : '-'}</strong>
+                        </div>
+                        <div className="rounded-lg border border-border/70 bg-card/80 p-2">
+                          <span className="block font-bold uppercase text-muted-foreground">Custo base</span>
+                          <strong className="mt-0.5 block text-xs text-foreground">{formatCurrency(p.base_cost)}</strong>
+                        </div>
+                        <div className="rounded-lg border border-border/70 bg-card/80 p-2 text-right">
+                          <span className="block font-bold uppercase text-muted-foreground">Valor venda</span>
+                          <strong className="mt-0.5 block text-xs text-primary">{formatCurrency(p.sales_price)}</strong>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between rounded-lg bg-card/70 px-2.5 py-2 text-[10px]">
+                        <span className="font-bold uppercase text-muted-foreground">Estoque mínimo</span>
+                        <span className="font-black text-foreground">{p.stock_controlled ? p.min_stock : 'Não controlado'}</span>
+                      </div>
+
+                      <div className="mt-auto grid grid-cols-2 gap-2 pt-3">
+                        <button
+                          type="button"
+                          onClick={() => openStockAdjustment(p.id)}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-2.5 py-2 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-sm shadow-primary/20 transition-colors hover:bg-primary/90"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" /> Ajustar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery(p.name);
+                            setActiveTab('movements');
+                          }}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-2 text-[10px] font-black uppercase tracking-wide text-foreground transition-colors hover:bg-secondary/70"
+                        >
+                          <History className="h-3.5 w-3.5" /> Histórico
+                        </button>
+                      </div>
+                    </article>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border p-10 text-center text-xs font-semibold text-muted-foreground">
+                Nenhum item de estoque encontrado para a busca atual.
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -299,8 +375,8 @@ export default function StockPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {stockMovements.length > 0 ? (
-                  stockMovements.map((move) => {
+                {filteredStockMovements.length > 0 ? (
+                  filteredStockMovements.map((move) => {
                     const isInput = move.type === 'entrada';
 
                     return (
