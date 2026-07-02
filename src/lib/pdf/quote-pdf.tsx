@@ -6,6 +6,7 @@ import {
   buildCustomerAddress,
   formatPdfCurrency,
   formatPdfDate,
+  formatQuoteValidityPdfDate,
   formatPdfUnitCurrency,
   getAdditionalServicesTotal,
   getCompactItemDescription,
@@ -163,7 +164,7 @@ export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
             <Text style={styles.title}>ORCAMENTO</Text>
             <Text style={styles.title}>#{data.quote.number}</Text>
             <Text style={styles.meta}>Emissão: {formatPdfDate(data.quote.created_at)}</Text>
-            <Text style={styles.meta}>Validade: {formatPdfDate(data.quote.valid_until)}</Text>
+            <Text style={styles.meta}>Validade: {formatQuoteValidityPdfDate(data.quote.valid_until, data.quote.created_at)}</Text>
           </View>
         </View>
 
@@ -233,7 +234,7 @@ export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
         </View>
 
         <View style={styles.notes}>
-          <Text>Validade da proposta: {formatPdfDate(data.quote.valid_until)}.</Text>
+          <Text>Validade da proposta: {formatQuoteValidityPdfDate(data.quote.valid_until, data.quote.created_at)}.</Text>
           {data.quote.notes ? <Text>Observações: {normalizePdfText(data.quote.notes)}</Text> : null}
         </View>
         <Text style={styles.footer}>{getPdfFooterText(data.company)}</Text>

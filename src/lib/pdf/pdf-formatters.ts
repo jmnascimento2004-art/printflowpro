@@ -15,11 +15,35 @@ export function formatPdfUnitCurrency(value?: number | string | null) {
   return formatPdfCurrency(value, { maximumFractionDigits: 4 });
 }
 
+function parsePdfDate(value?: string | null) {
+  if (!value) return new Date(Number.NaN);
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(value);
+}
+
+function startOfPdfDate(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 export function formatPdfDate(value?: string | null) {
   if (!value) return 'Não informado';
-  const date = new Date(value);
+  const date = parsePdfDate(value);
   if (Number.isNaN(date.getTime())) return 'Não informado';
   return date.toLocaleDateString('pt-BR');
+}
+
+export function formatQuoteValidityPdfDate(validUntil?: string | null, createdAt?: string | null) {
+  const validityDate = parsePdfDate(validUntil);
+  if (Number.isNaN(validityDate.getTime())) return formatPdfDate(validUntil);
+
+  const issueDate = parsePdfDate(createdAt);
+  if (!Number.isNaN(issueDate.getTime()) && startOfPdfDate(validityDate).getTime() < startOfPdfDate(issueDate).getTime()) {
+    return issueDate.toLocaleDateString('pt-BR');
+  }
+
+  return validityDate.toLocaleDateString('pt-BR');
 }
 
 export function buildCompanyAddress(company?: Company | null) {

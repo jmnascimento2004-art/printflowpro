@@ -70,6 +70,55 @@ const manualQuotePricingLabels: Record<ManualQuotePricingType, string> = {
 
 const roundQuoteNumber = (value: number) => Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
 
+const parseQuoteDate = (value?: string | null) => {
+  if (!value) return null;
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const toQuoteDateInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getQuoteDateInputValue = (value?: string | null) => {
+  const date = parseQuoteDate(value);
+  return date ? toQuoteDateInputValue(date) : '';
+};
+
+const getDefaultQuoteValidUntil = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 15);
+  return toQuoteDateInputValue(date);
+};
+
+const compareQuoteDateValues = (left?: string | null, right?: string | null) => {
+  const leftDate = parseQuoteDate(left);
+  const rightDate = parseQuoteDate(right);
+  if (!leftDate || !rightDate) return 0;
+  const leftDay = new Date(leftDate.getFullYear(), leftDate.getMonth(), leftDate.getDate()).getTime();
+  const rightDay = new Date(rightDate.getFullYear(), rightDate.getMonth(), rightDate.getDate()).getTime();
+  return leftDay - rightDay;
+};
+
+const formatQuoteDate = (value?: string | null) => {
+  const date = parseQuoteDate(value);
+  return date ? date.toLocaleDateString('pt-BR') : 'Nao informado';
+};
+
+const formatQuoteValidityDate = (validUntil?: string | null, createdAt?: string | null) => {
+  const issueDateValue = getQuoteDateInputValue(createdAt);
+  if (issueDateValue && compareQuoteDateValues(validUntil, issueDateValue) < 0) {
+    return formatQuoteDate(issueDateValue);
+  }
+  return formatQuoteDate(validUntil);
+};
+
 type PdfPreviewState = {
   title: string;
   previewDataUrl: string;
@@ -209,7 +258,7 @@ export default function QuotesPage() {
     setEditingQuoteId(resolvedQuote.id);
     setCustomerId(resolvedQuote.customer_id);
     setDiscount(resolvedQuote.discount);
-    setValidUntil(resolvedQuote.valid_until);
+    setValidUntil(getQuoteDateInputValue(resolvedQuote.valid_until));
     setNotes(resolvedQuote.notes || '');
     setAdditionalServices(resolvedQuote.additional_services || []);
     setItems(resolvedQuote.items.map(it => ({
@@ -265,7 +314,7 @@ export default function QuotesPage() {
       `Segue a proposta/orçamento #${quote.number} da ${company?.name || 'CibelePRINT'}.`,
       '',
       `Valor total: ${formatCurrency(quote.total_amount)}`,
-      `Validade: ${new Date(quote.valid_until).toLocaleDateString('pt-BR')}`,
+      `Validade: ${formatQuoteValidityDate(quote.valid_until, quote.created_at)}`,
       '',
       'Estou enviando o PDF do orçamento para sua conferência.',
       'Por segurança do navegador, o PDF deve ser anexado manualmente nesta conversa.',
@@ -842,6 +891,8 @@ export default function QuotesPage() {
       ? 'PJ'
       : 'PF'
     : '';
+  const editingQuote = editingQuoteId ? quotes.find(q => q.id === editingQuoteId) : null;
+  const quoteValidityMinDate = getQuoteDateInputValue(editingQuote?.created_at) || toQuoteDateInputValue(new Date());
 
   const resetForm = () => {
     setIsCreating(false);
@@ -890,6 +941,14 @@ export default function QuotesPage() {
       return;
     }
 
+    const existingQuote = editingQuoteId ? quotes.find(q => q.id === editingQuoteId) : null;
+    const issueDateValue = getQuoteDateInputValue(existingQuote?.created_at) || toQuoteDateInputValue(new Date());
+    const resolvedValidUntil = validUntil || getDefaultQuoteValidUntil();
+    if (compareQuoteDateValues(resolvedValidUntil, issueDateValue) < 0) {
+      alert('A validade nao pode ser anterior a data de emissao.');
+      return;
+    }
+
     const sub = getSubtotal();
     const servicesTotal = getServicesTotal();
     const finalItems: QuoteItem[] = items.map((it, idx) => ({
@@ -905,21 +964,20 @@ export default function QuotesPage() {
       : 'Orçamento salvo com sucesso.';
 
     if (editingQuoteId) {
-      const match = quotes.find(q => q.id === editingQuoteId);
       updateQuote({
         id: editingQuoteId,
-        company_id: match?.company_id || 'c1',
+        company_id: existingQuote?.company_id || 'c1',
         customer_id: client.id,
         customer_name: client.name,
-        number: match?.number || 0,
+        number: existingQuote?.number || 0,
         status,
         total_amount: finalTotal,
         discount,
-        valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        valid_until: resolvedValidUntil,
         notes,
         items: finalItems,
         additional_services: additionalServices,
-        created_at: match?.created_at || new Date().toISOString(),
+        created_at: existingQuote?.created_at || new Date().toISOString(),
         delivery_type: deliveryType,
         delivery_address: deliveryType !== 'retirada' ? deliveryAddress : undefined,
         delivery_distance_km: ['motoboy', 'carro'].includes(deliveryType) ? deliveryDistanceKm : undefined,
@@ -932,7 +990,7 @@ export default function QuotesPage() {
         status,
         total_amount: finalTotal,
         discount,
-        valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        valid_until: resolvedValidUntil,
         notes,
         items: finalItems,
         additional_services: additionalServices,
@@ -1034,8 +1092,8 @@ export default function QuotesPage() {
             </div>
             <div className="text-right">
               <h3 className="text-lg font-bold">ORÇAMENTO #{activePrintQuote.number}</h3>
-              <p className="text-xs text-muted-foreground">Emissão: {new Date(activePrintQuote.created_at).toLocaleDateString('pt-BR')}</p>
-              <p className="text-xs text-muted-foreground">Validade: {new Date(activePrintQuote.valid_until).toLocaleDateString('pt-BR')}</p>
+              <p className="text-xs text-muted-foreground">Emissão: {formatQuoteDate(activePrintQuote.created_at)}</p>
+              <p className="text-xs text-muted-foreground">Validade: {formatQuoteValidityDate(activePrintQuote.valid_until, activePrintQuote.created_at)}</p>
             </div>
           </div>
 
@@ -1259,7 +1317,7 @@ export default function QuotesPage() {
                     <div className="mt-3 space-y-1.5 text-[11px] font-semibold text-muted-foreground">
                       <div className="flex items-center justify-between gap-2">
                         <span className="uppercase tracking-wide">Validade</span>
-                        <strong className="text-foreground">{new Date(quote.valid_until).toLocaleDateString('pt-BR')}</strong>
+                        <strong className="text-foreground">{formatQuoteValidityDate(quote.valid_until, quote.created_at)}</strong>
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="uppercase tracking-wide">Entrega</span>
@@ -1388,7 +1446,7 @@ export default function QuotesPage() {
                       <td className="px-3 py-2.5 font-semibold text-muted-foreground text-left">{getQuoteCustomerName(quote)}</td>
                       <td className="px-3 py-2.5 text-left whitespace-nowrap">{getStatusBadge(quote.status)}</td>
                       <td className="px-3 py-2.5 text-muted-foreground text-left whitespace-nowrap">
-                        {new Date(quote.valid_until).toLocaleDateString('pt-BR')}
+                        {formatQuoteValidityDate(quote.valid_until, quote.created_at)}
                       </td>
                       <td className="px-3 py-2.5 text-right font-bold text-foreground whitespace-nowrap">{formatCurrency(quote.total_amount)}</td>
                       <td className="px-3 py-2.5 text-left whitespace-nowrap">
@@ -1512,6 +1570,7 @@ export default function QuotesPage() {
               <input
                 type="date"
                 value={validUntil}
+                min={quoteValidityMinDate}
                 onChange={(e) => setValidUntil(e.target.value)}
                 className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground"
               />
