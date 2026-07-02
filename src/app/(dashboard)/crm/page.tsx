@@ -10,7 +10,6 @@ import {
   FileQuestion,
   FileText,
   LockKeyhole,
-  Mail,
   MapPin,
   Phone,
   Plus,
@@ -418,7 +417,7 @@ export default function CustomersPage() {
           </div>
 
           {filteredCustomers.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filteredCustomers.map((customer) => (
                 <CustomerCard
                   key={customer.id}
@@ -993,56 +992,61 @@ function CustomerCard({
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') onOpen();
       }}
-      className={`group flex min-h-[280px] cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md ${
+      className={`group flex min-h-[214px] cursor-pointer flex-col rounded-xl border bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md ${
         blocked ? 'border-rose-200 bg-rose-50/30' : 'border-slate-200'
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="line-clamp-2 text-base font-black leading-tight text-slate-950">{customer.name}</h3>
+          <h3 className="line-clamp-2 text-sm font-black leading-snug text-slate-950">{customer.name}</h3>
           {type === 'juridica' && extra.nome_fantasia && (
-            <p className="mt-1 truncate text-xs font-semibold text-slate-500">{extra.nome_fantasia}</p>
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{extra.nome_fantasia}</p>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <div className="flex shrink-0 flex-col items-end gap-1">
           <PersonBadge type={type} />
           {blocked && <BlockedBadge />}
         </div>
       </div>
 
-      <div className="mt-4 space-y-2 text-xs font-semibold text-slate-600">
+      <div className="mt-3 space-y-1.5 text-[11px] font-semibold text-slate-600">
         <CardLine icon={<FileText className="h-3.5 w-3.5" />} value={customer.document || 'Documento nao informado'} />
         <CardLine icon={<Phone className="h-3.5 w-3.5" />} value={extra.whatsapp || customer.phone || 'Sem telefone'} />
-        <CardLine icon={<Mail className="h-3.5 w-3.5" />} value={customer.email || 'E-mail nao informado'} />
         <CardLine icon={<MapPin className="h-3.5 w-3.5" />} value={location || 'Endereco nao informado'} />
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-1.5">
+      <div className="mt-3 flex flex-wrap gap-1">
         {catalogCustomer && <CatalogBadge />}
         <MiniBadge>{quotesCount} orcamento(s)</MiniBadge>
         <MiniBadge>{ordersCount} pedido(s)</MiniBadge>
       </div>
 
-      <div className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+      <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-3">
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex items-center justify-center gap-1 rounded-xl bg-blue-50 px-2 py-2 text-[11px] font-black text-blue-600 hover:bg-blue-100"
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-blue-50 px-1.5 text-[10px] font-black text-blue-600 hover:bg-blue-100"
+          title="Editar cliente"
+          aria-label="Editar cliente"
         >
           <Edit3 className="h-3.5 w-3.5" /> Editar
         </button>
         <button
           type="button"
           onClick={onToggleBlock}
-          className="inline-flex items-center justify-center gap-1 rounded-xl bg-amber-50 px-2 py-2 text-[11px] font-black text-amber-700 hover:bg-amber-100"
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-amber-50 px-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100"
+          title={blocked ? 'Desbloquear cliente' : 'Bloquear cliente'}
+          aria-label={blocked ? 'Desbloquear cliente' : 'Bloquear cliente'}
         >
           {blocked ? <UnlockKeyhole className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}
-          {blocked ? 'Liberar' : 'Bloquear'}
+          {blocked ? 'Liberar' : 'Bloq.'}
         </button>
         <button
           type="button"
           onClick={onDelete}
-          className="inline-flex items-center justify-center gap-1 rounded-xl bg-rose-50 px-2 py-2 text-[11px] font-black text-rose-600 hover:bg-rose-100"
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-rose-50 px-1.5 text-[10px] font-black text-rose-600 hover:bg-rose-100"
+          title="Excluir cliente"
+          aria-label="Excluir cliente"
         >
           <Trash2 className="h-3.5 w-3.5" /> Excluir
         </button>
@@ -1053,9 +1057,9 @@ function CustomerCard({
 
 function CardLine({ icon, value }: { icon: React.ReactNode; value: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center gap-1.5">
       <span className="shrink-0 text-blue-500">{icon}</span>
-      <span className="truncate">{value}</span>
+      <span className="line-clamp-1 min-w-0">{value}</span>
     </div>
   );
 }
