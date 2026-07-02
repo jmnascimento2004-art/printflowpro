@@ -30,7 +30,8 @@ import {
   formatCNPJ,
   formatCPF,
   validateCEP,
-  validateCNPJ
+  validateCNPJ,
+  validateCPF
 } from '@/lib/utils';
 
 type PersonType = 'fisica' | 'juridica';
@@ -259,6 +260,16 @@ export default function CustomersPage() {
     event.preventDefault();
 
     const rawDocument = document.replace(/\D/g, '');
+    if (personType === 'fisica' && rawDocument && !validateCPF(rawDocument)) {
+      alert('CPF invalido. Verifique os digitos e tente novamente.');
+      return;
+    }
+
+    if (personType === 'juridica' && !rawDocument) {
+      alert('Informe o CNPJ da empresa.');
+      return;
+    }
+
     if (personType === 'juridica' && !validateCNPJ(rawDocument)) {
       alert('CNPJ invalido. Verifique os digitos e tente novamente.');
       return;
@@ -564,9 +575,8 @@ export default function CustomersPage() {
                   <input required value={name} onChange={(event) => setName(event.target.value)} className={inputClass} placeholder={personType === 'fisica' ? 'Ex: Joao da Silva' : 'Ex: Grafica Modelo LTDA'} />
                 </Field>
 
-                <Field label={personType === 'fisica' ? 'CPF *' : 'CNPJ *'}>
+                <Field label={personType === 'fisica' ? 'CPF (opcional)' : 'CNPJ *'}>
                   <input
-                    required
                     value={document}
                     onChange={(event) => handleDocumentChange(event.target.value)}
                     className={inputClass}

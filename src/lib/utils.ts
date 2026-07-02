@@ -389,6 +389,36 @@ export function sanitizeProductDescription(description: string = ''): string {
 }
 
 /**
+ * Validates a CPF string
+ */
+export function validateCPF(cpf: string): boolean {
+  const clean = cpf.replace(/\D/g, '');
+  if (clean.length !== 11) return false;
+
+  // Reject simple repeating patterns
+  if (/^(\d)\1{10}$/.test(clean)) return false;
+
+  let sum = 0;
+  for (let index = 0; index < 9; index += 1) {
+    sum += parseInt(clean.charAt(index), 10) * (10 - index);
+  }
+
+  let result = 11 - (sum % 11);
+  if (result >= 10) result = 0;
+  if (result !== parseInt(clean.charAt(9), 10)) return false;
+
+  sum = 0;
+  for (let index = 0; index < 10; index += 1) {
+    sum += parseInt(clean.charAt(index), 10) * (11 - index);
+  }
+
+  result = 11 - (sum % 11);
+  if (result >= 10) result = 0;
+
+  return result === parseInt(clean.charAt(10), 10);
+}
+
+/**
  * Formats CPF as xxx.xxx.xxx-xx
  */
 export function formatCPF(cpf: string): string {
