@@ -366,8 +366,8 @@ export default function CustomersPage() {
               </p>
             </div>
 
-            <div className="flex w-full flex-col gap-3 sm:flex-row xl:w-auto">
-              <div className="relative w-full sm:min-w-[360px]">
+            <div className="flex w-full min-w-0 flex-col gap-3 lg:flex-row xl:w-auto">
+              <div className="relative w-full min-w-0 lg:min-w-[360px]">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -380,7 +380,7 @@ export default function CustomersPage() {
 
               <button
                 onClick={startCreate}
-                className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-primary-foreground shadow-lg shadow-primary/15 transition-all hover:bg-primary/90"
+                className="flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-primary-foreground shadow-lg shadow-primary/15 transition-all hover:bg-primary/90 lg:w-auto"
               >
                 <Plus className="h-4 w-4" /> Novo Cliente
               </button>
