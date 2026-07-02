@@ -23,12 +23,14 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import type { Customer } from '@/lib/dummy-data';
+import { lookupCEP } from '@/lib/cep-lookup';
 import { lookupCNPJ } from '@/lib/cnpj-lookup';
 import { warnCaught } from '@/lib/safe-log';
 import {
   formatCEP,
   formatCNPJ,
   formatCPF,
+  sanitizeCEP,
   validateCEP,
   validateCNPJ
 } from '@/lib/utils';
@@ -102,6 +104,7 @@ export default function CustomersPage() {
   const [state, setState] = useState('');
   const [notes, setNotes] = useState('');
   const [lookupStatus, setLookupStatus] = useState('');
+  const [zipLookupStatus, setZipLookupStatus] = useState('');
 
   const resetForm = () => {
     setPersonType('fisica');
@@ -123,6 +126,7 @@ export default function CustomersPage() {
     setState('');
     setNotes('');
     setLookupStatus('');
+    setZipLookupStatus('');
   };
 
   const startCreate = () => {
@@ -156,6 +160,7 @@ export default function CustomersPage() {
     setState(customer.address?.state || '');
     setNotes(customer.notes || '');
     setLookupStatus('');
+    setZipLookupStatus('');
     setDetailsCustomer(null);
     setIsEditing(true);
   };
@@ -236,12 +241,30 @@ export default function CustomersPage() {
     router.push(`/quotes?customerId=${encodeURIComponent(selectedCustomer.id)}`);
   };
 
-  const handleDocumentChange = async (value: string) => {
+  const handleDocumentChange = (value: string) => {
     const clean = value.replace(/\D/g, '').slice(0, personType === 'juridica' ? 14 : 11);
     setDocument(personType === 'juridica' ? formatCNPJ(clean) : formatCPF(clean));
     setLookupStatus('');
 
-    if (personType !== 'juridica' || clean.length !== 14) return;
+    if (personType === 'juridica' && clean.length === 14) {
+      void handleCNPJLookup(clean);
+    }
+  };
+
+  const handleCNPJLookup = async (documentValue = document) => {
+    if (personType !== 'juridica') return;
+
+    const clean = documentValue.replace(/\D/g, '');
+
+    if (!clean) {
+      setLookupStatus('Informe o CNPJ da empresa.');
+      return;
+    }
+
+    if (clean.length < 14) {
+      setLookupStatus('CNPJ invalido.');
+      return;
+    }
 
     if (!validateCNPJ(clean)) {
       setLookupStatus('CNPJ invalido.');
@@ -252,27 +275,61 @@ export default function CustomersPage() {
 
     try {
       const data = await lookupCNPJ(clean);
-      setName(data.razaoSocial || data.nomeFantasia || name);
-      setTradeName(data.nomeFantasia || data.razaoSocial || tradeName);
-      setPhone(data.telefone || phone);
-      setWhatsapp(data.telefone || whatsapp);
-      setEmail(data.email || email);
-      setZipCode(data.cep || zipCode);
-      setStreet(data.logradouro || street);
-      setNumber(data.numero || number);
-      setNeighborhood(data.bairro || neighborhood);
-      setCity(data.municipio || city);
-      setState(data.uf || state);
-      setStateRegistration(data.inscricaoEstadual || stateRegistration);
+      setDocument(formatCNPJ(data.cnpj || clean));
+      setName((current) => current || data.razaoSocial || data.nomeFantasia);
+      setTradeName((current) => current || data.nomeFantasia || data.razaoSocial);
+      setPhone((current) => current || data.telefone);
+      setWhatsapp((current) => current || data.telefone);
+      setEmail((current) => current || data.email);
+      setZipCode((current) => data.cep || current);
+      setStreet((current) => current || data.logradouro);
+      setNumber((current) => current || data.numero);
+      setComplement((current) => current || data.complemento);
+      setNeighborhood((current) => current || data.bairro);
+      setCity((current) => current || data.municipio);
+      setState((current) => current || data.uf);
+      setStateRegistration((current) => current || data.inscricaoEstadual);
       setLookupStatus('Dados da empresa preenchidos automaticamente.');
     } catch (error) {
       warnCaught('Erro ao consultar CNPJ do cliente:', error);
-      setLookupStatus(error instanceof Error ? error.message : 'Nao foi possivel consultar o CNPJ.');
+      setLookupStatus(error instanceof Error ? error.message : 'CNPJ valido, mas nao foi possivel buscar os dados automaticamente. Preencha manualmente.');
     }
   };
 
   const handleZipCodeChange = (value: string) => {
-    setZipCode(formatCEP(value));
+    const formatted = formatCEP(value);
+    const clean = sanitizeCEP(formatted);
+    setZipCode(formatted);
+    setZipLookupStatus('');
+
+    if (clean.length === 8) {
+      void handleZipCodeLookup(formatted);
+    }
+  };
+
+  const handleZipCodeLookup = async (value = zipCode) => {
+    const clean = sanitizeCEP(value);
+    if (!clean) return;
+
+    if (!validateCEP(clean)) {
+      setZipLookupStatus('Informe um CEP valido com 8 digitos.');
+      return;
+    }
+
+    setZipLookupStatus('Buscando CEP...');
+
+    try {
+      const data = await lookupCEP(clean);
+      setZipCode(data.zip_code || formatCEP(clean));
+      if (data.street) setStreet(data.street);
+      if (data.neighborhood) setNeighborhood(data.neighborhood);
+      if (data.city) setCity(data.city);
+      if (data.state) setState(data.state);
+      setZipLookupStatus('Endereco preenchido pelo CEP.');
+    } catch (error) {
+      warnCaught('Erro ao consultar CEP do cliente:', error);
+      setZipLookupStatus(error instanceof Error ? error.message : 'Nao foi possivel consultar o CEP agora. Preencha o endereco manualmente.');
+    }
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -595,12 +652,30 @@ export default function CustomersPage() {
                 </Field>
 
                 <Field label={personType === 'fisica' ? 'CPF (opcional)' : 'CNPJ *'}>
-                  <input
-                    value={document}
-                    onChange={(event) => handleDocumentChange(event.target.value)}
-                    className={inputClass}
-                    placeholder={personType === 'fisica' ? '000.000.000-00' : '00.000.000/0001-00'}
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={document}
+                      onChange={(event) => handleDocumentChange(event.target.value)}
+                      onBlur={() => {
+                        if (personType === 'juridica' && document.replace(/\D/g, '').length === 14 && !lookupStatus.includes('preenchidos')) {
+                          void handleCNPJLookup();
+                        }
+                      }}
+                      className={inputClass}
+                      placeholder={personType === 'fisica' ? '000.000.000-00' : '00.000.000/0001-00'}
+                    />
+                    {personType === 'juridica' && (
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => void handleCNPJLookup()}
+                        disabled={lookupStatus === 'Consultando CNPJ...'}
+                        className="h-10 shrink-0 rounded-lg border border-primary/20 bg-primary/10 px-3 text-[11px] font-black text-primary transition hover:bg-primary/15 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        Buscar
+                      </button>
+                    )}
+                  </div>
                   {lookupStatus && (
                     <p className={`mt-1 text-[10px] font-bold ${lookupStatus.includes('preenchidos') ? 'text-emerald-500' : lookupStatus.includes('Consultando') ? 'text-primary' : 'text-rose-500'}`}>
                       {lookupStatus}
@@ -643,7 +718,22 @@ export default function CustomersPage() {
                 <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Endereço</h4>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                   <Field label="CEP" className="md:col-span-2">
-                    <input value={zipCode} onChange={(event) => handleZipCodeChange(event.target.value)} className={inputClass} placeholder="00000-000" />
+                    <input
+                      value={zipCode}
+                      onChange={(event) => handleZipCodeChange(event.target.value)}
+                      onBlur={() => {
+                        if (zipCode.replace(/\D/g, '').length === 8) {
+                          void handleZipCodeLookup();
+                        }
+                      }}
+                      className={inputClass}
+                      placeholder="00000-000"
+                    />
+                    {zipLookupStatus && (
+                      <p className={`mt-1 text-[10px] font-bold ${zipLookupStatus.includes('preenchido') ? 'text-emerald-500' : zipLookupStatus.includes('Buscando') ? 'text-primary' : 'text-rose-500'}`}>
+                        {zipLookupStatus}
+                      </p>
+                    )}
                   </Field>
                   <Field label="Rua" className="md:col-span-4">
                     <input value={street} onChange={(event) => setStreet(event.target.value)} className={inputClass} placeholder="Ex: Avenida Principal" />
