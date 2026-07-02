@@ -7,17 +7,33 @@ import {
   Search, 
   Check,
   X,
-  Plus
+  Plus,
+  BarChart3,
+  FileText,
+  PieChart,
+  TrendingDown,
+  TrendingUp,
+  Wallet
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { FinancialTransaction } from '@/lib/dummy-data';
+import {
+  calculateOrderBalance,
+  dedupeTransactionsById,
+  isActiveFinancialTransaction,
+  isCancelledTransaction,
+  normalizeFinanceStatus
+} from '@/lib/finance-rules';
+import { isCancelledOrder, isFinanciallyActiveOrder } from '@/lib/order-status';
 import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
 
 export default function FinancialPage() {
-  const { financial, addTransaction, updateTransactionStatus } = useDatabase();
+  const { financial, orders, customers, addTransaction, updateTransactionStatus } = useDatabase();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'todos' | 'receita' | 'despesa'>('todos');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pago' | 'pendente'>('todos');
+  const [methodFilter, setMethodFilter] = useState<'todos' | FinancialTransaction['payment_method']>('todos');
+  const [periodFilter, setPeriodFilter] = useState<'todos' | 'mes' | '30dias' | '7dias'>('mes');
   
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
 
@@ -31,36 +47,130 @@ export default function FinancialPage() {
   const [dueDate, setDueDate] = useState('');
   const [installments, setInstallments] = useState(1); // Support installments (parcelamento)
 
+  const uniqueTransactions = dedupeTransactionsById(financial);
+
+  const findTransactionOrder = (transaction: FinancialTransaction) =>
+    orders.find((order) =>
+      (transaction.order_id && order.id === transaction.order_id) ||
+      (transaction.order_number && order.number === transaction.order_number)
+    );
+
+  const getTransactionDate = (transaction: FinancialTransaction) =>
+    new Date(transaction.paid_at || transaction.due_date || transaction.created_at);
+
+  const isInSelectedPeriod = (transaction: FinancialTransaction) => {
+    if (periodFilter === 'todos') return true;
+
+    const transactionDate = getTransactionDate(transaction);
+    const now = new Date();
+
+    if (periodFilter === 'mes') {
+      return transactionDate.getFullYear() === now.getFullYear() && transactionDate.getMonth() === now.getMonth();
+    }
+
+    const days = periodFilter === '7dias' ? 7 : 30;
+    const start = new Date(now);
+    start.setDate(now.getDate() - days);
+    return transactionDate >= start;
+  };
+
+  const activeTransactions = uniqueTransactions.filter((transaction) =>
+    isActiveFinancialTransaction(transaction, findTransactionOrder(transaction))
+  );
+
+  const periodTransactions = activeTransactions.filter(isInSelectedPeriod);
+
+  const visibleTransactions = uniqueTransactions.filter((transaction) => {
+    const order = findTransactionOrder(transaction);
+    if (isCancelledTransaction(transaction)) return true;
+    if (order && isCancelledOrder(order) && transaction.status === 'pendente') return false;
+    return true;
+  });
+
   // 1. Calculations
-  const totalReceived = financial
+  const totalReceived = periodTransactions
     .filter(f => f.type === 'receita' && f.status === 'pago')
     .reduce((sum, f) => sum + f.amount, 0);
 
-  const totalPaid = financial
+  const totalPaid = periodTransactions
     .filter(f => f.type === 'despesa' && f.status === 'pago')
     .reduce((sum, f) => sum + f.amount, 0);
 
   const netCashFlow = totalReceived - totalPaid;
 
-  const accountsReceivable = financial
-    .filter(f => f.type === 'receita' && f.status === 'pendente')
-    .reduce((sum, f) => sum + f.amount, 0);
+  const accountsReceivable = orders
+    .filter(isFinanciallyActiveOrder)
+    .reduce((sum, order) => sum + calculateOrderBalance(order, uniqueTransactions), 0);
 
-  const accountsPayable = financial
+  const accountsPayable = activeTransactions
     .filter(f => f.type === 'despesa' && f.status === 'pendente')
     .reduce((sum, f) => sum + f.amount, 0);
 
+  const periodIncome = periodTransactions.filter(f => f.type === 'receita');
+  const periodExpenses = periodTransactions.filter(f => f.type === 'despesa');
+  const cancelledAmount = uniqueTransactions
+    .filter((transaction) => isCancelledTransaction(transaction) || isCancelledOrder(findTransactionOrder(transaction)))
+    .filter((transaction) => transaction.type === 'receita')
+    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+  const directCosts = periodExpenses
+    .filter((transaction) => ['insumos', 'suprimentos', 'fornecedores'].some((category) => normalizeFinanceStatus(transaction.category).includes(category)))
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const operationalExpenses = Math.max(0, totalPaid - directCosts);
+  const netRevenue = Math.max(0, totalReceived);
+  const operatingResult = netRevenue - directCosts - operationalExpenses;
+  const operatingMargin = netRevenue > 0 ? Math.round((operatingResult / netRevenue) * 100) : 0;
+
+  const paymentMethodTotals = periodIncome
+    .filter((transaction) => transaction.status === 'pago')
+    .reduce<Record<string, number>>((acc, transaction) => {
+      acc[transaction.payment_method] = (acc[transaction.payment_method] || 0) + transaction.amount;
+      return acc;
+    }, {});
+
+  const maxMethodTotal = Math.max(1, ...Object.values(paymentMethodTotals));
+
+  const flowBuckets = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (5 - index));
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    const label = date.toLocaleDateString('pt-BR', { month: 'short' });
+    const income = activeTransactions
+      .filter((transaction) => {
+        const transactionDate = getTransactionDate(transaction);
+        return transactionDate.getFullYear() === date.getFullYear() && transactionDate.getMonth() === date.getMonth() && transaction.type === 'receita' && transaction.status === 'pago';
+      })
+      .reduce((sum, transaction) => sum + transaction.amount, 0);
+    const expense = activeTransactions
+      .filter((transaction) => {
+        const transactionDate = getTransactionDate(transaction);
+        return transactionDate.getFullYear() === date.getFullYear() && transactionDate.getMonth() === date.getMonth() && transaction.type === 'despesa' && transaction.status === 'pago';
+      })
+      .reduce((sum, transaction) => sum + transaction.amount, 0);
+
+    return { key, label, income, expense };
+  });
+
+  const maxFlowValue = Math.max(1, ...flowBuckets.flatMap((bucket) => [bucket.income, bucket.expense]));
+
   // 2. Filter list
-  const filteredTransactions = financial.filter(f => {
+  const filteredTransactions = visibleTransactions.filter(f => {
+    const relatedOrder = findTransactionOrder(f);
+    const relatedCustomer = relatedOrder
+      ? customers.find((customer) => customer.id === relatedOrder.customer_id || customer.name === relatedOrder.customer_name)
+      : null;
     const matchesSearch = f.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           f.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (f.order_number && f.order_number.toLowerCase().includes(searchQuery.toLowerCase()));
+                          (f.order_number && f.order_number.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                          (relatedCustomer?.name.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
 
     const matchesType = typeFilter === 'todos' ? true : f.type === typeFilter;
     const matchesStatus = statusFilter === 'todos' ? true : f.status === statusFilter;
+    const matchesMethod = methodFilter === 'todos' ? true : f.payment_method === methodFilter;
+    const matchesPeriod = isInSelectedPeriod(f);
 
-    return matchesSearch && matchesType && matchesStatus;
-  });
+    return matchesSearch && matchesType && matchesStatus && matchesMethod && matchesPeriod;
+  }).sort((a, b) => getTransactionDate(b).getTime() - getTransactionDate(a).getTime());
 
   const handleCreateTransaction = (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,10 +211,10 @@ export default function FinancialPage() {
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className={`space-y-6 ${isAddingTransaction ? 'hidden' : ''}`}>
         {/* 1. Metric Indicators Banner Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
         {/* Net Cash */}
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase">Saldo de Caixa Atual</span>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> Saldo de Caixa Atual</span>
           <h3 className={`text-2xl font-black mt-2 tracking-tight ${netCashFlow >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
             {formatCurrency(netCashFlow)}
           </h3>
@@ -137,15 +247,102 @@ export default function FinancialPage() {
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
           <span className="text-[10px] font-bold text-muted-foreground uppercase">Eficiência de Caixa</span>
           <h3 className="text-2xl font-black text-primary mt-2 tracking-tight">
-            {totalReceived > 0 ? `${Math.round((netCashFlow / totalReceived) * 100)}%` : '0%'}
+            {operatingMargin}%
           </h3>
           <p className="text-[10px] text-muted-foreground mt-1">Margem operacional real do período</p>
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Receitas do Periodo</span>
+          <h3 className="text-2xl font-black text-emerald-500 mt-2 tracking-tight">{formatCurrency(totalReceived)}</h3>
+          <p className="text-[10px] text-muted-foreground mt-1">{periodIncome.length} entradas ativas</p>
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><TrendingDown className="h-3.5 w-3.5" /> Despesas do Periodo</span>
+          <h3 className="text-2xl font-black text-rose-500 mt-2 tracking-tight">{formatCurrency(totalPaid)}</h3>
+          <p className="text-[10px] text-muted-foreground mt-1">{periodExpenses.length} saidas ativas</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm xl:col-span-2">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h3 className="font-bold text-sm uppercase text-foreground flex items-center gap-2"><BarChart3 className="h-4 w-4 text-primary" /> Receita x Despesa</h3>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Ultimos 6 meses</span>
+          </div>
+          <div className="grid grid-cols-6 gap-3 h-44 items-end">
+            {flowBuckets.map((bucket) => (
+              <div key={bucket.key} className="h-full flex flex-col justify-end gap-1">
+                <div className="flex items-end gap-1 h-32">
+                  <div className="w-full rounded-t bg-emerald-500/70" style={{ height: `${Math.max(4, (bucket.income / maxFlowValue) * 100)}%` }} title={`Receita ${formatCurrency(bucket.income)}`} />
+                  <div className="w-full rounded-t bg-rose-500/70" style={{ height: `${Math.max(4, (bucket.expense / maxFlowValue) * 100)}%` }} title={`Despesa ${formatCurrency(bucket.expense)}`} />
+                </div>
+                <span className="text-center text-[10px] font-bold text-muted-foreground uppercase">{bucket.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          <h3 className="font-bold text-sm uppercase text-foreground flex items-center gap-2 mb-4"><PieChart className="h-4 w-4 text-primary" /> Entradas por Meio</h3>
+          <div className="space-y-3">
+            {Object.entries(paymentMethodTotals).length > 0 ? Object.entries(paymentMethodTotals).map(([method, value]) => (
+              <div key={method} className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-bold">
+                  <span className="uppercase text-muted-foreground">{method.replace('_', ' ')}</span>
+                  <span className="text-foreground">{formatCurrency(value)}</span>
+                </div>
+                <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, (value / maxMethodTotal) * 100)}%` }} />
+                </div>
+              </div>
+            )) : (
+              <p className="text-xs text-muted-foreground italic">Sem entradas confirmadas no periodo.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm xl:col-span-2">
+          <h3 className="font-bold text-sm uppercase text-foreground flex items-center gap-2 mb-4"><FileText className="h-4 w-4 text-primary" /> DRE Simplificada</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            {[
+              ['Receita bruta', totalReceived],
+              ['Deducoes / cancelamentos', cancelledAmount],
+              ['Receita liquida', netRevenue],
+              ['Custos diretos', directCosts],
+              ['Despesas operacionais', operationalExpenses],
+              ['Resultado operacional', operatingResult]
+            ].map(([label, value]) => (
+              <div key={String(label)} className="flex items-center justify-between rounded-xl border border-border bg-secondary/20 px-3 py-2">
+                <span className="font-bold text-muted-foreground uppercase">{label}</span>
+                <span className={`font-black ${Number(value) < 0 ? 'text-rose-500' : 'text-foreground'}`}>{formatCurrency(Number(value))}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          <h3 className="font-bold text-sm uppercase text-foreground mb-4">Contas a Receber</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="text-muted-foreground uppercase">Pedidos ativos</span>
+              <span>{orders.filter(isFinanciallyActiveOrder).length}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs font-bold">
+              <span className="text-muted-foreground uppercase">Pedidos cancelados ignorados</span>
+              <span>{orders.filter(isCancelledOrder).length}</span>
+            </div>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              Saldo pendente calculado por pedido ativo menos pagamentos ativos.
+            </div>
+          </div>
         </div>
       </div>
 
       {/* 2. List Control Filters and Create Button */}
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between no-print">
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:max-w-2xl">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:max-w-4xl">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
@@ -158,6 +355,16 @@ export default function FinancialPage() {
           </div>
 
           <div className="flex gap-2">
+            <select
+              value={periodFilter}
+              onChange={(e) => setPeriodFilter(e.target.value as typeof periodFilter)}
+              className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
+            >
+              <option value="mes">Mes atual</option>
+              <option value="7dias">Ultimos 7 dias</option>
+              <option value="30dias">Ultimos 30 dias</option>
+              <option value="todos">Todo periodo</option>
+            </select>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
@@ -175,6 +382,19 @@ export default function FinancialPage() {
               <option value="todos">Todos os Status</option>
               <option value="pago">Apenas Pagos</option>
               <option value="pendente">Apenas Pendentes</option>
+            </select>
+            <select
+              value={methodFilter}
+              onChange={(e) => setMethodFilter(e.target.value as typeof methodFilter)}
+              className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
+            >
+              <option value="todos">Todos os Meios</option>
+              <option value="pix">Pix</option>
+              <option value="cartao_credito">Cartao credito</option>
+              <option value="cartao_debito">Cartao debito</option>
+              <option value="boleto">Boleto</option>
+              <option value="dinheiro">Dinheiro</option>
+              <option value="faturado">Faturado</option>
             </select>
           </div>
         </div>
@@ -353,7 +573,7 @@ export default function FinancialPage() {
       {/* 4. Ledger Table View */}
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-border bg-secondary/10 flex justify-between items-center">
-          <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Extrato Financeiro de Caixa</h3>
+          <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Relatorio Analitico Financeiro</h3>
           <span className="text-[11px] text-muted-foreground font-semibold">Exibindo {filteredTransactions.length} registros</span>
         </div>
 
@@ -374,9 +594,14 @@ export default function FinancialPage() {
               {filteredTransactions.length > 0 ? (
                 filteredTransactions.map((trans) => {
                   const isIncome = trans.type === 'receita';
+                  const relatedOrder = findTransactionOrder(trans);
+                  const relatedCustomer = relatedOrder
+                    ? customers.find((customer) => customer.id === relatedOrder.customer_id || customer.name === relatedOrder.customer_name)
+                    : null;
+                  const isInactiveHistory = isCancelledTransaction(trans) || isCancelledOrder(relatedOrder);
 
                   return (
-                    <tr key={trans.id} className="hover:bg-secondary/20 transition-colors">
+                    <tr key={trans.id} className={`hover:bg-secondary/20 transition-colors ${isInactiveHistory ? 'opacity-70 bg-rose-500/5' : ''}`}>
                       {/* Due date */}
                       <td className="px-5 py-3.5 text-muted-foreground font-semibold">
                         {new Date(trans.due_date).toLocaleDateString('pt-BR')}
@@ -404,6 +629,11 @@ export default function FinancialPage() {
                             {trans.order_number}
                           </span>
                         )}
+                        {relatedCustomer && (
+                          <span className="block mt-1 text-[10px] text-muted-foreground font-semibold">
+                            Cliente: {relatedCustomer.name}
+                          </span>
+                        )}
                       </td>
 
                       {/* Method */}
@@ -416,7 +646,11 @@ export default function FinancialPage() {
 
                       {/* Status Check trigger */}
                       <td className="px-5 py-3.5 text-center">
-                        {trans.status === 'pago' ? (
+                        {isInactiveHistory ? (
+                          <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                            Historico
+                          </span>
+                        ) : trans.status === 'pago' ? (
                           <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                             Confirmado
                           </span>

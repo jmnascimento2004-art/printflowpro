@@ -42,3 +42,5 @@ export const isActiveOrder = (order?: OrderStatusLike | null): boolean => !isCan
 
 export const isProductionActiveOrder = (order?: OrderStatusLike | null): boolean =>
   isActiveOrder(order) && PRODUCTION_ACTIVE_ORDER_STATUSES.includes(normalizeStatus(order?.status) as Order['status']);
+
+export const isFinanciallyActiveOrder = (order?: OrderStatusLike | null): boolean => isActiveOrder(order);
