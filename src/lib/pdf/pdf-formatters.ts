@@ -107,11 +107,22 @@ export function getItemDescriptionLines(item: QuoteItem | OrderItem) {
   const tierQuantity = snapshot?.quantity_tier || item.quantity;
   const unitPrice = snapshot?.unit_price ?? item.unit_price;
   const totalPrice = snapshot?.total_price ?? item.total_price;
+  const manualType = item.details?.manual_pricing_type;
+  const unitLabel = manualType === 'm2'
+    ? 'Preço m²'
+    : manualType === 'linear'
+      ? 'Preço metro'
+      : 'Unitário';
+  const quantityLabel = manualType === 'm2' && item.details?.area_total
+    ? `Área total: ${item.details.area_total} m²`
+    : manualType === 'linear' && item.details?.linear_meters
+      ? `Metragem: ${item.details.linear_meters} m x ${item.quantity} un`
+      : `Tiragem: ${tierQuantity} un`;
 
   return {
     name: normalizePdfText(item.product_name),
     configuration: options ? `Configuração: ${options}` : '',
-    quantityLine: `Tiragem: ${tierQuantity} un • Unitário: ${formatPdfUnitCurrency(unitPrice)}/un • Total: ${formatPdfCurrency(totalPrice)}`,
+    quantityLine: `${quantityLabel} • ${unitLabel}: ${formatPdfUnitCurrency(unitPrice)} • Total: ${formatPdfCurrency(totalPrice)}`,
     notes: normalizePdfText(item.details?.notes)
   };
 }

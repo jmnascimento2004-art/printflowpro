@@ -50,6 +50,26 @@ type DraftQuoteItem = Omit<QuoteItem, 'id' | 'total_price'> & {
   total_price?: number;
 };
 
+const MANUAL_QUOTE_ITEM_ID = '__manual_quote_item__';
+
+type ManualQuotePricingType = 'unidade' | 'm2' | 'linear' | 'volume';
+
+const manualQuotePricingOptions: Array<{ value: ManualQuotePricingType; label: string; unitLabel: string }> = [
+  { value: 'unidade', label: 'Unidade', unitLabel: 'Preço unitário' },
+  { value: 'm2', label: 'Metro quadrado (m²)', unitLabel: 'Preço por m²' },
+  { value: 'linear', label: 'Metro linear', unitLabel: 'Preço por metro linear' },
+  { value: 'volume', label: 'Quantidade / Volume', unitLabel: 'Preço unitário' }
+];
+
+const manualQuotePricingLabels: Record<ManualQuotePricingType, string> = {
+  unidade: 'Unidade',
+  m2: 'Metro quadrado (m²)',
+  linear: 'Metro linear',
+  volume: 'Quantidade / Volume'
+};
+
+const roundQuoteNumber = (value: number) => Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+
 type PdfPreviewState = {
   title: string;
   previewDataUrl: string;
@@ -78,6 +98,23 @@ const buildConfigurationLabel = (snapshot: ItemConfigurationSnapshot) => {
 const getItemConfigurationSnapshot = (item: Pick<QuoteItem, 'details'>) => item.details?.configuration_snapshot;
 
 const getItemConfigurationSummaryLines = (item: Pick<QuoteItem, 'details' | 'quantity' | 'unit_price' | 'total_price'>) => {
+  if (item.details?.item_type === 'manual') {
+    const manualType = item.details.manual_pricing_type || 'unidade';
+    const unitLabel = manualType === 'm2'
+      ? 'Preço m²'
+      : manualType === 'linear'
+        ? 'Preço metro'
+        : 'Unitário';
+    const metric = item.details.configuration_summary || manualQuotePricingLabels[manualType] || 'Item manual';
+
+    return {
+      options: metric,
+      quantity: `${item.quantity} un`,
+      unit: `${unitLabel}: ${formatUnitCurrency(item.unit_price)}`,
+      total: formatQuoteMoney(item.total_price || item.quantity * item.unit_price)
+    };
+  }
+
   const snapshot = getItemConfigurationSnapshot(item);
   if (!snapshot) return null;
 
@@ -499,6 +536,9 @@ export default function QuotesPage() {
   const [itemQty, setItemQty] = useState(1);
   const [itemWidth, setItemWidth] = useState(1.0);
   const [itemHeight, setItemHeight] = useState(1.0);
+  const [manualItemDescription, setManualItemDescription] = useState('');
+  const [manualPricingType, setManualPricingType] = useState<ManualQuotePricingType>('unidade');
+  const [manualUnitPrice, setManualUnitPrice] = useState(0);
   const [selectedMaterial, setSelectedMaterial] = useState('');
   const [selectedMatrixSize, setSelectedMatrixSize] = useState('');
   const [selectedMatrixColors, setSelectedMatrixColors] = useState('');
@@ -510,6 +550,21 @@ export default function QuotesPage() {
   };
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
+  const isManualQuoteItem = selectedProductId === MANUAL_QUOTE_ITEM_ID;
+  const manualItemQuantity = Math.max(1, itemQty);
+  const manualItemWidth = Math.max(0, itemWidth);
+  const manualItemHeight = Math.max(0, itemHeight);
+  const manualItemLinearMeters = Math.max(0, itemWidth);
+  const manualItemUnitPrice = Math.max(0, manualUnitPrice);
+  const manualItemAreaTotal = manualPricingType === 'm2'
+    ? roundQuoteNumber(manualItemWidth * manualItemHeight * manualItemQuantity)
+    : 0;
+  const manualItemTotal = manualPricingType === 'm2'
+    ? roundQuoteNumber(manualItemAreaTotal * manualItemUnitPrice)
+    : manualPricingType === 'linear'
+      ? roundQuoteNumber(manualItemLinearMeters * manualItemQuantity * manualItemUnitPrice)
+      : roundQuoteNumber(manualItemQuantity * manualItemUnitPrice);
+  const manualUnitPriceLabel = manualQuotePricingOptions.find((option) => option.value === manualPricingType)?.unitLabel || 'Preço unitário';
   const selectedVariantPricingRows = useMemo(() => (
     getNormalizedVariantPricingMatrix(selectedProduct)
   ), [selectedProduct]);
@@ -543,6 +598,17 @@ export default function QuotesPage() {
   };
 
   const initializeProductConfiguration = (productId: string) => {
+    if (productId === MANUAL_QUOTE_ITEM_ID) {
+      setSelectedMaterial('');
+      setSelectedMatrixSize('');
+      setSelectedMatrixColors('');
+      setSelectedFinishing('');
+      setItemQty(1);
+      setItemWidth(1.0);
+      setItemHeight(1.0);
+      return;
+    }
+
     const product = products.find(p => p.id === productId);
     const rows = getNormalizedVariantPricingMatrix(product);
     if (rows.length > 0) {
@@ -606,6 +672,81 @@ export default function QuotesPage() {
   };
 
   const handleAddItem = () => {
+    if (isManualQuoteItem) {
+      const description = manualItemDescription.trim();
+      const quantity = manualItemQuantity;
+      const unitPrice = manualItemUnitPrice;
+
+      if (!description) {
+        alert('Informe a descrição do item avulso/manual.');
+        return;
+      }
+
+      if (unitPrice <= 0) {
+        alert('Informe o preço unitário do item avulso/manual.');
+        return;
+      }
+
+      if (manualPricingType === 'm2' && (manualItemWidth <= 0 || manualItemHeight <= 0)) {
+        alert('Informe largura e altura maiores que zero para o item por metro quadrado.');
+        return;
+      }
+
+      if (manualPricingType === 'linear' && manualItemLinearMeters <= 0) {
+        alert('Informe o comprimento em metros para o item por metro linear.');
+        return;
+      }
+
+      const manualSummary = manualPricingType === 'm2'
+        ? `${manualItemWidth.toFixed(2)}m x ${manualItemHeight.toFixed(2)}m - ${quantity} un - ${manualItemAreaTotal.toFixed(2)} m²`
+        : manualPricingType === 'linear'
+          ? `${manualItemLinearMeters.toFixed(2)} m linear - ${quantity} un`
+          : `${quantity} un`;
+      const displayName = `${description} — ${manualSummary}`;
+
+      const newItem: DraftQuoteItem = {
+        product_id: '',
+        product_name: displayName,
+        quantity,
+        unit_price: unitPrice,
+        total_price: manualItemTotal,
+        details: {
+          width: manualPricingType === 'm2' ? manualItemWidth : undefined,
+          height: manualPricingType === 'm2' ? manualItemHeight : undefined,
+          length: manualPricingType === 'linear' ? manualItemLinearMeters : undefined,
+          pricing_type: manualPricingType === 'volume' ? 'unidade' : manualPricingType,
+          item_type: 'manual',
+          manual_pricing_type: manualPricingType,
+          area_total: manualPricingType === 'm2' ? manualItemAreaTotal : undefined,
+          linear_meters: manualPricingType === 'linear' ? manualItemLinearMeters : undefined,
+          configuration_summary: `${manualQuotePricingLabels[manualPricingType]} - ${manualSummary}`,
+          pricing_snapshot: {
+            item_type: 'manual',
+            pricing_type: manualPricingType,
+            description,
+            quantity,
+            width: manualPricingType === 'm2' ? manualItemWidth : undefined,
+            height: manualPricingType === 'm2' ? manualItemHeight : undefined,
+            area_total: manualPricingType === 'm2' ? manualItemAreaTotal : undefined,
+            linear_meters: manualPricingType === 'linear' ? manualItemLinearMeters : undefined,
+            unit_price: unitPrice,
+            total_price: manualItemTotal
+          },
+          notes: 'Item manual adicionado ao orçamento sem alterar o catálogo de produtos.'
+        }
+      };
+
+      setItems(prev => [...prev, newItem]);
+      setSelectedProductId('');
+      setManualItemDescription('');
+      setManualPricingType('unidade');
+      setManualUnitPrice(0);
+      setItemQty(1);
+      setItemWidth(1.0);
+      setItemHeight(1.0);
+      return;
+    }
+
     const prod = products.find(p => p.id === selectedProductId);
     if (!prod) return;
 
@@ -676,6 +817,9 @@ export default function QuotesPage() {
     setItemQty(1);
     setItemWidth(1.0);
     setItemHeight(1.0);
+    setManualItemDescription('');
+    setManualPricingType('unidade');
+    setManualUnitPrice(0);
     setSelectedMaterial('');
     setSelectedMatrixSize('');
     setSelectedMatrixColors('');
@@ -687,7 +831,7 @@ export default function QuotesPage() {
   };
 
   const getSubtotal = () => {
-    return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    return items.reduce((sum, item) => sum + (item.total_price ?? item.quantity * item.unit_price), 0);
   };
 
   const getServicesTotal = () => getAdditionalServicesTotal(additionalServices);
@@ -714,6 +858,9 @@ export default function QuotesPage() {
     setItemQty(1);
     setItemWidth(1.0);
     setItemHeight(1.0);
+    setManualItemDescription('');
+    setManualPricingType('unidade');
+    setManualUnitPrice(0);
     setSelectedMaterial('');
     setSelectedMatrixSize('');
     setSelectedMatrixColors('');
@@ -748,7 +895,7 @@ export default function QuotesPage() {
     const finalItems: QuoteItem[] = items.map((it, idx) => ({
       ...it,
       id: it.id || `qi-${idx}-${Date.now()}`,
-      total_price: it.quantity * it.unit_price
+      total_price: it.total_price ?? it.quantity * it.unit_price
     }));
 
     const finalTotal = sub + servicesTotal + deliveryFee - discount;
@@ -1425,6 +1572,7 @@ export default function QuotesPage() {
                   className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
                 >
                   <option value="">Selecione...</option>
+                  <option value={MANUAL_QUOTE_ITEM_ID}>Produto avulso / Item manual</option>
                   {products.map(p => (
                     <option key={p.id} value={p.id}>
                       {p.name} ({p.pricing_type} - {formatCurrency(p.sales_price)})
@@ -1433,8 +1581,110 @@ export default function QuotesPage() {
                 </select>
               </div>
 
+              {isManualQuoteItem && (
+                <>
+                  <div className="md:col-span-3 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground">Tipo de cálculo</label>
+                    <select
+                      value={manualPricingType}
+                      onChange={(e) => setManualPricingType(e.target.value as ManualQuotePricingType)}
+                      className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
+                    >
+                      {manualQuotePricingOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-5 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground">Descrição do item</label>
+                    <input
+                      type="text"
+                      value={manualItemDescription}
+                      onChange={(e) => setManualItemDescription(e.target.value)}
+                      placeholder="Ex: Produto avulso teste"
+                      className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
+                    />
+                  </div>
+
+                  {manualPricingType === 'm2' && (
+                    <>
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground">Largura (m)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={itemWidth}
+                          onChange={(e) => setItemWidth(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                          className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground">Altura (m)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={itemHeight}
+                          onChange={(e) => setItemHeight(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                          className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {manualPricingType === 'linear' && (
+                    <div className="md:col-span-3 space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground">Comprimento / metros</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={itemWidth}
+                        onChange={(e) => setItemWidth(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                        className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={itemQty}
+                      onChange={(e) => setItemQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground">{manualUnitPriceLabel}</label>
+                    <input
+                      type="text"
+                      value={formatCurrencyInput(manualUnitPrice)}
+                      onChange={(e) => setManualUnitPrice(parseCurrencyInputToNumber(e.target.value))}
+                      placeholder="R$ 0,00"
+                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-right font-bold text-foreground"
+                    />
+                  </div>
+
+                  <div className="md:col-span-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] font-bold text-primary">
+                    {manualPricingType === 'm2' && (
+                      <span className="block text-muted-foreground">Área total: {manualItemAreaTotal.toFixed(2)} m²</span>
+                    )}
+                    {manualPricingType === 'linear' && (
+                      <span className="block text-muted-foreground">Metragem total: {(manualItemLinearMeters * manualItemQuantity).toFixed(2)} m</span>
+                    )}
+                    <span className="block">Total: {formatCurrency(manualItemTotal)}</span>
+                  </div>
+                </>
+              )}
+
               {/* Dynamic Dimension Inputs */}
-              {selectedProductId && ['m2', 'linear'].includes(getProductPriceInfo(selectedProductId).type) && (
+              {selectedProductId && !isManualQuoteItem && ['m2', 'linear'].includes(getProductPriceInfo(selectedProductId).type) && (
                 <>
                   <div className="md:col-span-2 space-y-1">
                     <label className="text-[10px] font-semibold text-muted-foreground">Largura / Compr. (cm)</label>
@@ -1464,7 +1714,7 @@ export default function QuotesPage() {
               )}
 
               {/* Quantity */}
-              {!requiresTierSelection && (
+              {!requiresTierSelection && !isManualQuoteItem && (
                 <div className="md:col-span-2 space-y-1">
                   <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
                   <input
@@ -1479,7 +1729,7 @@ export default function QuotesPage() {
                 </div>
               )}
 
-              {selectedProductId && hasVariantPricingMatrix && (
+              {selectedProductId && !isManualQuoteItem && hasVariantPricingMatrix && (
                 <div className="md:col-span-12 rounded-xl border border-border bg-card px-4 py-3">
                   <div className="flex flex-col gap-1">
                     <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Configure o produto</h5>
@@ -1523,7 +1773,7 @@ export default function QuotesPage() {
                 </div>
               )}
 
-              {selectedProductId && requiresTierSelection && (
+              {selectedProductId && !isManualQuoteItem && requiresTierSelection && (
                 <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground space-y-2">
                   <div>
                     <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Faixas de quantidade</h5>
@@ -1605,7 +1855,7 @@ export default function QuotesPage() {
                           {(() => {
                             const configLines = getItemConfigurationSummaryLines({
                               ...item,
-                              total_price: item.quantity * item.unit_price
+                              total_price: item.total_price ?? item.quantity * item.unit_price
                             });
                             if (!configLines) return null;
                             return (
@@ -1630,7 +1880,7 @@ export default function QuotesPage() {
                         </td>
                         <td className="px-4 py-2 text-center font-semibold text-muted-foreground">{item.quantity}</td>
                         <td className="px-4 py-2 text-right text-muted-foreground">{formatUnitCurrency(item.unit_price)}</td>
-                        <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(item.quantity * item.unit_price)}</td>
+                        <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(item.total_price ?? item.quantity * item.unit_price)}</td>
                         <td className="px-4 py-2 text-center">
                           <button
                             type="button"
