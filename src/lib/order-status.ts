@@ -4,7 +4,10 @@ type OrderStatusLike = Partial<Order> & {
   status?: unknown;
   operational_status?: unknown;
   order_status?: unknown;
+  production_status?: unknown;
+  status_op?: unknown;
   cancelled_at?: unknown;
+  canceled_at?: unknown;
 };
 
 const CANCELLED_STATUS_MARKERS = new Set([
@@ -30,7 +33,10 @@ export const isCancelledOrder = (order?: OrderStatusLike | null): boolean => {
     order.status,
     order.operational_status,
     order.order_status,
-    order.cancelled_at ? 'cancelado' : ''
+    order.production_status,
+    order.status_op,
+    order.cancelled_at ? 'cancelado' : '',
+    order.canceled_at ? 'cancelado' : ''
   ].map(normalizeStatus);
 
   return values.some((status) =>

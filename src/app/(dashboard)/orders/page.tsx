@@ -30,6 +30,7 @@ import {
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { formatUnitCurrency } from '@/lib/pricing';
+import { isActiveOrder, isCancelledOrder, isProductionActiveOrder } from '@/lib/order-status';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
@@ -439,27 +440,31 @@ export default function OrdersPage() {
     });
   };
 
-  // 1. Filter and tab orders list
-  const filteredOrders = orders.filter(o => 
+  const matchesSearchQuery = (o: Order) =>
     o.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     o.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
     o.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
     o.payment_status.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.items.some((item) => item.product_name.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+    o.items.some((item) => item.product_name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const activeOrders = orders.filter(isActiveOrder);
+  const cancelledOrders = orders.filter(isCancelledOrder);
 
   const getFilteredOrdersByTab = (tab: typeof activeTab) => {
+    const baseOrders = tab === 'cancelado' ? cancelledOrders : activeOrders;
+    const searchedOrders = baseOrders.filter(matchesSearchQuery);
+
     switch (tab) {
       case 'orcamento':
-        return filteredOrders.filter(o => ['orcamento', 'aguardando_aprovacao', 'aguardando_pagamento'].includes(o.status));
+        return searchedOrders.filter(o => ['orcamento', 'aguardando_aprovacao', 'aguardando_pagamento'].includes(o.status));
       case 'producao':
-        return filteredOrders.filter(o => ['producao', 'impressao', 'acabamento'].includes(o.status));
+        return searchedOrders.filter(isProductionActiveOrder);
       case 'finalizado':
-        return filteredOrders.filter(o => ['expedicao', 'entregue', 'finalizado'].includes(o.status));
+        return searchedOrders.filter(o => ['expedicao', 'entregue', 'finalizado'].includes(o.status));
       case 'cancelado':
-        return filteredOrders.filter(o => o.status === 'cancelado');
+        return searchedOrders;
       default:
-        return filteredOrders;
+        return searchedOrders;
     }
   };
 
@@ -635,10 +640,10 @@ export default function OrdersPage() {
   };
 
   // Stats Calculations
-  const totalOrdersCount = orders.length;
-  const pendingPaymentOrdersCount = orders.filter(o => o.payment_status === 'pendente').length;
-  const pendingAmount = orders.reduce((sum, o) => sum + (o.total_amount - o.paid_amount), 0);
-  const activeProductionCount = orders.filter(o => ['producao', 'impressao', 'acabamento'].includes(o.status)).length;
+  const totalOrdersCount = activeOrders.length;
+  const pendingPaymentOrdersCount = activeOrders.filter(o => o.payment_status === 'pendente').length;
+  const pendingAmount = activeOrders.reduce((sum, o) => sum + Math.max(0, o.total_amount - o.paid_amount), 0);
+  const activeProductionCount = activeOrders.filter(isProductionActiveOrder).length;
   const corporateB2BFaturado = customers.reduce((sum, c) => sum + (c.credit_used || 0), 0);
 
   const selectedOrderTransactions = selectedOrder
