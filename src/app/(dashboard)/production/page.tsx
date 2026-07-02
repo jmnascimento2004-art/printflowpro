@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { ProductionItem } from '@/lib/dummy-data';
-import { isCancelledOrder } from '@/lib/order-status';
+import { isCancelledOrder, normalizeStatus } from '@/lib/order-status';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { getWhatsAppTimeGreeting } from '@/lib/utils';
 
@@ -91,6 +91,12 @@ export default function ProductionPage() {
   // Itens historicos permanecem salvos, mas pedido cancelado nao e fila ativa.
   const activeProductionQueue = production.filter(p => !isCancelledOrder(getOrderForProductionItem(p)));
 
+  const mapProductionStatusToColumn = (status: unknown): ProductionItem['status'] => {
+    const normalized = normalizeStatus(status);
+    if (normalized.includes('acabamento') || normalized === 'finishing') return 'impressao';
+    return normalized as ProductionItem['status'];
+  };
+
   // 1. Filter production queue based on search
   const filteredQueue = activeProductionQueue.filter(p =>
     p.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -102,7 +108,6 @@ export default function ProductionPage() {
     { id: 'aguardando', label: 'Aguardando', statuses: ['fila'], targetStatus: 'fila', color: 'border-zinc-500/50 bg-zinc-500/5', borderTop: 'border-t-zinc-400' },
     { id: 'preparacao', label: 'Preparacao', statuses: ['producao'], targetStatus: 'producao', color: 'border-purple-500/50 bg-purple-500/5', borderTop: 'border-t-purple-500' },
     { id: 'producao', label: 'Producao', statuses: ['impressao'], targetStatus: 'impressao', color: 'border-blue-500/50 bg-blue-500/5', borderTop: 'border-t-blue-500' },
-    { id: 'acabamento', label: 'Acabamento', statuses: ['acabamento'], targetStatus: 'acabamento', color: 'border-indigo-500/50 bg-indigo-500/5', borderTop: 'border-t-indigo-500' },
     { id: 'pronto', label: 'Pronto', statuses: ['concluido'], targetStatus: 'concluido', color: 'border-emerald-500/50 bg-emerald-500/5', borderTop: 'border-t-emerald-500' },
     { id: 'rota-entrega', label: 'Em rota de entrega', statuses: ['expedicao'], targetStatus: 'expedicao', color: 'border-cyan-500/50 bg-cyan-500/5', borderTop: 'border-t-cyan-500' },
     { id: 'entregue-finalizado', label: 'Entregue / Finalizado', statuses: ['entregue', 'finalizado'], targetStatus: 'entregue', color: 'border-teal-500/50 bg-teal-500/5', borderTop: 'border-t-teal-500' },
@@ -198,7 +203,7 @@ export default function ProductionPage() {
         className={`overflow-x-auto pb-4 flex gap-3 h-[630px] items-start select-none no-print ${isBoardDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       >
         {columns.map((column) => {
-          const colItems = filteredQueue.filter(item => column.statuses.includes(item.status));
+          const colItems = filteredQueue.filter(item => column.statuses.includes(mapProductionStatusToColumn(item.status)));
 
           return (
             <div

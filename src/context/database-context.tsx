@@ -63,7 +63,7 @@ import {
   UserProfile,
   DUMMY_PROFILES
 } from '@/lib/dummy-data';
-import { isProductionActiveOrder } from '@/lib/order-status';
+import { isProductionActiveOrder, normalizeStatus } from '@/lib/order-status';
 
 export interface CashRegisterSession {
   id: string;
@@ -321,8 +321,17 @@ const isPlaceholderCompanyName = (name?: string | null) => {
 const resolveLocalCompany = (companies: Company[]) =>
   companies.find((company) => !isPlaceholderCompanyName(company.name)) || companies[0];
 
+const normalizeProductionQueueStatus = (status: unknown): ProductionItem['status'] => {
+  const normalized = normalizeStatus(status);
+  if (normalized.includes('acabamento') || normalized === 'finishing') return 'impressao';
+  if (['fila', 'producao', 'impressao', 'concluido', 'expedicao', 'entregue', 'finalizado'].includes(normalized)) {
+    return normalized as ProductionItem['status'];
+  }
+  return 'fila';
+};
+
 const productionStatusForOrder = (status: Order['status']): ProductionItem['status'] => {
-  if (status === 'impressao' || status === 'acabamento') return status;
+  if (status === 'impressao' || status === 'acabamento') return normalizeProductionQueueStatus(status);
   return 'fila';
 };
 
@@ -2052,10 +2061,10 @@ useEffect(() => {
   // PRODUCTION API
   // ----------------------------------------------------
   const updateProductionStatus = (id: string, status: ProductionItem['status']) => {
+    const nextStatus = normalizeProductionQueueStatus(status);
     const orderStatusByProductionStatus: Partial<Record<ProductionItem['status'], Order['status']>> = {
       producao: 'producao',
       impressao: 'impressao',
-      acabamento: 'acabamento',
       expedicao: 'expedicao',
       entregue: 'entregue',
       finalizado: 'finalizado'
@@ -2064,10 +2073,10 @@ useEffect(() => {
     setProduction(prev =>
       prev.map(p => {
         if (p.id === id) {
-          const started_at = status === 'producao' ? new Date().toISOString() : p.started_at;
-          const finished_at = ['concluido', 'finalizado'].includes(status) ? new Date().toISOString() : p.finished_at;
+          const started_at = nextStatus === 'producao' ? new Date().toISOString() : p.started_at;
+          const finished_at = ['concluido', 'finalizado'].includes(nextStatus) ? new Date().toISOString() : p.finished_at;
           
-          const nextOrderStatus = orderStatusByProductionStatus[status];
+          const nextOrderStatus = orderStatusByProductionStatus[nextStatus];
           if (nextOrderStatus) {
             setTimeout(() => {
               updateOrderStatus(p.order_id, nextOrderStatus);
@@ -2075,13 +2084,13 @@ useEffect(() => {
           }
 
           // If completed, check if all items in this order are completed
-          if (status === 'concluido') {
+          if (nextStatus === 'concluido') {
             setTimeout(() => {
               checkAndAdvanceOrderProduction(p.order_id);
             }, 10);
           }
 
-          return { ...p, status, started_at, finished_at };
+          return { ...p, status: nextStatus, started_at, finished_at };
         }
         return p;
       })
