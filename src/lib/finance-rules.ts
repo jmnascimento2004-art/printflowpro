@@ -27,6 +27,11 @@ const CANCELLED_TRANSACTION_MARKERS = new Set([
 
 export const normalizeFinanceStatus = normalizeStatus;
 
+const getTransactionTime = (value: unknown): number => {
+  const time = new Date(String(value || '')).getTime();
+  return Number.isFinite(time) ? time : 0;
+};
+
 export const isCancelledTransaction = (transaction?: TransactionLike | null): boolean => {
   if (!transaction) return false;
 
@@ -58,14 +63,14 @@ export const isActiveFinancialTransaction = (
   return Number(transaction.amount || 0) > 0;
 };
 
-const buildFallbackTransactionKey = (transaction: TransactionLike, index: number) => [
+const buildFallbackTransactionKey = (transaction: TransactionLike) => [
   normalizeFinanceStatus(transaction.order_id),
   normalizeFinanceStatus(transaction.order_number),
   Number(transaction.amount || 0).toFixed(2),
   normalizeFinanceStatus(transaction.paid_at || transaction.due_date || transaction.created_at),
   normalizeFinanceStatus(transaction.description),
   normalizeFinanceStatus(transaction.payment_method),
-  index
+  normalizeFinanceStatus(transaction.status)
 ].join('|');
 
 export const dedupeTransactionsById = <T extends TransactionLike>(transactions: T[]): T[] => {
@@ -74,7 +79,7 @@ export const dedupeTransactionsById = <T extends TransactionLike>(transactions: 
   return transactions.filter((transaction, index) => {
     const key = transaction.id
       ? `id:${transaction.id}`
-      : `fallback:${buildFallbackTransactionKey(transaction, index)}`;
+      : `fallback:${buildFallbackTransactionKey(transaction) || index}`;
 
     if (seen.has(key)) return false;
     seen.add(key);
@@ -82,11 +87,51 @@ export const dedupeTransactionsById = <T extends TransactionLike>(transactions: 
   });
 };
 
+const buildOperationalDuplicateKey = (transaction: TransactionLike) => [
+  normalizeFinanceStatus(transaction.order_id),
+  normalizeFinanceStatus(transaction.order_number),
+  normalizeFinanceStatus(transaction.type),
+  normalizeFinanceStatus(transaction.status),
+  Number(transaction.amount || 0).toFixed(2),
+  normalizeFinanceStatus(transaction.description),
+  normalizeFinanceStatus(transaction.payment_method),
+  normalizeFinanceStatus(transaction.paid_at || transaction.due_date)
+].join('|');
+
+export const dedupeFinancialTransactions = <T extends TransactionLike>(transactions: T[]): T[] => {
+  const byId = dedupeTransactionsById(transactions);
+  const grouped = new Map<string, T[]>();
+
+  byId.forEach((transaction) => {
+    const key = buildOperationalDuplicateKey(transaction);
+    const current = grouped.get(key) || [];
+    current.push(transaction);
+    grouped.set(key, current);
+  });
+
+  return Array.from(grouped.values()).flatMap((group) => {
+    const sorted = [...group].sort((a, b) => getTransactionTime(a.created_at) - getTransactionTime(b.created_at));
+    const kept: T[] = [];
+
+    sorted.forEach((transaction) => {
+      const createdAt = getTransactionTime(transaction.created_at);
+      const isNearDuplicate = kept.some((keptTransaction) => {
+        const keptCreatedAt = getTransactionTime(keptTransaction.created_at);
+        return createdAt > 0 && keptCreatedAt > 0 && Math.abs(createdAt - keptCreatedAt) <= 2000;
+      });
+
+      if (!isNearDuplicate) kept.push(transaction);
+    });
+
+    return kept;
+  });
+};
+
 export const getActivePaymentsForOrder = (
   orderId: string,
   transactions: FinancialTransaction[]
 ): FinancialTransaction[] =>
-  dedupeTransactionsById(transactions).filter((transaction) =>
+  dedupeFinancialTransactions(transactions).filter((transaction) =>
     transaction.order_id === orderId &&
     transaction.type === 'receita' &&
     transaction.status === 'pago' &&
