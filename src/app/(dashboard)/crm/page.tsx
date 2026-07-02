@@ -5,14 +5,21 @@ import { useRouter } from 'next/navigation';
 import {
   Building2,
   Check,
+  Edit3,
+  Filter,
   FileQuestion,
   FileText,
+  LockKeyhole,
+  Mail,
+  MapPin,
   Phone,
   Plus,
   Search,
+  Trash2,
   User,
   UserPlus,
   Users,
+  UnlockKeyhole,
   X
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
@@ -28,6 +35,7 @@ import {
 } from '@/lib/utils';
 
 type PersonType = 'fisica' | 'juridica';
+type CustomerFilter = 'todos' | 'fisica' | 'juridica' | 'catalogo' | 'bloqueados';
 
 const inputClass = 'h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15';
 
@@ -44,11 +52,15 @@ const isCatalogCustomer = (customer: Customer) =>
   customer.tags?.some((tag) => tag.toLowerCase().includes('catalogo')) ||
   customer.notes?.toLowerCase().includes('catalogo online');
 
+const isBlockedCustomer = (customer: Customer) => customer.credit_status === 'bloqueado';
+
 export default function CustomersPage() {
   const { customers, addCustomer, updateCustomer, deleteCustomer, orders, quotes } = useDatabase();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<CustomerFilter>('todos');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [detailsCustomer, setDetailsCustomer] = useState<Customer | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isOpeningQuote, setIsOpeningQuote] = useState(false);
 
@@ -96,6 +108,7 @@ export default function CustomersPage() {
 
   const startCreate = () => {
     setSelectedCustomer(null);
+    setDetailsCustomer(null);
     resetForm();
     setIsEditing(true);
   };
@@ -124,12 +137,21 @@ export default function CustomersPage() {
     setState(customer.address?.state || '');
     setNotes(customer.notes || '');
     setLookupStatus('');
+    setDetailsCustomer(null);
     setIsEditing(true);
   };
 
   const filteredCustomers = customers.filter((customer) => {
     const extra = customer.corporate_additional_info || {};
     const search = searchQuery.trim().toLowerCase();
+    const type = inferPersonType(customer);
+    const matchesFilter =
+      activeFilter === 'todos' ||
+      activeFilter === type ||
+      (activeFilter === 'catalogo' && isCatalogCustomer(customer)) ||
+      (activeFilter === 'bloqueados' && isBlockedCustomer(customer));
+
+    if (!matchesFilter) return false;
     if (!search) return true;
 
     return [
@@ -154,6 +176,40 @@ export default function CustomersPage() {
       quote.customer_name === customer.name ||
       quote.customer_name === `${customer.name} (Web)`
     );
+
+  const openCustomerDetails = (customer: Customer) => {
+    setDetailsCustomer(customer);
+    setSelectedCustomer(customer);
+    setIsEditing(false);
+  };
+
+  const toggleCustomerBlock = (customer: Customer) => {
+    const blocked = isBlockedCustomer(customer);
+    const nextCustomer: Customer = {
+      ...customer,
+      credit_status: blocked ? 'aprovado' : 'bloqueado'
+    };
+
+    updateCustomer(nextCustomer);
+    if (detailsCustomer?.id === customer.id) setDetailsCustomer(nextCustomer);
+    if (selectedCustomer?.id === customer.id) setSelectedCustomer(nextCustomer);
+  };
+
+  const handleDeleteCustomer = (customer: Customer) => {
+    const customerOrders = getCustomerOrders(customer);
+    const customerQuotes = getCustomerQuotes(customer);
+
+    if (customerOrders.length > 0 || customerQuotes.length > 0) {
+      alert('Este cliente possui pedidos ou orcamentos vinculados. Para preservar o historico comercial, ele nao sera excluido. Use Bloquear se precisar impedir novos atendimentos.');
+      return;
+    }
+
+    if (confirm('Tem certeza que deseja excluir este cliente? Esta acao nao podera ser desfeita.')) {
+      deleteCustomer(customer.id);
+      if (detailsCustomer?.id === customer.id) setDetailsCustomer(null);
+      if (selectedCustomer?.id === customer.id) setSelectedCustomer(null);
+    }
+  };
 
   const handleNewQuoteForSelectedCustomer = () => {
     if (!selectedCustomer) return;
@@ -275,12 +331,22 @@ export default function CustomersPage() {
     setSelectedCustomer(null);
   };
 
-  const selectedPersonType = inferPersonType(selectedCustomer);
-  const selectedExtra = selectedCustomer?.corporate_additional_info || {};
   const totalCustomers = customers.length;
   const totalLegalCustomers = customers.filter((customer) => inferPersonType(customer) === 'juridica').length;
   const totalIndividualCustomers = totalCustomers - totalLegalCustomers;
   const totalCatalogCustomers = customers.filter(isCatalogCustomer).length;
+  const totalBlockedCustomers = customers.filter(isBlockedCustomer).length;
+  const detailPersonType = inferPersonType(detailsCustomer);
+  const detailExtra = detailsCustomer?.corporate_additional_info || {};
+  const detailQuotes = detailsCustomer ? getCustomerQuotes(detailsCustomer) : [];
+  const detailOrders = detailsCustomer ? getCustomerOrders(detailsCustomer) : [];
+  const detailTotalSold = detailOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+  const detailLastPurchase = detailOrders
+    .map((order) => order.created_at)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+  const selectedPersonType = inferPersonType(selectedCustomer);
+  const selectedExtra = selectedCustomer?.corporate_additional_info || {};
   const selectedQuotes = selectedCustomer ? getCustomerQuotes(selectedCustomer) : [];
   const selectedOrders = selectedCustomer ? getCustomerOrders(selectedCustomer) : [];
   const selectedTotalSold = selectedOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
@@ -293,7 +359,7 @@ export default function CustomersPage() {
     <div className="space-y-6 bg-slate-50/60 p-1">
       {!isEditing && (
         <div className="no-print space-y-5">
-          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h1 className="text-2xl font-black tracking-tight text-slate-950">Clientes</h1>
               <p className="mt-1 text-sm font-medium text-slate-500">
@@ -301,8 +367,8 @@ export default function CustomersPage() {
               </p>
             </div>
 
-            <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
-              <div className="relative w-full sm:min-w-[320px]">
+            <div className="flex w-full flex-col gap-3 sm:flex-row xl:w-auto">
+              <div className="relative w-full sm:min-w-[360px]">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -322,16 +388,73 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <SummaryCard label="Total de clientes" value={totalCustomers} icon={<Users className="h-5 w-5" />} />
             <SummaryCard label="Pessoas físicas" value={totalIndividualCustomers} icon={<User className="h-5 w-5" />} />
             <SummaryCard label="Pessoas jurídicas" value={totalLegalCustomers} icon={<Building2 className="h-5 w-5" />} />
             <SummaryCard label="Clientes do catálogo" value={totalCatalogCustomers} icon={<ShoppingBagIcon />} />
+            <SummaryCard label="Bloqueados" value={totalBlockedCustomers} icon={<LockKeyhole className="h-5 w-5" />} />
           </div>
+
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-2 text-xs font-black uppercase tracking-wide text-slate-500">
+              <Filter className="h-3.5 w-3.5" /> Filtros
+            </span>
+            {(['todos', 'fisica', 'juridica', 'catalogo', 'bloqueados'] as CustomerFilter[]).map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setActiveFilter(filter)}
+                className={`rounded-xl px-3 py-2 text-xs font-black transition-all ${
+                  activeFilter === filter
+                    ? 'bg-primary text-primary-foreground shadow shadow-primary/15'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {getCustomerFilterLabel(filter)}
+              </button>
+            ))}
+            <span className="ml-auto text-xs font-bold text-slate-500">{filteredCustomers.length} resultado(s)</span>
+          </div>
+
+          {filteredCustomers.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              {filteredCustomers.map((customer) => (
+                <CustomerCard
+                  key={customer.id}
+                  customer={customer}
+                  type={inferPersonType(customer)}
+                  quotesCount={getCustomerQuotes(customer).length}
+                  ordersCount={getCustomerOrders(customer).length}
+                  catalogCustomer={isCatalogCustomer(customer)}
+                  blocked={isBlockedCustomer(customer)}
+                  onOpen={() => openCustomerDetails(customer)}
+                  onEdit={(event) => {
+                    event.stopPropagation();
+                    startEdit(customer);
+                  }}
+                  onToggleBlock={(event) => {
+                    event.stopPropagation();
+                    toggleCustomerBlock(customer);
+                  }}
+                  onDelete={(event) => {
+                    event.stopPropagation();
+                    handleDeleteCustomer(customer);
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-500">
+              <Users className="mb-3 h-12 w-12 text-slate-300" />
+              <span className="text-sm font-black text-slate-700">Nenhum cliente encontrado</span>
+              <p className="mt-1 max-w-md text-xs font-medium text-slate-500">Ajuste a busca ou os filtros para visualizar outros cadastros.</p>
+            </div>
+          )}
         </div>
       )}
 
-      <div className={`grid grid-cols-1 gap-6 ${isEditing ? 'mx-auto max-w-4xl' : 'lg:grid-cols-3'}`}>
+      <div className={`${isEditing ? 'mx-auto grid max-w-4xl grid-cols-1 gap-6' : 'hidden'}`}>
         <div className={`flex h-[720px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${isEditing ? 'hidden' : ''}`}>
           <div className="border-b border-slate-100 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -690,6 +813,249 @@ export default function CustomersPage() {
           )}
         </div>
       </div>
+
+      {detailsCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3 py-4 no-print">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-br from-white to-blue-50/70 p-5">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <PersonBadge type={detailPersonType} />
+                  {isCatalogCustomer(detailsCustomer) && <CatalogBadge />}
+                  {isBlockedCustomer(detailsCustomer) && <BlockedBadge />}
+                </div>
+                <h2 className="mt-3 line-clamp-2 text-2xl font-extrabold leading-tight text-slate-950">{detailsCustomer.name}</h2>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  {detailsCustomer.document || 'Documento nao informado'} - Cadastrado em {new Date(detailsCustomer.created_at).toLocaleDateString('pt-BR')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailsCustomer(null)}
+                className="rounded-xl border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-950"
+                aria-label="Fechar detalhes do cliente"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-5">
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <DetailCard title="Dados principais">
+                    <DetailLine label="Nome" value={detailsCustomer.name || 'Nao informado'} />
+                    <DetailLine label="Tipo" value={detailPersonType === 'juridica' ? 'Pessoa Juridica' : 'Pessoa Fisica'} />
+                    <DetailLine label="Documento" value={detailsCustomer.document || 'Nao informado'} />
+                    <DetailLine label="Status" value={isBlockedCustomer(detailsCustomer) ? 'Bloqueado' : 'Ativo'} />
+                    <DetailLine label="Origem" value={isCatalogCustomer(detailsCustomer) ? 'Catalogo' : 'Admin'} />
+                  </DetailCard>
+
+                  <DetailCard title="Contato">
+                    <DetailLine label="Telefone" value={detailsCustomer.phone || 'Nao informado'} />
+                    <DetailLine label="WhatsApp" value={detailExtra.whatsapp || detailsCustomer.phone || 'Nao informado'} />
+                    <DetailLine label="E-mail" value={detailsCustomer.email || 'Nao informado'} />
+                    {detailPersonType === 'fisica' && detailExtra.birth_date && (
+                      <DetailLine label="Nascimento" value={new Date(detailExtra.birth_date).toLocaleDateString('pt-BR')} />
+                    )}
+                  </DetailCard>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <DetailCard title="Endereco">
+                    <DetailLine label="Resumo" value={formatAddress(detailsCustomer)} />
+                    <DetailLine label="Rua" value={detailsCustomer.address?.street || 'Nao informada'} />
+                    <DetailLine label="Numero" value={detailsCustomer.address?.number || 'Nao informado'} />
+                    <DetailLine label="Bairro" value={detailsCustomer.address?.neighborhood || 'Nao informado'} />
+                    <DetailLine label="Cidade / UF" value={[detailsCustomer.address?.city, detailsCustomer.address?.state].filter(Boolean).join(' / ') || 'Nao informado'} />
+                    <DetailLine label="CEP" value={detailsCustomer.address?.zip_code || 'Nao informado'} />
+                  </DetailCard>
+
+                  {detailPersonType === 'juridica' ? (
+                    <DetailCard title="Pessoa Juridica">
+                      <DetailLine label="Razao social" value={detailsCustomer.name || 'Nao informada'} />
+                      <DetailLine label="Fantasia" value={detailExtra.nome_fantasia || 'Nao informado'} />
+                      <DetailLine label="Inscricao" value={detailExtra.inscricao_estadual || 'Nao informada'} />
+                      <DetailLine label="Responsavel" value={detailExtra.responsavel_nome || detailExtra.responsavel_financeiro_nome || 'Nao informado'} />
+                    </DetailCard>
+                  ) : (
+                    <DetailCard title="Pessoa Fisica">
+                      <DetailLine label="Nome" value={detailsCustomer.name || 'Nao informado'} />
+                      <DetailLine label="CPF" value={detailsCustomer.document || 'Nao informado'} />
+                      <DetailLine label="Nascimento" value={detailExtra.birth_date ? new Date(detailExtra.birth_date).toLocaleDateString('pt-BR') : 'Nao informado'} />
+                    </DetailCard>
+                  )}
+                </div>
+
+                {detailsCustomer.notes && (
+                  <div className="rounded-xl border border-border bg-secondary/30 p-3.5">
+                    <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Observacoes</h5>
+                    <FormattedNotes notes={detailsCustomer.notes} />
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Historico Comercial</h3>
+                  <p className="text-xs font-medium text-slate-500">Resumo de orcamentos, pedidos e compras vinculadas</p>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <MetricCard label="Orcamentos" value={detailQuotes.length} />
+                    <MetricCard label="Pedidos" value={detailOrders.length} />
+                    <MetricCard label="Total vendido" value={formatCurrency(detailTotalSold)} />
+                    <MetricCard label="Ultima compra" value={detailLastPurchase ? new Date(detailLastPurchase).toLocaleDateString('pt-BR') : 'Sem compras'} />
+                  </div>
+
+                  <LinkedHistory quotes={detailQuotes} orders={detailOrders} formatCurrency={formatCurrency} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setDetailsCustomer(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-100"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleCustomerBlock(detailsCustomer)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black text-amber-700 hover:bg-amber-100"
+              >
+                {isBlockedCustomer(detailsCustomer) ? <UnlockKeyhole className="h-4 w-4" /> : <LockKeyhole className="h-4 w-4" />}
+                {isBlockedCustomer(detailsCustomer) ? 'Desbloquear' : 'Bloquear'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteCustomer(detailsCustomer)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-600 hover:bg-rose-100"
+              >
+                <Trash2 className="h-4 w-4" /> Excluir
+              </button>
+              <button
+                type="button"
+                onClick={() => startEdit(detailsCustomer)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-black text-primary-foreground shadow shadow-primary/15 hover:bg-primary/90"
+              >
+                <Edit3 className="h-4 w-4" /> Editar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getCustomerFilterLabel(filter: CustomerFilter) {
+  const labels: Record<CustomerFilter, string> = {
+    todos: 'Todos',
+    fisica: 'PF',
+    juridica: 'PJ',
+    catalogo: 'Catalogo',
+    bloqueados: 'Bloqueados'
+  };
+
+  return labels[filter];
+}
+
+function CustomerCard({
+  customer,
+  type,
+  quotesCount,
+  ordersCount,
+  catalogCustomer,
+  blocked,
+  onOpen,
+  onEdit,
+  onToggleBlock,
+  onDelete
+}: {
+  customer: Customer;
+  type: PersonType;
+  quotesCount: number;
+  ordersCount: number;
+  catalogCustomer: boolean;
+  blocked: boolean;
+  onOpen: () => void;
+  onEdit: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onToggleBlock: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onDelete: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  const extra = customer.corporate_additional_info || {};
+  const location = [customer.address?.neighborhood, customer.address?.city].filter(Boolean).join(' - ');
+
+  return (
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') onOpen();
+      }}
+      className={`group flex min-h-[280px] cursor-pointer flex-col rounded-2xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md ${
+        blocked ? 'border-rose-200 bg-rose-50/30' : 'border-slate-200'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="line-clamp-2 text-base font-black leading-tight text-slate-950">{customer.name}</h3>
+          {type === 'juridica' && extra.nome_fantasia && (
+            <p className="mt-1 truncate text-xs font-semibold text-slate-500">{extra.nome_fantasia}</p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <PersonBadge type={type} />
+          {blocked && <BlockedBadge />}
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2 text-xs font-semibold text-slate-600">
+        <CardLine icon={<FileText className="h-3.5 w-3.5" />} value={customer.document || 'Documento nao informado'} />
+        <CardLine icon={<Phone className="h-3.5 w-3.5" />} value={extra.whatsapp || customer.phone || 'Sem telefone'} />
+        <CardLine icon={<Mail className="h-3.5 w-3.5" />} value={customer.email || 'E-mail nao informado'} />
+        <CardLine icon={<MapPin className="h-3.5 w-3.5" />} value={location || 'Endereco nao informado'} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {catalogCustomer && <CatalogBadge />}
+        <MiniBadge>{quotesCount} orcamento(s)</MiniBadge>
+        <MiniBadge>{ordersCount} pedido(s)</MiniBadge>
+      </div>
+
+      <div className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-100 pt-4">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-blue-50 px-2 py-2 text-[11px] font-black text-blue-600 hover:bg-blue-100"
+        >
+          <Edit3 className="h-3.5 w-3.5" /> Editar
+        </button>
+        <button
+          type="button"
+          onClick={onToggleBlock}
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-amber-50 px-2 py-2 text-[11px] font-black text-amber-700 hover:bg-amber-100"
+        >
+          {blocked ? <UnlockKeyhole className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}
+          {blocked ? 'Liberar' : 'Bloquear'}
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-rose-50 px-2 py-2 text-[11px] font-black text-rose-600 hover:bg-rose-100"
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Excluir
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function CardLine({ icon, value }: { icon: React.ReactNode; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="shrink-0 text-blue-500">{icon}</span>
+      <span className="truncate">{value}</span>
     </div>
   );
 }
@@ -744,6 +1110,14 @@ function CatalogBadge() {
   return (
     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-600 ring-1 ring-emerald-100">
       Catálogo
+    </span>
+  );
+}
+
+function BlockedBadge() {
+  return (
+    <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-rose-600 ring-1 ring-rose-100">
+      Bloqueado
     </span>
   );
 }
