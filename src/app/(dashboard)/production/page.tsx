@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
    
   Clock, 
   User, 
   AlertTriangle,
   Search,
-  Sparkles
+  Sparkles,
+  Truck
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { ProductionItem } from '@/lib/dummy-data';
+import { isCancelledOrder } from '@/lib/order-status';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { getWhatsAppTimeGreeting } from '@/lib/utils';
 
@@ -26,6 +28,9 @@ export default function ProductionPage() {
   } = useDatabase();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const dragScrollRef = useRef({ active: false, startX: 0, scrollLeft: 0 });
+  const [isBoardDragging, setIsBoardDragging] = useState(false);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -37,8 +42,11 @@ export default function ProductionPage() {
     reembolsado: 'Reembolsado'
   };
 
+  const getOrderForProductionItem = (item: ProductionItem) =>
+    orders.find(o => o.id === item.order_id || o.number === item.order_number);
+
   const sendWhatsAppStatus = (item: ProductionItem) => {
-    const order = orders.find(o => o.number === item.order_number || o.id === item.order_id);
+    const order = getOrderForProductionItem(item);
     const customer = order ? customers.find(c => c.id === order.customer_id) : null;
     
     if (!customer || !customer.phone) {
@@ -80,22 +88,24 @@ export default function ProductionPage() {
     .filter(p => p.active && ['admin', 'gerente', 'producao', 'arte_finalista', 'estoque'].includes(p.role))
     .map(p => p.name);
 
+  // Itens historicos permanecem salvos, mas pedido cancelado nao e fila ativa.
+  const activeProductionQueue = production.filter(p => !isCancelledOrder(getOrderForProductionItem(p)));
+
   // 1. Filter production queue based on search
-  const filteredQueue = production.filter(p => 
+  const filteredQueue = activeProductionQueue.filter(p =>
     p.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.order_number.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Kanban columns configuration
-  const columns: { id: ProductionItem['status']; label: string; color: string; borderTop: string }[] = [
-    { id: 'fila', label: 'Aguardando', color: 'border-zinc-500/50 bg-zinc-500/5', borderTop: 'border-t-zinc-400' },
-    { id: 'producao', label: 'Preparação', color: 'border-purple-500/50 bg-purple-500/5', borderTop: 'border-t-purple-500' },
-    { id: 'impressao', label: 'Impressão', color: 'border-blue-500/50 bg-blue-500/5', borderTop: 'border-t-blue-500' },
-    { id: 'acabamento', label: 'Acabamento', color: 'border-indigo-500/50 bg-indigo-500/5', borderTop: 'border-t-indigo-500' },
-    { id: 'concluido', label: 'Concluído', color: 'border-emerald-500/50 bg-emerald-500/5', borderTop: 'border-t-emerald-500' },
-    { id: 'expedicao', label: 'Expedição', color: 'border-cyan-500/50 bg-cyan-500/5', borderTop: 'border-t-cyan-500' },
-    { id: 'entregue', label: 'Entregue', color: 'border-teal-500/50 bg-teal-500/5', borderTop: 'border-t-teal-500' },
-    { id: 'finalizado', label: 'Finalizado', color: 'border-emerald-600/60 bg-emerald-600/10', borderTop: 'border-t-emerald-600' },
+  const columns: Array<{ id: string; label: string; statuses: ProductionItem['status'][]; targetStatus: ProductionItem['status']; color: string; borderTop: string }> = [
+    { id: 'aguardando', label: 'Aguardando', statuses: ['fila'], targetStatus: 'fila', color: 'border-zinc-500/50 bg-zinc-500/5', borderTop: 'border-t-zinc-400' },
+    { id: 'preparacao', label: 'Preparacao', statuses: ['producao'], targetStatus: 'producao', color: 'border-purple-500/50 bg-purple-500/5', borderTop: 'border-t-purple-500' },
+    { id: 'producao', label: 'Producao', statuses: ['impressao'], targetStatus: 'impressao', color: 'border-blue-500/50 bg-blue-500/5', borderTop: 'border-t-blue-500' },
+    { id: 'acabamento', label: 'Acabamento', statuses: ['acabamento'], targetStatus: 'acabamento', color: 'border-indigo-500/50 bg-indigo-500/5', borderTop: 'border-t-indigo-500' },
+    { id: 'pronto', label: 'Pronto', statuses: ['concluido'], targetStatus: 'concluido', color: 'border-emerald-500/50 bg-emerald-500/5', borderTop: 'border-t-emerald-500' },
+    { id: 'rota-entrega', label: 'Em rota de entrega', statuses: ['expedicao'], targetStatus: 'expedicao', color: 'border-cyan-500/50 bg-cyan-500/5', borderTop: 'border-t-cyan-500' },
+    { id: 'entregue-finalizado', label: 'Entregue / Finalizado', statuses: ['entregue', 'finalizado'], targetStatus: 'entregue', color: 'border-teal-500/50 bg-teal-500/5', borderTop: 'border-t-teal-500' },
   ];
 
   // 2. Drag & Drop Handlers
@@ -113,6 +123,32 @@ export default function ProductionPage() {
     if (id) {
       updateProductionStatus(id, targetStatus);
     }
+  };
+
+  const finishBoardDrag = () => {
+    dragScrollRef.current.active = false;
+    setIsBoardDragging(false);
+  };
+
+  const handleBoardMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest('[draggable="true"], button, input, select, textarea, a')) return;
+
+    dragScrollRef.current = {
+      active: true,
+      startX: event.pageX - (boardRef.current?.offsetLeft || 0),
+      scrollLeft: boardRef.current?.scrollLeft || 0
+    };
+    setIsBoardDragging(true);
+  };
+
+  const handleBoardMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragScrollRef.current.active || !boardRef.current) return;
+    event.preventDefault();
+
+    const x = event.pageX - boardRef.current.offsetLeft;
+    const walk = (x - dragScrollRef.current.startX) * 1.2;
+    boardRef.current.scrollLeft = dragScrollRef.current.scrollLeft - walk;
   };
 
   const getPriorityBadge = (priority: ProductionItem['priority']) => {
@@ -148,25 +184,35 @@ export default function ProductionPage() {
         </div>
         <div className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5 shrink-0 bg-secondary/30 p-2 rounded-xl border border-border">
           <Sparkles className="h-4 w-4 text-primary animate-pulse" />
-          <span>Arraste os cartões de serviço para atualizar a fase de produção!</span>
+          <span>Arraste cartões para atualizar fases ou arraste o fundo para navegar.</span>
         </div>
       </div>
 
       {/* 2. Production Kanban Board Grid */}
-      <div className="overflow-x-auto pb-4 flex gap-4 h-[630px] items-start select-none no-print">
+      <div
+        ref={boardRef}
+        onMouseDown={handleBoardMouseDown}
+        onMouseMove={handleBoardMouseMove}
+        onMouseUp={finishBoardDrag}
+        onMouseLeave={finishBoardDrag}
+        className={`overflow-x-auto pb-4 flex gap-3 h-[630px] items-start select-none no-print ${isBoardDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      >
         {columns.map((column) => {
-          const colItems = filteredQueue.filter(item => item.status === column.id);
+          const colItems = filteredQueue.filter(item => column.statuses.includes(item.status));
 
           return (
             <div
               key={column.id}
               onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, column.id)}
-              className="w-72 min-w-[288px] bg-card border border-border rounded-2xl h-full flex flex-col shadow-sm"
+              onDrop={(e) => handleDrop(e, column.targetStatus)}
+              className="w-64 min-w-[256px] bg-card border border-border rounded-xl h-full flex flex-col shadow-sm"
             >
               {/* Header Column */}
-              <div className={`p-4 border-b border-border flex justify-between items-center rounded-t-2xl border-t-4 ${column.borderTop} ${column.color}`}>
-                <h4 className="font-bold text-xs uppercase text-foreground truncate max-w-[200px]">{column.label}</h4>
+              <div className={`p-3 border-b border-border flex justify-between items-center rounded-t-xl border-t-4 ${column.borderTop} ${column.color}`}>
+                <h4 className="font-bold text-[11px] uppercase text-foreground truncate max-w-[180px] flex items-center gap-1.5">
+                  {column.id === 'rota-entrega' && <Truck className="h-3.5 w-3.5 text-cyan-500" />}
+                  {column.label}
+                </h4>
                 <span className="text-[10px] font-extrabold bg-secondary text-foreground px-2 py-0.5 rounded-full shrink-0">
                   {colItems.length}
                 </span>
@@ -177,7 +223,7 @@ export default function ProductionPage() {
                 {colItems.length > 0 ? (
                   colItems.map((item) => {
                     const overdue = isOverdue(item.deadline, item.status);
-                    const order = orders.find(o => o.id === item.order_id || o.number === item.order_number);
+                    const order = getOrderForProductionItem(item);
                     const paymentStatus = order?.payment_status ? paymentStatusLabels[order.payment_status] || order.payment_status : 'Não informado';
 
                     return (
@@ -185,7 +231,7 @@ export default function ProductionPage() {
                         key={item.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, item.id)}
-                        className={`p-3.5 bg-secondary/40 border rounded-xl hover:border-primary transition-all duration-150 shadow-sm relative group space-y-3 cursor-grab active:cursor-grabbing ${
+                        className={`p-3 bg-secondary/40 border rounded-lg hover:border-primary transition-all duration-150 shadow-sm relative group space-y-2.5 cursor-grab active:cursor-grabbing ${
                           overdue ? 'border-rose-500/40 bg-rose-500/5' : 'border-border'
                         }`}
                       >

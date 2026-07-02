@@ -63,6 +63,7 @@ import {
   UserProfile,
   DUMMY_PROFILES
 } from '@/lib/dummy-data';
+import { isProductionActiveOrder } from '@/lib/order-status';
 
 export interface CashRegisterSession {
   id: string;
@@ -319,11 +320,6 @@ const isPlaceholderCompanyName = (name?: string | null) => {
 
 const resolveLocalCompany = (companies: Company[]) =>
   companies.find((company) => !isPlaceholderCompanyName(company.name)) || companies[0];
-
-const PRODUCTION_ORDER_STATUSES: Order['status'][] = ['producao', 'impressao', 'acabamento'];
-
-const isActiveProductionOrder = (order: Order) =>
-  PRODUCTION_ORDER_STATUSES.includes(order.status);
 
 const productionStatusForOrder = (status: Order['status']): ProductionItem['status'] => {
   if (status === 'impressao' || status === 'acabamento') return status;
@@ -908,7 +904,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
 
-    const activeProductionOrders = orders.filter(isActiveProductionOrder);
+    const activeProductionOrders = orders.filter(isProductionActiveOrder);
     if (activeProductionOrders.length === 0) return;
 
     setProduction(prev => {
