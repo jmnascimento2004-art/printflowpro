@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Plus, 
   FileText, 
+  Eye,
   Search, 
   Trash2, 
   Check, 
@@ -12,6 +13,7 @@ import {
   X, 
   PlusCircle,
   Edit2,
+  MessageCircle,
   Truck,
   RefreshCw
 } from 'lucide-react';
@@ -575,7 +577,8 @@ export default function QuotesPage() {
   // 1. Filter Quotes
   const filteredQuotes = quotes.filter(q => 
     q.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    q.number.toString().includes(searchQuery)
+    q.number.toString().includes(searchQuery) ||
+    q.status.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // 2. Dynamic Price calculation for item addition
@@ -1073,7 +1076,152 @@ export default function QuotesPage() {
             </button>
           </div>
 
-          <div className="overflow-x-auto xl:overflow-x-visible">
+          {filteredQuotes.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {filteredQuotes.map((quote) => {
+                const itemsSummary = quote.items.length > 0
+                  ? quote.items.slice(0, 2).map((item) => `${item.quantity}x ${item.product_name}`).join(', ')
+                  : 'Sem produtos informados';
+                const hiddenItemsCount = Math.max(0, quote.items.length - 2);
+                const servicesCount = quote.additional_services?.length || 0;
+                const deliveryLabel =
+                  quote.delivery_type === 'motoboy' ? 'Motoboy' :
+                  quote.delivery_type === 'carro' ? 'Carro' :
+                  quote.delivery_type === 'correios' ? 'Correios' :
+                  'Retirada';
+
+                return (
+                  <article
+                    key={quote.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openQuotePdf(quote)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') openQuotePdf(quote);
+                    }}
+                    className="group flex min-h-[230px] cursor-pointer flex-col rounded-xl border border-border bg-card p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-black text-foreground">#{quote.number}</h3>
+                        <p className="mt-1 line-clamp-2 text-xs font-semibold text-muted-foreground">{getQuoteCustomerName(quote)}</p>
+                      </div>
+                      <div className="shrink-0">{getStatusBadge(quote.status)}</div>
+                    </div>
+
+                    <div className="mt-3 space-y-1.5 text-[11px] font-semibold text-muted-foreground">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide">Validade</span>
+                        <strong className="text-foreground">{new Date(quote.valid_until).toLocaleDateString('pt-BR')}</strong>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide">Entrega</span>
+                        <strong className="text-foreground">{deliveryLabel}</strong>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide">Total</span>
+                        <strong className="text-primary">{formatCurrency(quote.total_amount)}</strong>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-lg border border-border bg-secondary/20 p-2">
+                      <span className="block text-[10px] font-black uppercase tracking-wide text-muted-foreground">Itens</span>
+                      <p className="mt-1 line-clamp-2 text-[11px] font-semibold text-foreground">
+                        {itemsSummary}{hiddenItemsCount > 0 ? ` +${hiddenItemsCount}` : ''}{servicesCount > 0 ? ` | ${servicesCount} serv.` : ''}
+                      </p>
+                    </div>
+
+                    <div className="mt-auto flex flex-wrap gap-1.5 border-t border-border pt-3">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openQuotePdf(quote);
+                        }}
+                        className="rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary hover:bg-primary/15"
+                        title="Visualizar orçamento"
+                        aria-label="Visualizar orçamento"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void downloadQuotePdf(quote);
+                        }}
+                        className="rounded-lg border border-border bg-secondary p-1.5 text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                        title="Baixar PDF"
+                        aria-label="Baixar PDF do orçamento"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleStartEdit(quote);
+                        }}
+                        className="rounded-lg border border-border bg-secondary p-1.5 text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                        title="Editar orçamento"
+                        aria-label="Editar orçamento"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      {quote.status !== 'aprovado' && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (confirm('Aprovar este orçamento e gerar o pedido na fila?')) {
+                              approveQuote(quote.id);
+                            }
+                          }}
+                          className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-1.5 text-emerald-500 hover:bg-emerald-500/25"
+                          title="Aprovar orçamento"
+                          aria-label="Aprovar orçamento"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          sendQuoteProposalWhatsApp(quote);
+                        }}
+                        className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-1.5 text-emerald-600 hover:bg-emerald-500/25"
+                        title="Enviar pelo WhatsApp"
+                        aria-label="Enviar pelo WhatsApp"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (confirm('Excluir este orçamento?')) {
+                            deleteQuote(quote.id);
+                          }
+                        }}
+                        className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/25"
+                        title="Excluir orçamento"
+                        aria-label="Excluir orçamento"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-3 py-8 text-center text-sm font-semibold text-muted-foreground">
+              Nenhum orçamento cadastrado ou correspondente à pesquisa.
+            </div>
+          )}
+
+          <div className="hidden">
             <table className="w-full text-left border-collapse text-xs table-auto">
               <thead>
                 <tr className="bg-secondary/40 text-[9px] uppercase font-bold text-muted-foreground border-b border-border whitespace-nowrap">

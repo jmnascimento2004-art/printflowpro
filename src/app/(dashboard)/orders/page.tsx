@@ -9,6 +9,7 @@ import {
   Check, 
   AlertCircle,
   Printer,
+  Ban,
   Download,
   Eye,
   Edit3,
@@ -349,6 +350,14 @@ export default function OrdersPage() {
     }
   };
 
+  const handleOpenCancelOrder = (order: Order) => {
+    if (order.status === 'cancelado') return;
+
+    if (confirm(`Cancelar o pedido ${order.number}?`)) {
+      updateOrderStatus(order.id, 'cancelado');
+    }
+  };
+
   const handleSaveEditOrder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingOrder) return;
@@ -433,7 +442,10 @@ export default function OrdersPage() {
   // 1. Filter and tab orders list
   const filteredOrders = orders.filter(o => 
     o.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.number.toLowerCase().includes(searchQuery.toLowerCase())
+    o.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    o.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    o.payment_status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    o.items.some((item) => item.product_name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const getFilteredOrdersByTab = (tab: typeof activeTab) => {
@@ -1066,8 +1078,163 @@ export default function OrdersPage() {
             </div>
           </div>
 
-          {/* 3. Orders List Table */}
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden no-print">
+          {/* 3. Orders Card Grid */}
+          {displayOrders.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 no-print sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {displayOrders.map((order) => {
+                const overdue = isOverdue(order.deadline, order.status);
+                const itemsSummary = order.items.length > 0
+                  ? order.items.slice(0, 2).map((item) => `${item.quantity}x ${item.product_name}`).join(', ')
+                  : 'Sem itens informados';
+                const hiddenItemsCount = Math.max(0, order.items.length - 2);
+                const deliveryLabel =
+                  order.delivery_type === 'motoboy' ? 'Motoboy' :
+                  order.delivery_type === 'carro' ? 'Carro' :
+                  order.delivery_type === 'correios' ? 'Correios' :
+                  'Retirada';
+
+                return (
+                  <article
+                    key={order.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handlePrintOrderPdf(order)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') handlePrintOrderPdf(order);
+                    }}
+                    className={`group flex min-h-[255px] cursor-pointer flex-col rounded-xl border bg-card p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md ${
+                      order.status === 'cancelado' ? 'border-rose-500/20 bg-rose-500/5 opacity-85' : 'border-border'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="line-clamp-1 text-sm font-black text-foreground">{order.number}</h3>
+                        <p className="mt-1 line-clamp-2 text-xs font-semibold text-muted-foreground">{order.customer_name}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {getOrderStatusBadge(order.status)}
+                        {getPaymentStatusBadge(order.payment_status)}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-lg border border-border bg-secondary/20 p-2">
+                      <span className="block text-[10px] font-black uppercase tracking-wide text-muted-foreground">Itens</span>
+                      <p className="mt-1 line-clamp-2 text-[11px] font-semibold text-foreground">
+                        {itemsSummary}{hiddenItemsCount > 0 ? ` +${hiddenItemsCount}` : ''}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 space-y-1.5 text-[11px] font-semibold text-muted-foreground">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide">Entrega</span>
+                        <strong className={`flex items-center gap-1 ${overdue ? 'text-rose-500' : 'text-foreground'}`}>
+                          {overdue && <AlertCircle className="h-3 w-3 shrink-0" />}
+                          {new Date(order.deadline).toLocaleDateString('pt-BR')}
+                        </strong>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide">Forma</span>
+                        <strong className="text-foreground">{deliveryLabel}</strong>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="uppercase tracking-wide">Total</span>
+                        <strong className="text-primary">{formatCurrency(order.total_amount)}</strong>
+                      </div>
+                    </div>
+
+                    <div className="mt-auto flex flex-wrap gap-1.5 border-t border-border pt-3">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedOrder(order);
+                          setIsAddingPayment(false);
+                          setShowPixCode(false);
+                        }}
+                        className="rounded-lg border border-border bg-secondary p-1.5 text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                        title="Detalhes / recebimento"
+                        aria-label="Abrir detalhes e recebimento do pedido"
+                      >
+                        <DollarSign className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handlePrintOrderPdf(order);
+                        }}
+                        className="rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary hover:bg-primary/15"
+                        title="Visualizar pedido"
+                        aria-label="Visualizar pedido"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleDownloadOrderPdf(order);
+                        }}
+                        className="rounded-lg border border-border bg-secondary p-1.5 text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                        title="Baixar PDF"
+                        aria-label="Baixar PDF do pedido"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleOpenEditOrder(order);
+                        }}
+                        className="rounded-lg border border-border bg-secondary p-1.5 text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+                        title="Editar pedido"
+                        aria-label="Editar pedido"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                      {order.payment_status !== 'pago' && order.status !== 'cancelado' && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            sendPixWhatsApp(order);
+                          }}
+                          className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-1.5 text-emerald-500 hover:bg-emerald-500/25"
+                          title="Enviar pelo WhatsApp"
+                          aria-label="Enviar pedido pelo WhatsApp"
+                        >
+                          <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
+                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.863-9.864.001-2.63-1.023-5.101-2.883-6.963C16.588 1.843 14.116.822 11.5.822 6.066.822 1.641 5.242 1.638 10.682c-.001 1.666.436 3.292 1.267 4.724L1.878 20.1l4.769-1.25zM17.51 14.86c-.3-.149-1.772-.875-2.046-.975-.276-.1-.476-.149-.676.15-.2.3-.777.975-.951 1.174-.176.2-.351.224-.651.075-.3-.149-1.268-.467-2.417-1.493-.892-.796-1.495-1.78-1.67-2.079-.176-.3-.019-.462.13-.611.134-.133.3-.35.45-.525.15-.175.2-.299.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.582-.491-.504-.676-.513-.175-.008-.375-.01-.575-.01-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.494 1.707.632.716.227 1.368.195 1.884.118.574-.085 1.772-.724 2.022-1.424.25-.7.25-1.299.175-1.424-.075-.125-.275-.199-.575-.349z" />
+                          </svg>
+                        </button>
+                      )}
+                      {order.status !== 'cancelado' && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleOpenCancelOrder(order);
+                          }}
+                          className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20"
+                          title="Cancelar pedido"
+                          aria-label="Cancelar pedido"
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border bg-card px-5 py-8 text-center text-sm font-semibold text-muted-foreground no-print">
+              Nenhum pedido encontrado.
+            </div>
+          )}
+
+          <div className="hidden">
             <div className="overflow-x-auto xl:overflow-x-visible">
               <table className="w-full text-left border-collapse text-xs table-auto">
                 <thead>
