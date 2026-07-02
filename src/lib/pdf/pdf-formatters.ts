@@ -113,6 +113,105 @@ export function getPdfSafeFilename(value: string) {
     .slice(0, 120) || 'documento';
 }
 
+function getSnapshotValue(snapshot: Record<string, unknown> | undefined, key: string) {
+  return snapshot?.[key];
+}
+
+function getSnapshotNumber(snapshot: Record<string, unknown> | undefined, key: string) {
+  const value = getSnapshotValue(snapshot, key);
+  const numberValue = typeof value === 'number'
+    ? value
+    : typeof value === 'string'
+      ? Number(value.replace(',', '.'))
+      : Number.NaN;
+
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function getSnapshotText(snapshot: Record<string, unknown> | undefined, key: string) {
+  const value = getSnapshotValue(snapshot, key);
+  return typeof value === 'string' ? normalizePdfText(value) : '';
+}
+
+function formatPdfDecimal(value?: number | null) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '';
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(numeric);
+}
+
+function getItemBaseDescription(item: QuoteItem | OrderItem) {
+  const snapshot = item.details?.pricing_snapshot;
+  const manualDescription = item.details?.item_type === 'manual'
+    ? getSnapshotText(snapshot, 'description')
+    : '';
+
+  return manualDescription || normalizePdfText(item.product_name);
+}
+
+function getItemPricingType(item: QuoteItem | OrderItem) {
+  const snapshot = item.details?.pricing_snapshot;
+  const snapshotType = getSnapshotText(snapshot, 'pricing_type');
+  return item.details?.manual_pricing_type || snapshotType || item.details?.pricing_type || '';
+}
+
+function descriptionAlreadyIncludesMeasures(value: string) {
+  return /\d+(?:[,.]\d+)?\s*(?:m²|m2|m|un)\b/i.test(value);
+}
+
+export function formatQuoteItemDescription(item: QuoteItem | OrderItem) {
+  const details = item.details;
+  const snapshot = details?.pricing_snapshot;
+  const baseDescription = getItemBaseDescription(item);
+  if (!details) return baseDescription;
+  if (details.item_type === 'manual' && !getSnapshotText(snapshot, 'description') && descriptionAlreadyIncludesMeasures(baseDescription)) {
+    return baseDescription;
+  }
+
+  const pricingType = getItemPricingType(item);
+  const width = details.width ?? getSnapshotNumber(snapshot, 'width');
+  const height = details.height ?? getSnapshotNumber(snapshot, 'height');
+  const length = details.length ?? details.linear_meters ?? getSnapshotNumber(snapshot, 'linear_meters');
+  const quantity = Number(item.quantity || getSnapshotNumber(snapshot, 'quantity') || 0);
+  const areaTotal = details.area_total ?? getSnapshotNumber(snapshot, 'area_total');
+  const hasPositiveQuantity = Number.isFinite(quantity) && quantity > 0;
+
+  if ((pricingType === 'm2' || (width && height)) && width && height) {
+    const totalArea = areaTotal ?? (hasPositiveQuantity ? width * height * quantity : undefined);
+    const parts = [
+      `${formatPdfDecimal(width)}m x ${formatPdfDecimal(height)}m`,
+      hasPositiveQuantity ? `${quantity} un` : '',
+      totalArea ? `${formatPdfDecimal(totalArea)} m²` : ''
+    ].filter(Boolean);
+
+    return parts.length > 0 ? `${baseDescription} - ${parts.join(' - ')}` : baseDescription;
+  }
+
+  if ((pricingType === 'linear' || length) && length) {
+    const totalLength = hasPositiveQuantity ? length * quantity : undefined;
+    const parts = [
+      `${formatPdfDecimal(length)} m linear`,
+      hasPositiveQuantity ? `${quantity} un` : '',
+      totalLength ? `${formatPdfDecimal(totalLength)} m` : ''
+    ].filter(Boolean);
+
+    return parts.length > 0 ? `${baseDescription} - ${parts.join(' - ')}` : baseDescription;
+  }
+
+  if (['unidade', 'volume'].includes(pricingType) && hasPositiveQuantity) {
+    return `${baseDescription} - ${quantity} un`;
+  }
+
+  const tierQuantity = item.details?.configuration_snapshot?.quantity_tier;
+  if (item.details?.configuration_snapshot?.sale_mode === 'volume' && tierQuantity) {
+    return `${baseDescription} - ${tierQuantity} un`;
+  }
+
+  return baseDescription;
+}
+
 export function getItemDescriptionLines(item: QuoteItem | OrderItem) {
   const snapshot = item.details?.configuration_snapshot;
   const optionParts = snapshot

@@ -8,8 +8,8 @@ import {
   formatPdfDate,
   formatQuoteValidityPdfDate,
   formatPdfUnitCurrency,
+  formatQuoteItemDescription,
   getAdditionalServicesTotal,
-  getCompactItemDescription,
   getPdfFooterText,
   getPdfLogoUrl,
   normalizePdfText
@@ -100,7 +100,7 @@ function ItemRows({ data }: { data: QuotePdfData }) {
           <View key={item.id} style={styles.tableRow} wrap={false}>
             <Text style={[styles.cell, styles.qtyCol]}>{item.quantity}</Text>
             <View style={[styles.cell, styles.descCol]}>
-              <Text style={styles.itemName}>{getCompactItemDescription(item)}</Text>
+              <Text style={styles.itemName}>{formatQuoteItemDescription(item)}</Text>
             </View>
             <Text style={[styles.cell, styles.moneyCol]}>{formatPdfUnitCurrency(item.unit_price)}</Text>
             <Text style={[styles.cell, styles.moneyCol]}>{formatPdfCurrency(item.total_price)}</Text>
