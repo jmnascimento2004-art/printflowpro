@@ -274,10 +274,17 @@ export function formatCNPJ(cnpj: string): string {
 }
 
 /**
+ * Removes all non-numeric characters from CEP
+ */
+export function sanitizeCEP(cep: string): string {
+  return cep.replace(/\D/g, '');
+}
+
+/**
  * Validates a CEP string
  */
 export function validateCEP(cep: string): boolean {
-  const clean = cep.replace(/\D/g, '');
+  const clean = sanitizeCEP(cep);
   return clean.length === 8;
 }
 
@@ -285,7 +292,7 @@ export function validateCEP(cep: string): boolean {
  * Formats CEP as xxxxx-xxx
  */
 export function formatCEP(cep: string): string {
-  const clean = cep.replace(/\D/g, '');
+  const clean = sanitizeCEP(cep).slice(0, 8);
   if (clean.length <= 5) return clean;
   return `${clean.substring(0, 5)}-${clean.substring(5, 8)}`;
 }

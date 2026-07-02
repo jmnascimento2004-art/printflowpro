@@ -10,6 +10,7 @@ export interface CNPJLookupResult {
   cep: string;
   logradouro: string;
   numero: string;
+  complemento: string;
   bairro: string;
   municipio: string;
   uf: string;
@@ -21,6 +22,9 @@ export async function lookupCNPJ(cnpj: string): Promise<CNPJLookupResult> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
+    if (response.status === 404) {
+      throw new Error('CNPJ valido, mas nao foi possivel buscar os dados automaticamente. Preencha manualmente.');
+    }
     throw new Error(error?.error || 'Nao foi possivel consultar o CNPJ.');
   }
 
@@ -36,6 +40,7 @@ export async function lookupCNPJ(cnpj: string): Promise<CNPJLookupResult> {
     cep: data.cep ? formatCEP(data.cep) : '',
     logradouro: data.logradouro || '',
     numero: data.numero || '',
+    complemento: data.complemento || '',
     bairro: data.bairro || '',
     municipio: data.municipio || '',
     uf: data.uf || '',

@@ -10,6 +10,7 @@ type NormalizedCNPJResponse = {
   cep: string;
   logradouro: string;
   numero: string;
+  complemento: string;
   bairro: string;
   municipio: string;
   uf: string;
@@ -33,6 +34,7 @@ function normalizeBrasilApi(data: CNPJApiRecord, cleanCNPJ: string): NormalizedC
     cep: String(data.cep || ''),
     logradouro: String(data.logradouro || ''),
     numero: String(data.numero || ''),
+    complemento: String(data.complemento || ''),
     bairro: String(data.bairro || ''),
     municipio: String(data.municipio || ''),
     uf: String(data.uf || ''),
@@ -50,6 +52,7 @@ function normalizeReceitaWs(data: CNPJApiRecord, cleanCNPJ: string): NormalizedC
     cep: String(data.cep || ''),
     logradouro: String(data.logradouro || ''),
     numero: String(data.numero || ''),
+    complemento: String(data.complemento || ''),
     bairro: String(data.bairro || ''),
     municipio: String(data.municipio || ''),
     uf: String(data.uf || ''),
