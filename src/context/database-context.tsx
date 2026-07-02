@@ -249,6 +249,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   '/dashboard': ['admin', 'gerente', 'financeiro', 'vendas', 'producao', 'arte_finalista', 'estoque'],
   '/pos': ['admin', 'gerente', 'financeiro', 'vendas'],
   '/crm': ['admin', 'gerente', 'financeiro', 'vendas'],
+  '/customers': ['admin', 'gerente', 'financeiro', 'vendas'],
   '/products': ['admin', 'gerente', 'financeiro', 'vendas', 'producao', 'arte_finalista', 'estoque'],
   '/quotes': ['admin', 'gerente', 'financeiro', 'vendas'],
   '/pricing': ['admin', 'gerente', 'financeiro', 'vendas'],
