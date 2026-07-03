@@ -6,9 +6,11 @@ import {
   buildCustomerAddress,
   formatPdfCurrency,
   formatPdfDate,
+  formatPdfItemSize,
   formatPdfUnitCurrency,
   getAdditionalServicesTotal,
   getCompactItemDescription,
+  getPdfItemUnitFromTotal,
   getPdfFooterText,
   getPdfLogoUrl,
   normalizePdfText
@@ -55,6 +57,8 @@ const styles = StyleSheet.create({
   cell: { paddingVertical: 6, paddingHorizontal: 6, lineHeight: 1.2 },
   qtyCol: { width: '9%', textAlign: 'center' },
   descCol: { width: '61%' },
+  itemDescCol: { width: '49%' },
+  sizeCol: { width: '12%', textAlign: 'center' },
   moneyCol: { width: '15%', textAlign: 'right' },
   itemName: { fontSize: 9, fontWeight: 700 },
   itemDetail: { fontSize: 8, color: '#4b5870', marginTop: 2 },
@@ -97,10 +101,11 @@ function ItemRows({ data }: { data: OrderPdfData }) {
         return (
           <View key={item.id} style={styles.tableRow} wrap={false}>
             <Text style={[styles.cell, styles.qtyCol]}>{item.quantity}</Text>
-            <View style={[styles.cell, styles.descCol]}>
+            <View style={[styles.cell, styles.itemDescCol]}>
               <Text style={styles.itemName}>{getCompactItemDescription(item)}</Text>
             </View>
-            <Text style={[styles.cell, styles.moneyCol]}>{formatPdfUnitCurrency(item.unit_price)}</Text>
+            <Text style={[styles.cell, styles.sizeCol]}>{formatPdfItemSize(item)}</Text>
+            <Text style={[styles.cell, styles.moneyCol]}>{formatPdfUnitCurrency(getPdfItemUnitFromTotal(item))}</Text>
             <Text style={[styles.cell, styles.moneyCol]}>{formatPdfCurrency(item.total_price)}</Text>
           </View>
         );
@@ -119,7 +124,8 @@ function ServicesRows({ data }: { data: OrderPdfData }) {
       <View style={styles.table}>
         <View style={styles.tableHeader} fixed>
           <Text style={[styles.tableHeaderCell, styles.qtyCol]}>QTD</Text>
-          <Text style={[styles.tableHeaderCell, styles.descCol]}>DESCRIÇÃO</Text>
+          <Text style={[styles.tableHeaderCell, styles.itemDescCol]}>DESCRIÇÃO</Text>
+          <Text style={[styles.tableHeaderCell, styles.sizeCol]}>TAMANHO</Text>
           <Text style={[styles.tableHeaderCell, styles.moneyCol]}>UNIT</Text>
           <Text style={[styles.tableHeaderCell, styles.moneyCol]}>TOTAL</Text>
         </View>

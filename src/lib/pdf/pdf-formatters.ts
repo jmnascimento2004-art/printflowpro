@@ -15,6 +15,13 @@ export function formatPdfUnitCurrency(value?: number | string | null) {
   return formatPdfCurrency(value, { maximumFractionDigits: 4 });
 }
 
+export function getPdfItemUnitFromTotal(item: Pick<QuoteItem | OrderItem, 'quantity' | 'unit_price' | 'total_price'>) {
+  const quantity = Number(item.quantity || 0);
+  const total = Number(item.total_price || 0);
+  if (quantity > 0 && Number.isFinite(total)) return total / quantity;
+  return Number(item.unit_price || 0);
+}
+
 export function formatPdfDate(value?: string | null) {
   if (!value) return 'Não informado';
   const date = new Date(value);
@@ -129,6 +136,18 @@ export function getItemDescriptionLines(item: QuoteItem | OrderItem) {
 
 export function getCompactItemDescription(item: QuoteItem | OrderItem) {
   return normalizePdfText(item.product_name);
+}
+
+export function formatPdfItemSize(item: QuoteItem | OrderItem) {
+  const pricingSnapshot = item.details?.pricing_snapshot as Record<string, unknown> | undefined;
+  const size = normalizePdfText(
+    item.details?.configuration_snapshot?.size ||
+    (typeof pricingSnapshot?.size === 'string' ? pricingSnapshot.size : '')
+  );
+  if (size) return size;
+  if (item.details?.width && item.details?.height) return `${item.details.width}x${item.details.height}m`;
+  if (item.details?.length) return `${item.details.length}m`;
+  return '-';
 }
 
 export function getPdfFooterText(company?: Company | null) {

@@ -13,7 +13,9 @@ import {
   Download,
   Eye,
   Edit3,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Order } from '@/lib/dummy-data';
@@ -52,7 +54,8 @@ export default function OrdersPage() {
     settings,
     company,
     financial,
-    updateOrder
+    updateOrder,
+    products
   } = useDatabase();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,6 +78,7 @@ export default function OrdersPage() {
   const [editTotal, setEditTotal] = useState(0);
   const [editShipping, setEditShipping] = useState(0);
   const [editPaid, setEditPaid] = useState(0);
+  const [editItems, setEditItems] = useState<Order['items']>([]);
   const [editAdditionalServices, setEditAdditionalServices] = useState<AdditionalService[]>([]);
 
   // Delivery states for edit modal
@@ -298,15 +302,113 @@ export default function OrdersPage() {
     }
   };
 
+  const updateEditItem = (
+    itemId: string,
+    updater: (item: Order['items'][number]) => Order['items'][number],
+    changedField?: 'quantity' | 'unit_price' | 'total_price' | 'measure'
+  ) => {
+    setEditItems((current) =>
+      current.map((item) => (item.id === itemId ? recalculateOrderItem(updater(item), changedField) : item))
+    );
+  };
+
+  const handleEditItemProductChange = (itemId: string, productId: string) => {
+    updateEditItem(itemId, (item) => {
+      if (!productId) {
+        return {
+          ...item,
+          product_id: '',
+          product_name: item.product_name || 'Item manual / personalizado',
+          details: {
+            ...(item.details || {}),
+            item_type: 'manual',
+            manual_pricing_type: item.details?.manual_pricing_type || 'unidade'
+          }
+        };
+      }
+
+      const product = products.find((candidate) => candidate.id === productId);
+      if (!product) return item;
+
+      const unitPrice = Math.max(0, Number(product.sales_price || product.pricing_details?.calculated_price || item.unit_price || 0));
+      const quantity = Math.max(1, Number(item.quantity || 1));
+
+      return {
+        ...item,
+        product_id: product.id,
+        product_name: product.name,
+        quantity,
+        unit_price: unitPrice,
+        total_price: Math.round(quantity * unitPrice * 100) / 100,
+        details: {
+          ...(item.details || {}),
+          item_type: 'catalog',
+          pricing_type: product.pricing_type,
+          manual_pricing_type: normalizeOrderItemPricingType(product.pricing_type),
+          pricing_snapshot: {
+            ...((item.details?.pricing_snapshot as Record<string, unknown> | undefined) || {}),
+            product_id: product.id,
+            product_name: product.name,
+            base_unit_price: unitPrice
+          }
+        }
+      };
+    }, 'unit_price');
+  };
+
+  const handleAddEditItem = () => {
+    const now = Date.now();
+    const newItem: Order['items'][number] = {
+      id: `oi-edit-${now}`,
+      product_id: '',
+      product_name: 'Item manual / personalizado',
+      quantity: 1,
+      unit_price: 0,
+      total_price: 0,
+      outsourced: false,
+      details: {
+        item_type: 'manual',
+        manual_pricing_type: 'unidade',
+        pricing_snapshot: {
+          source: 'order_edit',
+          size: '',
+          quantity: 1,
+          unit_price: 0,
+          total_price: 0
+        }
+      }
+    };
+
+    setEditItems((current) => [...current, newItem]);
+  };
+
+  const handleRemoveEditItem = (itemId: string) => {
+    if (editItems.length <= 1) {
+      alert('O pedido precisa ter pelo menos um item.');
+      return;
+    }
+
+    if (!confirm('Tem certeza que deseja remover este item do pedido?')) return;
+    setEditItems((current) => current.filter((item) => item.id !== itemId));
+  };
+
+  useEffect(() => {
+    if (!editingOrder) return;
+    const productsTotal = editItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
+    const servicesTotal = getAdditionalServicesTotal(editAdditionalServices);
+    setEditTotal(Math.max(0, productsTotal + servicesTotal + editShipping));
+  }, [editingOrder, editItems, editAdditionalServices, editShipping]);
+
   const handleOpenEditOrder = (order: Order) => {
     setSelectedOrder(null); // Close details panel if open
     setEditingOrder(order);
     setEditStatus(order.status);
     setEditDeadline(order.deadline.split('T')[0]);
-    setEditNotes(order.notes || '');
+    setEditNotes(sanitizeDisplayText(order.notes));
     setEditTotal(order.total_amount);
     setEditShipping(order.shipping_cost || 0);
-    setEditPaid(order.paid_amount || 0);
+    setEditPaid(getConfirmedPaidAmountForOrder(order));
+    setEditItems((order.items || []).map((item) => recalculateOrderItem(item)));
     setEditAdditionalServices(order.additional_services || []);
     setEditDeliveryType(order.delivery_type || 'retirada');
     setEditDeliveryAddress(order.delivery_address || '');
@@ -363,23 +465,26 @@ export default function OrdersPage() {
     e.preventDefault();
     if (!editingOrder) return;
 
-    const productsTotal = editingOrder.items.reduce((sum, item) => sum + item.total_price, 0);
+    if (editItems.length === 0) {
+      alert('O pedido precisa ter pelo menos um item.');
+      return;
+    }
+
+    const productsTotal = editItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
     const servicesTotal = getAdditionalServicesTotal(editAdditionalServices);
     const nextTotal = Math.max(0, productsTotal + servicesTotal + editShipping);
-
-    if (editStatus !== editingOrder.status) {
-      updateOrderStatus(editingOrder.id, editStatus);
-    }
+    const paidAmount = editPaid;
 
     updateOrder({
       ...editingOrder,
       status: editStatus,
       deadline: new Date(editDeadline).toISOString(),
-      notes: editNotes,
+      notes: sanitizeDisplayText(editNotes),
       total_amount: nextTotal,
       shipping_cost: editShipping,
-      paid_amount: Math.min(editingOrder.paid_amount || 0, nextTotal),
-      payment_status: (editingOrder.paid_amount || 0) >= nextTotal ? 'pago' : (editingOrder.paid_amount || 0) > 0 ? 'parcial' : 'pendente',
+      paid_amount: paidAmount,
+      payment_status: getPaymentStatusForTotal(paidAmount, nextTotal),
+      items: editItems.map((item) => recalculateOrderItem(item)),
       additional_services: editAdditionalServices,
       delivery_type: editDeliveryType,
       delivery_address: editDeliveryType !== 'retirada' ? editDeliveryAddress : undefined,
@@ -583,6 +688,134 @@ export default function OrdersPage() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  const sanitizeDisplayText = (value?: string | null) => {
+    const cleaned = String(value || '')
+      .replace(/\s*\.?\s*(null|undefined)\s*$/i, '')
+      .trim();
+    if (!cleaned || cleaned.toLowerCase() === 'null' || cleaned.toLowerCase() === 'undefined') return '';
+    return cleaned;
+  };
+
+  const getOrderItemSizeLabel = (item: Order['items'][number]) => {
+    const configSnapshot = item.details?.configuration_snapshot;
+    const pricingSnapshot = item.details?.pricing_snapshot as Record<string, unknown> | undefined;
+    const snapshotSize = sanitizeDisplayText(configSnapshot?.size || String(pricingSnapshot?.size || ''));
+    if (snapshotSize) return snapshotSize;
+
+    if (item.details?.width && item.details?.height) return `${item.details.width}x${item.details.height}m`;
+    if (item.details?.length) return `${item.details.length}m`;
+    return '-';
+  };
+
+  const getOrderItemOriginLabel = (item: Order['items'][number]) => {
+    if (!item.product_id || item.details?.item_type === 'manual') return 'Manual';
+    if (item.details?.configuration_snapshot?.sale_mode === 'variant_matrix') return 'Produto / matriz';
+    if (item.details?.configuration_snapshot?.sale_mode === 'volume') return 'Produto / volume';
+    return 'Produto cadastrado';
+  };
+
+  const normalizeOrderItemPricingType = (
+    value?: Order['items'][number]['details'] extends infer Details
+      ? Details extends { manual_pricing_type?: infer ManualType; pricing_type?: infer PricingType }
+        ? ManualType | PricingType
+        : never
+      : never
+  ): NonNullable<Order['items'][number]['details']>['manual_pricing_type'] => {
+    if (value === 'm2' || value === 'linear' || value === 'volume' || value === 'manual_value') return value;
+    return 'unidade';
+  };
+
+  const getManualPricingType = (item: Order['items'][number]) =>
+    normalizeOrderItemPricingType(item.details?.manual_pricing_type || item.details?.pricing_type);
+
+  const recalculateOrderItem = (item: Order['items'][number], changedField?: 'quantity' | 'unit_price' | 'total_price' | 'measure') => {
+    const pricingType = getManualPricingType(item);
+    const quantity = Math.max(0, Number(item.quantity || 0));
+    const unitPrice = Math.max(0, Number(item.unit_price || 0));
+    const width = Math.max(0, Number(item.details?.width || 0));
+    const height = Math.max(0, Number(item.details?.height || 0));
+    const length = Math.max(0, Number(item.details?.length || 0));
+    let totalPrice = Math.max(0, Number(item.total_price || 0));
+    let nextUnitPrice = unitPrice;
+    let areaTotal = item.details?.area_total;
+    let linearMeters = item.details?.linear_meters;
+
+    if (pricingType === 'm2') {
+      areaTotal = Math.max(0, width * height * quantity);
+      totalPrice = Math.round(areaTotal * unitPrice * 100) / 100;
+    } else if (pricingType === 'linear') {
+      linearMeters = Math.max(0, length * quantity);
+      totalPrice = Math.round(linearMeters * unitPrice * 100) / 100;
+    } else if (pricingType === 'manual_value') {
+      nextUnitPrice = quantity > 0 ? Math.round((totalPrice / quantity) * 100) / 100 : totalPrice;
+    } else if (changedField === 'total_price') {
+      nextUnitPrice = quantity > 0 ? Math.round((totalPrice / quantity) * 100) / 100 : totalPrice;
+    } else {
+      totalPrice = Math.round(quantity * unitPrice * 100) / 100;
+    }
+
+    const size = getOrderItemSizeLabel(item);
+    const safeSize = size === '-' ? '' : size;
+    const configurationSnapshot = item.details?.configuration_snapshot
+      ? {
+          ...item.details.configuration_snapshot,
+          size: safeSize || item.details.configuration_snapshot.size,
+          quantity_tier: quantity,
+          unit_price: nextUnitPrice,
+          total_price: totalPrice,
+          display_label: item.details.configuration_snapshot.display_label || item.product_name
+        }
+      : safeSize
+        ? {
+            sale_mode: 'manual_quote_item' as const,
+            size: safeSize,
+            quantity_tier: quantity,
+            unit_price: nextUnitPrice,
+            total_price: totalPrice,
+            display_label: item.product_name
+          }
+        : undefined;
+
+    return {
+      ...item,
+      quantity,
+      unit_price: nextUnitPrice,
+      total_price: totalPrice,
+      details: {
+        ...(item.details || {}),
+        manual_pricing_type: pricingType,
+        area_total: areaTotal,
+        linear_meters: linearMeters,
+        configuration_snapshot: configurationSnapshot,
+        pricing_snapshot: {
+          ...((item.details?.pricing_snapshot as Record<string, unknown> | undefined) || {}),
+          size: safeSize,
+          quantity,
+          unit_price: nextUnitPrice,
+          total_price: totalPrice
+        }
+      }
+    };
+  };
+
+  const getPaymentStatusForTotal = (paidAmount: number, totalAmount: number): Order['payment_status'] => {
+    if (paidAmount <= 0) return 'pendente';
+    if (paidAmount >= totalAmount) return 'pago';
+    return 'parcial';
+  };
+
+  const getConfirmedPaidAmountForOrder = (order: Order) => {
+    const confirmedTotal = financial
+      .filter((transaction) =>
+        transaction.type === 'receita' &&
+        transaction.status === 'pago' &&
+        (transaction.order_id === order.id || transaction.order_number === order.number)
+      )
+      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+
+    return confirmedTotal > 0 ? confirmedTotal : Number(order.paid_amount || 0);
+  };
+
   const getOrderItemConfigurationLines = (item: Order['items'][number]) => {
     const snapshot = item.details?.configuration_snapshot;
     if (!snapshot) return null;
@@ -677,7 +910,7 @@ export default function OrdersPage() {
 
       {editingOrder ? (
         /* Edit Order Form */
-        <div className="max-w-2xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
+        <div className="mx-auto w-full max-w-6xl bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print animate-in slide-in-from-bottom duration-300">
           <form onSubmit={handleSaveEditOrder} className="flex flex-col space-y-4">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <h3 className="font-bold text-foreground text-sm uppercase flex items-center gap-1.5">
@@ -741,21 +974,8 @@ export default function OrdersPage() {
                 />
               </div>
 
-              {/* Total Amount */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Valor Total do Pedido (R$) *</label>
-                <input
-                  type="text"
-                  required
-                  value={formatCurrencyInput(editTotal)}
-                  onChange={(e) => setEditTotal(parseCurrencyInputToNumber(e.target.value))}
-                  placeholder="R$ 0,00"
-                  className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none font-bold"
-                />
-              </div>
-
               {/* Paid Amount */}
-              <div className="space-y-1">
+              <div className="space-y-1 md:col-span-2">
                 <label className="text-xs font-semibold text-muted-foreground">Total pago registrado</label>
                 <div className="w-full rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-500">
                   {formatCurrency(editPaid)}
@@ -766,6 +986,252 @@ export default function OrdersPage() {
               </div>
 
               {/* Opções de Entrega e Frete */}
+              <div className="md:col-span-2 rounded-xl border border-border bg-secondary/20 p-3.5 space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h4 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Itens do Pedido</h4>
+                    <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
+                      Edite os itens do pedido sem alterar o produto original nem o historico financeiro.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddEditItem}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-[11px] font-black text-primary hover:bg-primary/15"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Adicionar Item
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {editItems.map((item) => {
+                    const pricingType = getManualPricingType(item);
+                    const itemSize = getOrderItemSizeLabel(item);
+                    const itemNotes = sanitizeDisplayText(item.details?.notes);
+                    const selectedProductId = item.product_id && products.some((product) => product.id === item.product_id)
+                      ? item.product_id
+                      : '';
+
+                    return (
+                      <div key={item.id} className="rounded-lg border border-border bg-card p-3">
+                        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-xs font-black text-foreground">{item.product_name || 'Item sem descricao'}</p>
+                            <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+                              Origem: {getOrderItemOriginLabel(item)} | Tamanho: {itemSize || '-'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEditItem(item.id)}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/20 px-2.5 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-500/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Remover
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+                          <div className="space-y-1 lg:col-span-3">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Produto / modo</label>
+                            <select
+                              value={selectedProductId}
+                              onChange={(event) => handleEditItemProductChange(item.id, event.target.value)}
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            >
+                              <option value="">Item manual / personalizado</option>
+                              {products.filter((product) => product.active !== false).map((product) => (
+                                <option key={product.id} value={product.id}>{product.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1 lg:col-span-4">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Descricao do item *</label>
+                            <input
+                              type="text"
+                              required
+                              value={item.product_name}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                product_name: event.target.value,
+                                details: {
+                                  ...(current.details || {}),
+                                  configuration_snapshot: current.details?.configuration_snapshot
+                                    ? { ...current.details.configuration_snapshot, display_label: event.target.value }
+                                    : current.details?.configuration_snapshot
+                                }
+                              }))}
+                              placeholder="Descricao comercial do item"
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            />
+                          </div>
+
+                          <div className="space-y-1 lg:col-span-2">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Tamanho / Medida</label>
+                            <input
+                              type="text"
+                              value={itemSize === '-' ? '' : itemSize}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                details: {
+                                  ...(current.details || {}),
+                                  configuration_snapshot: current.details?.configuration_snapshot
+                                    ? { ...current.details.configuration_snapshot, size: event.target.value }
+                                    : {
+                                        sale_mode: 'manual_quote_item',
+                                        size: event.target.value,
+                                        quantity_tier: current.quantity,
+                                        unit_price: current.unit_price,
+                                        total_price: current.total_price,
+                                        display_label: current.product_name
+                                      },
+                                  pricing_snapshot: {
+                                    ...((current.details?.pricing_snapshot as Record<string, unknown> | undefined) || {}),
+                                    size: event.target.value
+                                  }
+                                }
+                              }), 'measure')}
+                              placeholder="Ex: 10x15cm"
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            />
+                          </div>
+
+                          <div className="space-y-1 lg:col-span-3">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Tipo de calculo</label>
+                            <select
+                              value={pricingType}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                details: {
+                                  ...(current.details || {}),
+                                  manual_pricing_type: event.target.value as NonNullable<Order['items'][number]['details']>['manual_pricing_type']
+                                }
+                              }), 'measure')}
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            >
+                              <option value="unidade">Unidade</option>
+                              <option value="m2">Metro quadrado</option>
+                              <option value="linear">Metro linear</option>
+                              <option value="volume">Quantidade / lote</option>
+                              <option value="manual_value">Valor manual</option>
+                            </select>
+                          </div>
+
+                          {pricingType === 'm2' && (
+                            <>
+                              <div className="space-y-1 lg:col-span-2">
+                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Largura (m)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.details?.width || 0}
+                                  onChange={(event) => updateEditItem(item.id, (current) => ({
+                                    ...current,
+                                    details: { ...(current.details || {}), width: Number(event.target.value) || 0 }
+                                  }), 'measure')}
+                                  className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                                />
+                              </div>
+                              <div className="space-y-1 lg:col-span-2">
+                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Altura (m)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.details?.height || 0}
+                                  onChange={(event) => updateEditItem(item.id, (current) => ({
+                                    ...current,
+                                    details: { ...(current.details || {}), height: Number(event.target.value) || 0 }
+                                  }), 'measure')}
+                                  className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {pricingType === 'linear' && (
+                            <div className="space-y-1 lg:col-span-2">
+                              <label className="text-[9px] font-bold uppercase text-muted-foreground">Comprimento (m)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.details?.length || 0}
+                                onChange={(event) => updateEditItem(item.id, (current) => ({
+                                  ...current,
+                                  details: { ...(current.details || {}), length: Number(event.target.value) || 0 }
+                                }), 'measure')}
+                                className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                              />
+                            </div>
+                          )}
+
+                          <div className="space-y-1 lg:col-span-2">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Quantidade</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={item.quantity}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                quantity: Number(event.target.value) || 0
+                              }), 'quantity')}
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            />
+                          </div>
+
+                          {pricingType !== 'manual_value' && (
+                            <div className="space-y-1 lg:col-span-2">
+                              <label className="text-[9px] font-bold uppercase text-muted-foreground">Valor unitario</label>
+                              <input
+                                type="text"
+                                value={formatCurrencyInput(item.unit_price)}
+                                onChange={(event) => updateEditItem(item.id, (current) => ({
+                                  ...current,
+                                  unit_price: parseCurrencyInputToNumber(event.target.value)
+                                }), 'unit_price')}
+                                placeholder="R$ 0,00"
+                                className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-bold text-foreground"
+                              />
+                            </div>
+                          )}
+
+                          <div className="space-y-1 lg:col-span-2">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Total</label>
+                            <input
+                              type="text"
+                              value={formatCurrencyInput(item.total_price)}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                total_price: parseCurrencyInputToNumber(event.target.value)
+                              }), 'total_price')}
+                              placeholder="R$ 0,00"
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-black text-primary"
+                            />
+                          </div>
+
+                          <div className="space-y-1 lg:col-span-4">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Observacoes do item</label>
+                            <input
+                              type="text"
+                              value={itemNotes}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                details: { ...(current.details || {}), notes: event.target.value }
+                              }))}
+                              placeholder="Acabamento, instrucoes ou ajuste comercial"
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs text-foreground"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="md:col-span-2 p-3.5 bg-secondary/25 border border-border rounded-xl space-y-3">
                 <h4 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Opções de Entrega e Frete</h4>
                 
@@ -942,20 +1408,14 @@ export default function OrdersPage() {
               <div className="md:col-span-2">
                 <AdditionalServicesSection
                   services={editAdditionalServices}
-                  onChange={(services) => {
-                    setEditAdditionalServices(services);
-                    if (editingOrder) {
-                      const productsTotal = editingOrder.items.reduce((sum, item) => sum + item.total_price, 0);
-                      setEditTotal(Math.max(0, productsTotal + getAdditionalServicesTotal(services) + editShipping));
-                    }
-                  }}
+                  onChange={setEditAdditionalServices}
                 />
               </div>
 
               <div className="md:col-span-2 rounded-xl border border-border bg-secondary/20 p-3 text-xs space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total de produtos</span>
-                  <span className="font-bold text-foreground">{formatCurrency(editingOrder.items.reduce((sum, item) => sum + item.total_price, 0))}</span>
+                  <span className="font-bold text-foreground">{formatCurrency(editItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total de serviços adicionais</span>
@@ -968,6 +1428,14 @@ export default function OrdersPage() {
                 <div className="flex justify-between border-t border-border pt-2 text-sm">
                   <span className="font-black text-foreground">Total geral</span>
                   <span className="font-black text-primary">{formatCurrency(editTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total pago</span>
+                  <span className="font-bold text-emerald-500">{formatCurrency(editPaid)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Saldo pendente</span>
+                  <span className="font-bold text-amber-500">{formatCurrency(Math.max(0, editTotal - editPaid))}</span>
                 </div>
               </div>
 

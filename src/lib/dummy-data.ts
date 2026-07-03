@@ -331,7 +331,7 @@ export interface QuoteItem {
     linear_meters?: number;
     pricing_snapshot?: Record<string, unknown>;
     configuration_snapshot?: {
-      sale_mode: 'variant_matrix' | 'volume';
+      sale_mode: 'variant_matrix' | 'volume' | 'manual_quote_item';
       material?: string;
       size?: string;
       colors?: string;
@@ -407,12 +407,12 @@ export interface OrderItem {
     production_time_source?: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
     configuration_summary?: string;
     item_type?: 'manual' | 'catalog';
-    manual_pricing_type?: 'unidade' | 'm2' | 'linear' | 'volume';
+    manual_pricing_type?: 'unidade' | 'm2' | 'linear' | 'volume' | 'manual_value';
     area_total?: number;
     linear_meters?: number;
     pricing_snapshot?: Record<string, unknown>;
     configuration_snapshot?: {
-      sale_mode: 'variant_matrix' | 'volume';
+      sale_mode: 'variant_matrix' | 'volume' | 'manual_quote_item';
       material?: string;
       size?: string;
       colors?: string;

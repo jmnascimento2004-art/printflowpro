@@ -1748,6 +1748,9 @@ useEffect(() => {
     void saveQuoteWithItems(approvedQuote, 'aprovado').then((savedQuote) => {
       if (!savedQuote) return;
 
+      const quoteNotes = String(savedQuote.notes || '').trim();
+      const convertedNotes = `Convertido do Orçamento #${savedQuote.number}.${quoteNotes ? ` ${quoteNotes}` : ''}`;
+
       const newOrder: Order = {
         id: `order-${Date.now()}`,
         company_id: currentCompanyId,
@@ -1760,7 +1763,7 @@ useEffect(() => {
         payment_status: 'pendente',
         shipping_cost: savedQuote.delivery_fee || 0,
         deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
-        notes: `Convertido do Orçamento #${savedQuote.number}. ${savedQuote.notes}`,
+        notes: convertedNotes,
         additional_services: savedQuote.additional_services || [],
         items: savedQuote.items.map(i => ({
           id: `oi-${Math.random().toString(36).substr(2, 9)}`,
