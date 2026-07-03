@@ -124,8 +124,7 @@ function ServicesRows({ data }: { data: OrderPdfData }) {
       <View style={styles.table}>
         <View style={styles.tableHeader} fixed>
           <Text style={[styles.tableHeaderCell, styles.qtyCol]}>QTD</Text>
-          <Text style={[styles.tableHeaderCell, styles.itemDescCol]}>DESCRIÇÃO</Text>
-          <Text style={[styles.tableHeaderCell, styles.sizeCol]}>TAMANHO</Text>
+          <Text style={[styles.tableHeaderCell, styles.descCol]}>DESCRIÇÃO</Text>
           <Text style={[styles.tableHeaderCell, styles.moneyCol]}>UNIT</Text>
           <Text style={[styles.tableHeaderCell, styles.moneyCol]}>TOTAL</Text>
         </View>
@@ -201,7 +200,8 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
         <View style={styles.table}>
           <View style={styles.tableHeader} fixed>
             <Text style={[styles.tableHeaderCell, styles.qtyCol]}>QTD</Text>
-            <Text style={[styles.tableHeaderCell, styles.descCol]}>DESCRIÇÃO</Text>
+            <Text style={[styles.tableHeaderCell, styles.itemDescCol]}>DESCRIÇÃO</Text>
+            <Text style={[styles.tableHeaderCell, styles.sizeCol]}>TAMANHO</Text>
             <Text style={[styles.tableHeaderCell, styles.moneyCol]}>UNIT</Text>
             <Text style={[styles.tableHeaderCell, styles.moneyCol]}>TOTAL</Text>
           </View>
@@ -212,37 +212,37 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
 
         <View style={styles.totals}>
           <View style={styles.totalLine}>
-            <Text>Valor bruto dos produtos</Text>
+            <Text>VALOR BRUTO</Text>
             <Text>{formatPdfCurrency(productsTotal)}</Text>
           </View>
           {servicesTotal > 0 ? (
             <View style={styles.totalLine}>
-              <Text>Serviços adicionais</Text>
+              <Text>SERVIÇOS ADICIONAIS</Text>
               <Text>{formatPdfCurrency(servicesTotal)}</Text>
             </View>
           ) : null}
           {data.order.shipping_cost > 0 ? (
             <View style={styles.totalLine}>
-              <Text>Entrega</Text>
+              <Text>ENTREGA</Text>
               <Text>{formatPdfCurrency(data.order.shipping_cost)}</Text>
             </View>
           ) : null}
           {discount > 0 ? (
             <View style={styles.totalLine}>
-              <Text>Desconto concedido</Text>
+              <Text>DESCONTO CONCEDIDO</Text>
               <Text>-{formatPdfCurrency(discount)}</Text>
             </View>
           ) : null}
           <View style={styles.totalStrong}>
-            <Text style={styles.totalStrongText}>Valor total</Text>
+            <Text style={styles.totalStrongText}>VALOR TOTAL</Text>
             <Text style={styles.totalStrongText}>{formatPdfCurrency(data.order.total_amount)}</Text>
           </View>
           <View style={styles.totalLine}>
-            <Text>Valor pago</Text>
+            <Text>VALOR PAGO</Text>
             <Text>{formatPdfCurrency(data.order.paid_amount)}</Text>
           </View>
           <View style={styles.totalLine}>
-            <Text>Saldo pendente</Text>
+            <Text>SALDO PENDENTE</Text>
             <Text>{formatPdfCurrency(pending)}</Text>
           </View>
         </View>
