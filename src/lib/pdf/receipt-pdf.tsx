@@ -5,9 +5,11 @@ import {
   buildVisibleCompanyAddress,
   formatPdfCurrency,
   formatPdfDate,
+  formatPdfItemSize,
   formatPdfUnitCurrency,
   getAdditionalServicesTotal,
   getCompactItemDescription,
+  getPdfItemUnitFromTotal,
   getPdfFooterText,
   getPdfLogoUrl,
   normalizePdfText
@@ -46,7 +48,17 @@ const styles = StyleSheet.create({
   },
   boxTitle: { fontSize: 8, fontWeight: 700, color: '#1d2bb8', textTransform: 'uppercase', marginBottom: 7 },
   label: { fontSize: 7, fontWeight: 700, color: '#7b879c', textTransform: 'uppercase' },
-  value: { fontSize: 9, fontWeight: 700, marginTop: 2, marginBottom: 6 },
+  value: { fontSize: 9, fontWeight: 500, marginTop: 2, marginBottom: 6 },
+  formalBox: {
+    borderWidth: 1,
+    borderColor: '#cfd7e6',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 16,
+    backgroundColor: '#f8fafc'
+  },
+  formalText: { fontSize: 11, lineHeight: 1.45, color: '#172033' },
+  formalMeta: { marginTop: 8, color: '#4b5870', fontSize: 8.5, lineHeight: 1.35 },
   table: { width: '100%', borderWidth: 1, borderColor: '#d8dee9', borderRadius: 6, overflow: 'hidden' },
   tableHeader: { flexDirection: 'row', backgroundColor: '#050505', color: '#ffffff' },
   tableHeaderCell: { paddingVertical: 7, paddingHorizontal: 6, fontSize: 8, fontWeight: 700 },
@@ -54,8 +66,10 @@ const styles = StyleSheet.create({
   cell: { paddingVertical: 6, paddingHorizontal: 6, lineHeight: 1.2 },
   qtyCol: { width: '9%', textAlign: 'center' },
   descCol: { width: '61%' },
+  itemDescCol: { width: '49%' },
+  sizeCol: { width: '12%', textAlign: 'center' },
   moneyCol: { width: '15%', textAlign: 'right' },
-  itemName: { fontSize: 9, fontWeight: 700 },
+  itemName: { fontSize: 9, fontWeight: 500 },
   sectionTitle: { fontSize: 10, fontWeight: 700, marginBottom: 7, marginTop: 14 },
   totals: { marginLeft: 'auto', width: 260, marginTop: 14 },
   totalLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
@@ -76,8 +90,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     color: '#4b5870',
     lineHeight: 1.45,
-    textAlign: 'center',
-    fontWeight: 700
+    textAlign: 'center'
   },
   footer: {
     position: 'absolute',
@@ -99,16 +112,29 @@ const paymentMethodLabels: Record<string, string> = {
   faturado: 'Faturado'
 };
 
+function getReceiptPaymentKind(data: ReceiptPdfData) {
+  const totalPaidAfter = Number(data.accumulatedPaid || 0);
+  const totalOrder = Number(data.order.total_amount || 0);
+  const totalPaidBefore = Number(data.paidBeforeReceipt || 0);
+
+  if (totalPaidAfter >= totalOrder - 0.009) {
+    return totalPaidBefore > 0 ? 'pagamento do saldo' : 'pagamento total';
+  }
+
+  return 'pagamento parcial';
+}
+
 function ReceiptItemRows({ data }: { data: ReceiptPdfData }) {
   return (
     <>
       {data.order.items.map((item) => (
         <View key={item.id} style={styles.tableRow} wrap={false}>
           <Text style={[styles.cell, styles.qtyCol]}>{item.quantity}</Text>
-          <View style={[styles.cell, styles.descCol]}>
+          <View style={[styles.cell, styles.itemDescCol]}>
             <Text style={styles.itemName}>{getCompactItemDescription(item)}</Text>
           </View>
-          <Text style={[styles.cell, styles.moneyCol]}>{formatPdfUnitCurrency(item.unit_price)}</Text>
+          <Text style={[styles.cell, styles.sizeCol]}>{formatPdfItemSize(item)}</Text>
+          <Text style={[styles.cell, styles.moneyCol]}>{formatPdfUnitCurrency(getPdfItemUnitFromTotal(item))}</Text>
           <Text style={[styles.cell, styles.moneyCol]}>{formatPdfCurrency(item.total_price)}</Text>
         </View>
       ))}
@@ -123,6 +149,10 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
   const productsTotal = data.order.items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
   const servicesTotal = getAdditionalServicesTotal(data.order.additional_services);
   const paymentMethod = paymentMethodLabels[data.transaction.payment_method] || data.transaction.payment_method;
+  const customerName = normalizePdfText(data.customer?.name || data.order.customer_name) || 'Cliente';
+  const paymentKind = getReceiptPaymentKind(data);
+  const notes = normalizePdfText(data.transaction.description);
+  const formalReceiptText = `Recebemos de ${customerName} a importancia de ${formatPdfCurrency(data.transaction.amount)} referente ao ${paymentKind} do Pedido ${data.order.number}, conforme produtos e servicos descritos neste documento.`;
 
   return (
     <Document title={`Recibo ${receiptNumber}`} author={data.company.name}>
@@ -149,7 +179,9 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
           <View style={styles.box}>
             <Text style={styles.boxTitle}>Cliente</Text>
             <Text style={styles.label}>Nome</Text>
-            <Text style={styles.value}>{data.customer?.name || data.order.customer_name}</Text>
+            <Text style={styles.value}>{customerName}</Text>
+            <Text style={styles.label}>Documento</Text>
+            <Text style={styles.value}>{data.customer?.document || 'Nao informado'}</Text>
             <Text style={styles.label}>Contato</Text>
             <Text style={styles.value}>{data.customer?.phone || data.customer?.email || 'Nao informado'}</Text>
           </View>
@@ -164,11 +196,17 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
           </View>
         </View>
 
+        <View style={styles.formalBox}>
+          <Text style={styles.formalText}>{formalReceiptText}</Text>
+          <Text style={styles.formalMeta}>Forma de pagamento: {paymentMethod}.</Text>
+        </View>
+
         <Text style={styles.sectionTitle}>Produtos e servicos do pedido</Text>
         <View style={styles.table}>
           <View style={styles.tableHeader} fixed>
             <Text style={[styles.tableHeaderCell, styles.qtyCol]}>QTD</Text>
-            <Text style={[styles.tableHeaderCell, styles.descCol]}>DESCRICAO</Text>
+            <Text style={[styles.tableHeaderCell, styles.itemDescCol]}>DESCRICAO</Text>
+            <Text style={[styles.tableHeaderCell, styles.sizeCol]}>TAMANHO</Text>
             <Text style={[styles.tableHeaderCell, styles.moneyCol]}>UNIT</Text>
             <Text style={[styles.tableHeaderCell, styles.moneyCol]}>TOTAL</Text>
           </View>
@@ -187,27 +225,27 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
             </View>
           ) : null}
           <View style={styles.totalLine}>
-            <Text>Valor total do pedido</Text>
+            <Text>TOTAL DO PEDIDO</Text>
             <Text>{formatPdfCurrency(data.order.total_amount)}</Text>
           </View>
           <View style={styles.totalStrong}>
-            <Text style={styles.totalStrongText}>Valor pago nesta transacao</Text>
+            <Text style={styles.totalStrongText}>VALOR RECEBIDO NESTE RECIBO</Text>
             <Text style={styles.totalStrongText}>{formatPdfCurrency(data.transaction.amount)}</Text>
           </View>
           <View style={styles.totalLine}>
-            <Text>Valor ja pago acumulado</Text>
+            <Text>TOTAL PAGO NO PEDIDO</Text>
             <Text>{formatPdfCurrency(data.accumulatedPaid)}</Text>
           </View>
           <View style={styles.totalLine}>
-            <Text>Saldo pendente</Text>
+            <Text>SALDO PENDENTE</Text>
             <Text>{formatPdfCurrency(data.pendingAmount)}</Text>
           </View>
         </View>
 
-        {data.transaction.description ? (
+        {notes ? (
           <View style={styles.box}>
             <Text style={styles.boxTitle}>Observacoes</Text>
-            <Text>{normalizePdfText(data.transaction.description)}</Text>
+            <Text>{notes}</Text>
           </View>
         ) : null}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, 
   DollarSign, 
@@ -36,6 +36,10 @@ import { isActiveOrder, isCancelledOrder, isProductionActiveOrder } from '@/lib/
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
+import {
+  calculateOrderPaidAmount,
+  getActivePaymentTransactions
+} from '@/lib/finance-rules';
 
 type PdfPreviewState = {
   title: string;
@@ -68,6 +72,8 @@ export default function OrdersPage() {
   const [paymentDateInput, setPaymentDateInput] = useState(new Date().toISOString().split('T')[0]);
   const [paymentNotesInput, setPaymentNotesInput] = useState('');
   const [showPixCode, setShowPixCode] = useState(false);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const paymentSubmissionRef = useRef(false);
   const [activeTab, setActiveTab] = useState<'todos' | 'orcamento' | 'producao' | 'finalizado' | 'cancelado'>('todos');
 
   // Edit Order state
@@ -526,12 +532,10 @@ export default function OrdersPage() {
   };
 
   const getLatestPaidOrderTransaction = (order: Order) => {
-    return financial
-      .filter((transaction) =>
-        transaction.type === 'receita' &&
-        transaction.status === 'pago' &&
-        (transaction.order_id === order.id || transaction.order_number === order.number)
-      )
+    return getActivePaymentTransactions(
+      financial.filter((transaction) => transaction.order_id === order.id || transaction.order_number === order.number),
+      order
+    )
       .sort((a, b) => {
         const dateA = new Date(a.paid_at || a.created_at || 0).getTime();
         const dateB = new Date(b.paid_at || b.created_at || 0).getTime();
@@ -589,8 +593,11 @@ export default function OrdersPage() {
   // 2. Register payment handler
   const handleRegisterPayment = (e: React.FormEvent) => {
     e.preventDefault();
+    if (paymentSubmissionRef.current) return;
     if (!selectedOrder || paymentAmount <= 0) return;
-    const currentBalance = Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount);
+    const confirmedPaidBeforePayment = calculateOrderPaidAmount(selectedOrder, financial);
+    const currentPaidBeforePayment = Math.max(Number(selectedOrder.paid_amount || 0), confirmedPaidBeforePayment);
+    const currentBalance = Math.max(0, selectedOrder.total_amount - currentPaidBeforePayment);
     if (paymentAmount > currentBalance) {
       alert(`O valor recebido nao pode ser maior que o saldo pendente (${formatCurrency(currentBalance)}).`);
       return;
@@ -618,9 +625,12 @@ export default function OrdersPage() {
       }
     }
 
+    paymentSubmissionRef.current = true;
+    setIsSavingPayment(true);
+
     const newPaid = paymentMethod === 'faturado'
-      ? selectedOrder.paid_amount
-      : Math.min(selectedOrder.total_amount, selectedOrder.paid_amount + paymentAmount);
+      ? currentPaidBeforePayment
+      : Math.min(selectedOrder.total_amount, currentPaidBeforePayment + paymentAmount);
     const updatedSelectedOrder: Order = {
       ...selectedOrder,
       paid_amount: newPaid,
@@ -644,6 +654,8 @@ export default function OrdersPage() {
     setPaymentNotesInput('');
     setIsAddingPayment(false);
     setShowPixCode(false);
+    setIsSavingPayment(false);
+    paymentSubmissionRef.current = false;
   };
 
   const getPaymentStatusBadge = (status: Order['payment_status']) => {
@@ -816,13 +828,10 @@ export default function OrdersPage() {
   };
 
   const getConfirmedPaidAmountForOrder = (order: Order) => {
-    const confirmedTotal = financial
-      .filter((transaction) =>
-        transaction.type === 'receita' &&
-        transaction.status === 'pago' &&
-        (transaction.order_id === order.id || transaction.order_number === order.number)
-      )
-      .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+    const confirmedTotal = getActivePaymentTransactions(
+      financial.filter((transaction) => transaction.order_id === order.id || transaction.order_number === order.number),
+      order
+    ).reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
 
     return confirmedTotal > 0 ? confirmedTotal : Number(order.paid_amount || 0);
   };
@@ -890,16 +899,15 @@ export default function OrdersPage() {
   const activeProductionCount = activeOrders.filter(isProductionActiveOrder).length;
   const corporateB2BFaturado = customers.reduce((sum, c) => sum + (c.credit_used || 0), 0);
 
+  const selectedOrderPaidAmount = selectedOrder ? getConfirmedPaidAmountForOrder(selectedOrder) : 0;
+  const selectedOrderPendingAmount = selectedOrder
+    ? Math.max(0, Number(selectedOrder.total_amount || 0) - selectedOrderPaidAmount)
+    : 0;
+
   const selectedOrderTransactions = selectedOrder
-    ? Array.from(
-        new Map(
-          financial
-            .filter((transaction) => transaction.order_id === selectedOrder.id || transaction.order_number === selectedOrder.number)
-            .map((transaction, index) => [
-              transaction.id || `${transaction.order_id || transaction.order_number || 'payment'}-${transaction.created_at || index}`,
-              transaction
-            ])
-        ).values()
+    ? getActivePaymentTransactions(
+        financial.filter((transaction) => transaction.order_id === selectedOrder.id || transaction.order_number === selectedOrder.number),
+        selectedOrder
       )
     : [];
   
@@ -2019,7 +2027,7 @@ export default function OrdersPage() {
             <div className="md:col-span-2 space-y-4">
               <div className="flex justify-between items-center text-xs">
                 <h4 className="font-bold text-foreground uppercase tracking-wider">Histórico de Quitação</h4>
-                <span className="text-muted-foreground font-semibold">Saldo Devedor: <span className="font-bold text-foreground">{formatCurrency(selectedOrder.total_amount - selectedOrder.paid_amount)}</span></span>
+                <span className="text-muted-foreground font-semibold">Saldo Devedor: <span className="font-bold text-foreground">{formatCurrency(selectedOrderPendingAmount)}</span></span>
               </div>
               
               <div className="p-4 rounded-xl bg-secondary/20 border border-border text-xs space-y-2.5">
@@ -2030,20 +2038,20 @@ export default function OrdersPage() {
                   </div>
                   <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2">
                     <span className="text-[10px] font-bold uppercase text-emerald-600">Total pago</span>
-                    <p className="mt-1 font-black text-emerald-500">{formatCurrency(selectedOrder.paid_amount)}</p>
+                    <p className="mt-1 font-black text-emerald-500">{formatCurrency(selectedOrderPaidAmount)}</p>
                   </div>
                   <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
                     <span className="text-[10px] font-bold uppercase text-amber-600">Saldo pendente</span>
-                    <p className="mt-1 font-black text-amber-500">{formatCurrency(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount))}</p>
+                    <p className="mt-1 font-black text-amber-500">{formatCurrency(selectedOrderPendingAmount)}</p>
                   </div>
                 </div>
 
                 {selectedOrder.payment_status !== 'pago' && !isAddingPayment && (
                   <button
                     onClick={() => {
-                      const balance = Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount);
+                      const balance = selectedOrderPendingAmount;
                       setPaymentAmount(balance);
-                      setPaymentKind(selectedOrder.paid_amount > 0 ? 'saldo' : 'adiantamento');
+                      setPaymentKind(selectedOrderPaidAmount > 0 ? 'saldo' : 'adiantamento');
                       setPaymentDateInput(new Date().toISOString().split('T')[0]);
                       setPaymentNotesInput('');
                       setIsAddingPayment(true);
@@ -2064,7 +2072,7 @@ export default function OrdersPage() {
                           value={formatCurrencyInput(paymentAmount)}
                           onChange={(e) => {
                             const val = parseCurrencyInputToNumber(e.target.value);
-                            setPaymentAmount(Math.min(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount), val));
+                            setPaymentAmount(Math.min(selectedOrderPendingAmount, val));
                           }}
                           placeholder="R$ 0,00"
                           className="w-full px-2.5 py-1.5 bg-card border border-border rounded-lg text-xs font-bold text-foreground"
@@ -2130,14 +2138,18 @@ export default function OrdersPage() {
                         onClick={() => {
                           setIsAddingPayment(false);
                           setShowPixCode(false);
+                          setIsSavingPayment(false);
+                          paymentSubmissionRef.current = false;
                         }}
+                        disabled={isSavingPayment}
                         className="flex-1 py-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 text-xs font-semibold"
                       >
                         Cancelar
                       </button>
                       <button
                         type="submit"
-                        className="flex-1 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 text-xs font-semibold"
+                        disabled={isSavingPayment}
+                        className="flex-1 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 text-xs font-semibold"
                       >
                         {paymentMethod === 'pix' && !showPixCode ? 'Gerar Código Pix' : 'Confirmar Recebimento'}
                       </button>

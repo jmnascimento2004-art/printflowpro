@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Company, Customer, FinancialTransaction, Order, OrderItem, Quote, QuoteItem } from '@/lib/dummy-data';
+import { getActivePaymentTransactions } from '@/lib/finance-rules';
 
 type QuoteItemRow = QuoteItem & { quote_id?: string };
 type OrderItemRow = OrderItem & { order_id?: string };
@@ -22,6 +23,7 @@ export type OrderPdfData = {
 
 export type ReceiptPdfData = OrderPdfData & {
   transaction: FinancialTransaction;
+  paidBeforeReceipt: number;
   accumulatedPaid: number;
   pendingAmount: number;
 };
@@ -218,29 +220,48 @@ export async function loadReceiptPdfData(transactionId: string): Promise<Receipt
 
   const { data: paidRows, error: paidError } = await supabase
     .from('financial_transactions')
-    .select('id, amount, created_at, paid_at')
+    .select('*')
     .eq('order_id', transaction.order_id)
     .eq('type', 'receita')
-    .eq('status', 'pago')
     .order('created_at', { ascending: true });
 
   if (paidError) throw paidError;
 
   const transactionDate = new Date(transaction.paid_at || transaction.created_at || Date.now()).getTime();
-  const accumulatedPaid = ((paidRows || []) as Pick<FinancialTransaction, 'id' | 'amount' | 'created_at' | 'paid_at'>[])
+  const paidUntilReceipt = getActivePaymentTransactions([
+    ...((paidRows || []) as FinancialTransaction[]),
+    transaction
+  ], orderData.order)
+    .map((row) => ({
+      ...row,
+      amount: Number(row.amount || 0)
+    }))
     .filter((row) => {
+      const matchesOrder = row.order_id === transaction.order_id || row.order_number === transaction.order_number;
+      if (!matchesOrder) return false;
+
       const rowDate = new Date(row.paid_at || row.created_at || Date.now()).getTime();
       return row.id === transaction.id || rowDate <= transactionDate;
+    });
+
+  const accumulatedPaid = paidUntilReceipt
+    .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+
+  const paidBeforeReceipt = paidUntilReceipt
+    .filter((row) => {
+      if (row.id === transaction.id) return false;
+      const rowDate = new Date(row.paid_at || row.created_at || Date.now()).getTime();
+      return rowDate <= transactionDate;
     })
     .reduce((sum, row) => sum + Number(row.amount || 0), 0);
 
-  const safeAccumulatedPaid = Math.max(Number(transaction.amount || 0), accumulatedPaid || Number(orderData.order.paid_amount || 0));
-  const pendingAmount = Math.max(0, Number(orderData.order.total_amount || 0) - safeAccumulatedPaid);
+  const pendingAmount = Math.max(0, Number(orderData.order.total_amount || 0) - accumulatedPaid);
 
   return {
     ...orderData,
     transaction,
-    accumulatedPaid: safeAccumulatedPaid,
+    paidBeforeReceipt,
+    accumulatedPaid,
     pendingAmount
   };
 }

@@ -3,12 +3,15 @@ import { isActiveOrder, isFinanciallyActiveOrder, normalizeStatus } from '@/lib/
 
 type TransactionLike = Partial<FinancialTransaction> & {
   amount?: unknown;
+  type?: unknown;
   status?: unknown;
   cancelled_at?: unknown;
   reversed_at?: unknown;
   metadata?: {
     cancelled_at?: unknown;
     reversed_at?: unknown;
+    duplicate_of?: unknown;
+    ignored?: unknown;
   } | null;
 };
 
@@ -22,7 +25,31 @@ const CANCELLED_TRANSACTION_MARKERS = new Set([
   'reversed',
   'void',
   'voided',
-  'refunded'
+  'refunded',
+  'duplicado',
+  'duplicada',
+  'duplicated',
+  'duplicate',
+  'ignorado',
+  'ignorada',
+  'ignored'
+]);
+
+const INCOME_TRANSACTION_MARKERS = new Set([
+  'receita',
+  'entrada',
+  'income',
+  'payment',
+  'pagamento'
+]);
+
+const PAID_TRANSACTION_MARKERS = new Set([
+  'pago',
+  'paid',
+  'confirmado',
+  'confirmed',
+  'recebido',
+  'received'
 ]);
 
 export const normalizeFinanceStatus = normalizeStatus;
@@ -39,7 +66,9 @@ export const isCancelledTransaction = (transaction?: TransactionLike | null): bo
     transaction.cancelled_at ? 'cancelado' : '',
     transaction.reversed_at ? 'estornado' : '',
     metadata.cancelled_at ? 'cancelado' : '',
-    metadata.reversed_at ? 'estornado' : ''
+    metadata.reversed_at ? 'estornado' : '',
+    metadata.duplicate_of ? 'duplicado' : '',
+    metadata.ignored === true ? 'ignorado' : ''
   ].map(normalizeFinanceStatus);
 
   return values.some((status) =>
@@ -66,8 +95,8 @@ export const isActivePaymentTransaction = (
   order?: Order | null
 ): boolean =>
   isActiveFinancialTransaction(transaction, order) &&
-  normalizeFinanceStatus(transaction?.type) === 'receita' &&
-  normalizeFinanceStatus(transaction?.status) === 'pago';
+  INCOME_TRANSACTION_MARKERS.has(normalizeFinanceStatus(transaction?.type)) &&
+  PAID_TRANSACTION_MARKERS.has(normalizeFinanceStatus(transaction?.status));
 
 export const isExpenseTransaction = (
   transaction?: TransactionLike | null,
@@ -101,8 +130,24 @@ export const dedupeTransactionsById = <T extends TransactionLike>(transactions: 
 };
 
 export const dedupeFinancialTransactions = <T extends TransactionLike>(transactions: T[]): T[] => {
-  return dedupeTransactionsById(transactions);
+  const seen = new Set<string>();
+
+  return dedupeTransactionsById(transactions).filter((transaction, index) => {
+    const key = buildFallbackTransactionKey(transaction) || `index:${index}`;
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 };
+
+export const getActivePaymentTransactions = <T extends TransactionLike>(
+  transactions: T[],
+  order?: Order | null
+): T[] =>
+  dedupeFinancialTransactions(transactions).filter((transaction) =>
+    isActivePaymentTransaction(transaction, order)
+  );
 
 type FindOrderForTransaction = (transaction: FinancialTransaction) => Order | undefined;
 type PeriodPredicate = (transaction: FinancialTransaction) => boolean;
@@ -153,18 +198,19 @@ export const calculateAccountsReceivable = (
 
 export const getActivePaymentsForOrder = (
   orderId: string,
-  transactions: FinancialTransaction[]
+  transactions: FinancialTransaction[],
+  orderNumber?: string,
+  order?: Order | null
 ): FinancialTransaction[] =>
-  dedupeFinancialTransactions(transactions).filter((transaction) =>
-    transaction.order_id === orderId &&
-    isActivePaymentTransaction(transaction)
+  getActivePaymentTransactions(transactions, order).filter((transaction) =>
+    transaction.order_id === orderId || Boolean(orderNumber && transaction.order_number === orderNumber)
   );
 
 export const calculateOrderPaidAmount = (
   order: Order,
   transactions: FinancialTransaction[]
 ): number =>
-  getActivePaymentsForOrder(order.id, transactions)
+  getActivePaymentsForOrder(order.id, transactions, order.number, order)
     .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
 
 export const calculateOrderBalance = (
