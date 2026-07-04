@@ -196,7 +196,7 @@ export default function FinancialPage() {
     const matchesStatus = statusFilter === 'todos' ? true : f.status === statusFilter;
     const matchesMethod = methodFilter === 'todos' ? true : f.payment_method === methodFilter;
     const isOpenInvoicedReceivable = f.payment_method === 'faturado' && f.status === 'pendente';
-    const matchesPeriod = methodFilter === 'faturado' && isOpenInvoicedReceivable
+    const matchesPeriod = isOpenInvoicedReceivable
       ? true
       : isInSelectedPeriod(f);
 
