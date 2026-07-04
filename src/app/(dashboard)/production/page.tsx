@@ -94,6 +94,7 @@ export default function ProductionPage() {
   const mapProductionStatusToColumn = (status: unknown): ProductionItem['status'] => {
     const normalized = normalizeStatus(status);
     if (normalized.includes('acabamento') || normalized === 'finishing') return 'impressao';
+    if (!['fila', 'producao', 'impressao', 'concluido', 'expedicao', 'entregue', 'finalizado'].includes(normalized)) return 'fila';
     return normalized as ProductionItem['status'];
   };
 

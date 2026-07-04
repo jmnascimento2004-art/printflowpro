@@ -32,7 +32,7 @@ import {
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { formatUnitCurrency } from '@/lib/pricing';
-import { isActiveOrder, isCancelledOrder, isProductionActiveOrder } from '@/lib/order-status';
+import { isActiveOrder, isCancelledOrder, isProductionActiveOrder, normalizeOrderOperationalStatus } from '@/lib/order-status';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
@@ -423,7 +423,7 @@ export default function OrdersPage() {
   const handleOpenEditOrder = (order: Order) => {
     setSelectedOrder(null); // Close details panel if open
     setEditingOrder(order);
-    setEditStatus(order.status);
+    setEditStatus(normalizeOrderOperationalStatus(order));
     setEditDeadline(order.deadline.split('T')[0]);
     setEditNotes(sanitizeDisplayText(order.notes));
     setEditTotal(order.total_amount);
@@ -576,7 +576,7 @@ export default function OrdersPage() {
 
     switch (tab) {
       case 'orcamento':
-        return searchedOrders.filter(o => ['orcamento', 'aguardando_aprovacao', 'aguardando_pagamento'].includes(o.status));
+        return searchedOrders.filter(o => normalizeOrderOperationalStatus(o) === 'orcamento');
       case 'producao':
         return searchedOrders.filter(isProductionActiveOrder);
       case 'finalizado':
@@ -676,8 +676,8 @@ export default function OrdersPage() {
   const getOrderStatusBadge = (status: Order['status']) => {
     const labels: Record<Order['status'], string> = {
       orcamento: 'Orçamento',
-      aguardando_aprovacao: 'Aguardando Aprov.',
-      aguardando_pagamento: 'Aguardando Pag.',
+      aguardando_aprovacao: 'Aguardando',
+      aguardando_pagamento: 'Aguardando',
       producao: 'Produção',
       impressao: 'Impressão',
       acabamento: 'Acabamento',
@@ -701,8 +701,8 @@ export default function OrdersPage() {
     };
 
     return (
-      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${colors[status]}`}>
-        {labels[status].toUpperCase()}
+      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${colors[normalizeOrderOperationalStatus({ status })]}`}>
+        {labels[normalizeOrderOperationalStatus({ status })].toUpperCase()}
       </span>
     );
   };
@@ -968,8 +968,7 @@ export default function OrdersPage() {
                   className="w-full px-3 py-2 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 >
                   <option value="orcamento">Orçamento</option>
-                  <option value="aguardando_aprovacao">Aguardando Aprovação</option>
-                  <option value="aguardando_pagamento">Aguardando Pagamento</option>
+                  <option value="aguardando_pagamento">Aguardando</option>
                   <option value="producao">Em Produção</option>
                   <option value="impressao">Impressão</option>
                   <option value="acabamento">Acabamento</option>
@@ -1862,7 +1861,9 @@ export default function OrdersPage() {
               <div className="grid w-full gap-2 sm:grid-cols-2 xl:max-w-xl xl:grid-cols-4">
                 <div className="rounded-xl border border-border bg-card p-3">
                   <span className="block text-[10px] font-bold uppercase text-muted-foreground">Status</span>
-                  <span className="mt-1 block text-xs font-black text-foreground">{selectedOrder.status.toUpperCase().replace('_', ' ')}</span>
+                  <span className="mt-1 block text-xs font-black text-foreground">
+                    {getOrderStatusBadge(selectedOrder.status)}
+                  </span>
                 </div>
                 <div className="rounded-xl border border-border bg-card p-3">
                   <span className="block text-[10px] font-bold uppercase text-muted-foreground">Financeiro</span>

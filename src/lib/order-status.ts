@@ -19,6 +19,27 @@ const CANCELLED_STATUS_MARKERS = new Set([
 
 const PRODUCTION_ACTIVE_ORDER_STATUSES: Order['status'][] = ['producao', 'impressao', 'acabamento'];
 
+const ORDER_STATUSES = new Set<Order['status']>([
+  'orcamento',
+  'aguardando_aprovacao',
+  'aguardando_pagamento',
+  'producao',
+  'impressao',
+  'acabamento',
+  'expedicao',
+  'entregue',
+  'finalizado',
+  'cancelado'
+]);
+
+const QUOTE_APPROVAL_STATUS_MARKERS = new Set([
+  'aguardando_aprovacao',
+  'aguardando aprovacao',
+  'aguardando aprov',
+  'pending approval',
+  'pending_approval'
+]);
+
 export const normalizeStatus = (value: unknown): string =>
   String(value ?? '')
     .normalize('NFD')
@@ -50,3 +71,12 @@ export const isProductionActiveOrder = (order?: OrderStatusLike | null): boolean
   isActiveOrder(order) && PRODUCTION_ACTIVE_ORDER_STATUSES.includes(normalizeStatus(order?.status) as Order['status']);
 
 export const isFinanciallyActiveOrder = (order?: OrderStatusLike | null): boolean => isActiveOrder(order);
+
+export const normalizeOrderOperationalStatus = (order?: OrderStatusLike | null): Order['status'] => {
+  const status = normalizeStatus(order?.status);
+
+  if (QUOTE_APPROVAL_STATUS_MARKERS.has(status)) return 'aguardando_pagamento';
+  if (ORDER_STATUSES.has(status as Order['status'])) return status as Order['status'];
+
+  return 'aguardando_pagamento';
+};

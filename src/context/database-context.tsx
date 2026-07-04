@@ -1757,7 +1757,7 @@ useEffect(() => {
         customer_id: savedQuote.customer_id,
         customer_name: savedQuote.customer_name,
         number: orderNumber,
-        status: 'aguardando_aprovacao',
+        status: 'aguardando_pagamento',
         total_amount: savedQuote.total_amount,
         paid_amount: 0,
         payment_status: 'pendente',
