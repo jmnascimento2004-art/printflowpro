@@ -18,11 +18,14 @@ import {
 import { useDatabase } from '@/context/database-context';
 import { FinancialTransaction } from '@/lib/dummy-data';
 import {
+  buildInvoicedReceivableRows,
   calculateAccountsReceivable,
   calculateActiveCashBalance,
   calculatePeriodExpenses,
   calculatePeriodRevenue,
   dedupeFinancialTransactions,
+  getOrderReceivableBalance,
+  type InvoicedReceivableRow,
   isActivePaymentTransaction,
   isActiveFinancialTransaction,
   isCancelledTransaction,
@@ -54,6 +57,11 @@ export default function FinancialPage() {
   const [installments, setInstallments] = useState(1); // Support installments (parcelamento)
 
   const reconciledTransactions = dedupeFinancialTransactions(financial);
+  const invoicedReceivableRows = buildInvoicedReceivableRows(orders, customers, reconciledTransactions);
+  const reportTransactions = dedupeFinancialTransactions([
+    ...reconciledTransactions,
+    ...invoicedReceivableRows
+  ]);
 
   const findTransactionOrder = (transaction: FinancialTransaction) =>
     orders.find((order) =>
@@ -86,10 +94,23 @@ export default function FinancialPage() {
 
   const periodTransactions = activeTransactions.filter(isInSelectedPeriod);
 
-  const visibleTransactions = reconciledTransactions.filter((transaction) => {
+  const receivableReportTransactions = reportTransactions.map((transaction) => {
+    if (transaction.payment_method !== 'faturado' || transaction.status !== 'pendente') return transaction;
+
+    const order = findTransactionOrder(transaction);
+    if (!order) return transaction;
+
+    return {
+      ...transaction,
+      amount: getOrderReceivableBalance(order, reconciledTransactions)
+    };
+  });
+
+  const visibleTransactions = receivableReportTransactions.filter((transaction) => {
     const order = findTransactionOrder(transaction);
     if (isCancelledTransaction(transaction)) return true;
     if (order && isCancelledOrder(order) && transaction.status === 'pendente') return false;
+    if (transaction.payment_method === 'faturado' && transaction.status === 'pendente' && Number(transaction.amount || 0) <= 0) return false;
     return true;
   });
 
@@ -174,7 +195,10 @@ export default function FinancialPage() {
     const matchesType = typeFilter === 'todos' ? true : f.type === typeFilter;
     const matchesStatus = statusFilter === 'todos' ? true : f.status === statusFilter;
     const matchesMethod = methodFilter === 'todos' ? true : f.payment_method === methodFilter;
-    const matchesPeriod = isInSelectedPeriod(f);
+    const isOpenInvoicedReceivable = f.payment_method === 'faturado' && f.status === 'pendente';
+    const matchesPeriod = methodFilter === 'faturado' && isOpenInvoicedReceivable
+      ? true
+      : isInSelectedPeriod(f);
 
     return matchesSearch && matchesType && matchesStatus && matchesMethod && matchesPeriod;
   }).sort((a, b) => getTransactionDate(b).getTime() - getTransactionDate(a).getTime());
@@ -601,6 +625,7 @@ export default function FinancialPage() {
               {filteredTransactions.length > 0 ? (
                 filteredTransactions.map((trans) => {
                   const isIncome = trans.type === 'receita';
+                  const isVirtualReceivable = (trans as InvoicedReceivableRow).is_virtual === true;
                   const relatedOrder = findTransactionOrder(trans);
                   const relatedCustomer = relatedOrder
                     ? customers.find((customer) => customer.id === relatedOrder.customer_id || customer.name === relatedOrder.customer_name)
@@ -641,6 +666,11 @@ export default function FinancialPage() {
                             Cliente: {relatedCustomer.name}
                           </span>
                         )}
+                        {isVirtualReceivable && (
+                          <span className="mt-1 inline-flex rounded bg-blue-500/10 px-1.5 py-0.5 text-[9px] font-black uppercase text-blue-500">
+                            A receber derivado do pedido
+                          </span>
+                        )}
                       </td>
 
                       {/* Method */}
@@ -660,6 +690,10 @@ export default function FinancialPage() {
                         ) : trans.status === 'pago' ? (
                           <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                             Confirmado
+                          </span>
+                        ) : isVirtualReceivable ? (
+                          <span className="text-[10px] text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                            A receber
                           </span>
                         ) : (
                           <button
