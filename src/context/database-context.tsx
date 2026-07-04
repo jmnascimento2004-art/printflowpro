@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '@/lib/supabaseClient';
 import { publicStoreSelect } from '@/lib/publicSupabaseClient';
 import { warnCaught } from '@/lib/safe-log';
+import { formatOrderDisplayNumber, getNextOrderNumber } from '@/lib/order-number';
 import {
   clearOperationalDemoSnapshots,
   getOrSetDemoSnapshot,
@@ -1720,23 +1721,6 @@ useEffect(() => {
     });
   };
 
-  const getNextOrderNumber = (currentOrders: Order[]) => {
-    const prefix = `ORD-`;
-    
-    const nums = currentOrders
-      .filter(o => o.number.startsWith(prefix))
-      .map(o => {
-        const parts = o.number.split('-');
-        const numPart = parts[parts.length - 1];
-        return parseInt(numPart) || 0;
-      });
-      
-    const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
-    const nextNum = maxNum + 1;
-    
-    return `${prefix}${String(nextNum).padStart(4, '0')}`;
-  };
-
   const approveQuote = (id: string) => {
     const match = quotes.find(q => q.id === id);
     if (!match) return;
@@ -1784,7 +1768,7 @@ useEffect(() => {
 
       void saveOrderWithItems(newOrder, 'convertido do orçamento').then((savedOrder) => {
         if (savedOrder) {
-          showToast(`Pedido ${savedOrder.number} criado a partir do orçamento #${savedQuote.number}.`);
+          showToast(`Pedido ${formatOrderDisplayNumber(savedOrder.number)} criado a partir do orçamento #${savedQuote.number}.`);
         }
       });
     });
@@ -1841,7 +1825,7 @@ useEffect(() => {
         adjustStock(
           item.product_id,
           item.quantity,
-          `Pedido ${order.number}`,
+          `Pedido ${formatOrderDisplayNumber(order.number)}`,
           'saida'
         );
       }
@@ -1950,9 +1934,10 @@ useEffect(() => {
             saldo: 'Pagamento do saldo',
             total: 'Pagamento total'
           };
+          const orderDisplayNumber = formatOrderDisplayNumber(o.number);
           const descriptionBase = method === 'faturado'
-            ? `Faturamento B2B do Pedido ${o.number}`
-            : `${paymentTypeLabel[options?.payment_type || (payment_status === 'pago' ? 'saldo' : 'parcial')]} do Pedido ${o.number}`;
+            ? `Faturamento B2B do Pedido ${orderDisplayNumber}`
+            : `${paymentTypeLabel[options?.payment_type || (payment_status === 'pago' ? 'saldo' : 'parcial')]} do Pedido ${orderDisplayNumber}`;
           const description = options?.notes?.trim()
             ? `${descriptionBase} - ${options.notes.trim()}`
             : descriptionBase;
@@ -2027,7 +2012,7 @@ useEffect(() => {
               session_id: activeReg.id,
               type: 'venda',
               amount: paymentAmount,
-              description: `Rec. Pedido ${o.number}`,
+              description: `Rec. Pedido ${orderDisplayNumber}`,
               payment_method: method,
               created_at: new Date().toISOString()
             };
@@ -2469,7 +2454,7 @@ useEffect(() => {
         type: 'receita',
         category: 'Vendas',
         amount: total,
-        description: `Faturamento B2B do Pedido PDV ${orderNumber}`,
+        description: `Faturamento B2B do Pedido PDV ${formatOrderDisplayNumber(orderNumber)}`,
         payment_method: 'faturado',
         status: 'pendente',
         due_date: dueDateObj.toISOString().split('T')[0],
@@ -2485,7 +2470,7 @@ useEffect(() => {
         type: 'receita',
         category: 'Vendas',
         amount: posOrder.paid_amount,
-        description: `Venda direta PDV ${orderNumber}`,
+        description: `Venda direta PDV ${formatOrderDisplayNumber(orderNumber)}`,
         payment_method: posOrder.payment_method,
         status: 'pago',
         due_date: new Date().toISOString().split('T')[0],
@@ -2501,7 +2486,7 @@ useEffect(() => {
           session_id: active.id,
           type: 'venda',
           amount: posOrder.paid_amount,
-          description: `Venda PDV ${orderNumber}`,
+          description: `Venda PDV ${formatOrderDisplayNumber(orderNumber)}`,
           payment_method: posOrder.payment_method,
           created_at: new Date().toISOString()
         };

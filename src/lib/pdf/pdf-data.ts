@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Company, Customer, FinancialTransaction, Order, OrderItem, Quote, QuoteItem } from '@/lib/dummy-data';
 import { getActivePaymentTransactions } from '@/lib/finance-rules';
+import { areOrderNumbersEquivalent } from '@/lib/order-number';
 
 type QuoteItemRow = QuoteItem & { quote_id?: string };
 type OrderItemRow = OrderItem & { order_id?: string };
@@ -237,7 +238,7 @@ export async function loadReceiptPdfData(transactionId: string): Promise<Receipt
       amount: Number(row.amount || 0)
     }))
     .filter((row) => {
-      const matchesOrder = row.order_id === transaction.order_id || row.order_number === transaction.order_number;
+      const matchesOrder = row.order_id === transaction.order_id || areOrderNumbersEquivalent(row.order_number, transaction.order_number);
       if (!matchesOrder) return false;
 
       const rowDate = new Date(row.paid_at || row.created_at || Date.now()).getTime();

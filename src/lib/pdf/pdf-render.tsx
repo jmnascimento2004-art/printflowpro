@@ -1,5 +1,6 @@
 import React from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
+import { formatOrderDisplayNumber } from '@/lib/order-number';
 import { getPdfSafeFilename } from '@/lib/pdf/pdf-formatters';
 import { loadOrderPdfData, loadQuotePdfData, loadReceiptPdfData } from '@/lib/pdf/pdf-data';
 import { OrderPdfDocument } from '@/lib/pdf/order-pdf';
@@ -19,7 +20,7 @@ export async function renderOrderPdf(id: string): Promise<RenderedPdf | null> {
   const pdfDocument = React.createElement(OrderPdfDocument, { data }) as unknown as Parameters<typeof renderToBuffer>[0];
   const buffer = await renderToBuffer(pdfDocument);
   const customerName = data.customer?.name || data.order.customer_name || 'cliente';
-  const filename = getPdfSafeFilename(`PED-${data.order.number}-${customerName}.pdf`);
+  const filename = getPdfSafeFilename(`${formatOrderDisplayNumber(data.order.number)}-${customerName}.pdf`);
 
   return { buffer, filename };
 }
@@ -46,7 +47,7 @@ export async function renderReceiptPdf(transactionId: string): Promise<RenderedP
   const buffer = await renderToBuffer(pdfDocument);
   const customerName = data.customer?.name || data.order.customer_name || 'cliente';
   const transactionSuffix = data.transaction.id.slice(-6).toUpperCase();
-  const filename = getPdfSafeFilename(`REC-${data.order.number}-${transactionSuffix}-${customerName}.pdf`);
+  const filename = getPdfSafeFilename(`REC-${formatOrderDisplayNumber(data.order.number)}-${transactionSuffix}-${customerName}.pdf`);
 
   return { buffer, filename };
 }

@@ -13,6 +13,7 @@ import {
   Calculator 
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
+import { areOrderNumbersEquivalent, formatOrderDisplayNumber } from '@/lib/order-number';
 
 const CATALOG_INTERESTS_READ_KEY = 'printflow_catalog_interests_read_ids';
 const CATALOG_INTERESTS_READ_EVENT = 'printflow_catalog_interests_read_change';
@@ -66,7 +67,10 @@ export default function DashboardPage() {
   const activeOrders = orders.filter(o => !isCancelledOrder(o));
   const normalizeKey = (value?: string) => (value || '').trim().toLowerCase();
   const cancelledOrderIds = new Set(orders.filter(o => isCancelledOrder(o)).map(o => normalizeKey(o.id)));
-  const cancelledOrderNumbers = new Set(orders.filter(o => isCancelledOrder(o)).map(o => normalizeKey(o.number)));
+  const cancelledOrderNumbers = new Set(orders.filter(o => isCancelledOrder(o)).flatMap(o => [
+    normalizeKey(o.number),
+    normalizeKey(formatOrderDisplayNumber(o.number))
+  ]));
   const isFromCancelledOrder = (entry: { order_id?: string; order_number?: string }) => (
     (!!entry.order_id && cancelledOrderIds.has(normalizeKey(entry.order_id))) ||
     (!!entry.order_number && cancelledOrderNumbers.has(normalizeKey(entry.order_number)))
@@ -79,7 +83,7 @@ export default function DashboardPage() {
   );
   const transactionMatchesOrder = (entry: { order_id?: string; order_number?: string }, order: { id: string; number: string }) => (
     normalizeKey(entry.order_id) === normalizeKey(order.id) ||
-    normalizeKey(entry.order_number) === normalizeKey(order.number)
+    areOrderNumbersEquivalent(entry.order_number, order.number)
   );
   const getPaidIncomeForOrder = (order: { id: string; number: string }) => (
     paidIncomeTransactions
@@ -229,8 +233,8 @@ export default function DashboardPage() {
 
     const labels: Record<string, string> = {
       orcamento: 'Orçamento',
-      aguardando_aprovacao: 'Aguardando Aprov.',
-      aguardando_pagamento: 'Aguardando Pag.',
+      aguardando_aprovacao: 'Aguardando',
+      aguardando_pagamento: 'Aguardando',
       producao: 'Produção',
       impressao: 'Impressão',
       acabamento: 'Acabamento',
@@ -552,7 +556,7 @@ export default function DashboardPage() {
             <tbody className="divide-y divide-border text-xs">
               {recentOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-secondary/35 transition-colors">
-                  <td className="px-5 py-3.5 font-bold text-foreground">{order.number}</td>
+                  <td className="px-5 py-3.5 font-bold text-foreground">{formatOrderDisplayNumber(order.number)}</td>
                   <td className="px-5 py-3.5 text-muted-foreground font-semibold">{order.customer_name}</td>
                   <td className="px-5 py-3.5">{getStatusBadge(order.status)}</td>
                   <td className="px-5 py-3.5 text-muted-foreground">

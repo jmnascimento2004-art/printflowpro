@@ -33,6 +33,7 @@ import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { formatUnitCurrency } from '@/lib/pricing';
 import { isActiveOrder, isCancelledOrder, isProductionActiveOrder, normalizeOrderOperationalStatus } from '@/lib/order-status';
+import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
@@ -472,7 +473,7 @@ export default function OrdersPage() {
   const handleOpenCancelOrder = (order: Order) => {
     if (order.status === 'cancelado') return;
 
-    if (confirm(`Cancelar o pedido ${order.number}?`)) {
+    if (confirm(`Cancelar o pedido ${formatOrderDisplayNumber(order.number)}?`)) {
       updateOrderStatus(order.id, 'cancelado');
     }
   };
@@ -513,7 +514,7 @@ export default function OrdersPage() {
 
   const handlePrintOrderPdf = (order: Order) => {
     setSelectedPdfPreview({
-      title: `Pedido ${order.number}`,
+      title: `Pedido ${formatOrderDisplayNumber(order.number)}`,
       previewDataUrl: `/api/pdf-preview-data/order/${order.id}`,
       downloadUrl: `/api/pdf/order/${order.id}?download=1`,
       directPdfUrl: `/api/pdf/order/${order.id}`
@@ -522,7 +523,7 @@ export default function OrdersPage() {
 
   const handleDownloadOrderPdf = async (order: Order) => {
     try {
-      await downloadFileFromUrl(`/api/pdf/order/${order.id}?download=1`, `PED-${order.number}.pdf`);
+      await downloadFileFromUrl(`/api/pdf/order/${order.id}?download=1`, `${formatOrderDisplayNumber(order.number)}.pdf`);
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('Erro ao baixar PDF do pedido:', err);
@@ -533,7 +534,7 @@ export default function OrdersPage() {
 
   const getLatestPaidOrderTransaction = (order: Order) => {
     return getActivePaymentTransactions(
-      financial.filter((transaction) => transaction.order_id === order.id || transaction.order_number === order.number),
+      financial.filter((transaction) => transaction.order_id === order.id || areOrderNumbersEquivalent(transaction.order_number, order.number)),
       order
     )
       .sort((a, b) => {
@@ -552,7 +553,7 @@ export default function OrdersPage() {
     }
 
     setSelectedPdfPreview({
-      title: `Recibo de Pagamento - ${order.number}`,
+      title: `Recibo de Pagamento - ${formatOrderDisplayNumber(order.number)}`,
       previewDataUrl: `/api/pdf-preview-data/receipt/${transaction.id}`,
       downloadUrl: `/api/pdf/receipt/${transaction.id}?download=1`,
       directPdfUrl: `/api/pdf/receipt/${transaction.id}`,
@@ -560,12 +561,16 @@ export default function OrdersPage() {
     });
   };
 
-  const matchesSearchQuery = (o: Order) =>
-    o.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.payment_status.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.items.some((item) => item.product_name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const matchesSearchQuery = (o: Order) => {
+    const normalizedSearch = searchQuery.toLowerCase();
+    return (
+      o.customer_name.toLowerCase().includes(normalizedSearch) ||
+      getOrderNumberSearchText(o.number).includes(normalizedSearch) ||
+      o.status.toLowerCase().includes(normalizedSearch) ||
+      o.payment_status.toLowerCase().includes(normalizedSearch) ||
+      o.items.some((item) => item.product_name.toLowerCase().includes(normalizedSearch))
+    );
+  };
 
   const activeOrders = orders.filter(isActiveOrder);
   const cancelledOrders = orders.filter(isCancelledOrder);
@@ -829,7 +834,7 @@ export default function OrdersPage() {
 
   const getConfirmedPaidAmountForOrder = (order: Order) => {
     const confirmedTotal = getActivePaymentTransactions(
-      financial.filter((transaction) => transaction.order_id === order.id || transaction.order_number === order.number),
+      financial.filter((transaction) => transaction.order_id === order.id || areOrderNumbersEquivalent(transaction.order_number, order.number)),
       order
     ).reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
 
@@ -884,7 +889,7 @@ export default function OrdersPage() {
     });
 
     const greeting = getWhatsAppTimeGreeting();
-    const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${order.number}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${formatOrderDisplayNumber(order.number)}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
 
     const opened = openWhatsAppUrl(phone, message);
     if (!opened) {
@@ -906,7 +911,7 @@ export default function OrdersPage() {
 
   const selectedOrderTransactions = selectedOrder
     ? getActivePaymentTransactions(
-        financial.filter((transaction) => transaction.order_id === selectedOrder.id || transaction.order_number === selectedOrder.number),
+        financial.filter((transaction) => transaction.order_id === selectedOrder.id || areOrderNumbersEquivalent(transaction.order_number, selectedOrder.number)),
         selectedOrder
       )
     : [];
@@ -934,7 +939,7 @@ export default function OrdersPage() {
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <h3 className="font-bold text-foreground text-sm uppercase flex items-center gap-1.5">
                 <Edit3 className="h-4.5 w-4.5 text-primary" /> 
-                Editar Pedido: {editingOrder.number}
+                Editar Pedido: {formatOrderDisplayNumber(editingOrder.number)}
               </h3>
               <button 
                 type="button" 
@@ -1598,7 +1603,7 @@ export default function OrdersPage() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <h3 className="line-clamp-1 text-sm font-black text-foreground">{order.number}</h3>
+                        <h3 className="line-clamp-1 text-sm font-black text-foreground">{formatOrderDisplayNumber(order.number)}</h3>
                         <p className="mt-1 line-clamp-2 text-xs font-semibold text-muted-foreground">{order.customer_name}</p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -1746,7 +1751,7 @@ export default function OrdersPage() {
 
                       return (
                         <tr key={order.id} className="hover:bg-secondary/15 transition-colors">
-                          <td className="px-3 py-2.5 font-bold text-foreground text-left whitespace-nowrap">{order.number}</td>
+                          <td className="px-3 py-2.5 font-bold text-foreground text-left whitespace-nowrap">{formatOrderDisplayNumber(order.number)}</td>
                           <td className="px-3 py-2.5 font-semibold text-foreground text-left">{order.customer_name}</td>
                           <td className="px-3 py-2.5 text-muted-foreground text-left">
                             {order.items.map(i => `${i.quantity}x ${i.product_name}`).join(', ')}
@@ -1794,7 +1799,7 @@ export default function OrdersPage() {
                                 onClick={() => handlePrintOrderPdf(order)}
                                 className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/15 text-primary border border-primary/20"
                                 title="Visualizar PDF"
-                                aria-label={`Visualizar PDF do pedido ${order.number}`}
+                                aria-label={`Visualizar PDF do pedido ${formatOrderDisplayNumber(order.number)}`}
                               >
                                 <Printer className="h-3.5 w-3.5" />
                               </button>
@@ -1803,7 +1808,7 @@ export default function OrdersPage() {
                                 onClick={() => handleDownloadOrderPdf(order)}
                                 className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
                                 title="Baixar PDF"
-                                aria-label={`Baixar PDF do pedido ${order.number}`}
+                                aria-label={`Baixar PDF do pedido ${formatOrderDisplayNumber(order.number)}`}
                               >
                                 <Download className="h-3.5 w-3.5" />
                               </button>
@@ -1851,7 +1856,7 @@ export default function OrdersPage() {
                 </button>
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-primary">Pedido comercial</span>
-                  <h3 className="mt-1 text-xl font-black text-foreground">{selectedOrder.number}</h3>
+                  <h3 className="mt-1 text-xl font-black text-foreground">{formatOrderDisplayNumber(selectedOrder.number)}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Cliente: <strong className="text-foreground">{selectedOrder.customer_name}</strong> • Data: {new Date(selectedOrder.created_at).toLocaleDateString('pt-BR')}
                   </p>
@@ -1897,7 +1902,7 @@ export default function OrdersPage() {
                 onClick={() => handlePrintOrderPdf(selectedOrder)}
                 className="px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary/15 text-primary text-xs font-semibold flex items-center gap-1.5 border border-primary/20"
                 title="Visualizar PDF"
-                aria-label={`Visualizar PDF do pedido ${selectedOrder.number}`}
+                aria-label={`Visualizar PDF do pedido ${formatOrderDisplayNumber(selectedOrder.number)}`}
               >
                 <Printer className="h-4 w-4" /> Visualizar PDF
               </button>
@@ -1905,7 +1910,7 @@ export default function OrdersPage() {
                 onClick={() => handleDownloadOrderPdf(selectedOrder)}
                 className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-1.5 border border-border"
                 title="Baixar PDF"
-                aria-label={`Baixar PDF do pedido ${selectedOrder.number}`}
+                aria-label={`Baixar PDF do pedido ${formatOrderDisplayNumber(selectedOrder.number)}`}
               >
                 <Download className="h-4 w-4" /> Baixar PDF
               </button>

@@ -30,6 +30,7 @@ import {
   normalizeFinanceStatus
 } from '@/lib/finance-rules';
 import { isActiveOrder, isCancelledOrder, isFinanciallyActiveOrder } from '@/lib/order-status';
+import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText, replaceOrderNumbersForDisplay } from '@/lib/order-number';
 import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
 
 export default function FinancialPage() {
@@ -57,7 +58,7 @@ export default function FinancialPage() {
   const findTransactionOrder = (transaction: FinancialTransaction) =>
     orders.find((order) =>
       (transaction.order_id && order.id === transaction.order_id) ||
-      (transaction.order_number && order.number === transaction.order_number)
+      (transaction.order_number && areOrderNumbersEquivalent(order.number, transaction.order_number))
     );
 
   const getTransactionDate = (transaction: FinancialTransaction) =>
@@ -167,7 +168,7 @@ export default function FinancialPage() {
       : null;
     const matchesSearch = f.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           f.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (f.order_number && f.order_number.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                          (f.order_number && getOrderNumberSearchText(f.order_number).includes(searchQuery.toLowerCase())) ||
                           (relatedCustomer?.name.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
 
     const matchesType = typeFilter === 'todos' ? true : f.type === typeFilter;
@@ -629,10 +630,10 @@ export default function FinancialPage() {
 
                       {/* Description */}
                       <td className="px-5 py-3.5 text-foreground font-medium">
-                        {trans.description}
+                        {replaceOrderNumbersForDisplay(trans.description)}
                         {trans.order_number && (
                           <span className="ml-1 text-[9px] bg-secondary text-foreground px-1.5 py-0.5 rounded font-bold">
-                            {trans.order_number}
+                            {formatOrderDisplayNumber(trans.order_number)}
                           </span>
                         )}
                         {relatedCustomer && (

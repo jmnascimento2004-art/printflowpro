@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { formatUnitCurrency } from '@/lib/pricing';
+import { formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 
 export default function ResalePage() {
   const { orders } = useDatabase();
@@ -49,7 +50,7 @@ export default function ResalePage() {
 
     return list.filter(item => 
       item.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      getOrderNumberSearchText(item.orderNumber).includes(searchQuery.toLowerCase()) ||
       item.itemName.toLowerCase().includes(searchQuery.toLowerCase())
     );
   };
@@ -147,7 +148,7 @@ export default function ResalePage() {
                   return (
                     <tr key={idx} className="hover:bg-secondary/15 transition-colors">
                       {/* Order number */}
-                      <td className="px-5 py-3.5 font-bold text-foreground">{item.orderNumber}</td>
+                      <td className="px-5 py-3.5 font-bold text-foreground">{formatOrderDisplayNumber(item.orderNumber)}</td>
                       
                       {/* Customer final */}
                       <td className="px-5 py-3.5 font-semibold text-muted-foreground">{item.customerName}</td>

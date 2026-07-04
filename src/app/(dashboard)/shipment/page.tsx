@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Shipment } from '@/lib/dummy-data';
+import { formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 
 export default function ShipmentPage() {
   const { shipments, updateShipmentStatus } = useDatabase();
@@ -24,7 +25,7 @@ export default function ShipmentPage() {
   // Filter shipments
   const filteredShipments = shipments.filter(s => 
     s.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.order_number.toLowerCase().includes(searchQuery.toLowerCase())
+    getOrderNumberSearchText(s.order_number).includes(searchQuery.toLowerCase())
   );
 
   const handleShipPackage = (e: React.FormEvent) => {
@@ -92,7 +93,7 @@ export default function ShipmentPage() {
               <div className="space-y-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="font-bold text-xs text-foreground block">{ship.order_number}</span>
+                    <span className="font-bold text-xs text-foreground block">{formatOrderDisplayNumber(ship.order_number)}</span>
                     <span className="text-[10px] text-muted-foreground">Logística de Entrega</span>
                   </div>
                   {getStatusBadge(ship.status)}

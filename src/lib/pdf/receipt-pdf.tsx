@@ -1,6 +1,7 @@
 import React from 'react';
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import type { ReceiptPdfData } from '@/lib/pdf/pdf-data';
+import { formatOrderDisplayNumber, replaceOrderNumbersForDisplay } from '@/lib/order-number';
 import {
   buildVisibleCompanyAddress,
   formatPdfCurrency,
@@ -145,14 +146,15 @@ function ReceiptItemRows({ data }: { data: ReceiptPdfData }) {
 export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
   const logoUrl = getPdfLogoUrl(data.company);
   const companyAddress = buildVisibleCompanyAddress(data.company, data.settings);
-  const receiptNumber = `REC-${data.order.number.replace(/^ORD-/, '')}-${data.transaction.id.slice(-6).toUpperCase()}`;
+  const orderDisplayNumber = formatOrderDisplayNumber(data.order.number);
+  const receiptNumber = `REC-${orderDisplayNumber.replace(/^PED-/, '')}-${data.transaction.id.slice(-6).toUpperCase()}`;
   const productsTotal = data.order.items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
   const servicesTotal = getAdditionalServicesTotal(data.order.additional_services);
   const paymentMethod = paymentMethodLabels[data.transaction.payment_method] || data.transaction.payment_method;
   const customerName = normalizePdfText(data.customer?.name || data.order.customer_name) || 'Cliente';
   const paymentKind = getReceiptPaymentKind(data);
-  const notes = normalizePdfText(data.transaction.description);
-  const formalReceiptText = `Recebemos de ${customerName} a importancia de ${formatPdfCurrency(data.transaction.amount)} referente ao ${paymentKind} do Pedido ${data.order.number}, conforme produtos e servicos descritos neste documento.`;
+  const notes = normalizePdfText(replaceOrderNumbersForDisplay(data.transaction.description));
+  const formalReceiptText = `Recebemos de ${customerName} a importancia de ${formatPdfCurrency(data.transaction.amount)} referente ao ${paymentKind} do Pedido ${orderDisplayNumber}, conforme produtos e servicos descritos neste documento.`;
 
   return (
     <Document title={`Recibo ${receiptNumber}`} author={data.company.name}>
@@ -188,7 +190,7 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
           <View style={styles.box}>
             <Text style={styles.boxTitle}>Pagamento</Text>
             <Text style={styles.label}>Pedido</Text>
-            <Text style={styles.value}>{data.order.number}</Text>
+            <Text style={styles.value}>{orderDisplayNumber}</Text>
             <Text style={styles.label}>Forma</Text>
             <Text style={styles.value}>{paymentMethod}</Text>
             <Text style={styles.label}>Data do pagamento</Text>

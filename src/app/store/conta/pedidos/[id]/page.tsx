@@ -5,6 +5,7 @@ import { notFound, useParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { StoreAccountShell } from '@/components/store/StoreAccountShell';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { formatOrderDisplayNumber } from '@/lib/order-number';
 import { formatCurrency } from '@/lib/pricing';
 import { getOrderStatusLabel } from '@/lib/store-customer';
 
@@ -16,7 +17,7 @@ export default function StoreOrderDetailPage() {
   if (!isLoading && !order) notFound();
 
   return (
-    <StoreAccountShell title={order ? `Pedido ${order.number}` : 'Pedido'} subtitle="Detalhes do pedido e status atual.">
+    <StoreAccountShell title={order ? `Pedido ${formatOrderDisplayNumber(order.number)}` : 'Pedido'} subtitle="Detalhes do pedido e status atual.">
       {order && (
         <div className="space-y-4">
           <Link href="/store/conta/pedidos" className="inline-flex items-center gap-2 text-xs font-black text-slate-500 hover:text-slate-950">

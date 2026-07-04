@@ -26,6 +26,7 @@ import type { Customer } from '@/lib/dummy-data';
 import { lookupCEP } from '@/lib/cep-lookup';
 import { lookupCNPJ } from '@/lib/cnpj-lookup';
 import { warnCaught } from '@/lib/safe-log';
+import { formatOrderDisplayNumber } from '@/lib/order-number';
 import {
   formatCEP,
   formatCNPJ,
@@ -1358,7 +1359,7 @@ function LinkedHistory({
           {orders.length > 0 ? orders.map((order) => (
             <div key={order.id} className="border-b border-border p-3 last:border-b-0">
               <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="font-bold text-foreground">{order.number}</span>
+                <span className="font-bold text-foreground">{formatOrderDisplayNumber(order.number)}</span>
                 <span className="font-black text-primary">{formatCurrency(order.total_amount)}</span>
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">

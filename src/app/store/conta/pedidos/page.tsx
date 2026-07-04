@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Eye, Package } from 'lucide-react';
 import { StoreAccountShell } from '@/components/store/StoreAccountShell';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { formatOrderDisplayNumber } from '@/lib/order-number';
 import { formatCurrency } from '@/lib/pricing';
 import { getOrderStatusLabel } from '@/lib/store-customer';
 
@@ -30,7 +31,7 @@ export default function StoreOrdersPage() {
           <div key={order.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase text-slate-400">Pedido {order.number}</p>
+                <p className="text-xs font-black uppercase text-slate-400">Pedido {formatOrderDisplayNumber(order.number)}</p>
                 <h2 className="mt-1 text-base font-black text-slate-950">{getOrderStatusLabel(order.status)}</h2>
                 <p className="text-xs font-semibold text-slate-500">
                   {new Date(order.created_at).toLocaleDateString('pt-BR')} - {order.items?.length || 0} itens

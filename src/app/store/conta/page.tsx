@@ -14,6 +14,7 @@ import {
 import { StoreAccountShell } from '@/components/store/StoreAccountShell';
 import { useDatabase } from '@/context/database-context';
 import { useStoreCustomer } from '@/context/store-customer-context';
+import { formatOrderDisplayNumber } from '@/lib/order-number';
 import { formatCurrency } from '@/lib/pricing';
 import { getOrderStatusLabel } from '@/lib/store-customer';
 import { STORE_ROUTES } from '@/lib/store-routes';
@@ -166,7 +167,7 @@ export default function StoreAccountHomePage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Último pedido</p>
-              <h2 className="mt-1 text-lg font-black text-slate-950">Pedido {lastOrder.number}</h2>
+              <h2 className="mt-1 text-lg font-black text-slate-950">Pedido {formatOrderDisplayNumber(lastOrder.number)}</h2>
               <p className="mt-0.5 text-sm font-semibold text-slate-500">
                 {getOrderStatusLabel(lastOrder.status)} - {formatCurrency(lastOrder.total_amount)}
               </p>

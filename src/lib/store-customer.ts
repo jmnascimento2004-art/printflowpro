@@ -115,8 +115,8 @@ export const maskDocument = (document: string) => {
 export const getOrderStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
     orcamento: 'Em analise',
-    aguardando_aprovacao: 'Aguardando aprovacao',
-    aguardando_pagamento: 'Aguardando pagamento',
+    aguardando_aprovacao: 'Aguardando',
+    aguardando_pagamento: 'Aguardando',
     producao: 'Em producao',
     impressao: 'Em impressao',
     acabamento: 'Em acabamento',

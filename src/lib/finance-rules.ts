@@ -1,4 +1,5 @@
 import type { FinancialTransaction, Order } from '@/lib/dummy-data';
+import { areOrderNumbersEquivalent } from '@/lib/order-number';
 import { isActiveOrder, isFinanciallyActiveOrder, normalizeStatus } from '@/lib/order-status';
 
 type TransactionLike = Partial<FinancialTransaction> & {
@@ -203,7 +204,7 @@ export const getActivePaymentsForOrder = (
   order?: Order | null
 ): FinancialTransaction[] =>
   getActivePaymentTransactions(transactions, order).filter((transaction) =>
-    transaction.order_id === orderId || Boolean(orderNumber && transaction.order_number === orderNumber)
+    transaction.order_id === orderId || areOrderNumbersEquivalent(transaction.order_number, orderNumber)
   );
 
 export const calculateOrderPaidAmount = (

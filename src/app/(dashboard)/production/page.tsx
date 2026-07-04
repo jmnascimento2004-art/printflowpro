@@ -13,6 +13,7 @@ import {
 import { useDatabase } from '@/context/database-context';
 import { ProductionItem } from '@/lib/dummy-data';
 import { isCancelledOrder, normalizeStatus } from '@/lib/order-status';
+import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { getWhatsAppTimeGreeting } from '@/lib/utils';
 
@@ -43,7 +44,7 @@ export default function ProductionPage() {
   };
 
   const getOrderForProductionItem = (item: ProductionItem) =>
-    orders.find(o => o.id === item.order_id || o.number === item.order_number);
+    orders.find(o => o.id === item.order_id || areOrderNumbersEquivalent(o.number, item.order_number));
 
   const sendWhatsAppStatus = (item: ProductionItem) => {
     const order = getOrderForProductionItem(item);
@@ -75,7 +76,7 @@ export default function ProductionPage() {
     const companyName = company?.name || "Nossa Gráfica";
     const greeting = getWhatsAppTimeGreeting();
 
-    const message = `${greeting}, *${customer.name}*!\n\nPassando para informar que o seu pedido *${item.order_number}* (*${item.product_name}*) avançou na nossa linha de produção e agora está na fase de: *${statusName}*.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${companyName}*`;
+    const message = `${greeting}, *${customer.name}*!\n\nPassando para informar que o seu pedido *${formatOrderDisplayNumber(item.order_number)}* (*${item.product_name}*) avançou na nossa linha de produção e agora está na fase de: *${statusName}*.\n\nQualquer dúvida, estamos à disposição!\n\nAtenciosamente,\n*${companyName}*`;
     
     const opened = openWhatsAppUrl(customer.phone, message);
     if (!opened) {
@@ -101,7 +102,7 @@ export default function ProductionPage() {
   // 1. Filter production queue based on search
   const filteredQueue = activeProductionQueue.filter(p =>
     p.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.order_number.toLowerCase().includes(searchQuery.toLowerCase())
+    getOrderNumberSearchText(p.order_number).includes(searchQuery.toLowerCase())
   );
 
   // Kanban columns configuration
@@ -243,7 +244,7 @@ export default function ProductionPage() {
                       >
                         {/* Card Header: Order Number and Priority */}
                         <div className="flex justify-between items-center w-full">
-                          <span className="font-bold text-xs text-foreground">{item.order_number}</span>
+                          <span className="font-bold text-xs text-foreground">{formatOrderDisplayNumber(item.order_number)}</span>
                           <div className="flex items-center gap-1">
                             {getPriorityBadge(item.priority)}
                             {overdue && (

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import type { OrderPdfData } from '@/lib/pdf/pdf-data';
+import { formatOrderDisplayNumber } from '@/lib/order-number';
+import { normalizeOrderOperationalStatus } from '@/lib/order-status';
 import {
   buildVisibleCompanyAddress,
   buildCustomerAddress,
@@ -15,6 +17,19 @@ import {
   getPdfLogoUrl,
   normalizePdfText
 } from '@/lib/pdf/pdf-formatters';
+
+const orderStatusLabels: Record<ReturnType<typeof normalizeOrderOperationalStatus>, string> = {
+  orcamento: 'ORCAMENTO',
+  aguardando_aprovacao: 'AGUARDANDO',
+  aguardando_pagamento: 'AGUARDANDO',
+  producao: 'PRODUCAO',
+  impressao: 'IMPRESSAO',
+  acabamento: 'ACABAMENTO',
+  expedicao: 'EXPEDICAO',
+  entregue: 'ENTREGUE',
+  finalizado: 'FINALIZADO',
+  cancelado: 'CANCELADO'
+};
 
 const styles = StyleSheet.create({
   page: {
@@ -147,14 +162,16 @@ function ServicesRows({ data }: { data: OrderPdfData }) {
 export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
   const logoUrl = getPdfLogoUrl(data.company);
   const companyAddress = buildVisibleCompanyAddress(data.company, data.settings);
+  const orderDisplayNumber = formatOrderDisplayNumber(data.order.number);
   const productsTotal = data.order.items.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
   const servicesTotal = getAdditionalServicesTotal(data.order.additional_services);
   const grossTotal = productsTotal + servicesTotal + Number(data.order.shipping_cost || 0);
   const discount = Math.max(0, grossTotal - Number(data.order.total_amount || 0));
   const pending = Math.max(0, Number(data.order.total_amount || 0) - Number(data.order.paid_amount || 0));
+  const orderStatus = normalizeOrderOperationalStatus(data.order);
 
   return (
-    <Document title={`Pedido ${data.order.number}`} author={data.company.name}>
+    <Document title={`Pedido ${orderDisplayNumber}`} author={data.company.name}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={{ flex: 1.2 }}>
@@ -167,7 +184,7 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
           </View>
           <View style={styles.titleBlock}>
             <Text style={styles.title}>PEDIDO COMERCIAL</Text>
-            <Text style={styles.title}>{data.order.number}</Text>
+            <Text style={styles.title}>{orderDisplayNumber}</Text>
             <Text style={styles.meta}>Emissão: {formatPdfDate(data.order.created_at)}</Text>
             <Text style={styles.meta}>Prazo: {formatPdfDate(data.order.deadline)}</Text>
           </View>
@@ -188,7 +205,7 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
           <View style={styles.box}>
             <Text style={styles.boxTitle}>Pedido</Text>
             <Text style={styles.label}>Status operacional</Text>
-            <Text style={styles.value}>{data.order.status.replaceAll('_', ' ').toUpperCase()}</Text>
+            <Text style={styles.value}>{orderStatusLabels[orderStatus]}</Text>
             <Text style={styles.label}>Status financeiro</Text>
             <Text style={styles.value}>{data.order.payment_status.toUpperCase()}</Text>
             <Text style={styles.label}>Entrega/Frete</Text>
