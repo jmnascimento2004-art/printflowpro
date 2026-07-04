@@ -575,6 +575,30 @@ export default function OrdersPage() {
   const activeOrders = orders.filter(isActiveOrder);
   const cancelledOrders = orders.filter(isCancelledOrder);
 
+  const getOpenInvoicedTransaction = (order: Order) => {
+    const paidAmount = Math.max(Number(order.paid_amount || 0), calculateOrderPaidAmount(order, financial));
+    const balance = Math.max(0, Number(order.total_amount || 0) - paidAmount);
+    if (balance <= 0) return undefined;
+
+    return financial.find((transaction) =>
+      transaction.type === 'receita' &&
+      transaction.payment_method === 'faturado' &&
+      transaction.status === 'pendente' &&
+      !isCancelledOrder(order) &&
+      (transaction.order_id === order.id || areOrderNumbersEquivalent(transaction.order_number, order.number))
+    );
+  };
+
+  const isInvoicedOrder = (order: Order) => Boolean(getOpenInvoicedTransaction(order));
+
+  const getInvoicedOrderDueDate = (order: Order) => getOpenInvoicedTransaction(order)?.due_date || null;
+
+  const isInvoicedOrderOverdue = (order: Order) => {
+    const dueDate = getInvoicedOrderDueDate(order);
+    if (!dueDate || order.payment_status === 'pago') return false;
+    return new Date(`${dueDate}T23:59:59`) < new Date();
+  };
+
   const getFilteredOrdersByTab = (tab: typeof activeTab) => {
     const baseOrders = tab === 'cancelado' ? cancelledOrders : activeOrders;
     const searchedOrders = baseOrders.filter(matchesSearchQuery);
@@ -614,6 +638,12 @@ export default function OrdersPage() {
     }
 
     if (paymentMethod === 'faturado') {
+      const existingInvoice = getOpenInvoicedTransaction(selectedOrder);
+      if (existingInvoice) {
+        alert(`Este pedido ja possui faturamento B2B em aberto com vencimento em ${new Date(existingInvoice.due_date).toLocaleDateString('pt-BR')}. Registre a baixa usando PIX, cartao, dinheiro ou boleto.`);
+        return;
+      }
+
       const client = customers.find(c => c.name === selectedOrder.customer_name);
       if (!client || client.billing_type !== 'faturado') {
         alert('Este cliente não possui permissão de faturamento corporativo!');
@@ -623,7 +653,15 @@ export default function OrdersPage() {
         alert('O crédito corporativo deste cliente não está APROVADO!');
         return;
       }
-      const creditAvailable = (client.credit_limit || 0) - (client.credit_used || 0);
+      const openB2BForClient = activeOrders
+        .filter((order) => order.customer_id === client.id || order.customer_name === client.name)
+        .reduce((sum, order) => {
+          const invoice = getOpenInvoicedTransaction(order);
+          if (!invoice) return sum;
+          const paidAmount = Math.max(Number(order.paid_amount || 0), calculateOrderPaidAmount(order, financial));
+          return sum + Math.max(0, Number(order.total_amount || 0) - paidAmount);
+        }, 0);
+      const creditAvailable = (client.credit_limit || 0) - openB2BForClient;
       if (creditAvailable < paymentAmount) {
         alert(`Crédito indisponível! Limite disponível: ${formatCurrency(creditAvailable)}`);
         return;
@@ -640,7 +678,7 @@ export default function OrdersPage() {
       ...selectedOrder,
       paid_amount: newPaid,
       payment_status: paymentMethod === 'faturado'
-        ? 'parcial'
+        ? 'pendente'
         : newPaid >= selectedOrder.total_amount
           ? 'pago'
           : 'parcial'
@@ -663,7 +701,20 @@ export default function OrdersPage() {
     paymentSubmissionRef.current = false;
   };
 
-  const getPaymentStatusBadge = (status: Order['payment_status']) => {
+  const getPaymentStatusBadge = (status: Order['payment_status'], order?: Order) => {
+    if (order && status !== 'pago' && isInvoicedOrder(order)) {
+      const overdue = isInvoicedOrderOverdue(order);
+      return (
+        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+          overdue
+            ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+            : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+        }`}>
+          {overdue ? 'VENCIDO' : 'FATURADO'}
+        </span>
+      );
+    }
+
     const styles = {
       pendente: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
       parcial: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -902,7 +953,12 @@ export default function OrdersPage() {
   const pendingPaymentOrdersCount = activeOrders.filter(o => o.payment_status === 'pendente').length;
   const pendingAmount = activeOrders.reduce((sum, o) => sum + Math.max(0, o.total_amount - o.paid_amount), 0);
   const activeProductionCount = activeOrders.filter(isProductionActiveOrder).length;
-  const corporateB2BFaturado = customers.reduce((sum, c) => sum + (c.credit_used || 0), 0);
+  const corporateB2BFaturado = activeOrders.reduce((sum, order) => {
+    const invoice = getOpenInvoicedTransaction(order);
+    if (!invoice) return sum;
+    const paidAmount = Math.max(Number(order.paid_amount || 0), calculateOrderPaidAmount(order, financial));
+    return sum + Math.max(0, Number(order.total_amount || 0) - paidAmount);
+  }, 0);
 
   const selectedOrderPaidAmount = selectedOrder ? getConfirmedPaidAmountForOrder(selectedOrder) : 0;
   const selectedOrderPendingAmount = selectedOrder
@@ -910,10 +966,12 @@ export default function OrdersPage() {
     : 0;
 
   const selectedOrderTransactions = selectedOrder
-    ? getActivePaymentTransactions(
-        financial.filter((transaction) => transaction.order_id === selectedOrder.id || areOrderNumbersEquivalent(transaction.order_number, selectedOrder.number)),
-        selectedOrder
-      )
+    ? financial.filter((transaction) => {
+        const matchesOrder = transaction.order_id === selectedOrder.id || areOrderNumbersEquivalent(transaction.order_number, selectedOrder.number);
+        if (!matchesOrder || transaction.type !== 'receita') return false;
+        if (transaction.payment_method === 'faturado' && transaction.status === 'pendente') return !isCancelledOrder(selectedOrder);
+        return getActivePaymentTransactions([transaction], selectedOrder).length > 0;
+      })
     : [];
   
   return (
@@ -1608,7 +1666,7 @@ export default function OrdersPage() {
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         {getOrderStatusBadge(order.status)}
-                        {getPaymentStatusBadge(order.payment_status)}
+                        {getPaymentStatusBadge(order.payment_status, order)}
                       </div>
                     </div>
 
@@ -1771,7 +1829,7 @@ export default function OrdersPage() {
                           </td>
                           <td className="px-3 py-2.5 text-right font-bold text-foreground whitespace-nowrap">{formatCurrency(order.total_amount)}</td>
                           <td className="px-3 py-2.5 text-left whitespace-nowrap">{getOrderStatusBadge(order.status)}</td>
-                          <td className="px-3 py-2.5 text-left whitespace-nowrap">{getPaymentStatusBadge(order.payment_status)}</td>
+                          <td className="px-3 py-2.5 text-left whitespace-nowrap">{getPaymentStatusBadge(order.payment_status, order)}</td>
                           <td className="px-3 py-2.5 text-left whitespace-nowrap">
                             <div className="flex items-center justify-start gap-1.5">
                               <button
@@ -1872,7 +1930,7 @@ export default function OrdersPage() {
                 </div>
                 <div className="rounded-xl border border-border bg-card p-3">
                   <span className="block text-[10px] font-bold uppercase text-muted-foreground">Financeiro</span>
-                  <div className="mt-1">{getPaymentStatusBadge(selectedOrder.payment_status)}</div>
+                  <div className="mt-1">{getPaymentStatusBadge(selectedOrder.payment_status, selectedOrder)}</div>
                 </div>
                 <div className="rounded-xl border border-border bg-card p-3">
                   <span className="block text-[10px] font-bold uppercase text-muted-foreground">Total</span>
@@ -2202,6 +2260,17 @@ export default function OrdersPage() {
               {/* B2B Invoiced Credit limit indicators */}
               {paymentMethod === 'faturado' && (() => {
                 const clientOfOrder = customers.find(c => c.name === selectedOrder?.customer_name);
+                const openB2BForClient = clientOfOrder
+                  ? activeOrders
+                      .filter((order) => order.customer_id === clientOfOrder.id || order.customer_name === clientOfOrder.name)
+                      .reduce((sum, order) => {
+                        const invoice = getOpenInvoicedTransaction(order);
+                        if (!invoice) return sum;
+                        const paidAmount = Math.max(Number(order.paid_amount || 0), calculateOrderPaidAmount(order, financial));
+                        return sum + Math.max(0, Number(order.total_amount || 0) - paidAmount);
+                      }, 0)
+                  : 0;
+                const availableCredit = Math.max(0, (clientOfOrder?.credit_limit || 0) - openB2BForClient);
                 return (
                   <div className="p-4 bg-secondary/30 border border-border rounded-xl space-y-2.5 text-xs w-full">
                     {clientOfOrder ? (
@@ -2219,7 +2288,7 @@ export default function OrdersPage() {
                             <div className="flex justify-between">
                               <span>Limite Disponível:</span>
                               <span className="font-extrabold text-emerald-500">
-                                {formatCurrency(Math.max(0, (clientOfOrder.credit_limit || 0) - (clientOfOrder.credit_used || 0)))}
+                                {formatCurrency(availableCredit)}
                               </span>
                             </div>
                             <div className="flex justify-between">
@@ -2239,7 +2308,7 @@ export default function OrdersPage() {
                                 <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Crédito do cliente bloqueado/sob análise!
                               </div>
                             )}
-                            {(clientOfOrder.credit_limit || 0) - (clientOfOrder.credit_used || 0) < paymentAmount && (
+                            {availableCredit < paymentAmount && (
                               <div className="text-rose-500 font-bold bg-rose-500/10 p-2 rounded text-[10px] flex items-center gap-1 mt-1">
                                 <AlertCircle className="h-3.5 w-3.5 shrink-0" /> O valor excede o limite disponível!
                               </div>

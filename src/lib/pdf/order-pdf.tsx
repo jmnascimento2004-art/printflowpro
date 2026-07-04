@@ -169,6 +169,10 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
   const discount = Math.max(0, grossTotal - Number(data.order.total_amount || 0));
   const pending = Math.max(0, Number(data.order.total_amount || 0) - Number(data.order.paid_amount || 0));
   const orderStatus = normalizeOrderOperationalStatus(data.order);
+  const isInvoicedB2B = Boolean(data.invoicedTransaction && pending > 0);
+  const financialStatusLabel = isInvoicedB2B
+    ? 'FATURADO'
+    : data.order.payment_status.toUpperCase();
 
   return (
     <Document title={`Pedido ${orderDisplayNumber}`} author={data.company.name}>
@@ -207,7 +211,15 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
             <Text style={styles.label}>Status operacional</Text>
             <Text style={styles.value}>{orderStatusLabels[orderStatus]}</Text>
             <Text style={styles.label}>Status financeiro</Text>
-            <Text style={styles.value}>{data.order.payment_status.toUpperCase()}</Text>
+            <Text style={styles.value}>{financialStatusLabel}</Text>
+            {isInvoicedB2B ? (
+              <>
+                <Text style={styles.label}>Forma de pagamento</Text>
+                <Text style={styles.value}>FATURADO B2B</Text>
+                <Text style={styles.label}>Vencimento</Text>
+                <Text style={styles.value}>{formatPdfDate(data.invoicedTransaction?.due_date)}</Text>
+              </>
+            ) : null}
             <Text style={styles.label}>Entrega/Frete</Text>
             <Text style={styles.value}>{data.order.delivery_type || 'retirada'} / {formatPdfCurrency(data.order.shipping_cost)}</Text>
           </View>

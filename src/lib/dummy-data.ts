@@ -154,6 +154,7 @@ export interface Customer {
     birth_date?: string;
     contact_preference?: string;
     person_type?: 'fisica' | 'juridica';
+    billing_notes?: string;
     responsavel_nome?: string;
     responsavel_financeiro_nome?: string;
     responsavel_financeiro_phone?: string;

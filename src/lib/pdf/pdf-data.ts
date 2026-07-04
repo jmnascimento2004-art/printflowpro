@@ -18,6 +18,7 @@ export type QuotePdfData = {
 export type OrderPdfData = {
   order: Order;
   customer: Customer | null;
+  invoicedTransaction?: FinancialTransaction | null;
   company: Company;
   settings: PdfSettings;
 };
@@ -185,13 +186,41 @@ export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null>
     items: ((itemRows || []) as OrderItemRow[]).map(normalizeOrderItem)
   } as Order;
 
-  const [company, customer, settings] = await Promise.all([
+  const [
+    company,
+    customer,
+    settings,
+    invoicedTransactionRow
+  ] = await Promise.all([
     loadCompany(supabase, order.company_id),
     loadCustomer(supabase, order.customer_id),
-    loadPdfSettings(supabase, order.company_id)
+    loadPdfSettings(supabase, order.company_id),
+    supabase
+      .from('financial_transactions')
+      .select('*')
+      .eq('order_id', order.id)
+      .eq('type', 'receita')
+      .eq('payment_method', 'faturado')
+      .eq('status', 'pendente')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
   ]);
 
-  return { order, company, customer, settings };
+  if (invoicedTransactionRow.error) throw invoicedTransactionRow.error;
+
+  return {
+    order,
+    company,
+    customer,
+    settings,
+    invoicedTransaction: invoicedTransactionRow.data
+      ? {
+          ...(invoicedTransactionRow.data as FinancialTransaction),
+          amount: Number(invoicedTransactionRow.data.amount || 0)
+        }
+      : null
+  };
 }
 
 export async function loadReceiptPdfData(transactionId: string): Promise<ReceiptPdfData | null> {

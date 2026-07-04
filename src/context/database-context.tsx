@@ -1964,7 +1964,7 @@ useEffect(() => {
           const nextOrder = {
             ...o,
             paid_amount: method === 'faturado' ? o.paid_amount : newPaid,
-            payment_status: method === 'faturado' ? 'parcial' as const : payment_status,
+            payment_status: method === 'faturado' ? 'pendente' as const : payment_status,
             status: nextStatus
           };
 
@@ -2409,7 +2409,7 @@ useEffect(() => {
       total_amount: total,
       paid_amount: posOrder.payment_method === 'faturado' ? 0 : posOrder.paid_amount,
       payment_status: posOrder.payment_method === 'faturado'
-        ? 'parcial'
+        ? 'pendente'
         : posOrder.paid_amount >= total 
           ? 'pago' 
           : posOrder.paid_amount > 0 

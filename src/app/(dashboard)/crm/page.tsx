@@ -30,7 +30,9 @@ import { formatOrderDisplayNumber } from '@/lib/order-number';
 import {
   formatCEP,
   formatCNPJ,
+  formatCurrencyInput,
   formatCPF,
+  parseCurrencyInputToNumber,
   sanitizeCEP,
   validateCEP,
   validateCNPJ
@@ -104,6 +106,10 @@ export default function CustomersPage() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [notes, setNotes] = useState('');
+  const [b2bEnabled, setB2bEnabled] = useState(false);
+  const [creditLimit, setCreditLimit] = useState(0);
+  const [paymentTermsDays, setPaymentTermsDays] = useState(15);
+  const [billingNotes, setBillingNotes] = useState('');
   const [lookupStatus, setLookupStatus] = useState('');
   const [zipLookupStatus, setZipLookupStatus] = useState('');
 
@@ -126,6 +132,10 @@ export default function CustomersPage() {
     setCity('');
     setState('');
     setNotes('');
+    setB2bEnabled(false);
+    setCreditLimit(0);
+    setPaymentTermsDays(15);
+    setBillingNotes('');
     setLookupStatus('');
     setZipLookupStatus('');
   };
@@ -160,6 +170,10 @@ export default function CustomersPage() {
     setCity(customer.address?.city || '');
     setState(customer.address?.state || '');
     setNotes(customer.notes || '');
+    setB2bEnabled(customer.billing_type === 'faturado');
+    setCreditLimit(customer.credit_limit || 0);
+    setPaymentTermsDays(customer.payment_terms_days || 15);
+    setBillingNotes(extra.billing_notes || '');
     setLookupStatus('');
     setZipLookupStatus('');
     setDetailsCustomer(null);
@@ -369,6 +383,7 @@ export default function CustomersPage() {
     }
 
     const preservedExtra = selectedCustomer?.corporate_additional_info || {};
+    const nextBillingEnabled = personType === 'juridica' && b2bEnabled;
     const nextCustomer = {
       name,
       document,
@@ -385,11 +400,11 @@ export default function CustomersPage() {
       },
       tags: selectedCustomer?.tags?.length ? selectedCustomer.tags : ['Cliente'],
       notes,
-      billing_type: selectedCustomer?.billing_type || 'imediato',
-      credit_limit: selectedCustomer?.credit_limit || 0,
+      billing_type: nextBillingEnabled ? 'faturado' as const : 'imediato' as const,
+      credit_limit: nextBillingEnabled ? Math.max(0, creditLimit) : 0,
       credit_used: selectedCustomer?.credit_used || 0,
-      payment_terms_days: selectedCustomer?.payment_terms_days || 0,
-      credit_status: selectedCustomer?.credit_status || 'aprovado',
+      payment_terms_days: nextBillingEnabled ? Math.max(1, paymentTermsDays || 15) : 0,
+      credit_status: nextBillingEnabled ? selectedCustomer?.credit_status || 'aprovado' as const : 'aprovado' as const,
       corporate_additional_info: {
         ...preservedExtra,
         person_type: personType,
@@ -397,6 +412,7 @@ export default function CustomersPage() {
         birth_date: personType === 'fisica' ? birthDate : undefined,
         nome_fantasia: personType === 'juridica' ? tradeName : undefined,
         inscricao_estadual: personType === 'juridica' ? stateRegistration : undefined,
+        billing_notes: nextBillingEnabled ? billingNotes : undefined,
         responsavel_nome: personType === 'juridica' ? responsibleName : undefined,
         responsavel_financeiro_nome: personType === 'juridica'
           ? responsibleName
@@ -715,6 +731,66 @@ export default function CustomersPage() {
                 </Field>
               </div>
 
+              {personType === 'juridica' && (
+                <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-emerald-700">Faturamento B2B</h4>
+                      <p className="mt-1 text-[11px] font-semibold text-emerald-700/70">Permite pedidos PJ com vencimento e baixa posterior.</p>
+                    </div>
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700">
+                      <input
+                        type="checkbox"
+                        checked={b2bEnabled}
+                        onChange={(event) => setB2bEnabled(event.target.checked)}
+                        className="h-4 w-4 accent-emerald-600"
+                      />
+                      Permitir faturado
+                    </label>
+                  </div>
+
+                  {b2bEnabled && (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <Field label="Limite de credito">
+                        <input
+                          value={formatCurrencyInput(creditLimit)}
+                          onChange={(event) => setCreditLimit(parseCurrencyInputToNumber(event.target.value))}
+                          className={inputClass}
+                          placeholder="R$ 0,00"
+                        />
+                      </Field>
+                      <Field label="Prazo padrao (dias)">
+                        <input
+                          type="number"
+                          min={1}
+                          max={180}
+                          value={paymentTermsDays}
+                          onChange={(event) => setPaymentTermsDays(Math.max(1, Number(event.target.value) || 1))}
+                          className={inputClass}
+                          placeholder="15"
+                        />
+                      </Field>
+                      <Field label="Status do credito">
+                        <input
+                          value={selectedCustomer?.credit_status || 'aprovado'}
+                          disabled
+                          className={`${inputClass} bg-slate-100 text-slate-500`}
+                        />
+                      </Field>
+                      <Field label="Observacoes de faturamento" className="md:col-span-3">
+                        <textarea
+                          value={billingNotes}
+                          onChange={(event) => setBillingNotes(event.target.value)}
+                          rows={2}
+                          className={`${inputClass} min-h-20 resize-none py-2`}
+                          placeholder="Ex: Cliente autorizado para pagamento faturado"
+                        />
+                      </Field>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-3 border-t border-border pt-4">
                 <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Endereço</h4>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
@@ -864,6 +940,17 @@ export default function CustomersPage() {
                   </DetailCard>
                 )}
 
+                {selectedPersonType === 'juridica' && (
+                  <DetailCard title="Faturamento B2B">
+                    <DetailLine label="Status" value={selectedCustomer.billing_type === 'faturado' ? 'Faturado habilitado' : 'Pagamento imediato'} />
+                    <DetailLine label="Limite" value={formatCurrency(selectedCustomer.credit_limit || 0)} />
+                    <DetailLine label="Utilizado" value={formatCurrency(selectedCustomer.credit_used || 0)} />
+                    <DetailLine label="Prazo" value={`${selectedCustomer.payment_terms_days || 0} dias`} />
+                    <DetailLine label="Credito" value={selectedCustomer.credit_status || 'aprovado'} />
+                    <DetailLine label="Obs." value={selectedExtra.billing_notes || 'Nao informado'} />
+                  </DetailCard>
+                )}
+
                 {selectedPersonType === 'fisica' && (
                   <DetailCard title="Pessoa Física">
                     <DetailLine label="Nome completo" value={selectedCustomer.name || 'Não informado'} />
@@ -1005,6 +1092,17 @@ export default function CustomersPage() {
                   )}
                 </div>
 
+                {detailPersonType === 'juridica' && (
+                  <DetailCard title="Faturamento B2B">
+                    <DetailLine label="Status" value={detailsCustomer.billing_type === 'faturado' ? 'Faturado habilitado' : 'Pagamento imediato'} />
+                    <DetailLine label="Limite" value={formatCurrency(detailsCustomer.credit_limit || 0)} />
+                    <DetailLine label="Utilizado" value={formatCurrency(detailsCustomer.credit_used || 0)} />
+                    <DetailLine label="Prazo" value={`${detailsCustomer.payment_terms_days || 0} dias`} />
+                    <DetailLine label="Credito" value={detailsCustomer.credit_status || 'aprovado'} />
+                    <DetailLine label="Obs." value={detailExtra.billing_notes || 'Nao informado'} />
+                  </DetailCard>
+                )}
+
                 {detailsCustomer.notes && (
                   <div className="rounded-xl border border-border bg-secondary/30 p-3.5">
                     <h5 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Observacoes</h5>
@@ -1137,6 +1235,7 @@ function CustomerCard({
 
       <div className="mt-3 flex flex-wrap gap-1">
         {catalogCustomer && <CatalogBadge />}
+        {customer.billing_type === 'faturado' && <MiniBadge>Faturado B2B</MiniBadge>}
         <MiniBadge>{quotesCount} orcamento(s)</MiniBadge>
         <MiniBadge>{ordersCount} pedido(s)</MiniBadge>
       </div>
