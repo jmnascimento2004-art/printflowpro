@@ -1,141 +1,193 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publicSupabase } from '@/lib/publicSupabaseClient';
-import type { Category, Company, PickupPoint, Product } from '@/lib/dummy-data';
+import { isLocalStoreHost, normalizeStoreHost } from '@/lib/store/normalize-store-host';
 
-interface PublicStoreBanner {
-  id: string;
-  image_url: string;
-  title?: string;
-  subtitle?: string;
-  link?: string;
-  company_id?: string;
+export const dynamic = 'force-dynamic';
+
+const COMPANY_FIELDS = [
+  'id', 'name', 'document', 'logo_url', 'logo_light', 'logo_dark', 'favicon', 'phone', 'email',
+  'cep', 'street', 'number', 'neighborhood', 'city', 'state', 'theme_color', 'admin_domain',
+  'store_domain', 'custom_domain', 'instagram_url', 'facebook_url', 'youtube_url', 'refund_policy',
+  'show_payments_visa', 'show_payments_mastercard', 'show_payments_elo', 'show_payments_hipercard',
+  'show_payments_diners', 'show_payments_amex', 'show_payments_boleto', 'show_payments_deposito',
+  'show_payments_transferencia', 'show_payments_pix', 'show_delivery_sedex', 'show_delivery_pac',
+  'show_delivery_correios', 'show_delivery_jadlog', 'show_delivery_motoboy',
+  'show_security_letsencrypt', 'show_security_google', 'card_benefits_1_title',
+  'card_benefits_1_subtitle', 'card_benefits_1_active', 'card_benefits_2_title',
+  'card_benefits_2_subtitle', 'card_benefits_2_active', 'card_benefits_3_title',
+  'card_benefits_3_subtitle', 'card_benefits_3_active', 'card_benefits_4_title',
+  'card_benefits_4_subtitle', 'card_benefits_4_active', 'img_payments_visa',
+  'img_payments_mastercard', 'img_payments_elo', 'img_payments_hipercard', 'img_payments_diners',
+  'img_payments_amex', 'img_payments_boleto', 'img_payments_transferencia', 'img_payments_pix',
+  'img_delivery_sedex', 'img_delivery_pac', 'img_delivery_correios', 'img_delivery_jadlog',
+  'img_delivery_motoboy', 'img_security_letsencrypt', 'img_security_google'
+].join(',');
+
+const SETTINGS_FIELDS = [
+  'top_bar_hours', 'top_bar_show_pickup', 'top_bar_phone', 'footer_show_address',
+  'footer_hours_message', 'footer_hours_week', 'footer_hours_sat', 'footer_hours_sat_time',
+  'footer_hours_sat_desc', 'company_address', 'delivery_motoboy_price_km',
+  'delivery_car_price_km', 'delivery_min_fee', 'catalog_header_message', 'catalog_whatsapp',
+  'free_pickup_alert', 'catalog_promotions_section_enabled', 'catalog_footer_text'
+].join(',');
+
+const CATEGORY_FIELDS = 'id,parent_id,name,description,show_in_catalog';
+const PRODUCT_FIELDS = [
+  'id', 'category_id', 'name', 'description', 'sku', 'pricing_type', 'sales_price', 'active',
+  'catalog_active', 'pricing_details', 'image_url', 'volume_pricing',
+  'variant_options', 'color_options', 'is_promo', 'is_highlight'
+].join(',');
+const PICKUP_POINT_FIELDS = [
+  'id', 'name', 'street', 'number', 'neighborhood', 'city', 'state', 'hours_week', 'hours_sat',
+  'active', 'address', 'hours'
+].join(',');
+const BANNER_FIELDS = 'id,image_url,title,subtitle,link';
+
+type PublicProductRow = Record<string, unknown> & {
+  pricing_details?: Record<string, unknown> | null;
+};
+
+function sanitizeProduct(row: PublicProductRow) {
+  const pricingDetails = row.pricing_details;
+  const publicPricingDetails = pricingDetails
+    ? {
+        configurator_options: pricingDetails.configurator_options,
+        gallery_images: pricingDetails.gallery_images,
+        delivery_time: pricingDetails.delivery_time
+      }
+    : undefined;
+
+  return {
+    ...row,
+    pricing_details: publicPricingDetails
+  };
 }
 
-const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+function publicError(message: string, code: string, status: number) {
+  return NextResponse.json({ error: message, code }, { status });
+}
 
-const normalizeDomain = (value?: string | null) => {
-  const trimmed = String(value || '').trim().toLowerCase();
-  if (!trimmed) return '';
+function isServiceUnavailable(error: unknown) {
+  if (error instanceof TypeError) return true;
+  const candidate = error as { message?: unknown } | null;
+  const message = typeof candidate?.message === 'string' ? candidate.message.toLowerCase() : '';
+  return message.includes('fetch failed') || message.includes('network error');
+}
 
-  const withoutProtocol = trimmed.replace(/^https?:\/\//, '');
-  return withoutProtocol.split('/')[0].split(':')[0].replace(/^www\./, '');
-};
-
-const normalizeDomainSlug = (value: string = '') =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
-
-const isPlaceholderCompanyName = (name?: string | null) => {
-  const slug = normalizeDomainSlug(name || '');
-  return !slug || slug === 'minhaempresa' || slug === 'printflowpro';
-};
-
-const resolveLocalCompany = (companies: Company[]) =>
-  companies.find((company) => !isPlaceholderCompanyName(company.name)) || companies[0] || null;
-
-const resolveStoreCompanyForHost = (companies: Company[], host: string) => {
-  const hostname = normalizeDomain(host);
-  if (!hostname || LOCAL_HOSTNAMES.has(hostname)) return resolveLocalCompany(companies);
-
-  const exactDomainMatch = companies.find((company) => {
-    const adminDomain = normalizeDomain(company.admin_domain);
-    const storeDomain = normalizeDomain(company.store_domain);
-    const customDomain = normalizeDomain(company.custom_domain);
-
-    return adminDomain === hostname || storeDomain === hostname || customDomain === hostname;
+function logStoreError(stage: string, host: string | null, error: unknown) {
+  if (process.env.NODE_ENV === 'production') return;
+  const candidate = error as { code?: unknown; message?: unknown } | null;
+  console.error('[Store public-data]', {
+    route: '/api/store/public-data',
+    stage,
+    host,
+    code: typeof candidate?.code === 'string' ? candidate.code : undefined,
+    message: typeof candidate?.message === 'string' ? candidate.message : 'Unexpected error'
   });
-  if (exactDomainMatch) return exactDomainMatch;
-
-  const hostnameWithoutKnownPrefix = hostname.replace(/^(admin|store)\./, '');
-  const hostnameSlug = normalizeDomainSlug(hostnameWithoutKnownPrefix.split('.')[0] || hostnameWithoutKnownPrefix);
-  return companies.find((company) => {
-    const companySlug = normalizeDomainSlug(company.name);
-    return companySlug.length >= 4 && hostnameSlug.includes(companySlug);
-  }) || null;
-};
+}
 
 export async function GET(request: NextRequest) {
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || request.nextUrl.hostname;
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const rawHost = forwardedHost || request.headers.get('host') || request.nextUrl.hostname;
+  const requestHost = normalizeStoreHost(rawHost);
+  const developmentHost = process.env.NODE_ENV !== 'production'
+    ? normalizeStoreHost(process.env.STORE_PUBLIC_DEV_HOST)
+    : null;
+  const host = requestHost && isLocalStoreHost(requestHost) ? developmentHost : requestHost;
 
-  const { data: companies, error: companiesError } = await publicSupabase
-    .from('companies')
-    .select('*');
-
-  if (companiesError) {
-    return NextResponse.json(
-      { error: 'Nao foi possivel carregar as empresas publicas.', details: companiesError.message },
-      { status: 500 }
-    );
+  if (!host || isLocalStoreHost(host)) {
+    return publicError('Dominio da loja ausente ou invalido.', 'INVALID_STORE_HOST', 400);
   }
 
-  const companyRows = (companies || []) as Company[];
-  const company = resolveStoreCompanyForHost(companyRows, host);
+  try {
+    const companyResult = await publicSupabase
+      .from('companies')
+      .select(COMPANY_FIELDS)
+      .or(`store_domain.eq.${host},custom_domain.eq.${host},admin_domain.eq.${host}`)
+      .limit(2);
 
-  if (!company?.id) {
+    if (companyResult.error) {
+      logStoreError('resolve-company', host, companyResult.error);
+      return publicError(
+        'Nao foi possivel carregar a loja no momento.',
+        'STORE_DATA_UNAVAILABLE',
+        isServiceUnavailable(companyResult.error) ? 503 : 500
+      );
+    }
+
+    const companyRows = companyResult.data as unknown as Array<Record<string, unknown>> | null;
+
+    if (!companyRows?.length) {
+      return publicError('Loja nao encontrada.', 'STORE_NOT_FOUND', 404);
+    }
+
+    if (companyRows.length !== 1) {
+      logStoreError('resolve-company-ambiguous', host, { code: 'AMBIGUOUS_STORE_DOMAIN' });
+      return publicError('Nao foi possivel carregar a loja no momento.', 'STORE_DATA_UNAVAILABLE', 500);
+    }
+
+    const company = companyRows[0];
+    const companyId = String(company.id || '');
+    if (!companyId) {
+      logStoreError('resolve-company-id', host, { code: 'MISSING_COMPANY_ID' });
+      return publicError('Nao foi possivel carregar a loja no momento.', 'STORE_DATA_UNAVAILABLE', 500);
+    }
+
+    const [settingsResult, categoriesResult, productsResult, pickupPointsResult, bannersResult] =
+      await Promise.all([
+        publicSupabase.from('settings').select(SETTINGS_FIELDS).eq('company_id', companyId).maybeSingle(),
+        publicSupabase.from('categories').select(CATEGORY_FIELDS).eq('company_id', companyId),
+        publicSupabase
+          .from('products')
+          .select(PRODUCT_FIELDS)
+          .eq('company_id', companyId)
+          .eq('active', true)
+          .eq('catalog_active', true),
+        publicSupabase
+          .from('pickup_points')
+          .select(PICKUP_POINT_FIELDS)
+          .eq('company_id', companyId)
+          .eq('active', true),
+        publicSupabase.from('store_banners').select(BANNER_FIELDS).eq('company_id', companyId)
+      ]);
+
+    const failedResult = [
+      ['settings', settingsResult.error],
+      ['categories', categoriesResult.error],
+      ['products', productsResult.error],
+      ['pickup-points', pickupPointsResult.error],
+      ['banners', bannersResult.error]
+    ].find(([, error]) => Boolean(error));
+
+    if (failedResult) {
+      logStoreError(String(failedResult[0]), host, failedResult[1]);
+      return publicError('Nao foi possivel carregar a loja no momento.', 'STORE_DATA_UNAVAILABLE', 500);
+    }
+
     return NextResponse.json(
       {
-        error: 'Empresa da loja nao encontrada para o dominio.',
-        host: normalizeDomain(host),
-        companiesCount: companyRows.length
+        company,
+        settings: settingsResult.data || null,
+        categories: (categoriesResult.data || []).map((category) => ({
+          ...category,
+          show_in_catalog: category.show_in_catalog ?? true
+        })),
+        products: ((productsResult.data || []) as unknown as PublicProductRow[]).map(sanitizeProduct),
+        pickupPoints: pickupPointsResult.data || [],
+        banners: bannersResult.data || []
       },
-      { status: 404 }
+      {
+        headers: {
+          'Cache-Control': 'private, no-store, max-age=0'
+        }
+      }
+    );
+  } catch (error) {
+    logStoreError('request', host, error);
+    return publicError(
+      'Nao foi possivel carregar a loja no momento.',
+      'STORE_DATA_UNAVAILABLE',
+      isServiceUnavailable(error) ? 503 : 500
     );
   }
-
-  const [
-    settingsResult,
-    categoriesResult,
-    productsResult,
-    pickupPointsResult,
-    bannersResult
-  ] = await Promise.all([
-    publicSupabase.from('settings').select('*').eq('company_id', company.id),
-    publicSupabase.from('categories').select('*').eq('company_id', company.id),
-    publicSupabase
-      .from('products')
-      .select('*')
-      .eq('company_id', company.id)
-      .eq('active', true)
-      .eq('catalog_active', true),
-    publicSupabase.from('pickup_points').select('*').eq('company_id', company.id),
-    publicSupabase.from('store_banners').select('*').eq('company_id', company.id)
-  ]);
-
-  const errors = [
-    settingsResult.error,
-    categoriesResult.error,
-    productsResult.error,
-    pickupPointsResult.error,
-    bannersResult.error
-  ].filter(Boolean);
-
-  if (errors.length > 0) {
-    return NextResponse.json(
-      { error: 'Nao foi possivel carregar dados publicos da loja.', details: errors.map((item) => item?.message) },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({
-    debug: {
-      host: normalizeDomain(host),
-      company_id: company.id,
-      company_name: company.name,
-      companies_count: companyRows.length,
-      products_count: (productsResult.data || []).length,
-      categories_count: (categoriesResult.data || []).length
-    },
-    company,
-    settings: settingsResult.data?.[0] || null,
-    categories: ((categoriesResult.data || []) as Category[]).map((category) => ({
-      ...category,
-      show_in_catalog: category.show_in_catalog ?? true
-    })),
-    products: (productsResult.data || []) as Product[],
-    pickupPoints: (pickupPointsResult.data || []) as PickupPoint[],
-    banners: (bannersResult.data || []) as PublicStoreBanner[]
-  });
 }
