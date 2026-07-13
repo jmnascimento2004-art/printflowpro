@@ -4,7 +4,7 @@ declare function_signature regprocedure;
 begin
   for function_signature in
     select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
+    where n.nspname in ('public', 'private')
   loop
     execute format('revoke all on function %s from public, anon', function_signature);
   end loop;
@@ -13,6 +13,19 @@ $$;
 
 grant execute on function public.ensure_store_customer_account(text, text, text, text, text, text, text, date, text, text, text, boolean, boolean) to authenticated;
 grant execute on function public.save_quote_with_items(jsonb, jsonb) to authenticated;
+grant execute on function private.current_company_id() to authenticated;
+grant execute on function private.current_user_role() to authenticated;
+
+do $$
+begin
+  if to_regprocedure('private.current_store_customer_id()') is not null then
+    execute 'grant execute on function private.current_store_customer_id() to authenticated';
+  end if;
+  if to_regprocedure('private.current_store_company_id()') is not null then
+    execute 'grant execute on function private.current_store_company_id() to authenticated';
+  end if;
+end;
+$$;
 
 do $$
 begin
