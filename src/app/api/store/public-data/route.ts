@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { publicSupabase } from '@/lib/publicSupabaseClient';
+import { getSupabaseAdminClient } from '@/lib/supabase/server-admin';
 import { isLocalStoreHost, normalizeStoreHost } from '@/lib/store/normalize-store-host';
 
 export const dynamic = 'force-dynamic';
@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const publicSupabase = getSupabaseAdminClient();
     const companyResult = await publicSupabase
       .from('companies')
       .select(COMPANY_FIELDS)

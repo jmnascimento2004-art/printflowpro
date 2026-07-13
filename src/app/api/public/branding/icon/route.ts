@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 import type { Company, Settings } from '@/lib/dummy-data';
 import {
@@ -10,6 +9,7 @@ import {
   resolveBranding,
   resolveCompanyForBrandingHostname
 } from '@/lib/branding/resolveBranding';
+import { getSupabaseAdminClient } from '@/lib/supabase/server-admin';
 
 export const runtime = 'nodejs';
 
@@ -79,14 +79,8 @@ async function loadImageSource(src: string | null) {
 }
 
 async function resolveActiveBrandingForIcon(request: NextRequest): Promise<ActiveBranding> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return DEFAULT_BRANDING;
-
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
+    const supabase = getSupabaseAdminClient();
     const { data: companies } = await supabase
       .from('companies')
       .select('id,name,logo_url,logo_light,logo_dark,favicon,theme_color,admin_domain,store_domain,custom_domain,refund_policy');

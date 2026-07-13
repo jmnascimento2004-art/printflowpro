@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import type { Company, Settings } from '@/lib/dummy-data';
 import {
   DEFAULT_BRANDING,
   resolveBranding,
   resolveCompanyForBrandingHostname
 } from '@/lib/branding/resolveBranding';
+import { getSupabaseAdminClient } from '@/lib/supabase/server-admin';
 
 const ICON_SIZES = [72, 96, 128, 144, 152, 192, 384, 512];
 
@@ -93,26 +93,8 @@ async function resolveServerBranding(request: NextRequest) {
     };
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    return {
-      appName: DEFAULT_BRANDING.appName,
-      shortName: DEFAULT_BRANDING.shortName,
-      description: DEFAULT_BRANDING.description,
-      themeColor: DEFAULT_BRANDING.themeColor,
-      backgroundColor: DEFAULT_BRANDING.backgroundColor,
-      slug: 'printflowpro',
-      iconUrl: DEFAULT_BRANDING.pwaIconUrl,
-      version: DEFAULT_BRANDING.brandingVersion,
-      usePublicBrandingIcon: true
-    };
-  }
-
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
+    const supabase = getSupabaseAdminClient();
     const { data: companies } = await supabase
       .from('companies')
       .select('id,name,logo_url,logo_light,logo_dark,favicon,theme_color,admin_domain,store_domain,custom_domain,refund_policy');
