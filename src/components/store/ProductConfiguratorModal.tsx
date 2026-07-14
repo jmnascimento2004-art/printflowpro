@@ -679,6 +679,7 @@ export function ProductConfiguratorModal({
                       <input
                         type="number"
                         min="1"
+                        step="0.1"
                         value={widthCm}
                         onChange={(event) => setWidthCm(Math.max(1, Number(event.target.value) || 1))}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
@@ -689,6 +690,7 @@ export function ProductConfiguratorModal({
                       <input
                         type="number"
                         min="1"
+                        step="0.1"
                         value={heightCm}
                         onChange={(event) => setHeightCm(Math.max(1, Number(event.target.value) || 1))}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
@@ -705,6 +707,7 @@ export function ProductConfiguratorModal({
                         <input
                           type="number"
                           min="1"
+                          step="0.1"
                           max={maxWidthCm}
                           value={widthCm}
                           onChange={(event) => setWidthCm(Math.max(1, Number(event.target.value) || 1))}
@@ -719,6 +722,7 @@ export function ProductConfiguratorModal({
                         <input
                           type="number"
                           min="1"
+                          step="0.1"
                           value={heightCm}
                           onChange={(event) => setHeightCm(Math.max(1, Number(event.target.value) || 1))}
                           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
@@ -731,6 +735,7 @@ export function ProductConfiguratorModal({
                       <input
                         type="number"
                         min="1"
+                        step="0.1"
                         value={lengthCm}
                         onChange={(event) => setLengthCm(Math.max(1, Number(event.target.value) || 1))}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"

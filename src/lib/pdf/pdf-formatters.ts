@@ -106,8 +106,8 @@ export function getItemDescriptionLines(item: QuoteItem | OrderItem) {
     item.details?.configuration_summary,
     item.details?.variant,
     item.details?.color,
-    item.details?.width && item.details?.height ? `${item.details.width}x${item.details.height}` : '',
-    item.details?.length ? `${item.details.length}m` : ''
+    item.details?.width && item.details?.height ? `${Number((item.details.width * 100).toFixed(3))}x${Number((item.details.height * 100).toFixed(3))}cm` : '',
+    item.details?.length ? `${Number((item.details.length * 100).toFixed(3))}cm` : ''
   ].filter(Boolean);
 
   const options = optionParts.length > 0 ? optionParts.join(' • ') : fallbackParts.join(' • ');
@@ -145,8 +145,8 @@ export function formatPdfItemSize(item: QuoteItem | OrderItem) {
     (typeof pricingSnapshot?.size === 'string' ? pricingSnapshot.size : '')
   );
   if (size) return size;
-  if (item.details?.width && item.details?.height) return `${item.details.width}x${item.details.height}m`;
-  if (item.details?.length) return `${item.details.length}m`;
+  if (item.details?.width && item.details?.height) return `${Number((item.details.width * 100).toFixed(3))}x${Number((item.details.height * 100).toFixed(3))}cm`;
+  if (item.details?.length) return `${Number((item.details.length * 100).toFixed(3))}cm`;
   return '-';
 }
 

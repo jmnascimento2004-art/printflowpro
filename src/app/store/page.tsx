@@ -241,7 +241,7 @@ export default function StorefrontPage() {
       const favorited = await toggleProductFavorite(productId);
       setFavoriteNotice(favorited ? 'Produto salvo nos favoritos.' : 'Produto removido dos favoritos.');
     } catch {
-      setFavoriteNotice('Nao foi possivel atualizar seus favoritos agora.');
+      setFavoriteNotice('Não foi possível atualizar seus favoritos agora.');
     } finally {
       setFavoriteSavingProductId(null);
     }
@@ -737,9 +737,9 @@ export default function StorefrontPage() {
     const purchaseInterest = cart
       .map((item, index) => {
         const dimensions = [
-          item.width ? `largura ${item.width}m` : '',
-          item.height ? `altura ${item.height}m` : '',
-          item.length ? `metragem ${item.length}m` : '',
+          item.width ? `largura ${Number((item.width * 100).toFixed(3))}cm` : '',
+          item.height ? `altura ${Number((item.height * 100).toFixed(3))}cm` : '',
+          item.length ? `comprimento ${Number((item.length * 100).toFixed(3))}cm` : '',
           item.variant ? `variacao ${item.variant}` : '',
           item.color ? `cor ${item.color}` : '',
           item.production_time ? `prazo ${item.production_time}` : '',
@@ -1646,8 +1646,8 @@ export default function StorefrontPage() {
                     </div>
 
                     {/* Price card footer */}
-                    <div className="border-t border-slate-100 p-3 pt-2.5 flex flex-col items-stretch gap-2 sm:flex-row sm:items-end sm:justify-between">
-                      <div className="leading-tight">
+                    <div className="flex flex-col items-stretch gap-1.5 border-t border-slate-100 p-2.5 sm:flex-row sm:items-end sm:justify-between">
+                      <div className="min-w-0 leading-tight">
                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                           {hasVolumeTiers ? 'A partir de' : 'Preço'}
                         </span>
@@ -1656,7 +1656,7 @@ export default function StorefrontPage() {
                             {pricePresentation.quantity} un
                           </span>
                         )}
-                        <span className="font-extrabold text-emerald-600 text-sm block leading-none">
+                        <span className="block whitespace-nowrap text-sm font-extrabold leading-none text-emerald-600">
                           {hasVolumeTiers ? formatUnitCurrency(displayPrice) : formatCurrency(displayPrice)} 
                           <span className="text-[10px] text-slate-400 font-normal">/{priceUnitLabel}</span>
                         </span>
@@ -1683,7 +1683,7 @@ export default function StorefrontPage() {
                           event.stopPropagation();
                           handleOpenProductConfig(p);
                         }}
-                        className="flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
+                        className="flex min-h-10 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-emerald-600 px-2 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/5 transition-all hover:bg-emerald-500 hover:shadow-lg"
                       >
                         <ShoppingBag className="h-3.5 w-3.5" />
                         Comprar
@@ -1763,12 +1763,12 @@ export default function StorefrontPage() {
                         <div className="font-bold text-slate-900 break-words">{item.product.name}</div>
                         {item.width && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                            Dimensões: {item.width}m {item.height ? `x ${item.height}m` : 'linear'}
+                            Dimensões: {Number((item.width * 100).toFixed(3))} cm {item.height ? `x ${Number((item.height * 100).toFixed(3))} cm` : 'linear'}
                           </div>
                         )}
                         {item.length && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                            Metragem: {item.length}m
+                            Comprimento: {Number((item.length * 100).toFixed(3))} cm
                           </div>
                         )}
                         {(item.variant || item.color) && (
@@ -1912,12 +1912,12 @@ export default function StorefrontPage() {
                     <div className="space-y-2 animate-in slide-in-from-top duration-150">
                       <div className="flex items-center gap-2">
                         <MapPin className="h-3.5 w-3.5 text-emerald-600" />
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Endereco completo para entrega *</label>
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wide">Endereço completo para entrega *</label>
                       </div>
 
                       {storeCustomerAuthenticated && storeCustomerAddresses.length > 0 && (
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase">Enderecos salvos</label>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Endereços salvos</label>
                           <select
                             value={selectedStoreAddressId}
                             onChange={(event) => applyStoreAddress(event.target.value)}
@@ -2236,8 +2236,8 @@ export default function StorefrontPage() {
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 p-3 pt-2.5 flex flex-col items-stretch gap-2 sm:flex-row sm:items-end sm:justify-between">
-                        <div className="leading-tight">
+                      <div className="flex flex-col items-stretch gap-1.5 border-t border-slate-100 p-2.5 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="min-w-0 leading-tight">
                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                             {hasVolumeTiers ? 'A partir de' : 'Preço'}
                           </span>
@@ -2246,7 +2246,7 @@ export default function StorefrontPage() {
                               {pricePresentation.quantity} un
                             </span>
                           )}
-                          <span className="font-extrabold text-emerald-600 text-sm block leading-none">
+                          <span className="block whitespace-nowrap text-sm font-extrabold leading-none text-emerald-600">
                             {hasVolumeTiers ? formatUnitCurrency(displayPrice) : formatCurrency(displayPrice)}
                             <span className="text-[10px] text-slate-400 font-normal">/{priceUnitLabel}</span>
                           </span>
@@ -2273,7 +2273,7 @@ export default function StorefrontPage() {
                             event.stopPropagation();
                             handleOpenProductConfig(product);
                           }}
-                          className="flex min-h-10 items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/5 hover:shadow-lg"
+                          className="flex min-h-10 shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-emerald-600 px-2 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/5 transition-all hover:bg-emerald-500 hover:shadow-lg"
                         >
                           <ShoppingBag className="h-3.5 w-3.5" />
                           Comprar

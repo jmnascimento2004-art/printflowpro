@@ -358,7 +358,7 @@ export default function PricingPage() {
     const labels: Record<string, string> = {
       unidade: 'Unidade',
       m2: 'Metro Quadrado (m²)',
-      linear_width: 'Metro Linear com Largura Maxima',
+      linear_width: 'Metro Linear com Largura Máxima',
       linear: 'Comprimento Linear Simples',
       pacote: 'Pacote / Centena',
       service: 'Serviço',
@@ -811,7 +811,7 @@ export default function PricingPage() {
                       <label className="text-[10px] font-semibold text-muted-foreground">Largura (cm)</label>
                       <input
                         type="number"
-                        step="1"
+                        step="0.1"
                         min="0"
                         value={simWidth > 0 ? Number((simWidth * 100).toFixed(2)) : ''}
                         onChange={(e) => setSimWidth(toNumberOrZero(e.target.value) / 100)}
@@ -823,7 +823,7 @@ export default function PricingPage() {
                       <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
                       <input
                         type="number"
-                        step="1"
+                        step="0.1"
                         min="0"
                         value={simHeight > 0 ? Number((simHeight * 100).toFixed(2)) : ''}
                         onChange={(e) => setSimHeight(toNumberOrZero(e.target.value) / 100)}
@@ -835,10 +835,10 @@ export default function PricingPage() {
                 ) : pricingType === 'linear_width' ? (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Largura maxima (cm)</label>
+                      <label className="text-[10px] font-semibold text-muted-foreground">Largura máxima (cm)</label>
                       <input
                         type="number"
-                        step="1"
+                        step="0.1"
                         min="0"
                         value={simMaxWidth > 0 ? Number((simMaxWidth * 100).toFixed(2)) : ''}
                         onChange={(e) => setSimMaxWidth(toNumberOrZero(e.target.value) / 100)}
@@ -850,7 +850,7 @@ export default function PricingPage() {
                       <label className="text-[10px] font-semibold text-muted-foreground">Largura solicitada (cm)</label>
                       <input
                         type="number"
-                        step="1"
+                        step="0.1"
                         min="0"
                         value={simWidth > 0 ? Number((simWidth * 100).toFixed(2)) : ''}
                         onChange={(e) => setSimWidth(toNumberOrZero(e.target.value) / 100)}
@@ -864,7 +864,7 @@ export default function PricingPage() {
                       <label className="text-[10px] font-semibold text-muted-foreground">Altura/comprimento (cm)</label>
                       <input
                         type="number"
-                        step="1"
+                        step="0.1"
                         min="0"
                         value={simHeight > 0 ? Number((simHeight * 100).toFixed(2)) : ''}
                         onChange={(e) => setSimHeight(toNumberOrZero(e.target.value) / 100)}
@@ -873,7 +873,7 @@ export default function PricingPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Cobranca minima (m2)</label>
+                      <label className="text-[10px] font-semibold text-muted-foreground">Cobrança mínima (m²)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -890,7 +890,7 @@ export default function PricingPage() {
                     <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (cm)</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.1"
                       min="0"
                       value={simWidth > 0 ? Number((simWidth * 100).toFixed(2)) : ''}
                       onChange={(e) => setSimWidth(toNumberOrZero(e.target.value) / 100)}
@@ -916,12 +916,12 @@ export default function PricingPage() {
               <div className="border-t border-border pt-3 space-y-1.5 text-xs">
                 {pricingType === 'linear_width' && simMaxWidth > 0 && simWidth > simMaxWidth && (
                   <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 font-bold text-rose-600">
-                    A largura informada ultrapassa a largura maxima deste material.
+                    A largura informada ultrapassa a largura máxima deste material.
                   </div>
                 )}
                 {pricingType === 'linear_width' && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-muted-foreground">
-                    <span className="block font-bold text-foreground">Calculo: largura informada x altura/comprimento x valor do metro linear</span>
+                    <span className="block font-bold text-foreground">Cálculo: largura informada × altura/comprimento × valor do metro linear</span>
                     <span>{simWidth.toFixed(2)} m x {simHeight.toFixed(2)} m x {formatCurrency(suggestedPrice)} = {formatCurrency(suggestedPrice * simWidth * simHeight)}</span>
                     <span className="mt-1 block text-[10px] font-semibold text-emerald-700">Exemplo: 0,80 m x 3,00 m x R$ 50,00 = R$ 120,00. A cobrança mínima, quando preenchida, só define o mínimo cobrado.</span>
                   </div>
@@ -949,11 +949,11 @@ export default function PricingPage() {
                   onClick={() => setShowCalculationDetails((current) => !current)}
                   className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-[11px] font-bold text-foreground hover:bg-secondary/50"
                 >
-                  Como este preco foi calculado?
+                  Como este preço foi calculado?
                 </button>
                 {showCalculationDetails && (
                   <div className="rounded-lg border border-border bg-background px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
-                    Custo estimado = custo base x medida calculada x quantidade. Preco final = preco sugerido x medida calculada x quantidade. Lucro desconta impostos e comissao configurados.
+                    Custo estimado = custo base × medida calculada × quantidade. Preço final = preço sugerido × medida calculada × quantidade. O lucro desconta os impostos e a comissão configurados.
                   </div>
                 )}
               </div>
@@ -968,8 +968,8 @@ export default function PricingPage() {
         onToggle={(event) => setShowPricingAdvanced(event.currentTarget.open)}
       >
         <summary className="cursor-pointer list-none">
-          <span className="text-[10px] font-black uppercase tracking-wider text-primary">Precificacao avancada opcional</span>
-          <span className="mt-1 block text-sm font-bold text-foreground">Comunicacao visual, servicos terceirizados e projetos sob medida</span>
+          <span className="text-[10px] font-black uppercase tracking-wider text-primary">Precificação avançada opcional</span>
+          <span className="mt-1 block text-sm font-bold text-foreground">Comunicação visual, serviços terceirizados e projetos sob medida</span>
           <span className="mt-1 block text-xs text-muted-foreground">
             Esta área fica fechada por padrão para não misturar duas calculadoras. Abra apenas quando precisar calcular material, mão de obra, instalação, deslocamento, margem e impostos com mais detalhe.
           </span>
@@ -977,10 +977,10 @@ export default function PricingPage() {
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-primary">Precificacao Avancada</p>
+              <p className="text-[10px] font-black uppercase tracking-wider text-primary">Precificação Avançada</p>
               <h2 className="mt-1 text-xl font-bold text-foreground">Comunicacao Visual e Terceirizados</h2>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-                Este calculo considera materiais, perdas, terceirizacao, mao de obra, instalacao, deslocamento e margem. Ajuste os custos conforme a realidade da sua empresa.
+                Este cálculo considera materiais, perdas, terceirização, mão de obra, instalação, deslocamento e margem. Ajuste os custos conforme a realidade da sua empresa.
               </p>
             </div>
             <span className="w-fit rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
@@ -1009,7 +1009,7 @@ export default function PricingPage() {
                   </select>
                 </div>
                 <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs font-semibold text-muted-foreground">Descricao do servico</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Descrição do serviço</label>
                   <input
                     type="text"
                     value={visualDescription}
@@ -1019,26 +1019,26 @@ export default function PricingPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Largura (m)</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Largura (cm)</label>
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
-                    value={numberInputValue(visualWidth)}
-                    onChange={(e) => setVisualWidth(toNumberOrZero(e.target.value))}
-                    placeholder="Ex: 1"
+                    step="0.1"
+                    value={visualWidth > 0 ? Number((visualWidth * 100).toFixed(3)) : ''}
+                    onChange={(e) => setVisualWidth(toNumberOrZero(e.target.value) / 100)}
+                    placeholder="Ex: 100"
                     className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Altura (m)</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Altura (cm)</label>
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
-                    value={numberInputValue(visualHeight)}
-                    onChange={(e) => setVisualHeight(toNumberOrZero(e.target.value))}
-                    placeholder="Ex: 1"
+                    step="0.1"
+                    value={visualHeight > 0 ? Number((visualHeight * 100).toFixed(3)) : ''}
+                    onChange={(e) => setVisualHeight(toNumberOrZero(e.target.value) / 100)}
+                    placeholder="Ex: 100"
                     className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
                   />
                 </div>
@@ -1091,7 +1091,7 @@ export default function PricingPage() {
             <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-foreground">
-                  <Coins className="h-4 w-4 text-primary" /> 3. Servicos terceirizados
+                  <Coins className="h-4 w-4 text-primary" /> 3. Serviços terceirizados
                 </h3>
                 <button
                   type="button"
@@ -1218,7 +1218,7 @@ export default function PricingPage() {
 
             <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
               <h3 className="mb-4 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-foreground">
-                <Percent className="h-4 w-4 text-primary" /> 6. Margem, taxas e preco
+                <Percent className="h-4 w-4 text-primary" /> 6. Margem, taxas e preço
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -1256,7 +1256,7 @@ export default function PricingPage() {
           <aside className="xl:col-span-4">
             <div className="sticky top-24 space-y-4 rounded-2xl border border-primary/20 bg-card p-5 shadow-sm">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-primary">Resumo do calculo</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-primary">Resumo do cálculo</p>
                 <h3 className="mt-1 text-base font-bold text-foreground">{visualServiceType}</h3>
                 {visualDescription && (
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">{visualDescription}</p>
@@ -1274,11 +1274,11 @@ export default function PricingPage() {
                 <SummaryLine label="Mao de obra interna" value={formatCurrency(internalLaborCost)} />
                 <SummaryLine label="Instalacao" value={formatCurrency(installationCost)} />
                 <SummaryLine label="Custo total" value={formatCurrency(advancedTotalCost)} strong />
-                <SummaryLine label="Preco minimo" value={formatCurrency(advancedMinimumPrice)} />
+                <SummaryLine label="Preço mínimo" value={formatCurrency(advancedMinimumPrice)} />
               </div>
 
               <div className="rounded-2xl border border-primary/25 bg-primary/10 p-4 text-center">
-                <span className="text-[10px] font-black uppercase tracking-wider text-primary">Preco recomendado</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-primary">Preço recomendado</span>
                 <div className="mt-1 text-2xl font-extrabold text-foreground">
                   {formatCurrency(advancedRecommendedPrice)}
                 </div>
@@ -1288,7 +1288,7 @@ export default function PricingPage() {
               </div>
 
               <div className="rounded-xl border border-dashed border-border bg-secondary/20 p-3 text-xs leading-5 text-muted-foreground">
-                Esta primeira versao nao salva no banco de dados. Use o resultado como guia comercial e ajuste custos reais antes de enviar proposta ao cliente.
+                Esta primeira versão não salva no banco de dados. Use o resultado como guia comercial e ajuste os custos reais antes de enviar a proposta ao cliente.
               </div>
             </div>
           </aside>

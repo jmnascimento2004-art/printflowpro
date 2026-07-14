@@ -363,7 +363,7 @@ export default function POSPage() {
       setNewCustCnpjStatus('Dados da empresa preenchidos automaticamente.');
     } catch (error) {
       warnCaught('Erro ao consultar CNPJ no PDV:', error);
-      setNewCustCnpjStatus(error instanceof Error ? error.message : 'Nao foi possivel consultar o CNPJ.');
+      setNewCustCnpjStatus(error instanceof Error ? error.message : 'Não foi possível consultar o CNPJ.');
     }
   };
 
@@ -615,7 +615,7 @@ export default function POSPage() {
                             {/* Render dimensions details */}
                             {item.details && (item.details.width || item.details.height) && (
                               <div className="text-[9px] text-muted-foreground">
-                                Medidas: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'} ({sizeFactor.toFixed(2)} m²)
+                                Medidas: {Number(((item.details.width || 0) * 100).toFixed(3))} cm {item.details.height ? `x ${Number((item.details.height * 100).toFixed(3))} cm` : 'linear'} ({sizeFactor.toFixed(2)} m²)
                               </div>
                             )}
                             {item.details?.notes && (
@@ -1083,7 +1083,7 @@ export default function POSPage() {
                   <label className="text-[10px] font-bold text-muted-foreground">Largura / Compr. (cm)</label>
                   <input
                     type="number"
-                    step="1"
+                    step="0.1"
                     min="1"
                     value={Number((customWidth * 100).toFixed(2))}
                     onChange={(e) => setCustomWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
@@ -1097,7 +1097,7 @@ export default function POSPage() {
                     <label className="text-[10px] font-bold text-muted-foreground">Altura (cm)</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.1"
                       min="1"
                       value={Number((customHeight * 100).toFixed(2))}
                       onChange={(e) => setCustomHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
@@ -1567,7 +1567,7 @@ export default function POSPage() {
                   </div>
                   {hasDimensions && (
                     <div className="text-[9px] text-gray-500 pl-2 leading-tight">
-                      Medida: {details.width}m {details.height ? `x ${details.height}m` : 'linear'}
+                      Medida: {Number(((details.width || 0) * 100).toFixed(3))} cm {details.height ? `x ${Number((details.height * 100).toFixed(3))} cm` : 'linear'}
                     </div>
                   )}
                 </div>

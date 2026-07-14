@@ -41,7 +41,7 @@ const saleTypeLabels: Partial<Record<Product['pricing_type'] | ProductSaleMode, 
 
 const formatMeters = (value?: number) => {
   if (!value) return '';
-  return `${Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}m`;
+  return `${(Number(value) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}cm`;
 };
 
 const formatOptions = (options: WhatsAppSelectedOption[] = []) => {
