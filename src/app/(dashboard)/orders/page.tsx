@@ -15,7 +15,10 @@ import {
   Edit3,
   RefreshCw,
   Plus,
-  Trash2
+  Trash2,
+  BadgePercent,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Order } from '@/lib/dummy-data';
@@ -50,6 +53,24 @@ type PdfPreviewState = {
   downloadLabel?: string;
 };
 
+const DISCOUNT_NOTE_PATTERN = /^Ajuste comercial — desconto: R\$ [\d.,]+ \| Motivo: (.+)$/im;
+
+const stripDiscountNote = (notes?: string | null) => String(notes || '')
+  .split('\n')
+  .filter((line) => !DISCOUNT_NOTE_PATTERN.test(line.trim()))
+  .join('\n')
+  .trim();
+
+const getDiscountReasonFromNotes = (notes?: string | null) =>
+  String(notes || '').match(DISCOUNT_NOTE_PATTERN)?.[1]?.trim() || '';
+
+const buildOrderNotesWithDiscount = (notes: string, discount: number, reason: string) => {
+  const baseNotes = stripDiscountNote(notes);
+  if (discount <= 0) return baseNotes;
+  const discountLine = `Ajuste comercial — desconto: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(discount)} | Motivo: ${reason.trim()}`;
+  return [baseNotes, discountLine].filter(Boolean).join('\n');
+};
+
 export default function OrdersPage() {
   const { 
     orders, 
@@ -64,6 +85,7 @@ export default function OrdersPage() {
   } = useDatabase();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedPdfPreview, setSelectedPdfPreview] = useState<PdfPreviewState | null>(null);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
@@ -85,6 +107,9 @@ export default function OrdersPage() {
   const [editTotal, setEditTotal] = useState(0);
   const [editShipping, setEditShipping] = useState(0);
   const [editPaid, setEditPaid] = useState(0);
+  const [editDiscount, setEditDiscount] = useState(0);
+  const [editDiscountMode, setEditDiscountMode] = useState<'amount' | 'percentage'>('amount');
+  const [editDiscountReason, setEditDiscountReason] = useState('');
   const [editItems, setEditItems] = useState<Order['items']>([]);
   const [editAdditionalServices, setEditAdditionalServices] = useState<AdditionalService[]>([]);
 
@@ -418,18 +443,25 @@ export default function OrdersPage() {
     if (!editingOrder) return;
     const productsTotal = editItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
     const servicesTotal = getAdditionalServicesTotal(editAdditionalServices);
-    setEditTotal(Math.max(0, productsTotal + servicesTotal + editShipping));
-  }, [editingOrder, editItems, editAdditionalServices, editShipping]);
+    const grossTotal = productsTotal + servicesTotal + editShipping;
+    setEditTotal(Math.max(0, grossTotal - Math.min(editDiscount, grossTotal)));
+  }, [editingOrder, editItems, editAdditionalServices, editShipping, editDiscount]);
 
   const handleOpenEditOrder = (order: Order) => {
     setSelectedOrder(null); // Close details panel if open
     setEditingOrder(order);
     setEditStatus(normalizeOrderOperationalStatus(order));
     setEditDeadline(order.deadline.split('T')[0]);
-    setEditNotes(sanitizeDisplayText(order.notes));
+    setEditNotes(stripDiscountNote(sanitizeDisplayText(order.notes)));
     setEditTotal(order.total_amount);
     setEditShipping(order.shipping_cost || 0);
     setEditPaid(getConfirmedPaidAmountForOrder(order));
+    const orderGrossTotal = (order.items || []).reduce((sum, item) => sum + Number(item.total_price || 0), 0)
+      + getAdditionalServicesTotal(order.additional_services || [])
+      + Number(order.shipping_cost || 0);
+    setEditDiscount(Math.max(0, Math.round((orderGrossTotal - Number(order.total_amount || 0)) * 100) / 100));
+    setEditDiscountMode('amount');
+    setEditDiscountReason(getDiscountReasonFromNotes(order.notes));
     setEditItems((order.items || []).map((item) => recalculateOrderItem(item)));
     setEditAdditionalServices(order.additional_services || []);
     setEditDeliveryType(order.delivery_type || 'retirada');
@@ -489,7 +521,13 @@ export default function OrdersPage() {
 
     const productsTotal = editItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
     const servicesTotal = getAdditionalServicesTotal(editAdditionalServices);
-    const nextTotal = Math.max(0, productsTotal + servicesTotal + editShipping);
+    const grossTotal = productsTotal + servicesTotal + editShipping;
+    const safeDiscount = Math.min(Math.max(0, editDiscount), grossTotal);
+    if (safeDiscount > 0 && !editDiscountReason.trim()) {
+      alert('Informe o motivo do desconto para manter o histórico comercial do pedido.');
+      return;
+    }
+    const nextTotal = Math.max(0, grossTotal - safeDiscount);
     const paidAmount = editPaid;
     const deliveryDistanceKm = parseDecimalBR(editDeliveryDistanceInput);
 
@@ -497,7 +535,7 @@ export default function OrdersPage() {
       ...editingOrder,
       status: editStatus,
       deadline: new Date(editDeadline).toISOString(),
-      notes: sanitizeDisplayText(editNotes),
+      notes: buildOrderNotesWithDiscount(sanitizeDisplayText(editNotes), safeDiscount, editDiscountReason),
       total_amount: nextTotal,
       shipping_cost: editShipping,
       paid_amount: paidAmount,
@@ -528,7 +566,7 @@ export default function OrdersPage() {
       if (process.env.NODE_ENV === 'development') {
         console.warn('Erro ao baixar PDF do pedido:', err);
       }
-      alert('Nao foi possivel baixar o PDF. Tente novamente.');
+      alert('Não foi possível baixar o PDF. Tente novamente.');
     }
   };
 
@@ -617,7 +655,12 @@ export default function OrdersPage() {
     }
   };
 
-  const displayOrders = getFilteredOrdersByTab(activeTab);
+  const displayOrders = [...getFilteredOrdersByTab(activeTab)].sort((a, b) => {
+    const numberA = Number(String(a.number || '').match(/\d+$/)?.[0] || 0);
+    const numberB = Number(String(b.number || '').match(/\d+$/)?.[0] || 0);
+    if (numberA !== numberB) return numberB - numberA;
+    return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+  });
 
   // 2. Register payment handler
   const handleRegisterPayment = (e: React.FormEvent) => {
@@ -628,7 +671,7 @@ export default function OrdersPage() {
     const currentPaidBeforePayment = Math.max(Number(selectedOrder.paid_amount || 0), confirmedPaidBeforePayment);
     const currentBalance = Math.max(0, selectedOrder.total_amount - currentPaidBeforePayment);
     if (paymentAmount > currentBalance) {
-      alert(`O valor recebido nao pode ser maior que o saldo pendente (${formatCurrency(currentBalance)}).`);
+      alert(`O valor recebido não pode ser maior que o saldo pendente (${formatCurrency(currentBalance)}).`);
       return;
     }
 
@@ -781,8 +824,8 @@ export default function OrdersPage() {
     const snapshotSize = sanitizeDisplayText(configSnapshot?.size || String(pricingSnapshot?.size || ''));
     if (snapshotSize) return snapshotSize;
 
-    if (item.details?.width && item.details?.height) return `${item.details.width}x${item.details.height}m`;
-    if (item.details?.length) return `${item.details.length}m`;
+    if (item.details?.width && item.details?.height) return `${Number((item.details.width * 100).toFixed(3))}x${Number((item.details.height * 100).toFixed(3))}cm`;
+    if (item.details?.length) return `${Number((item.details.length * 100).toFixed(3))}cm`;
     return '-';
   };
 
@@ -961,6 +1004,22 @@ export default function OrdersPage() {
   }, 0);
 
   const selectedOrderPaidAmount = selectedOrder ? getConfirmedPaidAmountForOrder(selectedOrder) : 0;
+  const editGrossTotal = editItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
+    + getAdditionalServicesTotal(editAdditionalServices)
+    + editShipping;
+  const editDiscountPercentage = editGrossTotal > 0 ? (editDiscount / editGrossTotal) * 100 : 0;
+  const selectedOrderGrossTotal = selectedOrder
+    ? selectedOrder.items.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
+      + getAdditionalServicesTotal(selectedOrder.additional_services || [])
+      + Number(selectedOrder.shipping_cost || 0)
+    : 0;
+  const selectedOrderDiscount = selectedOrder
+    ? Math.max(0, Math.round((selectedOrderGrossTotal - Number(selectedOrder.total_amount || 0)) * 100) / 100)
+    : 0;
+  const selectedOrderDiscountPercentage = selectedOrderGrossTotal > 0
+    ? (selectedOrderDiscount / selectedOrderGrossTotal) * 100
+    : 0;
+  const selectedOrderDiscountReason = selectedOrder ? getDiscountReasonFromNotes(selectedOrder.notes) : '';
   const selectedOrderPendingAmount = selectedOrder
     ? Math.max(0, Number(selectedOrder.total_amount || 0) - selectedOrderPaidAmount)
     : 0;
@@ -1062,7 +1121,7 @@ export default function OrdersPage() {
                   {formatCurrency(editPaid)}
                 </div>
                 <p className="text-[10px] font-semibold text-muted-foreground">
-                  Use Registrar Pagamento para adicionar baixa sem sobrescrever historico.
+                  Use Registrar Pagamento para adicionar uma baixa sem sobrescrever o histórico.
                 </p>
               </div>
 
@@ -1072,7 +1131,7 @@ export default function OrdersPage() {
                   <div>
                     <h4 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Itens do Pedido</h4>
                     <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
-                      Edite os itens do pedido sem alterar o produto original nem o historico financeiro.
+                      Edite os itens do pedido sem alterar o produto original nem o histórico financeiro.
                     </p>
                   </div>
                   <button
@@ -1097,7 +1156,7 @@ export default function OrdersPage() {
                       <div key={item.id} className="rounded-lg border border-border bg-card p-3">
                         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <p className="text-xs font-black text-foreground">{item.product_name || 'Item sem descricao'}</p>
+                            <p className="text-xs font-black text-foreground">{item.product_name || 'Item sem descrição'}</p>
                             <p className="text-[10px] font-semibold uppercase text-muted-foreground">
                               Origem: {getOrderItemOriginLabel(item)} | Tamanho: {itemSize || '-'}
                             </p>
@@ -1127,7 +1186,7 @@ export default function OrdersPage() {
                           </div>
 
                           <div className="space-y-1 lg:col-span-4">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Descricao do item *</label>
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Descrição do item *</label>
                             <input
                               type="text"
                               required
@@ -1142,7 +1201,7 @@ export default function OrdersPage() {
                                     : current.details?.configuration_snapshot
                                 }
                               }))}
-                              placeholder="Descricao comercial do item"
+                              placeholder="Descrição comercial do item"
                               className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
                             />
                           </div>
@@ -1178,7 +1237,7 @@ export default function OrdersPage() {
                           </div>
 
                           <div className="space-y-1 lg:col-span-3">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Tipo de calculo</label>
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Tipo de cálculo</label>
                             <select
                               value={pricingType}
                               onChange={(event) => updateEditItem(item.id, (current) => ({
@@ -1201,29 +1260,29 @@ export default function OrdersPage() {
                           {pricingType === 'm2' && (
                             <>
                               <div className="space-y-1 lg:col-span-2">
-                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Largura (m)</label>
+                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Largura (cm)</label>
                                 <input
                                   type="number"
                                   min="0"
-                                  step="0.01"
-                                  value={item.details?.width || 0}
+                                  step="0.1"
+                                  value={Number(((item.details?.width || 0) * 100).toFixed(3))}
                                   onChange={(event) => updateEditItem(item.id, (current) => ({
                                     ...current,
-                                    details: { ...(current.details || {}), width: Number(event.target.value) || 0 }
+                                    details: { ...(current.details || {}), width: (Number(event.target.value) || 0) / 100 }
                                   }), 'measure')}
                                   className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
                                 />
                               </div>
                               <div className="space-y-1 lg:col-span-2">
-                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Altura (m)</label>
+                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Altura (cm)</label>
                                 <input
                                   type="number"
                                   min="0"
-                                  step="0.01"
-                                  value={item.details?.height || 0}
+                                  step="0.1"
+                                  value={Number(((item.details?.height || 0) * 100).toFixed(3))}
                                   onChange={(event) => updateEditItem(item.id, (current) => ({
                                     ...current,
-                                    details: { ...(current.details || {}), height: Number(event.target.value) || 0 }
+                                    details: { ...(current.details || {}), height: (Number(event.target.value) || 0) / 100 }
                                   }), 'measure')}
                                   className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
                                 />
@@ -1233,15 +1292,15 @@ export default function OrdersPage() {
 
                           {pricingType === 'linear' && (
                             <div className="space-y-1 lg:col-span-2">
-                              <label className="text-[9px] font-bold uppercase text-muted-foreground">Comprimento (m)</label>
+                              <label className="text-[9px] font-bold uppercase text-muted-foreground">Comprimento (cm)</label>
                               <input
                                 type="number"
                                 min="0"
-                                step="0.01"
-                                value={item.details?.length || 0}
+                                step="0.1"
+                                value={Number(((item.details?.length || 0) * 100).toFixed(3))}
                                 onChange={(event) => updateEditItem(item.id, (current) => ({
                                   ...current,
-                                  details: { ...(current.details || {}), length: Number(event.target.value) || 0 }
+                                  details: { ...(current.details || {}), length: (Number(event.target.value) || 0) / 100 }
                                 }), 'measure')}
                                 className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
                               />
@@ -1492,6 +1551,86 @@ export default function OrdersPage() {
                 />
               </div>
 
+              <div className="md:col-span-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <BadgePercent className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wide text-foreground">Ajuste comercial</h4>
+                    <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
+                      Registre descontos aqui. Pagamentos devem representar apenas valores realmente recebidos.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[260px_1fr]">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">Desconto concedido</label>
+                      <div className="flex rounded-md border border-emerald-500/20 bg-card p-0.5" aria-label="Formato do desconto">
+                        <button
+                          type="button"
+                          onClick={() => setEditDiscountMode('amount')}
+                          className={`rounded px-2 py-0.5 text-[10px] font-black ${editDiscountMode === 'amount' ? 'bg-emerald-600 text-white' : 'text-muted-foreground'}`}
+                        >
+                          R$
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditDiscountMode('percentage')}
+                          className={`rounded px-2 py-0.5 text-[10px] font-black ${editDiscountMode === 'percentage' ? 'bg-emerald-600 text-white' : 'text-muted-foreground'}`}
+                        >
+                          %
+                        </button>
+                      </div>
+                    </div>
+                    {editDiscountMode === 'amount' ? (
+                      <input
+                        data-testid="order-discount-input"
+                        type="text"
+                        value={formatCurrencyInput(editDiscount)}
+                        onChange={(event) => setEditDiscount(Math.min(editGrossTotal, parseCurrencyInputToNumber(event.target.value)))}
+                        placeholder="R$ 0,00"
+                        className="w-full rounded-lg border border-emerald-500/20 bg-card px-3 py-2 text-xs font-black text-emerald-600 outline-none focus:border-emerald-500"
+                      />
+                    ) : (
+                      <div className="relative">
+                        <input
+                          data-testid="order-discount-percentage-input"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={Number(editDiscountPercentage.toFixed(2))}
+                          onChange={(event) => {
+                            const percentage = Math.min(100, Math.max(0, Number(event.target.value) || 0));
+                            setEditDiscount(Math.round(editGrossTotal * percentage) / 100);
+                          }}
+                          className="w-full rounded-lg border border-emerald-500/20 bg-card px-3 py-2 pr-8 text-xs font-black text-emerald-600 outline-none focus:border-emerald-500"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-600">%</span>
+                      </div>
+                    )}
+                    {editDiscount > 0 && (
+                      <p className="text-[10px] font-bold text-emerald-700">
+                        Equivale a {formatCurrency(editDiscount)} ({editDiscountPercentage.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%).
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Motivo do desconto</label>
+                    <input
+                      data-testid="order-discount-reason-input"
+                      type="text"
+                      value={editDiscountReason}
+                      onChange={(event) => setEditDiscountReason(event.target.value)}
+                      disabled={editDiscount <= 0}
+                      required={editDiscount > 0}
+                      placeholder="Ex: Condição comercial aprovada pelo gerente"
+                      className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground outline-none disabled:cursor-not-allowed disabled:opacity-50 focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="md:col-span-2 rounded-xl border border-border bg-secondary/20 p-3 text-xs space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total de produtos</span>
@@ -1505,8 +1644,14 @@ export default function OrdersPage() {
                   <span className="text-muted-foreground">Frete</span>
                   <span className="font-bold text-foreground">{formatCurrency(editShipping)}</span>
                 </div>
+                {editDiscount > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span className="font-bold">Desconto comercial</span>
+                    <span className="font-black">-{formatCurrency(editDiscount)} ({editDiscountPercentage.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%)</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t border-border pt-2 text-sm">
-                  <span className="font-black text-foreground">Total geral</span>
+                  <span className="font-black text-foreground">Total líquido</span>
                   <span className="font-black text-primary">{formatCurrency(editTotal)}</span>
                 </div>
                 <div className="flex justify-between">
@@ -1629,11 +1774,31 @@ export default function OrdersPage() {
                 Cancelados
               </button>
             </div>
+            <div className="flex shrink-0 rounded-lg border border-border bg-card p-1" aria-label="Modo de visualização">
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`rounded-md p-1.5 ${viewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}
+                title="Visualizar em cards"
+                aria-label="Visualizar pedidos em cards"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`rounded-md p-1.5 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}
+                title="Visualizar em lista"
+                aria-label="Visualizar pedidos em lista"
+              >
+                <List className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* 3. Orders Card Grid */}
           {displayOrders.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 no-print sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div className={`${viewMode === 'cards' ? 'grid' : 'hidden'} grid-cols-1 gap-3 no-print sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5`}>
               {displayOrders.map((order) => {
                 const overdue = isOverdue(order.deadline, order.status);
                 const itemsSummary = order.items.length > 0
@@ -1651,9 +1816,18 @@ export default function OrdersPage() {
                     key={order.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => handlePrintOrderPdf(order)}
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setIsAddingPayment(false);
+                      setShowPixCode(false);
+                    }}
                     onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') handlePrintOrderPdf(order);
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedOrder(order);
+                        setIsAddingPayment(false);
+                        setShowPixCode(false);
+                      }
                     }}
                     className={`group flex min-h-[255px] cursor-pointer flex-col rounded-xl border bg-card p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md ${
                       order.status === 'cancelado' ? 'border-rose-500/20 bg-rose-500/5 opacity-85' : 'border-border'
@@ -1782,14 +1956,15 @@ export default function OrdersPage() {
               })}
             </div>
           ) : (
-            <div className="rounded-2xl border border-border bg-card px-5 py-8 text-center text-sm font-semibold text-muted-foreground no-print">
+            <div className={`${viewMode === 'cards' ? 'block' : 'hidden'} rounded-2xl border border-border bg-card px-5 py-8 text-center text-sm font-semibold text-muted-foreground no-print`}>
               Nenhum pedido encontrado.
             </div>
           )}
 
-          <div className="hidden">
-            <div className="overflow-x-auto xl:overflow-x-visible">
-              <table className="w-full text-left border-collapse text-xs table-auto">
+          <div className={viewMode === 'list' ? 'block rounded-2xl border border-border bg-card no-print' : 'hidden'}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-xs">
+                <colgroup><col className="w-[9%]" /><col className="w-[13%]" /><col className="w-[16%]" /><col className="w-[12%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[10%]" /><col className="w-[20%]" /></colgroup>
                 <thead>
                   <tr className="bg-secondary/40 text-[9px] uppercase font-bold text-muted-foreground border-b border-border whitespace-nowrap">
                     <th className="px-3 py-3 text-left">Número</th>
@@ -1810,9 +1985,14 @@ export default function OrdersPage() {
                       return (
                         <tr key={order.id} className="hover:bg-secondary/15 transition-colors">
                           <td className="px-3 py-2.5 font-bold text-foreground text-left whitespace-nowrap">{formatOrderDisplayNumber(order.number)}</td>
-                          <td className="px-3 py-2.5 font-semibold text-foreground text-left">{order.customer_name}</td>
-                          <td className="px-3 py-2.5 text-muted-foreground text-left">
-                            {order.items.map(i => `${i.quantity}x ${i.product_name}`).join(', ')}
+                          <td className="px-3 py-2.5 text-left font-semibold text-foreground"><p className="line-clamp-2" title={order.customer_name}>{order.customer_name}</p></td>
+                          <td className="px-3 py-2.5 text-left text-muted-foreground">
+                            <p
+                              className="overflow-hidden text-ellipsis whitespace-nowrap"
+                              title={order.items.map(i => `${i.quantity}x ${i.product_name}`).join(', ')}
+                            >
+                              {order.items.map(i => `${i.quantity}x ${i.product_name}`).join(', ')}
+                            </p>
                           </td>
                           <td className="px-3 py-2.5 font-medium text-left whitespace-nowrap">
                             <div className={`flex items-center gap-1 ${overdue ? 'text-rose-500 font-bold' : 'text-muted-foreground'}`}>
@@ -1870,16 +2050,15 @@ export default function OrdersPage() {
                               >
                                 <Download className="h-3.5 w-3.5" />
                               </button>
-                              {order.payment_status !== 'pago' && (
+                              {order.status !== 'cancelado' && (
                                 <button
                                   type="button"
-                                  onClick={() => sendPixWhatsApp(order)}
-                                  className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/25 border border-emerald-500/20"
-                                  title="Enviar Cobrança Pix via WhatsApp Web"
+                                  onClick={() => handleOpenCancelOrder(order)}
+                                  className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20"
+                                  title="Cancelar pedido"
+                                  aria-label={`Cancelar pedido ${formatOrderDisplayNumber(order.number)}`}
                                 >
-                                  <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
-                                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.863-9.864.001-2.63-1.023-5.101-2.883-6.963C16.588 1.843 14.116.822 11.5.822 6.066.822 1.641 5.242 1.638 10.682c-.001 1.666.436 3.292 1.267 4.724L1.878 20.1l4.769-1.25zM17.51 14.86c-.3-.149-1.772-.875-2.046-.975-.276-.1-.476-.149-.676.15-.2.3-.777.975-.951 1.174-.176.2-.351.224-.651.075-.3-.149-1.268-.467-2.417-1.493-.892-.796-1.495-1.78-1.67-2.079-.176-.3-.019-.462.13-.611.134-.133.3-.35.45-.525.15-.175.2-.299.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.582-.491-.504-.676-.513-.175-.008-.375-.01-.575-.01-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.494 1.707.632.716.227 1.368.195 1.884.118.574-.085 1.772-.724 2.022-1.424.25-.7.25-1.299.175-1.424-.075-.125-.275-.199-.575-.349z" />
-                                  </svg>
+                                  <Ban className="h-3.5 w-3.5" />
                                 </button>
                               )}
                             </div>
@@ -2045,7 +2224,7 @@ export default function OrdersPage() {
                     })()}
                     {item.details && (item.details.width || item.details.height) && (
                       <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Medidas: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
+                        Medidas: {Number(((item.details.width || 0) * 100).toFixed(3))} cm {item.details.height ? `x ${Number((item.details.height * 100).toFixed(3))} cm` : 'linear'}
                       </div>
                     )}
                     {item.outsourced && (
@@ -2095,11 +2274,18 @@ export default function OrdersPage() {
               </div>
               
               <div className="p-4 rounded-xl bg-secondary/20 border border-border text-xs space-y-2.5">
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className={`grid grid-cols-1 gap-2 ${selectedOrderDiscount > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
                   <div className="rounded-lg border border-border bg-card p-2">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Total do pedido</span>
-                    <p className="mt-1 font-black text-foreground">{formatCurrency(selectedOrder.total_amount)}</p>
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Total bruto</span>
+                    <p className="mt-1 font-black text-foreground">{formatCurrency(selectedOrderGrossTotal)}</p>
                   </div>
+                  {selectedOrderDiscount > 0 && (
+                    <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-2">
+                      <span className="text-[10px] font-bold uppercase text-blue-600">Desconto</span>
+                      <p className="mt-1 font-black text-blue-500">-{formatCurrency(selectedOrderDiscount)}</p>
+                      <p className="mt-0.5 text-[9px] font-bold text-blue-600">{selectedOrderDiscountPercentage.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% do total bruto</p>
+                    </div>
+                  )}
                   <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2">
                     <span className="text-[10px] font-bold uppercase text-emerald-600">Total pago</span>
                     <p className="mt-1 font-black text-emerald-500">{formatCurrency(selectedOrderPaidAmount)}</p>
@@ -2110,20 +2296,37 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                {selectedOrder.payment_status !== 'pago' && !isAddingPayment && (
-                  <button
-                    onClick={() => {
-                      const balance = selectedOrderPendingAmount;
-                      setPaymentAmount(balance);
-                      setPaymentKind(selectedOrderPaidAmount > 0 ? 'saldo' : 'adiantamento');
-                      setPaymentDateInput(new Date().toISOString().split('T')[0]);
-                      setPaymentNotesInput('');
-                      setIsAddingPayment(true);
-                    }}
-                    className="w-full flex items-center justify-center gap-1 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow shadow-primary/10 transition-all mt-2"
-                  >
-                    <DollarSign className="h-4 w-4" /> Registrar Pagamento
-                  </button>
+                {selectedOrderDiscount > 0 && (
+                  <div className="rounded-lg border border-blue-500/15 bg-blue-500/5 px-3 py-2 text-[10px] font-semibold text-muted-foreground">
+                    <span className="font-black uppercase text-blue-600">Ajuste comercial:</span>{' '}
+                    {selectedOrderDiscountReason || 'Desconto concedido no pedido.'} Desconto de {formatCurrency(selectedOrderDiscount)} ({selectedOrderDiscountPercentage.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%). Total líquido: {formatCurrency(selectedOrder.total_amount)}.
+                  </div>
+                )}
+
+                {!isAddingPayment && (
+                  <div className={`grid grid-cols-1 gap-2 mt-2 ${selectedOrder.payment_status !== 'pago' ? 'sm:grid-cols-2' : ''}`}>
+                    <button
+                      onClick={() => handleOpenEditOrder(selectedOrder)}
+                      className="flex items-center justify-center gap-1 py-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 text-xs font-semibold transition-all"
+                    >
+                      <BadgePercent className="h-4 w-4" /> Ajustar desconto
+                    </button>
+                    {selectedOrder.payment_status !== 'pago' && (
+                      <button
+                        onClick={() => {
+                          const balance = selectedOrderPendingAmount;
+                          setPaymentAmount(balance);
+                          setPaymentKind(selectedOrderPaidAmount > 0 ? 'saldo' : 'adiantamento');
+                          setPaymentDateInput(new Date().toISOString().split('T')[0]);
+                          setPaymentNotesInput('');
+                          setIsAddingPayment(true);
+                        }}
+                        className="flex items-center justify-center gap-1 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow shadow-primary/10 transition-all"
+                      >
+                        <DollarSign className="h-4 w-4" /> Registrar pagamento
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {isAddingPayment && (
@@ -2186,7 +2389,7 @@ export default function OrdersPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-muted-foreground block">Observacao</label>
+                      <label className="text-[10px] font-bold text-muted-foreground block">Observação</label>
                       <input
                         type="text"
                         value={paymentNotesInput}

@@ -100,7 +100,7 @@ export function AdditionalServicesSection({ services, onChange, storageKey = 'pr
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <select
-            className="pf-input text-xs"
+            className="pf-input w-full text-xs sm:w-[190px]"
             defaultValue=""
             onChange={(event) => {
               addService(event.target.value, false);

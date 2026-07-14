@@ -15,7 +15,9 @@ import {
   Edit2,
   MessageCircle,
   Truck,
-  RefreshCw
+  RefreshCw,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Quote, QuoteItem } from '@/lib/dummy-data';
@@ -140,6 +142,7 @@ export default function QuotesPage() {
   } = useDatabase();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [isCreating, setIsCreating] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [activePrintQuote, setActivePrintQuote] = useState<Quote | null>(null);
@@ -205,10 +208,16 @@ export default function QuotesPage() {
   const companyDisplayName = company?.name?.trim() || 'Empresa';
 
   const handleStartEdit = (quote: Quote) => {
+    if (quote.status === 'aprovado') {
+      alert('Este orçamento já foi convertido em pedido e não pode mais ser editado. Faça os ajustes no pedido correspondente.');
+      return;
+    }
     const resolvedQuote = withResolvedCustomer(quote);
     setEditingQuoteId(resolvedQuote.id);
     setCustomerId(resolvedQuote.customer_id);
     setDiscount(resolvedQuote.discount);
+    setDiscountMode('fixed');
+    setDiscountPercentage(0);
     setValidUntil(resolvedQuote.valid_until);
     setNotes(resolvedQuote.notes || '');
     setAdditionalServices(resolvedQuote.additional_services || []);
@@ -289,6 +298,8 @@ export default function QuotesPage() {
   // Form State
   const [customerId, setCustomerId] = useState('');
   const [discount, setDiscount] = useState(0);
+  const [discountMode, setDiscountMode] = useState<'fixed' | 'percentage'>('fixed');
+  const [discountPercentage, setDiscountPercentage] = useState(0);
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<DraftQuoteItem[]>([]);
@@ -357,7 +368,7 @@ export default function QuotesPage() {
 
     if (customers.length > 0) {
       setCustomerId('');
-      setCustomerPrefillMessage('Cliente informado no link nao foi encontrado. Selecione outro cliente para continuar.');
+      setCustomerPrefillMessage('O cliente informado no link não foi encontrado. Selecione outro cliente para continuar.');
     }
   }, [requestedCustomerId, customers]);
 
@@ -641,11 +652,17 @@ export default function QuotesPage() {
   };
 
   // 1. Filter Quotes
-  const filteredQuotes = quotes.filter(q => 
-    q.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    q.number.toString().includes(searchQuery) ||
-    q.status.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredQuotes = [...quotes]
+    .filter(q =>
+      q.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      q.number.toString().includes(searchQuery) ||
+      q.status.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => Number(b.number || 0) - Number(a.number || 0));
+  const pendingQuotesCount = quotes.filter(quote => quote.status === 'pendente').length;
+  const approvedQuotesCount = quotes.filter(quote => quote.status === 'aprovado').length;
+  const draftQuotesCount = quotes.filter(quote => quote.status === 'rascunho').length;
+  const quotesTotalAmount = quotes.reduce((sum, quote) => sum + (quote.total_amount || 0), 0);
 
   // 2. Dynamic Price calculation for item addition
   const getProductPriceInfo = (prodId: string, qty = itemQty) => {
@@ -693,14 +710,14 @@ export default function QuotesPage() {
       }
 
       if (manualPricingType === 'linear' && manualItemLinearMeters <= 0) {
-        alert('Informe o comprimento em metros para o item por metro linear.');
+        alert('Informe o comprimento em centímetros para o item por metro linear.');
         return;
       }
 
       const manualSummary = manualPricingType === 'm2'
-        ? `${manualItemWidth.toFixed(2)}m x ${manualItemHeight.toFixed(2)}m - ${quantity} un - ${manualItemAreaTotal.toFixed(2)} m²`
+        ? `${Number((manualItemWidth * 100).toFixed(3))}cm x ${Number((manualItemHeight * 100).toFixed(3))}cm - ${quantity} un - ${manualItemAreaTotal.toFixed(2)} m²`
         : manualPricingType === 'linear'
-          ? `${manualItemLinearMeters.toFixed(2)} m linear - ${quantity} un`
+          ? `${Number((manualItemLinearMeters * 100).toFixed(3))} cm - ${quantity} un`
           : `${quantity} un`;
       const displayName = `${description} — ${manualSummary}`;
 
@@ -805,7 +822,7 @@ export default function QuotesPage() {
         configuration_summary: configurationSnapshot?.display_label,
         configuration_snapshot: configurationSnapshot,
         notes: volumeTier
-          ? `Faixa de preco aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un, ${formatCurrency(volumeTier.total)} total).`
+          ? `Faixa de preço aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un, ${formatCurrency(volumeTier.total)} total).`
           : ''
       }
     };
@@ -850,6 +867,8 @@ export default function QuotesPage() {
     setRequestedCustomerId('');
     setCustomerPrefillMessage('');
     setDiscount(0);
+    setDiscountMode('fixed');
+    setDiscountPercentage(0);
     setValidUntil('');
     setNotes('');
     setItems([]);
@@ -898,7 +917,12 @@ export default function QuotesPage() {
       total_price: it.total_price ?? it.quantity * it.unit_price
     }));
 
-    const finalTotal = sub + servicesTotal + deliveryFee - discount;
+    const grossTotal = sub + servicesTotal + deliveryFee;
+    const calculatedDiscount = discountMode === 'percentage'
+      ? grossTotal * Math.min(100, Math.max(0, discountPercentage)) / 100
+      : Math.min(grossTotal, Math.max(0, discount));
+    const effectiveDiscount = Math.round(calculatedDiscount * 100) / 100;
+    const finalTotal = Math.max(0, grossTotal - effectiveDiscount);
 
     const successMessage = status === 'pendente'
       ? 'Proposta salva como enviada.'
@@ -914,7 +938,7 @@ export default function QuotesPage() {
         number: match?.number || 0,
         status,
         total_amount: finalTotal,
-        discount,
+        discount: effectiveDiscount,
         valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes,
         items: finalItems,
@@ -931,7 +955,7 @@ export default function QuotesPage() {
         customer_name: client.name,
         status,
         total_amount: finalTotal,
-        discount,
+        discount: effectiveDiscount,
         valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes,
         items: finalItems,
@@ -953,7 +977,7 @@ export default function QuotesPage() {
 
   const openQuotePdf = (quote: Quote) => {
     setSelectedPdfPreview({
-      title: `Orcamento #${quote.number}`,
+      title: `Orçamento #${quote.number}`,
       previewDataUrl: `/api/pdf-preview-data/quote/${quote.id}`,
       downloadUrl: `/api/pdf/quote/${quote.id}?download=1`,
       directPdfUrl: `/api/pdf/quote/${quote.id}`
@@ -967,7 +991,7 @@ export default function QuotesPage() {
       if (process.env.NODE_ENV === 'development') {
         console.warn('Erro ao baixar PDF do orcamento:', err);
       }
-      alert('Nao foi possivel baixar o PDF. Tente novamente.');
+      alert('Não foi possível baixar o PDF. Tente novamente.');
     }
   };
 
@@ -1203,7 +1227,14 @@ export default function QuotesPage() {
       {/* Main Quote Views */}
       {!isCreating ? (
         /* Quotes list */
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden no-print">
+        <div className="space-y-4 no-print">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-border bg-card px-3.5 py-3 shadow-sm"><span className="text-[10px] font-bold uppercase text-muted-foreground">Total de orçamentos</span><h3 className="mt-1 text-xl font-black text-foreground">{quotes.length}</h3><p className="mt-0.5 text-[9px] text-muted-foreground">Registrados no ERP</p></div>
+            <div className="rounded-xl border border-border bg-card px-3.5 py-3 shadow-sm"><span className="text-[10px] font-bold uppercase text-amber-500">Pendentes</span><h3 className="mt-1 text-xl font-black text-amber-500">{pendingQuotesCount}</h3><p className="mt-0.5 text-[9px] text-muted-foreground">Aguardando decisão</p></div>
+            <div className="rounded-xl border border-border bg-card px-3.5 py-3 shadow-sm"><span className="text-[10px] font-bold uppercase text-emerald-500">Aprovados</span><h3 className="mt-1 text-xl font-black text-emerald-500">{approvedQuotesCount}</h3><p className="mt-0.5 text-[9px] text-muted-foreground">Convertidos em pedido</p></div>
+            <div className="rounded-xl border border-border bg-card px-3.5 py-3 shadow-sm"><span className="text-[10px] font-bold uppercase text-primary">Valor orçado</span><h3 className="mt-1 text-xl font-black text-primary">{formatCurrency(quotesTotalAmount)}</h3><p className="mt-0.5 text-[9px] text-muted-foreground">{draftQuotesCount} em rascunho</p></div>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <div className="p-5 border-b border-border bg-secondary/10 flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1215,16 +1246,38 @@ export default function QuotesPage() {
                 className="w-full pl-9 pr-4 py-1.5 bg-card border border-border rounded-xl text-xs focus:outline-none text-foreground"
               />
             </div>
-            <button
-              onClick={() => setIsCreating(true)}
-              className="flex items-center gap-1 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all shrink-0"
-            >
-              <Plus className="h-4 w-4" /> Criar Orçamento
-            </button>
+            <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+              <button
+                onClick={() => setIsCreating(true)}
+                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all shrink-0"
+              >
+                <Plus className="h-4 w-4" /> Criar Orçamento
+              </button>
+              <div className="flex rounded-lg border border-border bg-card p-1" aria-label="Modo de visualização">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('cards')}
+                  className={`rounded-md p-1.5 ${viewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}
+                  title="Visualizar em cards"
+                  aria-label="Visualizar orçamentos em cards"
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`rounded-md p-1.5 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}
+                  title="Visualizar em lista"
+                  aria-label="Visualizar orçamentos em lista"
+                >
+                  <List className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
 
           {filteredQuotes.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div className={`${viewMode === 'cards' ? 'grid' : 'hidden'} grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5`}>
               {filteredQuotes.map((quote) => {
                 const itemsSummary = quote.items.length > 0
                   ? quote.items.slice(0, 2).map((item) => `${item.quantity}x ${item.product_name}`).join(', ')
@@ -1242,9 +1295,12 @@ export default function QuotesPage() {
                     key={quote.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => openQuotePdf(quote)}
+                    onClick={() => handleStartEdit(quote)}
                     onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') openQuotePdf(quote);
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleStartEdit(quote);
+                      }
                     }}
                     className="group flex min-h-[230px] cursor-pointer flex-col rounded-xl border border-border bg-card p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
                   >
@@ -1309,8 +1365,9 @@ export default function QuotesPage() {
                           event.stopPropagation();
                           handleStartEdit(quote);
                         }}
-                        className="rounded-lg border border-border bg-secondary p-1.5 text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-                        title="Editar orçamento"
+                        disabled={quote.status === 'aprovado'}
+                        className="rounded-lg border border-border bg-secondary p-1.5 text-muted-foreground hover:bg-secondary/80 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-35"
+                        title={quote.status === 'aprovado' ? 'Orçamento convertido: edite no pedido' : 'Editar orçamento'}
                         aria-label="Editar orçamento"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
@@ -1363,12 +1420,12 @@ export default function QuotesPage() {
               })}
             </div>
           ) : (
-            <div className="px-3 py-8 text-center text-sm font-semibold text-muted-foreground">
+            <div className={`${viewMode === 'cards' ? 'block' : 'hidden'} px-3 py-8 text-center text-sm font-semibold text-muted-foreground`}>
               Nenhum orçamento cadastrado ou correspondente à pesquisa.
             </div>
           )}
 
-          <div className="hidden">
+          <div className={viewMode === 'list' ? 'block overflow-x-auto' : 'hidden'}>
             <table className="w-full text-left border-collapse text-xs table-auto">
               <thead>
                 <tr className="bg-secondary/40 text-[9px] uppercase font-bold text-muted-foreground border-b border-border whitespace-nowrap">
@@ -1416,8 +1473,9 @@ export default function QuotesPage() {
                           <button
                             type="button"
                             onClick={() => handleStartEdit(quote)}
-                            className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border"
-                            title="Editar Orçamento"
+                            disabled={quote.status === 'aprovado'}
+                            className="p-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground border border-border disabled:cursor-not-allowed disabled:opacity-35"
+                            title={quote.status === 'aprovado' ? 'Orçamento convertido: edite no pedido' : 'Editar orçamento'}
                           >
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
@@ -1473,6 +1531,7 @@ export default function QuotesPage() {
                 )}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       ) : (
@@ -1542,11 +1601,11 @@ export default function QuotesPage() {
                 </div>
                 <div className="min-w-0">
                   <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">CPF/CNPJ</span>
-                  <span className="block whitespace-nowrap font-bold text-slate-800">{selectedFormCustomer.document || 'Nao informado'}</span>
+                  <span className="block whitespace-nowrap font-bold text-slate-800">{selectedFormCustomer.document || 'Não informado'}</span>
                 </div>
                 <div>
                   <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Telefone</span>
-                  <span className="block whitespace-nowrap font-bold text-slate-800">{selectedFormCustomer.phone || 'Nao informado'}</span>
+                  <span className="block whitespace-nowrap font-bold text-slate-800">{selectedFormCustomer.phone || 'Não informado'}</span>
                 </div>
               </div>
             </div>
@@ -1610,25 +1669,25 @@ export default function QuotesPage() {
                   {manualPricingType === 'm2' && (
                     <>
                       <div className="md:col-span-2 space-y-1">
-                        <label className="text-[10px] font-semibold text-muted-foreground">Largura (m)</label>
+                        <label className="text-[10px] font-semibold text-muted-foreground">Largura (cm)</label>
                         <input
                           type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={itemWidth}
-                          onChange={(e) => setItemWidth(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                          step="0.1"
+                          min="0.1"
+                          value={Number((itemWidth * 100).toFixed(3))}
+                          onChange={(e) => setItemWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1) / 100)}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                         />
                       </div>
 
                       <div className="md:col-span-2 space-y-1">
-                        <label className="text-[10px] font-semibold text-muted-foreground">Altura (m)</label>
+                        <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
                         <input
                           type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={itemHeight}
-                          onChange={(e) => setItemHeight(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                          step="0.1"
+                          min="0.1"
+                          value={Number((itemHeight * 100).toFixed(3))}
+                          onChange={(e) => setItemHeight(Math.max(0.1, parseFloat(e.target.value) || 0.1) / 100)}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                         />
                       </div>
@@ -1637,13 +1696,13 @@ export default function QuotesPage() {
 
                   {manualPricingType === 'linear' && (
                     <div className="md:col-span-3 space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Comprimento / metros</label>
+                      <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (cm)</label>
                       <input
                         type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={itemWidth}
-                        onChange={(e) => setItemWidth(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                        step="0.1"
+                        min="0.1"
+                        value={Number((itemWidth * 100).toFixed(3))}
+                        onChange={(e) => setItemWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1) / 100)}
                         className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                       />
                     </div>
@@ -1690,7 +1749,7 @@ export default function QuotesPage() {
                     <label className="text-[10px] font-semibold text-muted-foreground">Largura / Compr. (cm)</label>
                     <input
                       type="number"
-                      step="1"
+                      step="0.1"
                       min="1"
                       value={Number((itemWidth * 100).toFixed(2))}
                       onChange={(e) => setItemWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
@@ -1702,7 +1761,7 @@ export default function QuotesPage() {
                       <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
                       <input
                         type="number"
-                        step="1"
+                        step="0.1"
                         min="1"
                         value={Number((itemHeight * 100).toFixed(2))}
                         onChange={(e) => setItemHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
@@ -1813,10 +1872,10 @@ export default function QuotesPage() {
                   ) : (
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <span className="font-semibold text-amber-600">
-                        Este produto possui tabela por quantidade, mas a quantidade informada ainda nao atingiu a primeira faixa.
+                        Este produto possui tabela por quantidade, mas a quantidade informada ainda não atingiu a primeira faixa.
                       </span>
                       <span className="font-bold text-foreground">
-                        Preco base: {formatUnitCurrency(getProductPriceInfo(selectedProductId).price)} / un
+                        Preço base: {formatUnitCurrency(getProductPriceInfo(selectedProductId).price)} / un
                       </span>
                     </div>
                   )}
@@ -1869,7 +1928,7 @@ export default function QuotesPage() {
                           })()}
                           {item.details && (item.details.width || item.details.height) && (
                             <div className="text-[9px] text-muted-foreground">
-                              Medidas: {item.details.width}m {item.details.height ? `x ${item.details.height}m` : 'linear'}
+                              Medidas: {Number(((item.details.width || 0) * 100).toFixed(3))} cm {item.details.height ? `x ${Number((item.details.height * 100).toFixed(3))} cm` : 'linear'}
                             </div>
                           )}
                           {item.details?.notes && (
@@ -2133,17 +2192,52 @@ export default function QuotesPage() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground">Desconto Fixo (R$)</label>
-                  <input
-                    type="text"
-                    value={formatCurrencyInput(discount)}
-                    onChange={(e) => setDiscount(parseCurrencyInputToNumber(e.target.value))}
-                    className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs text-right focus:outline-none font-bold text-emerald-500"
-                  />
+                  <label className="text-[10px] font-bold text-muted-foreground">Desconto</label>
+                  <div className="grid grid-cols-[82px_1fr] gap-2">
+                    <select
+                      value={discountMode}
+                      onChange={(e) => setDiscountMode(e.target.value as 'fixed' | 'percentage')}
+                      className="rounded-lg border border-border bg-card px-2 py-1.5 text-xs font-bold text-foreground focus:outline-none"
+                      aria-label="Tipo de desconto"
+                    >
+                      <option value="fixed">R$</option>
+                      <option value="percentage">%</option>
+                    </select>
+                    {discountMode === 'fixed' ? (
+                      <input
+                        type="text"
+                        value={formatCurrencyInput(discount)}
+                        onChange={(e) => setDiscount(parseCurrencyInputToNumber(e.target.value))}
+                        className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-right text-xs font-bold text-emerald-500 focus:outline-none"
+                        aria-label="Desconto em reais"
+                      />
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={discountPercentage || ''}
+                          onChange={(e) => setDiscountPercentage(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                          className="w-full rounded-lg border border-border bg-card px-2 py-1.5 pr-7 text-right text-xs font-bold text-emerald-500 focus:outline-none"
+                          aria-label="Desconto em porcentagem"
+                        />
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-500">%</span>
+                      </div>
+                    )}
+                  </div>
+                  {discountMode === 'percentage' && discountPercentage > 0 && (
+                    <p className="text-right text-[9px] font-semibold text-muted-foreground">
+                      Equivale a {formatCurrency((getSubtotal() + getServicesTotal() + deliveryFee) * discountPercentage / 100)}
+                    </p>
+                  )}
                 </div>
                 <div className="flex justify-between items-center border-t border-border pt-3 mt-3 font-bold text-sm">
                   <span className="text-foreground">Total Líquido:</span>
-                  <span className="text-primary text-base font-extrabold">{formatCurrency(getSubtotal() + getServicesTotal() + deliveryFee - discount)}</span>
+                  <span className="text-primary text-base font-extrabold">
+                    {formatCurrency(Math.max(0, getSubtotal() + getServicesTotal() + deliveryFee - (discountMode === 'percentage' ? (getSubtotal() + getServicesTotal() + deliveryFee) * discountPercentage / 100 : discount)))}
+                  </span>
                 </div>
               </div>
             </div>

@@ -19,13 +19,13 @@ import {
 } from '@/lib/pdf/pdf-formatters';
 
 const orderStatusLabels: Record<ReturnType<typeof normalizeOrderOperationalStatus>, string> = {
-  orcamento: 'ORCAMENTO',
+  orcamento: 'ORÇAMENTO',
   aguardando_aprovacao: 'AGUARDANDO',
   aguardando_pagamento: 'AGUARDANDO',
-  producao: 'PRODUCAO',
+  producao: 'PRODUÇÃO',
   impressao: 'IMPRESSAO',
   acabamento: 'ACABAMENTO',
-  expedicao: 'EXPEDICAO',
+  expedicao: 'EXPEDIÇÃO',
   entregue: 'ENTREGUE',
   finalizado: 'FINALIZADO',
   cancelado: 'CANCELADO'
@@ -167,6 +167,14 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
   const servicesTotal = getAdditionalServicesTotal(data.order.additional_services);
   const grossTotal = productsTotal + servicesTotal + Number(data.order.shipping_cost || 0);
   const discount = Math.max(0, grossTotal - Number(data.order.total_amount || 0));
+  const discountPercentage = grossTotal > 0 ? (discount / grossTotal) * 100 : 0;
+  const discountNotePattern = /^Ajuste comercial — desconto: R\$ [\d.,]+ \| Motivo: (.+)$/im;
+  const discountReason = String(data.order.notes || '').match(discountNotePattern)?.[1]?.trim() || '';
+  const visibleNotes = String(data.order.notes || '')
+    .split('\n')
+    .filter((line) => !discountNotePattern.test(line.trim()))
+    .join('\n')
+    .trim();
   const pending = Math.max(0, Number(data.order.total_amount || 0) - Number(data.order.paid_amount || 0));
   const orderStatus = normalizeOrderOperationalStatus(data.order);
   const isInvoicedB2B = Boolean(data.invoicedTransaction && pending > 0);
@@ -203,7 +211,7 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
             <Text style={styles.value}>{data.customer?.phone || 'Não informado'}</Text>
             <Text style={styles.label}>E-mail</Text>
             <Text style={styles.value}>{data.customer?.email || 'Não informado'}</Text>
-            <Text style={styles.label}>Endereco</Text>
+            <Text style={styles.label}>Endereço</Text>
             <Text style={styles.value}>{buildCustomerAddress(data.customer, data.order.delivery_address) || 'Não informado'}</Text>
           </View>
           <View style={styles.box}>
@@ -257,10 +265,18 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
             </View>
           ) : null}
           {discount > 0 ? (
-            <View style={styles.totalLine}>
-              <Text>DESCONTO CONCEDIDO</Text>
-              <Text>-{formatPdfCurrency(discount)}</Text>
-            </View>
+            <>
+              <View style={styles.totalLine}>
+                <Text>DESCONTO CONCEDIDO ({discountPercentage.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%)</Text>
+                <Text>-{formatPdfCurrency(discount)}</Text>
+              </View>
+              {discountReason ? (
+                <View style={styles.totalLine}>
+                  <Text>MOTIVO DO DESCONTO</Text>
+                  <Text>{normalizePdfText(discountReason)}</Text>
+                </View>
+              ) : null}
+            </>
           ) : null}
           <View style={styles.totalStrong}>
             <Text style={styles.totalStrongText}>VALOR TOTAL</Text>
@@ -277,7 +293,7 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
         </View>
 
         <View style={styles.notes}>
-          {data.order.notes ? <Text>Observações: {normalizePdfText(data.order.notes)}</Text> : null}
+          {visibleNotes ? <Text>Observações: {normalizePdfText(visibleNotes)}</Text> : null}
         </View>
         <Text style={styles.footer}>{getPdfFooterText(data.company)}</Text>
       </Page>
