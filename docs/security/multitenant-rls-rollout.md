@@ -161,6 +161,154 @@ ser reconciliada por alteração ou exclusão de dados.
 - Confirmar ausência das cinco versões na tabela de histórico antes do rollout real.
 - Confirmar estado remoto contra o snapshot e contagens: empresas 5, pedidos 13,
   itens de pedido 17, orçamentos 12, itens de orçamento 19, transações financeiras
-  11, produtos totais 6, produtos ativos/publicados 6 e clientes 25.
+  11, produtos totais 6, produtos ativos/publicados 6, categorias públicas atuais 8
+  e clientes 25.
 - Registrar que toda simulação terminou em `ROLLBACK` e repetir a leitura em nova sessão.
 - Somente liberar com cinco simulações verdes e `ROLLBACK` explícito em todas.
+
+## Hardening residual de tabelas públicas
+
+### Escopo e evidência
+
+A auditoria residual cobre dez tabelas que não pertenciam ao conjunto empresarial
+das migrations 2/3. O estado anterior efetivo herdado do projeto antigo concedia
+`SELECT`, `INSERT`, `UPDATE` e `DELETE` a `anon` e `authenticated` nas dez tabelas.
+RLS estava ativa em todas e reduzia as linhas acessíveis, mas grants e RLS são
+barreiras independentes. A migration
+`20260714183326_minimize_residual_public_grants.sql` remove o CRUD herdado e
+reexpõe nominalmente apenas as operações comprovadas. Ela não altera policies,
+dados, owners, defaults ou privilégios de `service_role`.
+
+O mapeamento está alinhado à mudança de plataforma publicada pela Supabase em
+28/04/2026: tabelas expostas pela Data API devem ter grants explícitos e RLS;
+nenhum grant pode ser inferido apenas pela existência de uma policy.
+
+| Tabela | Consumidor/papel | Grant final proposto | Policy efetiva | Dados sensíveis e smoke |
+| --- | --- | --- | --- | --- |
+| `company_footer_badge_defaults` | Nenhum consumidor direto localizado; eventual leitura deve ser server-side | `anon`: nenhum; `authenticated`: nenhum | Sem policy de cliente | URLs/identificadores internos; confirmar bloqueio anon/auth e operação server-side preservada |
+| `cookie_preferences` | `StorePrivacyContext`, navegador público ou autenticado | `anon`: `INSERT`; `authenticated`: `INSERT` | `cookie_preferences_public_insert`, `cookie_preferences_auth_insert` | identificador anônimo, `auth_user_id`, `customer_id`, preferências; validar INSERT revertido e ausência de leitura pública |
+| `customer_addresses` | `StoreCustomerContext`, navegador autenticado | `authenticated`: `SELECT, INSERT, UPDATE, DELETE`; `anon`: nenhum | `store_addresses_self_all` | endereço completo, destinatário e referências; validar somente endereços da própria conta |
+| `customer_consents` | `StorePrivacyContext` (INSERT) e área de privacidade (SELECT), autenticados | `authenticated`: `SELECT, INSERT`; `anon`: nenhum | `customer_consents_self_select`, `customer_consents_self_insert` | consentimentos, titular e identificadores; validar próprio titular e negar listagem pública |
+| `data_subject_requests` | rota `/api/store/privacy-request` com chave pública (INSERT) e área autenticada (SELECT/INSERT) | `anon`: `INSERT`; `authenticated`: `SELECT, INSERT` | `data_subject_requests_public_insert`, `data_subject_requests_self_insert`, `data_subject_requests_self_select` | e-mail, identificação, detalhes e resposta LGPD; validar INSERT revertido, leitura própria e nenhuma leitura anon |
+| `privacy_audit_events` | Contrato autenticado previsto pela policy; nenhum leitor direto no frontend | `authenticated`: `INSERT`; `anon`: nenhum | `privacy_audit_events_auth_insert` | JSON de auditoria e identificadores; validar INSERT próprio e negar SELECT de cliente |
+| `privacy_policy_versions` | Data API pública prevista para versão publicada; páginas atuais também possuem conteúdo estático | `anon`: `SELECT`; `authenticated`: `SELECT` | `privacy_policy_public_active_select` | conteúdo/versionamento, sem PII; validar somente `is_active=true` e `published_at` não nulo |
+| `profiles` | `AuthContext` (SELECT/claim UPDATE); o frontend também tenta CRUD administrativo, mas o banco remoto não possui policies para INSERT/DELETE | `authenticated`: `SELECT, UPDATE`; `anon`: nenhum | `tenant_profiles_select`, `tenant_profiles_claim_auth_user` | e-mail, telefone, `auth_user_id`, `company_id`, papel; validar perfil próprio/claim e bloqueio anon/cross-tenant |
+| `store_customer_accounts` | `StoreCustomerContext` (SELECT); criação pela RPC autenticada `ensure_store_customer_account` | `authenticated`: `SELECT`; `anon`: nenhum | `store_accounts_self_select` | `auth_user_id`, cliente, empresa e status; validar conta própria; sem INSERT direto |
+| `store_customer_favorites` | `StoreCustomerContext`, navegador autenticado | `authenticated`: `SELECT, INSERT, DELETE`; `anon`: nenhum | `store_favorites_self_select`, `store_favorites_self_insert`, `store_favorites_self_delete` | IDs internos de cliente/produto/empresa; validar favoritos próprios e produto público ativo |
+
+As únicas operações anônimas intencionais são `INSERT` em
+`cookie_preferences`, `INSERT` em `data_subject_requests` e `SELECT` em
+`privacy_policy_versions`. Nenhum `SELECT` anônimo alcança e-mail, telefone,
+endereço, documento, `auth_user_id`, `company_id`, papel, consentimento, detalhes
+LGPD ou JSON de auditoria. `company_footer_badge_defaults`, `customer_addresses`,
+`customer_consents`, `privacy_audit_events`, `profiles`,
+`store_customer_accounts` e `store_customer_favorites` ficam sem qualquer grant
+para `anon`.
+
+`profiles` recebe somente `SELECT, UPDATE`, que é o contrato coberto pelas duas
+policies encontradas no banco remoto. Embora o frontend contenha tentativas de
+INSERT/DELETE e atualização administrativa, essas operações já são bloqueadas pela
+ausência de policies remotas e não devem ser abertas incidentalmente por uma
+migration de grants. O fluxo administrativo deve ser movido para RPC/rota
+server-side com autorização de admin/gerente e DTO de colunas permitidas antes de
+qualquer grant futuro. Isso também é necessário para impedir que atualização
+pessoal alcance `company_id`, `role`, `active` ou outros campos administrativos.
+
+### Aplicação, smoke e recovery
+
+1. Pré-condições: migrations 1–5 validadas; RLS ativa nas dez tabelas; snapshot e
+   contagens preservados; hash da migration registrado.
+2. Aplicar somente
+   `supabase/migrations/20260714183326_minimize_residual_public_grants.sql` em
+   janela própria e com `ON_ERROR_STOP`.
+3. Validar ACLs por `has_table_privilege`, policies em `pg_policies` e ausência de
+   ACL de `PUBLIC` via `aclexplode`.
+4. Smoke público: catálogo, cookies, política publicada e schema do formulário
+   LGPD; escritas somente em transação com `ROLLBACK`, sem solicitação real.
+5. Smoke autenticado: login da loja, conta, endereços, consentimentos, pedidos,
+   orçamentos, favoritos e perfil; depois admin, CRM, financeiro, produção,
+   manifests e PWA. Confirmar negação cross-tenant.
+6. Diante de erro, não restaurar o CRUD antigo. Executar nominalmente
+   `docs/security/rollback/20260714183326_minimize_residual_public_grants_recovery.sql`
+   em transação controlada. Esse recovery reasserta o mesmo mínimo seguro e nunca
+   desabilita RLS, concede a `PUBLIC` ou usa `GRANT ALL`.
+7. Repetir ACL/policy/smoke e registrar operador, UTC, America/Bahia e evidências.
+
+### Simulação aprovada em 14/07/2026
+
+- Runner externo:
+  `C:\Backups\PrintFlowPRO\pre-rls-20260714\simulation\run-residual-grants-simulation.ps1`.
+- Auditoria de metadados: `PSQL_EXIT_CODE=0`, modo somente leitura, sem conteúdo
+  de registros; RLS ativa em 10/10 tabelas, owner `postgres`, FORCE RLS desativado
+  e 16 policies capturadas.
+- Simulação: migration residual, matriz de grants, testes `anon`, testes
+  `authenticated`, recovery seguro e pós-validação executados dentro do mesmo
+  `BEGIN`.
+- Resultado: `BEFORE_EXIT_CODE=0`, `SIMULATION_EXIT_CODE=0`,
+  `AFTER_EXIT_CODE=0` e `ROLLBACK_EXPLICIT=True`.
+- Fingerprint ACL/RLS/policies antes/depois:
+  `06dae7cacb87382a6142b25f8231c7a2`, sem divergência.
+- Janela UTC: `2026-07-14T18:40:16.8671679Z` a
+  `2026-07-14T18:40:27.8091285Z` (America/Bahia: 15:40:16 a 15:40:27).
+- Estado remoto: inalterado; migration e recovery não aplicados
+  permanentemente; nenhum dado de teste persistiu.
+- Evidências: `residual-grants-audit.*`, `residual-grants-simulation.*` e
+  `residual-acl-{before,after}.out.txt` no diretório externo de simulação.
+
+### Rate limiting pendente
+
+- `cookie_preferences`: limitar por IP/tenant e janela curta; limitar tamanho do
+  identificador e payload; sanitizar `source`; não registrar o conteúdo completo.
+- `data_subject_requests`: manter limite por IP já existente na rota, mover o
+  contador em memória para armazenamento distribuído antes de escalar, considerar
+  CAPTCHA após limiar, impor tamanho máximo e registrar apenas metadados sem PII.
+- Qualquer consentimento público futuro: não abrir grant antes de rota dedicada,
+  CAPTCHA/limite temporal, validação de versão e testes de abuso. A implementação
+  atual de `customer_consents` permanece exclusivamente autenticada.
+
+### Risco residual de `supabase_admin`
+
+`postgres` não é membro de `supabase_admin`. Os default privileges de
+`supabase_admin` continuam pendentes e nenhuma elevação será tentada nesta etapa.
+Cada nova migration deve auditar owner e grants após criar objetos; objetos cujo
+owner seja `supabase_admin` exigem revisão pós-criação pelo administrador da
+plataforma. A migration residual não altera esses defaults.
+
+## Reconciliação do histórico
+
+Não executar enquanto a migration residual não tiver sido aplicada e validada em
+uma janela posterior. A ajuda da Supabase CLI 2.109.1 confirma a sintaxe:
+
+```text
+supabase migration repair [flags] <version...>
+--status choice   (applied ou reverted)
+--linked          projeto vinculado
+--db-url string   conexão explícita, percent-encoded
+```
+
+Plano para o projeto vinculado, sem inserir diretamente em
+`supabase_migrations.schema_migrations`:
+
+1. Confirmar branch/commit aprovado, backup, hashes dos seis arquivos e estado
+   remoto equivalente ao SQL de cada migration.
+2. Executar `npx supabase@2.109.1 migration list --linked` e salvar a evidência.
+3. Somente após aprovação, marcar as cinco versões já aplicadas manualmente:
+
+   ```powershell
+   npx supabase@2.109.1 migration repair --linked --status applied 20260712170000 20260712171000 20260712172000 20260712173000 20260712174000
+   ```
+
+4. Aplicar e validar a migration residual em etapa separada. Só então marcar
+   `20260714183326` como aplicada com:
+
+   ```powershell
+   npx supabase@2.109.1 migration repair --linked --status applied 20260714183326
+   ```
+
+5. Repetir `npx supabase@2.109.1 migration list --linked`; as versões local/remota
+   devem coincidir e o schema deve continuar igual às capturas.
+
+É proibido executar `supabase db push` enquanto houver divergência, usar INSERT
+manual na tabela de histórico ou marcar a migration residual antes da aplicação
+real e do smoke aprovado. Nenhum comando `migration repair` foi executado nesta
+preparação.
