@@ -17,11 +17,11 @@ export function normalizeDistanceKm(value: number) {
 
 export async function calculateRouteDistance(origin: string, destination: string): Promise<number> {
   if (!origin || !origin.trim()) {
-    throw new Error('Endereco de partida da grafica nao configurado.');
+    throw new Error('Endereço de partida da gráfica não configurado.');
   }
 
   if (!destination || !destination.trim()) {
-    throw new Error('Endereco do cliente nao informado.');
+    throw new Error('Endereço do cliente não informado.');
   }
 
   const response = await fetch('/api/distance', {
@@ -44,7 +44,7 @@ export async function calculateRouteDistance(origin: string, destination: string
   }
 
   if (typeof data.distance_km !== 'number' || data.distance_km <= 0) {
-    throw new Error('Nao foi possivel obter uma distancia valida para a rota.');
+    throw new Error('Não foi possível obter uma distância válida para a rota.');
   }
 
   return normalizeDistanceKm(data.distance_km);

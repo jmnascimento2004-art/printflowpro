@@ -115,7 +115,7 @@ export function PdfPreviewViewer({
         });
 
         if (!response.ok) {
-          throw new Error(`Nao foi possivel carregar a pre-visualizacao do PDF (${response.status}).`);
+          throw new Error(`Não foi possível carregar a pré-visualização do PDF (${response.status}).`);
         }
 
         const contentType = response.headers.get('content-type') || '';
@@ -128,7 +128,7 @@ export function PdfPreviewViewer({
               body: preview.slice(0, 300)
             });
           }
-          throw new Error('Nao foi possivel carregar a pre-visualizacao do PDF.');
+          throw new Error('Não foi possível carregar a pré-visualização do PDF.');
         }
 
         const previewData = await response.json();
@@ -140,7 +140,7 @@ export function PdfPreviewViewer({
               body: previewData
             });
           }
-          throw new Error('Nao foi possivel carregar a pre-visualizacao do PDF.');
+          throw new Error('Não foi possível carregar a pré-visualização do PDF.');
         }
 
         loadingTask = pdfjs.getDocument({ data: base64ToBytes(previewData.base64) }) as PdfLoadingTask;
@@ -172,7 +172,7 @@ export function PdfPreviewViewer({
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
           if (!context) {
-            throw new Error('Nao foi possivel preparar o canvas de visualizacao.');
+            throw new Error('Não foi possível preparar a visualização do PDF.');
           }
 
           const outputScale = window.devicePixelRatio || 1;
@@ -193,7 +193,7 @@ export function PdfPreviewViewer({
         }
       } catch (err) {
         if (!isMounted) return;
-        const message = err instanceof Error ? err.message : 'Nao foi possivel carregar a pre-visualizacao do PDF.';
+        const message = err instanceof Error ? err.message : 'Não foi possível carregar a pré-visualização do PDF.';
         setError(message);
       } finally {
         if (isMounted) setIsLoading(false);
@@ -222,7 +222,7 @@ export function PdfPreviewViewer({
       if (process.env.NODE_ENV === 'development') {
         console.warn('Erro ao baixar PDF:', err);
       }
-      alert('Nao foi possivel baixar o PDF. Tente novamente.');
+      alert('Não foi possível baixar o PDF. Tente novamente.');
     }
   };
 

@@ -28,13 +28,13 @@ const NAV_ITEMS = [
   { name: 'PDV', path: '/pos', icon: ShoppingBag, primary: true },
   { name: 'Clientes', path: '/crm', icon: Users, primary: true },
   { name: 'Produtos', path: '/products', icon: Package, primary: true },
-  { name: 'Orcamentos', path: '/quotes', icon: FileText },
-  { name: 'Precificacao', path: '/pricing', icon: Calculator },
+  { name: 'Orçamentos', path: '/quotes', icon: FileText },
+  { name: 'Precificação', path: '/pricing', icon: Calculator },
   { name: 'Pedidos', path: '/orders', icon: LayoutGrid },
-  { name: 'Producao', path: '/production', icon: Wrench },
+  { name: 'Produção', path: '/production', icon: Wrench },
   { name: 'Financeiro', path: '/financial', icon: DollarSign },
   { name: 'Estoque', path: '/stock', icon: Layers },
-  { name: 'Expedicao', path: '/shipment', icon: Truck },
+  { name: 'Expedição', path: '/shipment', icon: Truck },
   { name: 'Revenda', path: '/resale', icon: ExternalLink },
   { name: 'Ajustes', path: '/settings', icon: Settings }
 ];

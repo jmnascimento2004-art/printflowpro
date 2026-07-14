@@ -159,7 +159,7 @@ export default function StoreSignupPage() {
         router.replace(createSignupSuccessUrl());
       }
     } catch (signupError) {
-      setError(signupError instanceof Error ? signupError.message : 'Nao foi possivel criar sua conta.');
+      setError(signupError instanceof Error ? signupError.message : 'Não foi possível criar sua conta.');
     } finally {
       setSubmitting(false);
     }
@@ -328,7 +328,7 @@ export default function StoreSignupPage() {
               {[
                 { icon: CheckCircle2, label: 'Acompanhe seus pedidos pelo catálogo' },
                 { icon: ShieldCheck, label: 'Seus dados ficam protegidos para proximas compras' },
-                { icon: Truck, label: 'Enderecos salvos agilizam novos pedidos' },
+                { icon: Truck, label: 'Endereços salvos agilizam novos pedidos' },
                 { icon: CreditCard, label: 'Orçamentos e compras em um fluxo mais rápido' }
               ].map((item) => {
                 const Icon = item.icon;

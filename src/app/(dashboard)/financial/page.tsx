@@ -242,7 +242,7 @@ export default function FinancialPage() {
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className={`space-y-6 ${isAddingTransaction ? 'hidden' : ''}`}>
         {/* 1. Metric Indicators Banner Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Net Cash */}
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
           <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> Saldo de Caixa Atual</span>
@@ -258,7 +258,7 @@ export default function FinancialPage() {
 
         {/* Accounts Receivable */}
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase">Contas a Receber (Pendente)</span>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase">Contas a Receber (Pendentes)</span>
           <h3 className="text-2xl font-black text-foreground mt-2 tracking-tight">
             {formatCurrency(accountsReceivable)}
           </h3>
@@ -267,7 +267,7 @@ export default function FinancialPage() {
 
         {/* Accounts Payable */}
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase">Contas a Pagar (Pendente)</span>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase">Contas a Pagar (Pendentes)</span>
           <h3 className="text-2xl font-black text-amber-500 mt-2 tracking-tight">
             {formatCurrency(accountsPayable)}
           </h3>
@@ -283,14 +283,14 @@ export default function FinancialPage() {
           <p className="text-[10px] text-muted-foreground mt-1">Margem operacional real do período</p>
         </div>
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Receitas do Periodo</span>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><TrendingUp className="h-3.5 w-3.5" /> Receitas do Período</span>
           <h3 className="text-2xl font-black text-emerald-500 mt-2 tracking-tight">{formatCurrency(totalReceived)}</h3>
           <p className="text-[10px] text-muted-foreground mt-1">{periodIncome.length} entradas ativas</p>
         </div>
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><TrendingDown className="h-3.5 w-3.5" /> Despesas do Periodo</span>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1.5"><TrendingDown className="h-3.5 w-3.5" /> Despesas do Período</span>
           <h3 className="text-2xl font-black text-rose-500 mt-2 tracking-tight">{formatCurrency(totalPaid)}</h3>
-          <p className="text-[10px] text-muted-foreground mt-1">{periodExpenses.length} saidas ativas</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{periodExpenses.length} saídas ativas</p>
         </div>
       </div>
 
@@ -298,7 +298,7 @@ export default function FinancialPage() {
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm xl:col-span-2">
           <div className="flex items-center justify-between gap-3 mb-4">
             <h3 className="font-bold text-sm uppercase text-foreground flex items-center gap-2"><BarChart3 className="h-4 w-4 text-primary" /> Receita x Despesa</h3>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase">Ultimos 6 meses</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">Últimos 6 meses</span>
           </div>
           <div className="grid grid-cols-6 gap-3 h-44 items-end">
             {flowBuckets.map((bucket) => (
@@ -314,7 +314,7 @@ export default function FinancialPage() {
         </div>
 
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-          <h3 className="font-bold text-sm uppercase text-foreground flex items-center gap-2 mb-4"><PieChart className="h-4 w-4 text-primary" /> Entradas por Meio</h3>
+          <h3 className="font-bold text-sm uppercase text-foreground flex items-center gap-2 mb-4"><PieChart className="h-4 w-4 text-primary" /> Entradas por Meio de Pagamento</h3>
           <div className="space-y-3">
             {Object.entries(paymentMethodTotals).length > 0 ? Object.entries(paymentMethodTotals).map(([method, value]) => (
               <div key={method} className="space-y-1.5">
@@ -327,7 +327,7 @@ export default function FinancialPage() {
                 </div>
               </div>
             )) : (
-              <p className="text-xs text-muted-foreground italic">Sem entradas confirmadas no periodo.</p>
+              <p className="text-xs text-muted-foreground italic">Sem entradas confirmadas no período.</p>
             )}
           </div>
         </div>
@@ -339,8 +339,8 @@ export default function FinancialPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             {[
               ['Receita bruta', totalReceived],
-              ['Deducoes / cancelamentos', cancelledAmount],
-              ['Receita liquida', netRevenue],
+              ['Deduções / cancelamentos', cancelledAmount],
+              ['Receita líquida', netRevenue],
               ['Custos diretos', directCosts],
               ['Despesas operacionais', operationalExpenses],
               ['Resultado operacional', operatingResult]
@@ -365,7 +365,7 @@ export default function FinancialPage() {
               <span>{orders.filter(isCancelledOrder).length}</span>
             </div>
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              Saldo pendente calculado por pedido ativo menos pagamentos ativos.
+              O saldo pendente é calculado com base no total do pedido ativo menos os pagamentos confirmados.
             </div>
           </div>
         </div>
@@ -391,38 +391,38 @@ export default function FinancialPage() {
               onChange={(e) => setPeriodFilter(e.target.value as typeof periodFilter)}
               className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
             >
-              <option value="mes">Mes atual</option>
-              <option value="7dias">Ultimos 7 dias</option>
-              <option value="30dias">Ultimos 30 dias</option>
-              <option value="todos">Todo periodo</option>
+              <option value="mes">Mês atual</option>
+              <option value="7dias">Últimos 7 dias</option>
+              <option value="30dias">Últimos 30 dias</option>
+              <option value="todos">Todo o período</option>
             </select>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
               className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
             >
-              <option value="todos">Receitas e Despesas</option>
-              <option value="receita">Apenas Receitas</option>
-              <option value="despesa">Apenas Despesas</option>
+              <option value="todos">Receitas e despesas</option>
+              <option value="receita">Apenas receitas</option>
+              <option value="despesa">Apenas despesas</option>
             </select>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
               className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
             >
-              <option value="todos">Todos os Status</option>
-              <option value="pago">Apenas Pagos</option>
-              <option value="pendente">Apenas Pendentes</option>
+              <option value="todos">Todos os status</option>
+              <option value="pago">Apenas pagos</option>
+              <option value="pendente">Apenas pendentes</option>
             </select>
             <select
               value={methodFilter}
               onChange={(e) => setMethodFilter(e.target.value as typeof methodFilter)}
               className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
             >
-              <option value="todos">Todos os Meios</option>
+              <option value="todos">Todos os meios</option>
               <option value="pix">Pix</option>
-              <option value="cartao_credito">Cartao credito</option>
-              <option value="cartao_debito">Cartao debito</option>
+              <option value="cartao_credito">Cartão de crédito</option>
+              <option value="cartao_debito">Cartão de débito</option>
               <option value="boleto">Boleto</option>
               <option value="dinheiro">Dinheiro</option>
               <option value="faturado">Faturado</option>
@@ -483,12 +483,12 @@ export default function FinancialPage() {
                     <>
                       <option value="Venda">Vendas Gráficas</option>
                       <option value="Serviços">Ajuste de Serviços</option>
-                      <option value="Aporte">Aporte Capital</option>
+                      <option value="Aporte">Aporte de capital</option>
                       <option value="Outros">Outros Rendimentos</option>
                     </>
                   ) : (
                     <>
-                      <option value="Insumos">Compra Insumos / Lona / Mídia</option>
+                      <option value="Insumos">Compra de insumos / lona / mídia</option>
                       <option value="Aluguel">Aluguel / Condomínio</option>
                       <option value="Salários">Salários de Funcionários</option>
                       <option value="Impostos">Impostos Fiscais / MEI</option>
@@ -552,7 +552,7 @@ export default function FinancialPage() {
                   <option value="cartao_credito">Cartão de Crédito</option>
                   <option value="cartao_debito">Cartão de Débito</option>
                   <option value="boleto">Boleto Bancário</option>
-                  <option value="dinheiro">Dinheiro Físico</option>
+                  <option value="dinheiro">Dinheiro</option>
                 </select>
               </div>
 
@@ -604,7 +604,7 @@ export default function FinancialPage() {
       {/* 4. Ledger Table View */}
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-border bg-secondary/10 flex justify-between items-center">
-          <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Relatorio Analitico Financeiro</h3>
+          <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Relatório Analítico Financeiro</h3>
           <span className="text-[11px] text-muted-foreground font-semibold">Exibindo {filteredTransactions.length} registros</span>
         </div>
 
@@ -612,7 +612,7 @@ export default function FinancialPage() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-secondary/40 text-[9px] uppercase font-bold text-muted-foreground border-b border-border">
-                <th className="px-5 py-3">Data Venc.</th>
+                <th className="px-5 py-3">Vencimento</th>
                 <th className="px-5 py-3">Tipo</th>
                 <th className="px-5 py-3">Categoria</th>
                 <th className="px-5 py-3">Descrição / Lançamento</th>
@@ -685,7 +685,7 @@ export default function FinancialPage() {
                       <td className="px-5 py-3.5 text-center">
                         {isInactiveHistory ? (
                           <span className="text-[10px] text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                            Historico
+                            Histórico
                           </span>
                         ) : trans.status === 'pago' ? (
                           <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
@@ -698,7 +698,7 @@ export default function FinancialPage() {
                         ) : (
                           <button
                             onClick={() => {
-                              if (confirm('Marcar este lançamento pendente como pago e consolidar saldo de caixa?')) {
+                              if (confirm('Marcar este lançamento pendente como pago e consolidar o saldo de caixa?')) {
                                 updateTransactionStatus(trans.id, 'pago');
                               }
                             }}

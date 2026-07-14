@@ -9,7 +9,7 @@ export default function QuotePdfPreviewPage() {
 
   return (
     <PdfPreviewViewer
-      title="Pre-visualizacao do Orcamento"
+      title="Pré-visualização do Orçamento"
       previewDataUrl={`/api/pdf-preview-data/quote/${quoteId}`}
       pdfUrl={`/api/pdf/quote/${quoteId}`}
       downloadUrl={`/api/pdf/quote/${quoteId}?download=1`}

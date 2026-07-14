@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowUp, Clock, Mail, Phone } from 'lucide-react';
 import { BrandMark } from '@/components/brand';
@@ -69,14 +69,14 @@ const socialUrl = (
 function FooterAction({ children, href, onClick }: FooterActionProps) {
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className="text-left text-slate-300 hover:text-[var(--store-footer-accent)] transition-colors">
+      <button type="button" onClick={onClick} className="text-left text-white/80 transition-colors hover:text-white">
         {children}
       </button>
     );
   }
 
   return (
-    <Link href={href} className="text-left text-slate-300 hover:text-[var(--store-footer-accent)] transition-colors">
+    <Link href={href} className="text-left text-white/80 transition-colors hover:text-white">
       {children}
     </Link>
   );
@@ -95,7 +95,7 @@ function FooterBadge({ label, image }: { label: string; image?: string }) {
   }
 
   return (
-    <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-slate-700/30 rounded-lg text-[10px] font-bold tracking-wide uppercase hover:bg-slate-700 transition-colors">
+    <span className="rounded-lg border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-white/20">
       {label}
     </span>
   );
@@ -116,7 +116,6 @@ export function StoreFooter({
   const commercialPhoneDisplay = getBrazilianPhoneDisplay(commercialPhone);
   const salesEmail = company.email?.trim() || '';
   const accent = normalizeFooterColor(company.theme_color);
-  const accentSoft = `${accent}1a`;
   const accountHref = storeCustomerAuthenticated
     ? STORE_ROUTES.account
     : withStoreRedirect(STORE_ROUTES.login, STORE_ROUTES.account);
@@ -129,48 +128,45 @@ export function StoreFooter({
 
   return (
     <footer
-      className="bg-slate-900 text-slate-400 py-[15px] border-t border-slate-800 text-xs select-none"
-      style={{
-        '--store-footer-accent': accent,
-        '--store-footer-accent-soft': accentSoft
-      } as CSSProperties}
+      className="border-t border-white/15 py-[15px] text-xs text-white/75 select-none [&_svg]:text-white"
+      style={{ backgroundColor: accent }}
     >
       <div className="max-w-7xl mx-auto px-4 md:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-16">
         <div className="space-y-4">
           <div>
-            <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Contatos</h4>
+            <h4 className="border-b border-white/15 pb-2 text-sm font-extrabold uppercase tracking-wider text-white">Contatos</h4>
           </div>
           <div className="space-y-3.5">
             <div className="space-y-1">
-              <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest block">WhatsApp Vendas</span>
+              <span className="block text-[9px] font-extrabold uppercase tracking-widest text-white/60">WhatsApp Vendas</span>
               {whatsapp ? (
-                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-slate-200 hover:text-[var(--store-footer-accent)] font-semibold transition-colors">
-                  <svg className="h-3.5 w-3.5 fill-current text-[var(--store-footer-accent)] shrink-0" viewBox="0 0 24 24">
+                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-semibold text-white/90 transition-colors hover:text-white">
+                  <svg className="h-3.5 w-3.5 shrink-0 fill-current text-white" viewBox="0 0 24 24">
                     <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.863-9.864.001-2.63-1.023-5.101-2.883-6.963C16.588 1.843 14.116.822 11.5.822 6.066.822 1.641 5.242 1.638 10.682c-.001 1.666.436 3.292 1.267 4.724L1.878 20.1l4.769-1.25zM17.51 14.86c-.3-.149-1.772-.875-2.046-.975-.276-.1-.476-.149-.676.15-.2.3-.777.975-.951 1.174-.176.2-.351.224-.651.075-.3-.149-1.268-.467-2.417-1.493-.892-.796-1.495-1.78-1.67-2.079-.176-.3-.019-.462.13-.611.134-.133.3-.35.45-.525.15-.175.2-.299.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.582-.491-.504-.676-.513-.175-.008-.375-.01-.575-.01-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.494 1.707.632.716.227 1.368.195 1.884.118.574-.085 1.772-.724 2.022-1.424.25-.7.25-1.299.175-1.424-.075-.125-.275-.199-.575-.349z"/>
                   </svg>
                   <span>{whatsappDisplay}</span>
                 </a>
               ) : (
-                <span className="text-slate-500 font-semibold">Não informado</span>
+                <span className="font-semibold text-white/60">Não informado</span>
               )}
             </div>
             <div className="space-y-1">
-              <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest block">Telefone Comercial</span>
-              <div className="flex items-center gap-2 text-slate-200 font-semibold">
-                <Phone className="h-3.5 w-3.5 text-[var(--store-footer-accent)] shrink-0" />
+              <span className="block text-[9px] font-extrabold uppercase tracking-widest text-white/60">Telefone Comercial</span>
+              <div className="flex items-center gap-2 font-semibold text-white/90">
+                <Phone className="h-3.5 w-3.5 shrink-0 text-white" />
                 <span>{commercialPhoneDisplay || 'Não informado'}</span>
               </div>
             </div>
             <div className="space-y-1">
-              <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest block">E-mail Vendas</span>
+              <span className="block text-[9px] font-extrabold uppercase tracking-widest text-white/60">E-mail Vendas</span>
               {salesEmail ? (
-                <a href={`mailto:${salesEmail}`} className="flex items-center gap-2 text-slate-200 hover:text-[var(--store-footer-accent)] font-semibold transition-colors break-all">
-                  <Mail className="h-3.5 w-3.5 text-[var(--store-footer-accent)] shrink-0" />
+                <a href={`mailto:${salesEmail}`} className="flex items-center gap-2 break-all font-semibold text-white/90 transition-colors hover:text-white">
+                  <Mail className="h-3.5 w-3.5 shrink-0 text-white" />
                   <span>{salesEmail}</span>
                 </a>
               ) : (
-                <div className="flex items-center gap-2 text-slate-500 font-semibold">
-                  <Mail className="h-3.5 w-3.5 text-[var(--store-footer-accent)] shrink-0" />
+                <div className="flex items-center gap-2 font-semibold text-white/60">
+                  <Mail className="h-3.5 w-3.5 shrink-0 text-white" />
                   <span>Não informado</span>
                 </div>
               )}
@@ -179,14 +175,14 @@ export function StoreFooter({
             {(company.instagram_url || company.facebook_url || company.youtube_url || whatsapp) && (
               <div className="pt-2 flex items-center gap-3">
                 {whatsapp && (
-                  <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-[var(--store-footer-accent)] text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="WhatsApp" aria-label="Atendimento via WhatsApp">
+                  <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-white transition-all hover:scale-105 hover:bg-white/20" title="WhatsApp" aria-label="Atendimento via WhatsApp">
                     <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
                       <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.42 9.863-9.864.001-2.63-1.023-5.101-2.883-6.963C16.588 1.843 14.116.822 11.5.822 6.066.822 1.641 5.242 1.638 10.682c-.001 1.666.436 3.292 1.267 4.724L1.878 20.1l4.769-1.25zM17.51 14.86c-.3-.149-1.772-.875-2.046-.975-.276-.1-.476-.149-.676.15-.2.3-.777.975-.951 1.174-.176.2-.351.224-.651.075-.3-.149-1.268-.467-2.417-1.493-.892-.796-1.495-1.78-1.67-2.079-.176-.3-.019-.462.13-.611.134-.133.3-.35.45-.525.15-.175.2-.299.3-.5.1-.2.05-.375-.025-.525-.075-.15-.676-1.625-.926-2.225-.244-.582-.491-.504-.676-.513-.175-.008-.375-.01-.575-.01-.2 0-.525.075-.8.375-.276.3-1.05 1.025-1.05 2.5s1.075 2.9 1.225 3.1c.15.2 2.11 3.224 5.112 4.521.714.309 1.272.494 1.707.632.716.227 1.368.195 1.884.118.574-.085 1.772-.724 2.022-1.424.25-.7.25-1.299.175-1.424-.075-.125-.275-.199-.575-.349z"/>
                     </svg>
                   </a>
                 )}
                 {company.instagram_url && (
-                  <a href={socialUrl('instagram', company.instagram_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-[var(--store-footer-accent)] text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="Instagram" aria-label="Instagram">
+                  <a href={socialUrl('instagram', company.instagram_url)} target="_blank" rel="noopener noreferrer" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-white transition-all hover:scale-105 hover:bg-white/20" title="Instagram" aria-label="Instagram">
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
                       <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
@@ -195,14 +191,14 @@ export function StoreFooter({
                   </a>
                 )}
                 {company.facebook_url && (
-                  <a href={socialUrl('facebook', company.facebook_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-[var(--store-footer-accent)] text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="Facebook" aria-label="Facebook">
+                  <a href={socialUrl('facebook', company.facebook_url)} target="_blank" rel="noopener noreferrer" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-white transition-all hover:scale-105 hover:bg-white/20" title="Facebook" aria-label="Facebook">
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
                     </svg>
                   </a>
                 )}
                 {company.youtube_url && (
-                  <a href={socialUrl('youtube', company.youtube_url)} target="_blank" rel="noopener noreferrer" className="h-7 w-7 rounded-lg bg-slate-800 hover:bg-[var(--store-footer-accent)] text-slate-300 hover:text-white flex items-center justify-center transition-all hover:scale-105" title="YouTube" aria-label="YouTube">
+                  <a href={socialUrl('youtube', company.youtube_url)} target="_blank" rel="noopener noreferrer" className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-white transition-all hover:scale-105 hover:bg-white/20" title="YouTube" aria-label="YouTube">
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"></path>
                       <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon>
@@ -216,13 +212,13 @@ export function StoreFooter({
 
         <div className="space-y-4">
           <div>
-            <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Endereco</h4>
+            <h4 className="border-b border-white/15 pb-2 text-sm font-extrabold uppercase tracking-wider text-white">Endereço</h4>
           </div>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest block">Sede / Matriz</span>
+              <span className="block text-[9px] font-extrabold uppercase tracking-widest text-white/60">Sede / Matriz</span>
               {settings?.footer_show_address !== false ? (
-                <p className="text-slate-200 font-medium leading-relaxed">
+                <p className="font-medium leading-relaxed text-white/90">
                   {company.street ? (
                     <>
                       {company.street}, {company.number}<br />
@@ -237,7 +233,7 @@ export function StoreFooter({
                   )}
                 </p>
               ) : (
-                <p className="text-slate-200 font-medium leading-relaxed italic">
+                <p className="font-medium italic leading-relaxed text-white/90">
                   Atendimento apenas online
                 </p>
               )}
@@ -247,35 +243,35 @@ export function StoreFooter({
 
         <div className="space-y-4">
           <div>
-            <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Horario de Atendimento</h4>
+            <h4 className="border-b border-white/15 pb-2 text-sm font-extrabold uppercase tracking-wider text-white">Horário de Atendimento</h4>
           </div>
-          <div className="space-y-3.5 text-slate-200 font-medium leading-relaxed">
+          <div className="space-y-3.5 font-medium leading-relaxed text-white/90">
             {settings?.footer_hours_message && (
-              <div className="p-2 bg-slate-800/40 border border-slate-800 rounded-xl text-[10px] text-slate-400 italic">
+              <div className="rounded-xl border border-white/15 bg-white/10 p-2 text-[10px] italic text-white/65">
                 {settings.footer_hours_message}
               </div>
             )}
             <div className="space-y-2">
               <div className="space-y-0.5">
-                <p className="flex items-center gap-2 text-slate-200 font-semibold">
-                  <Clock className="h-3.5 w-3.5 text-[var(--store-footer-accent)] shrink-0" />
+                <p className="flex items-center gap-2 font-semibold text-white/90">
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-white" />
                   <span>{settings?.footer_hours_week || '8h as 12h / 13h30 as 18h'}</span>
                 </p>
-                <p className="text-slate-400 text-[10px] uppercase font-bold pl-5.5">{settings?.footer_hours_sat || 'Segunda a Sexta-feira'}</p>
+                <p className="pl-5.5 text-[10px] font-bold uppercase text-white/65">{settings?.footer_hours_sat || 'Segunda a Sexta-feira'}</p>
               </div>
               {settings?.footer_hours_sat_time && (
                 <div className="space-y-0.5">
-                  <p className="flex items-center gap-2 text-slate-200 font-semibold">
-                    <Clock className="h-3.5 w-3.5 text-[var(--store-footer-accent)] shrink-0" />
+                  <p className="flex items-center gap-2 font-semibold text-white/90">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-white" />
                     <span>{settings.footer_hours_sat_time}</span>
                   </p>
-                  <p className="text-slate-400 text-[10px] uppercase font-bold pl-5.5">{settings?.footer_hours_sat_desc || 'Sabado'}</p>
+                  <p className="pl-5.5 text-[10px] font-bold uppercase text-white/65">{settings?.footer_hours_sat_desc || 'Sábado'}</p>
                 </div>
               )}
             </div>
             {settings?.footer_show_address !== false && (
-              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                LOJA FISICA | MATRIZ {company.city || 'PORTO ALEGRE'} - {company.state || 'RS'}
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/60">
+                LOJA FÍSICA | MATRIZ {company.city || 'PORTO ALEGRE'} - {company.state || 'RS'}
               </div>
             )}
           </div>
@@ -283,25 +279,25 @@ export function StoreFooter({
 
         <div className="space-y-4">
           <div>
-            <h4 className="font-extrabold text-white text-sm uppercase tracking-wider pb-2 border-b border-slate-800/60">Institucional</h4>
+            <h4 className="border-b border-white/15 pb-2 text-sm font-extrabold uppercase tracking-wider text-white">Institucional</h4>
           </div>
           <div className="flex flex-col gap-2.5 font-semibold">
             <FooterAction href={STORE_ROUTES.home} onClick={onShowAllServices}>Todos os serviços</FooterAction>
             <FooterAction href={STORE_ROUTES.home} onClick={onOpenPickupPoints}>Balcões de Retirada</FooterAction>
             <FooterAction href={STORE_ROUTES.policies}>Políticas e Termos</FooterAction>
-            <Link href={accountHref} className="text-left text-slate-300 hover:text-[var(--store-footer-accent)] transition-colors">
+            <Link href={accountHref} className="text-left text-white/80 transition-colors hover:text-white">
               Minha conta
             </Link>
-            <Link href={ordersHref} className="text-left text-slate-300 hover:text-[var(--store-footer-accent)] transition-colors">
+            <Link href={ordersHref} className="text-left text-white/80 transition-colors hover:text-white">
               Meus pedidos
             </Link>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-[15px] mt-[15px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-16">
+      <div className="mx-auto mt-[15px] grid max-w-7xl grid-cols-1 gap-8 border-t border-white/15 px-4 pt-[15px] sm:grid-cols-2 md:px-8 lg:grid-cols-4 lg:gap-16">
         <div className="space-y-3.5 lg:col-span-2">
-          <h4 className="font-extrabold text-[var(--store-footer-accent)] text-xs uppercase tracking-wider">Formas de Pagamento</h4>
+          <h4 className="text-xs font-extrabold uppercase tracking-wider text-white">Formas de Pagamento</h4>
           <div className="flex flex-wrap gap-2">
             {company.show_payments_visa !== false && <FooterBadge label="Visa" image={company.img_payments_visa} />}
             {company.show_payments_mastercard !== false && <FooterBadge label="Mastercard" image={company.img_payments_mastercard} />}
@@ -310,13 +306,13 @@ export function StoreFooter({
             {false && company.show_payments_diners !== false && <FooterBadge label="Diners" image={company.img_payments_diners} />}
             {false && company.show_payments_amex !== false && <FooterBadge label="Amex" image={company.img_payments_amex} />}
             {false && company.show_payments_boleto !== false && <FooterBadge label="Boleto" image={company.img_payments_boleto} />}
-            {false && company.show_payments_transferencia !== false && <FooterBadge label="Transferencia" image={company.img_payments_transferencia} />}
+            {false && company.show_payments_transferencia !== false && <FooterBadge label="Transferência" image={company.img_payments_transferencia} />}
             {company.show_payments_pix !== false && <FooterBadge label="PIX" image={company.img_payments_pix} />}
           </div>
         </div>
 
         <div className="space-y-3.5">
-          <h4 className="font-extrabold text-[var(--store-footer-accent)] text-xs uppercase tracking-wider">Formas de Entrega</h4>
+          <h4 className="text-xs font-extrabold uppercase tracking-wider text-white">Formas de Entrega</h4>
           <div className="flex flex-wrap gap-2">
             {company.show_delivery_sedex !== false && <FooterBadge label="SEDEX" image={company.img_delivery_sedex} />}
             {false && company.show_delivery_pac !== false && <FooterBadge label="PAC" image={company.img_delivery_pac} />}
@@ -327,7 +323,7 @@ export function StoreFooter({
         </div>
 
         <div className="space-y-3.5">
-          <h4 className="font-extrabold text-[var(--store-footer-accent)] text-xs uppercase tracking-wider">Seguranca</h4>
+          <h4 className="text-xs font-extrabold uppercase tracking-wider text-white">Segurança</h4>
           <div className="flex flex-wrap gap-2">
             {company.show_security_letsencrypt !== false && <FooterBadge label="SSL Seguro" image={company.img_security_letsencrypt} />}
             {company.show_security_google !== false && <FooterBadge label="Google Safe" image={company.img_security_google} />}
@@ -335,17 +331,17 @@ export function StoreFooter({
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 border-t border-slate-800/80 pt-[15px] mt-[15px] text-center text-[10px] md:text-xs text-slate-500 font-medium flex flex-col items-center gap-4">
+      <div className="mx-auto mt-[15px] flex max-w-7xl flex-col items-center gap-4 border-t border-white/15 px-4 pt-[15px] text-center text-[10px] font-medium text-white/60 md:px-8 md:text-xs">
         <p>
           {new Date().getFullYear()} - Copyright © - {company.name || 'PrintFlowPRO'}
-          {company.document ? ` - CNPJ: ${company.document}` : ''} | Desenvolvido para Alta Lucratividade de Graficas e Comunicacao Visual.
+          {company.document ? ` - CNPJ: ${company.document}` : ''} | Desenvolvido para Alta Lucratividade de Gráficas e Comunicação Visual.
         </p>
 
-        <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-600 bg-slate-950/40 px-3 py-1.5 rounded-full border border-slate-800/60 select-none">
+        <div className="flex items-center justify-center gap-1.5 rounded-full border border-white/15 bg-black/10 px-3 py-1.5 text-[10px] text-white/60 select-none">
           <span>Desenvolvido e Hospedado por</span>
           <BrandMark className="h-4 w-4 rounded-md" />
-          <span className="font-extrabold uppercase tracking-widest text-[var(--store-footer-accent)]">PrintFlowPRO</span>
-          <span className="text-[8px] bg-[var(--store-footer-accent-soft)] text-[var(--store-footer-accent)] px-1.5 py-0.5 rounded font-bold">SaaS v1.0</span>
+          <span className="font-extrabold uppercase tracking-widest text-white">PrintFlowPRO</span>
+          <span className="rounded bg-white/10 px-1.5 py-0.5 text-[8px] font-bold text-white">SaaS v1.0</span>
         </div>
       </div>
 
@@ -371,8 +367,7 @@ export function StoreFooter({
       <button
         type="button"
         onClick={handleBackToTop}
-        className="fixed bottom-[calc(6.15rem+env(safe-area-inset-bottom))] right-3 z-40 inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-3.5 text-white shadow-lg shadow-slate-950/20 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 md:bottom-6 md:right-6 md:w-auto md:px-4"
-        style={{ backgroundColor: accent, '--tw-ring-color': `${accent}66` } as CSSProperties}
+        className="fixed bottom-[calc(6.15rem+env(safe-area-inset-bottom))] right-3 z-40 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-secondary px-3.5 text-secondary-foreground shadow-lg shadow-slate-950/20 transition-all hover:-translate-y-0.5 hover:bg-secondary/90 hover:shadow-xl active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-foreground/30 focus-visible:ring-offset-2 [&_svg]:!text-secondary-foreground md:bottom-6 md:right-6 md:w-auto md:px-4"
         aria-label="Voltar ao início do catálogo"
         title="Voltar ao início"
       >

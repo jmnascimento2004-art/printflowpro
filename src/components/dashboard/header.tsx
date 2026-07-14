@@ -116,22 +116,22 @@ export default function Header({
 
   const getPageTitle = () => {
     const segments = pathname.split('/').filter(Boolean);
-    if (segments.length === 0) return 'Visao Geral';
+    if (segments.length === 0) return 'Visão Geral';
 
     const titles: Record<string, string> = {
       dashboard: 'Dashboard Executivo',
       crm: 'Clientes',
-      products: 'Catalogo de Produtos',
-      quotes: 'Orcamentos & Propostas',
-      pricing: 'Calculadora de Precificacao',
+      products: 'Catálogo de Produtos',
+      quotes: 'Orçamentos & Propostas',
+      pricing: 'Calculadora de Precificação',
       orders: 'Controle de Pedidos',
-      production: 'Ordem de Servico & Producao',
-      financial: 'Gestao Financeira & Caixa',
+      production: 'Ordem de Serviço & Produção',
+      financial: 'Gestão Financeira & Caixa',
       stock: 'Estoque & Insumos',
-      shipment: 'Expedicao & Logistica',
+      shipment: 'Expedição & Logística',
       resale: 'Revenda & Terceirizados',
-      settings: 'Configuracoes do ERP',
-      employees: 'Equipe & Funcionarios'
+      settings: 'Configurações do ERP',
+      employees: 'Equipe & Funcionários'
     };
 
     return titles[segments[0]] || companyDisplayName;
@@ -142,7 +142,7 @@ export default function Header({
       admin: 'Administrador',
       gerente: 'Gerente',
       financeiro: 'Financeiro',
-      producao: 'Producao',
+      producao: 'Produção',
       vendas: 'Vendas',
       estoque: 'Estoque',
       arte_finalista: 'Arte Finalista'

@@ -14,7 +14,7 @@ export async function lookupCEP(cep: string): Promise<CEPLookupResult> {
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
-    throw new Error(error?.error || 'Nao foi possivel consultar o CEP agora. Preencha o endereco manualmente.');
+    throw new Error(error?.error || 'Não foi possível consultar o CEP agora. Preencha o endereço manualmente.');
   }
 
   const data = await response.json();

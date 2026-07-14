@@ -466,7 +466,7 @@ export default function SettingsPage() {
     setCompRefundPolicy(normalizeRichTextHtml(company.refund_policy || ''));
 
     setBenefits1Title(company.card_benefits_1_title || 'Ate 4x Sem Juros');
-    setBenefits1Subtitle(company.card_benefits_1_subtitle || 'Parcela minima de R$ 300,00 nos cartoes Visa/Master.');
+    setBenefits1Subtitle(company.card_benefits_1_subtitle || 'Parcela mínima de R$ 300,00 nos cartões Visa/Master.');
     setBenefits1Active(company.card_benefits_1_active !== false);
     setBenefits2Title(company.card_benefits_2_title || 'Desconto no PIX');
     setBenefits2Subtitle(company.card_benefits_2_subtitle || 'Ganhe 5% de desconto automatico em pagamentos a vista.');

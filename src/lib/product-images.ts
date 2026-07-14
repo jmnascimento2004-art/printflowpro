@@ -114,7 +114,7 @@ export async function uploadProductImage(
     });
 
   if (error) {
-    throw new Error(`Nao foi possivel enviar a imagem para o bucket ${PRODUCT_IMAGE_BUCKET}: ${error.message}`);
+    throw new Error(`Não foi possível enviar a imagem para o bucket ${PRODUCT_IMAGE_BUCKET}: ${error.message}`);
   }
 
   const { data } = supabaseClient.storage
@@ -122,7 +122,7 @@ export async function uploadProductImage(
     .getPublicUrl(storagePath);
 
   if (!data.publicUrl) {
-    throw new Error('Nao foi possivel gerar a URL publica da imagem enviada.');
+    throw new Error('Não foi possível gerar a URL pública da imagem enviada.');
   }
 
   return data.publicUrl;

@@ -23,9 +23,9 @@ export async function lookupCNPJ(cnpj: string): Promise<CNPJLookupResult> {
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     if (response.status === 404) {
-      throw new Error('CNPJ valido, mas nao foi possivel buscar os dados automaticamente. Preencha manualmente.');
+      throw new Error('CNPJ válido, mas não foi possível buscar os dados automaticamente. Preencha manualmente.');
     }
-    throw new Error(error?.error || 'Nao foi possivel consultar o CNPJ.');
+    throw new Error(error?.error || 'Não foi possível consultar o CNPJ.');
   }
 
   const data = await response.json();

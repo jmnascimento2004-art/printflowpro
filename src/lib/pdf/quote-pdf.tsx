@@ -153,7 +153,7 @@ export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
   const deliveryFee = Number(data.quote.delivery_fee || 0);
 
   return (
-    <Document title={`Orcamento ${data.quote.number}`} author={data.company.name}>
+    <Document title={`Orçamento ${data.quote.number}`} author={data.company.name}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.brandBlock}>
@@ -165,7 +165,7 @@ export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
             {companyAddress ? <Text style={styles.muted}>{companyAddress}</Text> : null}
           </View>
           <View style={styles.titleBlock}>
-            <Text style={styles.title}>ORCAMENTO</Text>
+            <Text style={styles.title}>ORÇAMENTO</Text>
             <Text style={styles.title}>#{data.quote.number}</Text>
             <Text style={styles.meta}>Emissão: {formatPdfDate(data.quote.created_at)}</Text>
             <Text style={styles.meta}>Validade: {formatPdfDate(data.quote.valid_until)}</Text>
@@ -181,7 +181,7 @@ export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
             <Text style={styles.value}>{data.customer?.phone || data.quote.customer_phone || 'Não informado'}</Text>
             <Text style={styles.label}>E-mail</Text>
             <Text style={styles.value}>{data.customer?.email || 'Não informado'}</Text>
-            <Text style={styles.label}>Endereco</Text>
+            <Text style={styles.label}>Endereço</Text>
             <Text style={styles.value}>{buildCustomerAddress(data.customer, data.quote.delivery_address) || 'Não informado'}</Text>
           </View>
           <View style={styles.box}>

@@ -26,7 +26,7 @@ const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
   gerente: 'Gerente',
   financeiro: 'Financeiro',
-  producao: 'Producao',
+  producao: 'Produção',
   vendas: 'Vendas',
   estoque: 'Estoque',
   arte_finalista: 'Arte Finalista'
@@ -104,9 +104,9 @@ export default function DashboardLayout({
                 </div>
 
                 <div className="space-y-2">
-                  <h2 className="text-lg font-black uppercase tracking-wider text-foreground">Acesso nao autorizado</h2>
+                  <h2 className="text-lg font-black uppercase tracking-wider text-foreground">Acesso não autorizado</h2>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Seu perfil nao possui permissao para acessar este modulo.
+                    Seu perfil não possui permissão para acessar este módulo.
                   </p>
                 </div>
 
@@ -183,7 +183,7 @@ function LoginScreen({
         await onSignIn(email, password);
       }
     } catch {
-      setLocalError(mode === 'signup' ? 'Nao foi possivel criar a conta agora.' : 'E-mail ou senha invalidos, ou perfil sem permissao ativa.');
+      setLocalError(mode === 'signup' ? 'Não foi possível criar a conta agora.' : 'E-mail ou senha inválidos, ou perfil sem permissão ativa.');
     } finally {
       setSubmitting(false);
     }
@@ -201,7 +201,7 @@ function LoginScreen({
               Acesso protegido com Supabase Auth
             </div>
             <h1 className="mt-5 text-2xl font-black leading-tight text-slate-950">
-              Controle producao, vendas e financeiro com uma sessao segura.
+              Controle produção, vendas e financeiro com uma sessão segura.
             </h1>
             <p className="mt-4 text-sm leading-6 text-slate-600">
               O painel administrativo exige autenticacao real. Cada conta fica vinculada a empresa pelo perfil e pelas politicas RLS do Supabase.

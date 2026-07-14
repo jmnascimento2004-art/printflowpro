@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (repaired) return;
 
       setActiveProfileState(EMPTY_PROFILE);
-      setAuthError('Nao foi possivel carregar ou reparar o perfil vinculado a esta sessao. Execute o SQL de reparo de Auth/Profiles no Supabase e tente novamente.');
+      setAuthError('Não foi possível carregar ou reparar o perfil vinculado a esta sessão. Execute o SQL de reparo de Auth/Profiles no Supabase e tente novamente.');
       return;
     }
 
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         auth_user_id: userId,
         email: userEmail,
       });
-      setAuthError('Sua conta existe, mas ainda nao possui um perfil ativo no ERP. Execute o SQL de reparo de Auth/Profiles no Supabase e tente novamente.');
+      setAuthError('Sua conta existe, mas ainda não possui um perfil ativo no ERP. Execute o SQL de reparo de Auth/Profiles no Supabase e tente novamente.');
       return;
     }
 
@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
 
       if (error) {
-        setAuthError('Nao foi possivel restaurar a sessao.');
+        setAuthError('Não foi possível restaurar a sessão.');
       }
 
       setSession(data.session);

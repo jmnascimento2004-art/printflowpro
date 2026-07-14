@@ -89,7 +89,7 @@ async function loadCompany(supabase: SupabaseClient, companyId: string) {
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw new Error('Empresa nao encontrada para gerar PDF.');
+  if (!data) throw new Error('Empresa não encontrada para gerar PDF.');
   return data as Company;
 }
 

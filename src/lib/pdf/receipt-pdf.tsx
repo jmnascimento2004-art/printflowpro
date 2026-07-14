@@ -154,7 +154,7 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
   const customerName = normalizePdfText(data.customer?.name || data.order.customer_name) || 'Cliente';
   const paymentKind = getReceiptPaymentKind(data);
   const notes = normalizePdfText(replaceOrderNumbersForDisplay(data.transaction.description));
-  const formalReceiptText = `Recebemos de ${customerName} a importancia de ${formatPdfCurrency(data.transaction.amount)} referente ao ${paymentKind} do Pedido ${orderDisplayNumber}, conforme produtos e servicos descritos neste documento.`;
+  const formalReceiptText = `Recebemos de ${customerName} a importância de ${formatPdfCurrency(data.transaction.amount)} referente ao ${paymentKind} do Pedido ${orderDisplayNumber}, conforme produtos e serviços descritos neste documento.`;
 
   return (
     <Document title={`Recibo ${receiptNumber}`} author={data.company.name}>
@@ -183,9 +183,9 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
             <Text style={styles.label}>Nome</Text>
             <Text style={styles.value}>{customerName}</Text>
             <Text style={styles.label}>Documento</Text>
-            <Text style={styles.value}>{data.customer?.document || 'Nao informado'}</Text>
+            <Text style={styles.value}>{data.customer?.document || 'Não informado'}</Text>
             <Text style={styles.label}>Contato</Text>
-            <Text style={styles.value}>{data.customer?.phone || data.customer?.email || 'Nao informado'}</Text>
+            <Text style={styles.value}>{data.customer?.phone || data.customer?.email || 'Não informado'}</Text>
           </View>
           <View style={styles.box}>
             <Text style={styles.boxTitle}>Pagamento</Text>
@@ -203,11 +203,11 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
           <Text style={styles.formalMeta}>Forma de pagamento: {paymentMethod}.</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Produtos e servicos do pedido</Text>
+        <Text style={styles.sectionTitle}>Produtos e serviços do pedido</Text>
         <View style={styles.table}>
           <View style={styles.tableHeader} fixed>
             <Text style={[styles.tableHeaderCell, styles.qtyCol]}>QTD</Text>
-            <Text style={[styles.tableHeaderCell, styles.itemDescCol]}>DESCRICAO</Text>
+            <Text style={[styles.tableHeaderCell, styles.itemDescCol]}>DESCRIÇÃO</Text>
             <Text style={[styles.tableHeaderCell, styles.sizeCol]}>TAMANHO</Text>
             <Text style={[styles.tableHeaderCell, styles.moneyCol]}>UNIT</Text>
             <Text style={[styles.tableHeaderCell, styles.moneyCol]}>TOTAL</Text>
@@ -222,7 +222,7 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
           </View>
           {servicesTotal > 0 ? (
             <View style={styles.totalLine}>
-              <Text>Servicos adicionais</Text>
+              <Text>Serviços adicionais</Text>
               <Text>{formatPdfCurrency(servicesTotal)}</Text>
             </View>
           ) : null}

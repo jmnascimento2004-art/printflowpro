@@ -103,7 +103,7 @@ export default function StoreLoginPage() {
       await signIn(email, password);
       router.push(redirect || STORE_ROUTES.account);
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : 'Nao foi possivel entrar. Confira e-mail e senha.');
+      setError(loginError instanceof Error ? loginError.message : 'Não foi possível entrar. Confira e-mail e senha.');
     } finally {
       setSubmitting(false);
     }

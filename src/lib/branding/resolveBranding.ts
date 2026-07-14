@@ -20,7 +20,7 @@ export type ActiveBranding = {
 const PLATFORM_BRANDING: ActiveBranding = {
   appName: 'PrintFlowPRO',
   shortName: 'PrintFlowPRO',
-  description: 'Gestao completa para graficas rapidas e personalizados.',
+  description: 'Gestão completa para gráficas rápidas e personalizados.',
   logoUrl: '/printflowpro-mark.svg',
   faviconUrl: '/printflowpro-mark.svg',
   pwaIconUrl: '/printflowpro-mark.svg',
@@ -159,7 +159,7 @@ export function resolveBranding(company?: Partial<Company> | null, settings?: Pa
     stripHtml(settings?.catalog_header_message) ||
     stripHtml(settings?.catalog_footer_text) ||
     stripHtml(company?.refund_policy) ||
-    `${displayName} - gestao completa para graficas, pedidos e producao.`;
+    `${displayName} - gestão completa para gráficas, pedidos e produção.`;
   const themeColor = normalizeThemeColor(company?.theme_color);
   const brandingVersion = createBrandingVersion([
     getStringField(company, ['updated_at', 'custom_domain_verified_at']),
