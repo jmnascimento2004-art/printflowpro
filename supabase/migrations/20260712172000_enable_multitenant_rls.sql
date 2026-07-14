@@ -6,17 +6,17 @@ begin
   foreach table_name in array array[
     'cash_register_sessions', 'categories', 'customers', 'financial_transactions',
     'orders', 'pickup_points', 'production_queue', 'products', 'quotes',
-    'role_permissions', 'settings', 'shipments', 'stock_movements', 'store_banners', 'suppliers'
+    'settings', 'shipments', 'stock_movements', 'store_banners', 'suppliers'
   ] loop
     execute format('alter table public.%I enable row level security', table_name);
     execute format('drop policy if exists %I on public.%I', 'tenant_' || table_name || '_select', table_name);
-    execute format('create policy %I on public.%I for select to authenticated using (company_id = private.current_company_id())', 'tenant_' || table_name || '_select', table_name);
+    execute format('create policy %I on public.%I for select to authenticated using (company_id = (select private.current_company_id()))', 'tenant_' || table_name || '_select', table_name);
     execute format('drop policy if exists %I on public.%I', 'tenant_' || table_name || '_insert', table_name);
-    execute format('create policy %I on public.%I for insert to authenticated with check (company_id = private.current_company_id())', 'tenant_' || table_name || '_insert', table_name);
+    execute format('create policy %I on public.%I for insert to authenticated with check (company_id = (select private.current_company_id()))', 'tenant_' || table_name || '_insert', table_name);
     execute format('drop policy if exists %I on public.%I', 'tenant_' || table_name || '_update', table_name);
-    execute format('create policy %I on public.%I for update to authenticated using (company_id = private.current_company_id()) with check (company_id = private.current_company_id())', 'tenant_' || table_name || '_update', table_name);
+    execute format('create policy %I on public.%I for update to authenticated using (company_id = (select private.current_company_id())) with check (company_id = (select private.current_company_id()))', 'tenant_' || table_name || '_update', table_name);
     execute format('drop policy if exists %I on public.%I', 'tenant_' || table_name || '_delete', table_name);
-    execute format('create policy %I on public.%I for delete to authenticated using (company_id = private.current_company_id())', 'tenant_' || table_name || '_delete', table_name);
+    execute format('create policy %I on public.%I for delete to authenticated using (company_id = (select private.current_company_id()))', 'tenant_' || table_name || '_delete', table_name);
   end loop;
 end;
 $$;
@@ -24,11 +24,27 @@ $$;
 alter table public.companies enable row level security;
 drop policy if exists tenant_companies_select on public.companies;
 create policy tenant_companies_select on public.companies for select to authenticated
-using (id = private.current_company_id());
+using (id = (select private.current_company_id()));
 drop policy if exists tenant_companies_update on public.companies;
 create policy tenant_companies_update on public.companies for update to authenticated
-using (id = private.current_company_id() and private.current_user_role() in ('admin', 'gerente'))
-with check (id = private.current_company_id() and private.current_user_role() in ('admin', 'gerente'));
+using (id = (select private.current_company_id()) and (select private.current_user_role()) in ('admin', 'gerente'))
+with check (id = (select private.current_company_id()) and (select private.current_user_role()) in ('admin', 'gerente'));
+
+-- Permission rows are tenant-owned, but only company administrators may mutate them.
+alter table public.role_permissions enable row level security;
+drop policy if exists tenant_role_permissions_select on public.role_permissions;
+create policy tenant_role_permissions_select on public.role_permissions for select to authenticated
+using (company_id = (select private.current_company_id()));
+drop policy if exists tenant_role_permissions_insert on public.role_permissions;
+create policy tenant_role_permissions_insert on public.role_permissions for insert to authenticated
+with check (company_id = (select private.current_company_id()) and (select private.current_user_role()) in ('admin', 'gerente'));
+drop policy if exists tenant_role_permissions_update on public.role_permissions;
+create policy tenant_role_permissions_update on public.role_permissions for update to authenticated
+using (company_id = (select private.current_company_id()) and (select private.current_user_role()) in ('admin', 'gerente'))
+with check (company_id = (select private.current_company_id()) and (select private.current_user_role()) in ('admin', 'gerente'));
+drop policy if exists tenant_role_permissions_delete on public.role_permissions;
+create policy tenant_role_permissions_delete on public.role_permissions for delete to authenticated
+using (company_id = (select private.current_company_id()) and (select private.current_user_role()) in ('admin', 'gerente'));
 
 alter table public.quote_items enable row level security;
 alter table public.order_items enable row level security;
@@ -52,7 +68,7 @@ begin
     foreach operation in array array['select', 'insert', 'update', 'delete']
     loop
       policy_clause := format(
-        'exists (select 1 from public.%I parent where parent.id = %I.%I and parent.company_id = private.current_company_id())',
+        'exists (select 1 from public.%I parent where parent.id = %I.%I and parent.company_id = (select private.current_company_id()))',
         parent_table, child_table, parent_key
       );
       execute format('drop policy if exists %I on public.%I', 'tenant_' || child_table || '_' || operation, child_table);
@@ -71,19 +87,19 @@ $$;
 -- Preserve authenticated store customers reading only their own records.
 drop policy if exists store_orders_self_select on public.orders;
 create policy store_orders_self_select on public.orders for select to authenticated using (
-  exists (select 1 from public.store_customer_accounts a where a.customer_id = orders.customer_id and a.company_id = orders.company_id and a.auth_user_id = auth.uid() and a.status = 'active')
+  exists (select 1 from public.store_customer_accounts a where a.customer_id = orders.customer_id and a.company_id = orders.company_id and a.auth_user_id = (select auth.uid()) and a.status = 'active')
 );
 drop policy if exists store_order_items_self_select on public.order_items;
 create policy store_order_items_self_select on public.order_items for select to authenticated using (
-  exists (select 1 from public.orders o join public.store_customer_accounts a on a.customer_id = o.customer_id and a.company_id = o.company_id where o.id = order_items.order_id and a.auth_user_id = auth.uid() and a.status = 'active')
+  exists (select 1 from public.orders o join public.store_customer_accounts a on a.customer_id = o.customer_id and a.company_id = o.company_id where o.id = order_items.order_id and a.auth_user_id = (select auth.uid()) and a.status = 'active')
 );
 drop policy if exists store_quotes_self_select on public.quotes;
 create policy store_quotes_self_select on public.quotes for select to authenticated using (
-  exists (select 1 from public.store_customer_accounts a where a.customer_id = quotes.customer_id and a.company_id = quotes.company_id and a.auth_user_id = auth.uid() and a.status = 'active')
+  exists (select 1 from public.store_customer_accounts a where a.customer_id = quotes.customer_id and a.company_id = quotes.company_id and a.auth_user_id = (select auth.uid()) and a.status = 'active')
 );
 drop policy if exists store_quote_items_self_select on public.quote_items;
 create policy store_quote_items_self_select on public.quote_items for select to authenticated using (
-  exists (select 1 from public.quotes q join public.store_customer_accounts a on a.customer_id = q.customer_id and a.company_id = q.company_id where q.id = quote_items.quote_id and a.auth_user_id = auth.uid() and a.status = 'active')
+  exists (select 1 from public.quotes q join public.store_customer_accounts a on a.customer_id = q.customer_id and a.company_id = q.company_id where q.id = quote_items.quote_id and a.auth_user_id = (select auth.uid()) and a.status = 'active')
 );
 
 select pg_notify('pgrst', 'reload schema');
