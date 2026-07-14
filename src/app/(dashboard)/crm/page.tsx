@@ -6,9 +6,11 @@ import {
   Building2,
   Check,
   Edit3,
-  Filter,
   FileQuestion,
   FileText,
+  Eye,
+  LayoutGrid,
+  List,
   LockKeyhole,
   MapPin,
   Phone,
@@ -83,6 +85,7 @@ export default function CustomersPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<CustomerFilter>('todos');
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [detailsCustomer, setDetailsCustomer] = useState<Customer | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -239,21 +242,25 @@ export default function CustomersPage() {
     const customerQuotes = getCustomerQuotes(customer);
 
     if (customerOrders.length > 0 || customerQuotes.length > 0) {
-      alert('Este cliente possui pedidos ou orcamentos vinculados. Para preservar o historico comercial, ele nao sera excluido. Use Bloquear se precisar impedir novos atendimentos.');
+      alert('Este cliente possui pedidos ou orçamentos vinculados. Para preservar o histórico comercial, ele não será excluído. Use Bloquear se precisar impedir novos atendimentos.');
       return;
     }
 
-    if (confirm('Tem certeza que deseja excluir este cliente? Esta acao nao podera ser desfeita.')) {
+    if (confirm('Tem certeza de que deseja excluir este cliente? Esta ação não poderá ser desfeita.')) {
       deleteCustomer(customer.id);
       if (detailsCustomer?.id === customer.id) setDetailsCustomer(null);
       if (selectedCustomer?.id === customer.id) setSelectedCustomer(null);
     }
   };
 
+  const handleNewQuoteForCustomer = (customer: Customer) => {
+    setIsOpeningQuote(true);
+    router.push(`/quotes?customerId=${encodeURIComponent(customer.id)}`);
+  };
+
   const handleNewQuoteForSelectedCustomer = () => {
     if (!selectedCustomer) return;
-    setIsOpeningQuote(true);
-    router.push(`/quotes?customerId=${encodeURIComponent(selectedCustomer.id)}`);
+    handleNewQuoteForCustomer(selectedCustomer);
   };
 
   const handleDocumentChange = (value: string) => {
@@ -307,7 +314,7 @@ export default function CustomersPage() {
       setLookupStatus('Dados da empresa preenchidos automaticamente.');
     } catch (error) {
       warnCaught('Erro ao consultar CNPJ do cliente:', error);
-      setLookupStatus(error instanceof Error ? error.message : 'CNPJ valido, mas nao foi possivel buscar os dados automaticamente. Preencha manualmente.');
+      setLookupStatus(error instanceof Error ? error.message : 'CNPJ válido, mas não foi possível buscar os dados automaticamente. Preencha manualmente.');
     }
   };
 
@@ -340,10 +347,10 @@ export default function CustomersPage() {
       if (data.neighborhood) setNeighborhood(data.neighborhood);
       if (data.city) setCity(data.city);
       if (data.state) setState(data.state);
-      setZipLookupStatus('Endereco preenchido pelo CEP.');
+      setZipLookupStatus('Endereço preenchido pelo CEP.');
     } catch (error) {
       warnCaught('Erro ao consultar CEP do cliente:', error);
-      setZipLookupStatus(error instanceof Error ? error.message : 'Nao foi possivel consultar o CEP agora. Preencha o endereco manualmente.');
+      setZipLookupStatus(error instanceof Error ? error.message : 'Não foi possível consultar o CEP agora. Preencha o endereço manualmente.');
     }
   };
 
@@ -459,56 +466,50 @@ export default function CustomersPage() {
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
 
   return (
-    <div className="space-y-6 bg-slate-50/60 p-1">
+    <div className="space-y-4 bg-slate-50/60 p-1">
       {!isEditing && (
-        <div className="no-print space-y-5">
-          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+        <div className="no-print space-y-4">
+          <div className="flex flex-col gap-3 border-b border-border/50 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-950">Clientes</h1>
-              <p className="mt-1 text-sm font-medium text-slate-500">
+              <h1 className="text-xl font-black tracking-tight text-slate-950">Clientes</h1>
+              <p className="mt-0.5 text-xs font-medium text-slate-500">
                 Gerencie pessoas físicas e jurídicas cadastradas
               </p>
             </div>
+            <button
+              onClick={startCreate}
+              className="flex h-10 min-w-fit items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 text-xs font-black text-primary-foreground shadow-md shadow-primary/15 transition-all hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" /> Novo Cliente
+            </button>
+          </div>
 
-            <div className="flex w-full min-w-0 flex-col gap-3 lg:flex-row xl:w-auto">
-              <div className="relative w-full min-w-0 lg:min-w-[360px]">
-                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nome, documento, telefone ou e-mail"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-                />
-              </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <SummaryCard label="Total" value={totalCustomers} />
+            <SummaryCard label="PF" value={totalIndividualCustomers} />
+            <SummaryCard label="PJ" value={totalLegalCustomers} />
+            <SummaryCard label="Catálogo" value={totalCatalogCustomers} />
+            <SummaryCard label="Bloqueados" value={totalBlockedCustomers} />
+          </div>
 
-              <button
-                onClick={startCreate}
-                className="flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-primary-foreground shadow-lg shadow-primary/15 transition-all hover:bg-primary/90 lg:w-auto"
-              >
-                <Plus className="h-4 w-4" /> Novo Cliente
-              </button>
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto rounded-2xl border border-border bg-card p-2 shadow-sm">
+            <div className="relative min-w-[145px] flex-1">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar por nome, documento, telefone ou e-mail"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="h-9 w-full rounded-xl border border-border bg-background py-2 pl-10 pr-3 text-xs font-medium text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+              />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <SummaryCard label="Total de clientes" value={totalCustomers} icon={<Users className="h-5 w-5" />} />
-            <SummaryCard label="Pessoas físicas" value={totalIndividualCustomers} icon={<User className="h-5 w-5" />} />
-            <SummaryCard label="Pessoas jurídicas" value={totalLegalCustomers} icon={<Building2 className="h-5 w-5" />} />
-            <SummaryCard label="Clientes do catálogo" value={totalCatalogCustomers} icon={<ShoppingBagIcon />} />
-            <SummaryCard label="Bloqueados" value={totalBlockedCustomers} icon={<LockKeyhole className="h-5 w-5" />} />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <span className="inline-flex items-center gap-1.5 px-2 text-xs font-black uppercase tracking-wide text-slate-500">
-              <Filter className="h-3.5 w-3.5" /> Filtros
-            </span>
+            <div className="flex shrink-0 items-center gap-1">
             {(['todos', 'fisica', 'juridica', 'catalogo', 'bloqueados'] as CustomerFilter[]).map((filter) => (
               <button
                 key={filter}
                 type="button"
                 onClick={() => setActiveFilter(filter)}
-                className={`rounded-xl px-3 py-2 text-xs font-black transition-all ${
+                className={`whitespace-nowrap rounded-lg px-2.5 py-2 text-[11px] font-black transition-all ${
                   activeFilter === filter
                     ? 'bg-primary text-primary-foreground shadow shadow-primary/15'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -517,11 +518,15 @@ export default function CustomersPage() {
                 {getCustomerFilterLabel(filter)}
               </button>
             ))}
-            <span className="ml-auto text-xs font-bold text-slate-500">{filteredCustomers.length} resultado(s)</span>
+            </div>
+            <div className="flex shrink-0 rounded-lg border border-border bg-background p-1" aria-label="Modo de visualização dos clientes">
+              <button type="button" onClick={() => setViewMode('cards')} aria-label="Visualizar clientes em cards" className={`rounded-md p-1.5 ${viewMode === 'cards' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}><LayoutGrid className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={() => setViewMode('list')} aria-label="Visualizar clientes em lista" className={`rounded-md p-1.5 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}><List className="h-3.5 w-3.5" /></button>
+            </div>
           </div>
 
           {filteredCustomers.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div className={`${viewMode === 'cards' ? 'grid' : 'hidden'} grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5`}>
               {filteredCustomers.map((customer) => (
                 <CustomerCard
                   key={customer.id}
@@ -532,13 +537,9 @@ export default function CustomersPage() {
                   catalogCustomer={isCatalogCustomer(customer)}
                   blocked={isBlockedCustomer(customer)}
                   onOpen={() => openCustomerDetails(customer)}
-                  onEdit={(event) => {
+                  onNewQuote={(event) => {
                     event.stopPropagation();
-                    startEdit(customer);
-                  }}
-                  onToggleBlock={(event) => {
-                    event.stopPropagation();
-                    toggleCustomerBlock(customer);
+                    handleNewQuoteForCustomer(customer);
                   }}
                   onDelete={(event) => {
                     event.stopPropagation();
@@ -547,13 +548,39 @@ export default function CustomersPage() {
                 />
               ))}
             </div>
-          ) : (
+          ) : viewMode === 'cards' ? (
             <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-500">
               <Users className="mb-3 h-12 w-12 text-slate-300" />
               <span className="text-sm font-black text-slate-700">Nenhum cliente encontrado</span>
               <p className="mt-1 max-w-md text-xs font-medium text-slate-500">Ajuste a busca ou os filtros para visualizar outros cadastros.</p>
             </div>
-          )}
+          ) : null}
+
+          <div className={viewMode === 'list' ? 'block overflow-hidden rounded-2xl border border-border bg-card shadow-sm' : 'hidden'}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-xs">
+                <colgroup><col className="w-[21%]" /><col className="w-[19%]" /><col className="w-[14%]" /><col className="w-[17%]" /><col className="w-[10%]" /><col className="w-[19%]" /></colgroup>
+                <thead><tr className="border-b border-border bg-secondary/40 text-[9px] font-bold uppercase text-muted-foreground"><th className="px-3 py-3">Cliente</th><th className="px-3 py-3">Contato</th><th className="px-3 py-3">Localização</th><th className="px-3 py-3">Movimentação</th><th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Ações</th></tr></thead>
+                <tbody className="divide-y divide-border">
+                  {filteredCustomers.length > 0 ? filteredCustomers.map((customer) => {
+                    const type = inferPersonType(customer);
+                    const customerOrders = getCustomerOrders(customer);
+                    const customerQuotes = getCustomerQuotes(customer);
+                    const extra = customer.corporate_additional_info || {};
+                    const location = [customer.address?.neighborhood, customer.address?.city].filter(Boolean).join(' - ') || 'Não informado';
+                    return <tr key={customer.id} className="transition-colors hover:bg-secondary/15">
+                      <td className="px-3 py-2.5"><div className="flex min-w-0 items-center gap-1.5"><button type="button" onClick={() => openCustomerDetails(customer)} className="min-w-0 truncate text-left font-black text-foreground hover:text-primary" title={customer.name}>{customer.name}</button><PersonBadge type={type} /></div><p className="mt-0.5 truncate text-[10px] text-muted-foreground">{customer.document || 'Documento não informado'}</p></td>
+                      <td className="px-3 py-2.5"><p className="truncate font-semibold text-foreground">{extra.whatsapp || customer.phone || 'Sem telefone'}</p><p className="mt-0.5 truncate text-[10px] text-muted-foreground">{customer.email || 'Sem e-mail'}</p></td>
+                      <td className="px-3 py-2.5 font-semibold text-muted-foreground"><p className="line-clamp-2">{location}</p></td>
+                      <td className="px-3 py-2.5 text-[11px] leading-tight text-muted-foreground"><span className="whitespace-nowrap">{customerQuotes.length} orç.</span><span className="mx-1 text-border">·</span><span className="whitespace-nowrap">{customerOrders.length} ped.</span></td>
+                      <td className="px-3 py-2.5">{isBlockedCustomer(customer) ? <MiniBadge>Bloqueado</MiniBadge> : isCatalogCustomer(customer) ? <CatalogBadge /> : <MiniBadge>Ativo</MiniBadge>}</td>
+                      <td className="px-3 py-2.5"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => handleNewQuoteForCustomer(customer)} className="inline-flex items-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[10px] font-black text-primary-foreground shadow-sm hover:bg-primary/90" title="Novo orçamento" aria-label={`Novo orçamento para ${customer.name}`}><Plus className="h-3.5 w-3.5" /> Novo</button><button type="button" onClick={() => openCustomerDetails(customer)} className="rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary hover:bg-primary/15" title="Visualizar cadastro" aria-label={`Visualizar cadastro de ${customer.name}`}><Eye className="h-3.5 w-3.5" /></button><button type="button" onClick={() => handleDeleteCustomer(customer)} className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20" title="Excluir cliente" aria-label={`Excluir ${customer.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div></td>
+                    </tr>;
+                  }) : <tr><td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">Nenhum cliente encontrado.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -839,7 +866,7 @@ export default function CustomersPage() {
                   onChange={(event) => setNotes(event.target.value)}
                   rows={3}
                   className={`${inputClass} min-h-24 resize-none py-2`}
-                  placeholder="Ex: Preferencia de contato, observacoes comerciais ou historico relevante"
+                  placeholder="Ex: Preferência de contato, observações comerciais ou histórico relevante"
                 />
               </Field>
 
@@ -947,7 +974,7 @@ export default function CustomersPage() {
                     <DetailLine label="Utilizado" value={formatCurrency(selectedCustomer.credit_used || 0)} />
                     <DetailLine label="Prazo" value={`${selectedCustomer.payment_terms_days || 0} dias`} />
                     <DetailLine label="Credito" value={selectedCustomer.credit_status || 'aprovado'} />
-                    <DetailLine label="Obs." value={selectedExtra.billing_notes || 'Nao informado'} />
+                    <DetailLine label="Obs." value={selectedExtra.billing_notes || 'Não informado'} />
                   </DetailCard>
                 )}
 
@@ -1032,7 +1059,7 @@ export default function CustomersPage() {
                 </div>
                 <h2 className="mt-3 line-clamp-2 text-2xl font-extrabold leading-tight text-slate-950">{detailsCustomer.name}</h2>
                 <p className="mt-1 text-xs font-semibold text-slate-500">
-                  {detailsCustomer.document || 'Documento nao informado'} - Cadastrado em {new Date(detailsCustomer.created_at).toLocaleDateString('pt-BR')}
+                  {detailsCustomer.document || 'Documento não informado'} - Cadastrado em {new Date(detailsCustomer.created_at).toLocaleDateString('pt-BR')}
                 </p>
               </div>
               <button
@@ -1049,17 +1076,17 @@ export default function CustomersPage() {
               <div className="space-y-5">
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <DetailCard title="Dados principais">
-                    <DetailLine label="Nome" value={detailsCustomer.name || 'Nao informado'} />
+                    <DetailLine label="Nome" value={detailsCustomer.name || 'Não informado'} />
                     <DetailLine label="Tipo" value={detailPersonType === 'juridica' ? 'Pessoa Juridica' : 'Pessoa Fisica'} />
-                    <DetailLine label="Documento" value={detailsCustomer.document || 'Nao informado'} />
+                    <DetailLine label="Documento" value={detailsCustomer.document || 'Não informado'} />
                     <DetailLine label="Status" value={isBlockedCustomer(detailsCustomer) ? 'Bloqueado' : 'Ativo'} />
                     <DetailLine label="Origem" value={isCatalogCustomer(detailsCustomer) ? 'Catalogo' : 'Admin'} />
                   </DetailCard>
 
                   <DetailCard title="Contato">
-                    <DetailLine label="Telefone" value={detailsCustomer.phone || 'Nao informado'} />
-                    <DetailLine label="WhatsApp" value={detailExtra.whatsapp || detailsCustomer.phone || 'Nao informado'} />
-                    <DetailLine label="E-mail" value={detailsCustomer.email || 'Nao informado'} />
+                    <DetailLine label="Telefone" value={detailsCustomer.phone || 'Não informado'} />
+                    <DetailLine label="WhatsApp" value={detailExtra.whatsapp || detailsCustomer.phone || 'Não informado'} />
+                    <DetailLine label="E-mail" value={detailsCustomer.email || 'Não informado'} />
                     {detailPersonType === 'fisica' && detailExtra.birth_date && (
                       <DetailLine label="Nascimento" value={new Date(detailExtra.birth_date).toLocaleDateString('pt-BR')} />
                     )}
@@ -1067,27 +1094,27 @@ export default function CustomersPage() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <DetailCard title="Endereco">
+                  <DetailCard title="Endereço">
                     <DetailLine label="Resumo" value={formatAddress(detailsCustomer)} />
-                    <DetailLine label="Rua" value={detailsCustomer.address?.street || 'Nao informada'} />
-                    <DetailLine label="Numero" value={detailsCustomer.address?.number || 'Nao informado'} />
-                    <DetailLine label="Bairro" value={detailsCustomer.address?.neighborhood || 'Nao informado'} />
-                    <DetailLine label="Cidade / UF" value={[detailsCustomer.address?.city, detailsCustomer.address?.state].filter(Boolean).join(' / ') || 'Nao informado'} />
-                    <DetailLine label="CEP" value={detailsCustomer.address?.zip_code || 'Nao informado'} />
+                    <DetailLine label="Rua" value={detailsCustomer.address?.street || 'Não informada'} />
+                    <DetailLine label="Número" value={detailsCustomer.address?.number || 'Não informado'} />
+                    <DetailLine label="Bairro" value={detailsCustomer.address?.neighborhood || 'Não informado'} />
+                    <DetailLine label="Cidade / UF" value={[detailsCustomer.address?.city, detailsCustomer.address?.state].filter(Boolean).join(' / ') || 'Não informado'} />
+                    <DetailLine label="CEP" value={detailsCustomer.address?.zip_code || 'Não informado'} />
                   </DetailCard>
 
                   {detailPersonType === 'juridica' ? (
                     <DetailCard title="Pessoa Juridica">
-                      <DetailLine label="Razao social" value={detailsCustomer.name || 'Nao informada'} />
-                      <DetailLine label="Fantasia" value={detailExtra.nome_fantasia || 'Nao informado'} />
-                      <DetailLine label="Inscricao" value={detailExtra.inscricao_estadual || 'Nao informada'} />
-                      <DetailLine label="Responsavel" value={detailExtra.responsavel_nome || detailExtra.responsavel_financeiro_nome || 'Nao informado'} />
+                      <DetailLine label="Razão social" value={detailsCustomer.name || 'Não informada'} />
+                      <DetailLine label="Fantasia" value={detailExtra.nome_fantasia || 'Não informado'} />
+                      <DetailLine label="Inscrição" value={detailExtra.inscricao_estadual || 'Não informada'} />
+                      <DetailLine label="Responsável" value={detailExtra.responsavel_nome || detailExtra.responsavel_financeiro_nome || 'Não informado'} />
                     </DetailCard>
                   ) : (
                     <DetailCard title="Pessoa Fisica">
-                      <DetailLine label="Nome" value={detailsCustomer.name || 'Nao informado'} />
-                      <DetailLine label="CPF" value={detailsCustomer.document || 'Nao informado'} />
-                      <DetailLine label="Nascimento" value={detailExtra.birth_date ? new Date(detailExtra.birth_date).toLocaleDateString('pt-BR') : 'Nao informado'} />
+                      <DetailLine label="Nome" value={detailsCustomer.name || 'Não informado'} />
+                      <DetailLine label="CPF" value={detailsCustomer.document || 'Não informado'} />
+                      <DetailLine label="Nascimento" value={detailExtra.birth_date ? new Date(detailExtra.birth_date).toLocaleDateString('pt-BR') : 'Não informado'} />
                     </DetailCard>
                   )}
                 </div>
@@ -1099,7 +1126,7 @@ export default function CustomersPage() {
                     <DetailLine label="Utilizado" value={formatCurrency(detailsCustomer.credit_used || 0)} />
                     <DetailLine label="Prazo" value={`${detailsCustomer.payment_terms_days || 0} dias`} />
                     <DetailLine label="Credito" value={detailsCustomer.credit_status || 'aprovado'} />
-                    <DetailLine label="Obs." value={detailExtra.billing_notes || 'Nao informado'} />
+                    <DetailLine label="Obs." value={detailExtra.billing_notes || 'Não informado'} />
                   </DetailCard>
                 )}
 
@@ -1111,11 +1138,11 @@ export default function CustomersPage() {
                 )}
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Historico Comercial</h3>
-                  <p className="text-xs font-medium text-slate-500">Resumo de orcamentos, pedidos e compras vinculadas</p>
+                  <h3 className="text-sm font-black uppercase tracking-wide text-slate-950">Histórico Comercial</h3>
+                  <p className="text-xs font-medium text-slate-500">Resumo de orçamentos, pedidos e compras vinculados</p>
 
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <MetricCard label="Orcamentos" value={detailQuotes.length} />
+                    <MetricCard label="Orçamentos" value={detailQuotes.length} />
                     <MetricCard label="Pedidos" value={detailOrders.length} />
                     <MetricCard label="Total vendido" value={formatCurrency(detailTotalSold)} />
                     <MetricCard label="Ultima compra" value={detailLastPurchase ? new Date(detailLastPurchase).toLocaleDateString('pt-BR') : 'Sem compras'} />
@@ -1184,8 +1211,7 @@ function CustomerCard({
   catalogCustomer,
   blocked,
   onOpen,
-  onEdit,
-  onToggleBlock,
+  onNewQuote,
   onDelete
 }: {
   customer: Customer;
@@ -1195,8 +1221,7 @@ function CustomerCard({
   catalogCustomer: boolean;
   blocked: boolean;
   onOpen: () => void;
-  onEdit: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  onToggleBlock: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onNewQuote: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDelete: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   const extra = customer.corporate_additional_info || {};
@@ -1228,46 +1253,48 @@ function CustomerCard({
       </div>
 
       <div className="mt-3 space-y-1.5 text-[11px] font-semibold text-slate-600">
-        <CardLine icon={<FileText className="h-3.5 w-3.5" />} value={customer.document || 'Documento nao informado'} />
+        <CardLine icon={<FileText className="h-3.5 w-3.5" />} value={customer.document || 'Documento não informado'} />
         <CardLine icon={<Phone className="h-3.5 w-3.5" />} value={extra.whatsapp || customer.phone || 'Sem telefone'} />
-        <CardLine icon={<MapPin className="h-3.5 w-3.5" />} value={location || 'Endereco nao informado'} />
+        <CardLine icon={<MapPin className="h-3.5 w-3.5" />} value={location || 'Endereço não informado'} />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-1">
         {catalogCustomer && <CatalogBadge />}
         {customer.billing_type === 'faturado' && <MiniBadge>Faturado B2B</MiniBadge>}
-        <MiniBadge>{quotesCount} orcamento(s)</MiniBadge>
+        <MiniBadge>{quotesCount} orçamento(s)</MiniBadge>
         <MiniBadge>{ordersCount} pedido(s)</MiniBadge>
       </div>
 
-      <div className="mt-auto grid grid-cols-3 gap-1.5 border-t border-slate-100 pt-3">
+      <div className="mt-auto grid grid-cols-[1fr_36px_36px] gap-1.5 border-t border-slate-100 pt-3">
         <button
           type="button"
-          onClick={onEdit}
-          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-blue-50 px-1.5 text-[10px] font-black text-blue-600 hover:bg-blue-100"
-          title="Editar cliente"
-          aria-label="Editar cliente"
+          onClick={onNewQuote}
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-primary px-1.5 text-[10px] font-black text-primary-foreground hover:bg-primary/90"
+          title="Novo orçamento"
+          aria-label={`Novo orçamento para ${customer.name}`}
         >
-          <Edit3 className="h-3.5 w-3.5" /> Editar
+          <Plus className="h-3.5 w-3.5" /> Novo
         </button>
         <button
           type="button"
-          onClick={onToggleBlock}
-          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-amber-50 px-1.5 text-[10px] font-black text-amber-700 hover:bg-amber-100"
-          title={blocked ? 'Desbloquear cliente' : 'Bloquear cliente'}
-          aria-label={blocked ? 'Desbloquear cliente' : 'Bloquear cliente'}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+          className="inline-flex h-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15"
+          title="Visualizar cadastro"
+          aria-label={`Visualizar cadastro de ${customer.name}`}
         >
-          {blocked ? <UnlockKeyhole className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}
-          {blocked ? 'Liberar' : 'Bloq.'}
+          <Eye className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           onClick={onDelete}
-          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-rose-50 px-1.5 text-[10px] font-black text-rose-600 hover:bg-rose-100"
+          className="inline-flex h-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
           title="Excluir cliente"
           aria-label="Excluir cliente"
         >
-          <Trash2 className="h-3.5 w-3.5" /> Excluir
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
     </article>
@@ -1292,29 +1319,16 @@ function Field({ label, children, className = '' }: { label: string; children: R
   );
 }
 
-function SummaryCard({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
+    <div className="min-h-[128px] rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex h-full items-start">
         <div>
-          <p className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">{label}</p>
           <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
-        </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-          {icon}
         </div>
       </div>
     </div>
-  );
-}
-
-function ShoppingBagIcon() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-      <path d="M3 6h18" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
   );
 }
 

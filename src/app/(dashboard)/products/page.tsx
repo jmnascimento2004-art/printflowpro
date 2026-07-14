@@ -19,6 +19,8 @@ import {
   Underline,
   List,
   ListOrdered,
+  LayoutGrid,
+  Rows3,
   Eraser
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
@@ -371,7 +373,7 @@ const registrationTypeCards: Array<{
   {
     value: 'custom_project',
     title: 'Projeto sob medida',
-    description: 'Orcamentos personalizados com material, mao de obra e medidas.',
+    description: 'Orçamentos personalizados com material, mão de obra e medidas.',
     examples: 'Portao, balcao, movel planejado, fachada completa.',
     defaultSaleMode: 'custom'
   }
@@ -556,6 +558,7 @@ export default function ProductsCRUDPage() {
   const defaultTaxRate = settings.tax_rate ?? 6;
 
   const [viewMode, setViewMode] = useState<'products' | 'categories'>('products');
+  const [productDisplayMode, setProductDisplayMode] = useState<'cards' | 'list'>('cards');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -1105,7 +1108,7 @@ export default function ProductsCRUDPage() {
     });
 
     if (normalizedTiers.length === 0 || normalizedTiers.some((tier) => tier.quantity <= 0 || tier.unit_price < 0 || tier.total_price < 0)) {
-      alert('Revise as faixas: quantidade deve ser maior que zero e os valores nao podem ser negativos.');
+      alert('Revise as faixas: a quantidade deve ser maior que zero e os valores não podem ser negativos.');
       return;
     }
 
@@ -1206,7 +1209,7 @@ export default function ProductsCRUDPage() {
         }))
       ]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : `Nao foi possivel enviar a imagem para o bucket ${PRODUCT_IMAGE_BUCKET}.`;
+      const message = error instanceof Error ? error.message : `Não foi possível enviar a imagem para o bucket ${PRODUCT_IMAGE_BUCKET}.`;
       alert(message);
     } finally {
       e.target.value = '';
@@ -1983,8 +1986,8 @@ export default function ProductsCRUDPage() {
               </div>
 
               {/* 2. Actions Filters Row */}
-              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between no-print">
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:max-w-xl">
+              <div className="flex flex-col gap-3 no-print md:flex-row md:items-center">
+                <div className="flex w-full min-w-0 flex-1 gap-2">
                   {/* Search */}
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -2001,7 +2004,7 @@ export default function ProductsCRUDPage() {
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="px-2 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground font-semibold"
+                    className="w-[160px] shrink-0 rounded-xl border border-border bg-card px-2 py-1.5 text-xs font-semibold text-foreground"
                   >
                     <option value="todos">Todas as Categorias</option>
                     {(() => {
@@ -2039,7 +2042,7 @@ export default function ProductsCRUDPage() {
                   </select>
                 </div>
 
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <div className="flex w-full shrink-0 flex-nowrap items-center justify-end gap-2 md:w-auto">
                   <button
                     type="button"
                     onClick={() => openLabelsModal()}
@@ -2050,10 +2053,18 @@ export default function ProductsCRUDPage() {
                   </button>
                   <button
                     onClick={handleOpenCreate}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all shrink-0 w-full sm:w-auto justify-center"
+                    className="flex min-w-fit flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-md shadow-primary/20 transition-all hover:bg-primary/90 sm:flex-none"
                   >
                     <Plus className="h-4 w-4" /> Cadastrar Produto
                   </button>
+                  <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1" role="group" aria-label="Modo de visualização dos produtos">
+                    <button type="button" onClick={() => setProductDisplayMode('cards')} aria-label="Visualizar produtos em cards" className={`rounded-lg p-1.5 transition-colors ${productDisplayMode === 'cards' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}>
+                      <LayoutGrid className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => setProductDisplayMode('list')} aria-label="Visualizar produtos em lista" className={`rounded-lg p-1.5 transition-colors ${productDisplayMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'}`}>
+                      <Rows3 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2062,12 +2073,12 @@ export default function ProductsCRUDPage() {
                 <div className="px-5 py-4 border-b border-border bg-secondary/10 flex flex-col gap-1 md:flex-row md:justify-between md:items-center">
                   <div>
                     <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Catálogo Geral de Produtos</h3>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Visualização em cards para análise rápida do catálogo.</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Alterne entre cards e lista para consultar o catálogo.</p>
                   </div>
                   <span className="text-[11px] text-muted-foreground font-semibold whitespace-nowrap">Exibindo {filteredProducts.length} registros</span>
                 </div>
 
-                <div className="p-4">
+                <div className={productDisplayMode === 'cards' ? 'p-4' : 'hidden'}>
                   {filteredProducts.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
                       {filteredProducts.map((prod) => {
@@ -2248,6 +2259,35 @@ export default function ProductsCRUDPage() {
                       Nenhum produto encontrado.
                     </div>
                   )}
+                </div>
+
+                <div className={productDisplayMode === 'list' ? 'block overflow-x-auto' : 'hidden'}>
+                  <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-xs">
+                    <colgroup><col className="w-[27%]" /><col className="w-[12%]" /><col className="w-[9%]" /><col className="w-[10%]" /><col className="w-[12%]" /><col className="w-[20%]" /><col className="w-[10%]" /></colgroup>
+                    <thead>
+                      <tr className="border-b border-border bg-secondary/40 text-[9px] font-bold uppercase text-muted-foreground">
+                        <th className="px-4 py-3">Produto</th><th className="px-4 py-3">Categoria</th><th className="px-4 py-3">Venda</th><th className="px-4 py-3">Estoque</th><th className="px-4 py-3">SKU</th><th className="px-4 py-3 text-right">Preço</th><th className="px-4 py-3 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {filteredProducts.length > 0 ? filteredProducts.map((prod) => {
+                        const categoryName = categories.find(c => c.id === prod.category_id)?.name || 'Outros';
+                        const stockInfo = getProductStockInfo(prod);
+                        const primaryImage = getPrimaryProductImage(prod);
+                        return (
+                          <tr key={prod.id} className="transition-colors hover:bg-secondary/15">
+                            <td className="px-4 py-2.5"><div className="flex min-w-0 items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-secondary/30">{primaryImage ? <img src={primaryImage} alt="" className="h-full w-full object-cover" /> : <Package className="h-4 w-4 text-muted-foreground" />}</div><div className="min-w-0"><p className="max-w-[280px] truncate font-bold text-foreground" title={prod.name}>{prod.name}</p><p className={`mt-0.5 text-[9px] font-bold ${prod.catalog_active !== false ? 'text-emerald-600' : 'text-muted-foreground'}`}>{prod.catalog_active !== false ? 'Visível no catálogo' : 'Oculto no catálogo'}</p></div></div></td>
+                            <td className="px-4 py-2.5 font-semibold text-muted-foreground">{categoryName}</td>
+                            <td className="px-4 py-2.5 font-semibold text-muted-foreground">{getSaleModeLabel(prod)}</td>
+                            <td className={`px-4 py-2.5 font-bold ${stockInfo.textClass}`}>{stockInfo.label}</td>
+                            <td className="px-4 py-2.5 font-mono text-[10px] text-muted-foreground">{prod.sku || '-'}</td>
+                            <td className="whitespace-nowrap px-4 py-2.5 text-right font-black text-foreground">{getProductPriceLabel(prod)}</td>
+                            <td className="px-4 py-2.5"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => handleOpenEdit(prod)} className="rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary hover:bg-primary/15" title="Editar produto" aria-label={`Editar ${prod.name}`}><Edit3 className="h-3.5 w-3.5" /></button><button type="button" onClick={() => handleDuplicateProduct(prod)} className="rounded-lg border border-border bg-background p-1.5 text-muted-foreground hover:bg-secondary" title="Duplicar produto" aria-label={`Duplicar ${prod.name}`}><Copy className="h-3.5 w-3.5" /></button><button type="button" onClick={() => { if (confirm(`Excluir o produto "${prod.name}" do catálogo do ERP?`)) deleteProduct(prod.id); }} className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20" title="Excluir produto" aria-label={`Excluir ${prod.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div></td>
+                          </tr>
+                        );
+                      }) : <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">Nenhum produto encontrado.</td></tr>}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </>
@@ -2983,11 +3023,11 @@ export default function ProductsCRUDPage() {
                         </p>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura mínima (cm)</label>
-                          <input type="number" min="0" value={minWidth} onChange={(e) => setMinWidth(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <input type="number" min="0" step="0.1" value={minWidth} onChange={(e) => setMinWidth(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Altura mínima (cm)</label>
-                          <input type="number" min="0" value={minHeight} onChange={(e) => setMinHeight(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <input type="number" min="0" step="0.1" value={minHeight} onChange={(e) => setMinHeight(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Área mínima cobrada (m²)</label>
@@ -2997,11 +3037,11 @@ export default function ProductsCRUDPage() {
                           <>
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura máxima (cm)</label>
-                              <input type="number" min="0" value={maxWidth} onChange={(e) => setMaxWidth(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                              <input type="number" min="0" step="0.1" value={maxWidth} onChange={(e) => setMaxWidth(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                             </div>
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-muted-foreground uppercase">Altura máxima (cm)</label>
-                              <input type="number" min="0" value={maxHeight} onChange={(e) => setMaxHeight(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                              <input type="number" min="0" step="0.1" value={maxHeight} onChange={(e) => setMaxHeight(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                             </div>
                           </>
                         )}
@@ -3019,11 +3059,11 @@ export default function ProductsCRUDPage() {
                         </p>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura máxima do material (cm)</label>
-                          <input type="number" min="0" value={maxWidth} onChange={(e) => setMaxWidth(Math.max(0, Number(e.target.value) || 0))} placeholder="Ex: 120" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <input type="number" min="0" step="0.1" value={maxWidth} onChange={(e) => setMaxWidth(Math.max(0, Number(e.target.value) || 0))} placeholder="Ex: 120" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura mínima opcional (cm)</label>
-                          <input type="number" min="0" value={minWidth} onChange={(e) => setMinWidth(Math.max(0, Number(e.target.value) || 0))} placeholder="Ex: 30" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <input type="number" min="0" step="0.1" value={minWidth} onChange={(e) => setMinWidth(Math.max(0, Number(e.target.value) || 0))} placeholder="Ex: 30" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Cobrança mínima opcional (m²)</label>
@@ -3048,8 +3088,8 @@ export default function ProductsCRUDPage() {
                           O cliente informa apenas o comprimento no catálogo. Use este modelo para perfil, tubo, régua ou produto vendido por comprimento simples.
                         </p>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Metragem mínima (m)</label>
-                          <input type="number" min="0" step="0.01" value={minLength} onChange={(e) => setMinLength(Math.max(0, Number(e.target.value) || 0))} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase">Comprimento mínimo (cm)</label>
+                          <input type="number" min="0" step="0.1" value={Number((minLength * 100).toFixed(3))} onChange={(e) => setMinLength(Math.max(0, Number(e.target.value) || 0) / 100)} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <label className="flex items-center gap-2 text-[11px] font-bold text-foreground self-end pb-2">
                           <input type="checkbox" checked={allowCustomMeasure} onChange={(e) => setAllowCustomMeasure(e.target.checked)} className="h-4 w-4 rounded border-border text-primary" />
