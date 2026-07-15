@@ -56,9 +56,9 @@ leitura depois de cada teste.
 | Especial administrativa | role_permissions | SELECT da empresa; mutações somente admin/gerente |
 
 O onboarding cria empresas por trigger/RPC `SECURITY DEFINER`; não depende de
-INSERT direto do papel autenticado. O snapshot remoto contém 6 produtos, todos com
+INSERT direto do papel autenticado. O snapshot remoto contém 7 produtos, todos com
 `active=true` e `catalog_active=true`, na mesma empresa. Portanto o total e o
-payload público atual são 6; a referência anterior de 5 era histórica e não deve
+payload público atual são 7; a referência anterior de 6 era histórica e não deve
 ser reconciliada por alteração ou exclusão de dados.
 
 ## 1 — Harden multitenant helpers
@@ -161,7 +161,7 @@ ser reconciliada por alteração ou exclusão de dados.
 - Confirmar ausência das cinco versões na tabela de histórico antes do rollout real.
 - Confirmar estado remoto contra o snapshot e contagens: empresas 5, pedidos 13,
   itens de pedido 17, orçamentos 12, itens de orçamento 19, transações financeiras
-  11, produtos totais 6, produtos ativos/publicados 6, categorias públicas atuais 8
+  11, produtos totais 7, produtos ativos/publicados 7, categorias públicas atuais 8
   e clientes 25.
 - Registrar que toda simulação terminou em `ROLLBACK` e repetir a leitura em nova sessão.
 - Somente liberar com cinco simulações verdes e `ROLLBACK` explícito em todas.
