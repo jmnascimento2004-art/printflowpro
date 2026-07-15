@@ -68,6 +68,7 @@ export default function POSPage() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [checkoutNotes, setCheckoutNotes] = useState('');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [justCompletedOrder, setJustCompletedOrder] = useState<Order | null>(null);
 
   // Modal configure dimension for m2/linear products
@@ -238,9 +239,9 @@ export default function POSPage() {
     setConfiguringProduct(null);
   };
 
-  const handleCheckoutSubmit = (e: React.FormEvent) => {
+  const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0) return;
+    if (cart.length === 0 || isSubmittingOrder) return;
 
     const total = getCartTotal();
     const customer = getSelectedCustomer();
@@ -268,28 +269,35 @@ export default function POSPage() {
     }
 
     // Call Context API
-    const newOrd = addOrderFromPOS({
-      customer_id: customer.id,
-      customer_name: customer.name,
-      items: cart.map(item => ({
-        product_id: item.product_id,
-        product_name: item.product_name,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        total_price: item.unit_price * item.quantity * (
-          (item.pricing_type === 'm2' && item.details)
-            ? (item.details.width || 1) * (item.details.height || 1)
-            : (item.pricing_type === 'linear' && item.details)
-              ? (item.details.width || 1)
-              : 1
-        ),
-        details: item.details
-      })),
-      discount: discountAmount,
-      paid_amount: paymentMethod === 'dinheiro' ? Math.min(total, amountPaid) : total,
-      payment_method: paymentMethod,
-      notes: checkoutNotes
-    });
+    setIsSubmittingOrder(true);
+    let newOrd: Order | null = null;
+    try {
+      newOrd = await addOrderFromPOS({
+        customer_id: customer.id,
+        customer_name: customer.name,
+        items: cart.map(item => ({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.unit_price * item.quantity * (
+            (item.pricing_type === 'm2' && item.details)
+              ? (item.details.width || 1) * (item.details.height || 1)
+              : (item.pricing_type === 'linear' && item.details)
+                ? (item.details.width || 1)
+                : 1
+          ),
+          details: item.details
+        })),
+        discount: discountAmount,
+        paid_amount: paymentMethod === 'dinheiro' ? Math.min(total, amountPaid) : total,
+        payment_method: paymentMethod,
+        notes: checkoutNotes
+      });
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+    if (!newOrd) return;
 
     // Clear cart and triggers receipt preview
     setCart([]);
@@ -1290,10 +1298,10 @@ export default function POSPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={paymentMethod === 'faturado' && (getSelectedCustomer()?.id === 'guest' || getSelectedCustomer()?.billing_type !== 'faturado' || ((getSelectedCustomer()?.credit_limit || 0) - (getSelectedCustomer()?.credit_used || 0)) < getCartTotal())}
+                  disabled={isSubmittingOrder || (paymentMethod === 'faturado' && (getSelectedCustomer()?.id === 'guest' || getSelectedCustomer()?.billing_type !== 'faturado' || ((getSelectedCustomer()?.credit_limit || 0) - (getSelectedCustomer()?.credit_used || 0)) < getCartTotal()))}
                   className="flex-1 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 text-xs shadow-md shadow-emerald-600/20 disabled:opacity-40"
                 >
-                  Registrar e Imprimir
+                  {isSubmittingOrder ? 'Registrando...' : 'Registrar e Imprimir'}
                 </button>
               </div>
             </form>

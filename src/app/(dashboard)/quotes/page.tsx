@@ -145,10 +145,21 @@ export default function QuotesPage() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [isCreating, setIsCreating] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [approvingQuoteId, setApprovingQuoteId] = useState<string | null>(null);
   const [activePrintQuote, setActivePrintQuote] = useState<Quote | null>(null);
   const [selectedPdfPreview, setSelectedPdfPreview] = useState<PdfPreviewState | null>(null);
   const [requestedCustomerId, setRequestedCustomerId] = useState('');
   const [customerPrefillMessage, setCustomerPrefillMessage] = useState('');
+
+  const handleApproveQuote = async (quoteId: string) => {
+    if (approvingQuoteId) return;
+    setApprovingQuoteId(quoteId);
+    try {
+      await approveQuote(quoteId);
+    } finally {
+      setApprovingQuoteId(null);
+    }
+  };
 
   const resolveQuoteCustomer = (quote: Quote) => {
     const webName = quote.customer_name.replace(/\s+\(Web\)$/i, '').trim();
@@ -1378,10 +1389,11 @@ export default function QuotesPage() {
                           onClick={(event) => {
                             event.stopPropagation();
                             if (confirm('Aprovar este orçamento e gerar o pedido na fila?')) {
-                              approveQuote(quote.id);
+                              void handleApproveQuote(quote.id);
                             }
                           }}
-                          className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-1.5 text-emerald-500 hover:bg-emerald-500/25"
+                          disabled={approvingQuoteId !== null}
+                          className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-1.5 text-emerald-500 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                           title="Aprovar orçamento"
                           aria-label="Aprovar orçamento"
                         >
@@ -1485,10 +1497,11 @@ export default function QuotesPage() {
                               type="button"
                               onClick={() => {
                                 if (confirm('Aprovar este orçamento e gerar o pedido na fila?')) {
-                                  approveQuote(quote.id);
+                                  void handleApproveQuote(quote.id);
                                 }
                               }}
-                              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/25 border border-emerald-500/20"
+                              disabled={approvingQuoteId !== null}
+                              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/25 border border-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                               title="Aprovar e Converter em Pedido"
                             >
                               <Check className="h-3.5 w-3.5" />

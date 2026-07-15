@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '@/lib/supabaseClient';
 import { publicStoreSelect } from '@/lib/publicSupabaseClient';
 import { warnCaught } from '@/lib/safe-log';
-import { formatOrderDisplayNumber, getNextOrderNumber } from '@/lib/order-number';
+import { formatOrderDisplayNumber } from '@/lib/order-number';
 import {
   clearOperationalDemoSnapshots,
   getOrSetDemoSnapshot,
@@ -122,7 +122,7 @@ interface DatabaseContextType {
     paid_amount: number;
     payment_method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado';
     notes?: string;
-  }) => Order;
+  }) => Promise<Order | null>;
 
   // Clientes
   addCustomer: (cust: NewCustomerInput) => Customer;
@@ -146,10 +146,10 @@ interface DatabaseContextType {
   addQuote: (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => Quote;
   updateQuote: (quote: Quote) => void;
   deleteQuote: (id: string) => void;
-  approveQuote: (id: string) => void;
+  approveQuote: (id: string) => Promise<Order | null>;
 
   // Orders
-  addOrder: (order: Omit<Order, 'id' | 'company_id' | 'number' | 'created_at'>) => Order;
+  addOrder: (order: Omit<Order, 'id' | 'company_id' | 'number' | 'created_at'>) => Promise<Order | null>;
   updateOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: Order['status']) => void;
   payOrder: (
@@ -219,6 +219,9 @@ type SavedQuotePayload = {
 type SavedOrderPayload = {
   order?: Omit<Order, 'items'> | null;
   items?: Array<OrderItem & { order_id?: string }> | null;
+};
+type ApprovedQuotePayload = SavedOrderPayload & {
+  quote?: Omit<Quote, 'items'> | null;
 };
 type PublicStoreDataResponse = {
   debug?: Record<string, unknown>;
@@ -1721,82 +1724,51 @@ useEffect(() => {
     });
   };
 
-  const approveQuote = (id: string) => {
+  const approveQuote = async (id: string) => {
     const match = quotes.find(q => q.id === id);
-    if (!match) return;
+    if (!match) return null;
 
-    const approvedQuote: Quote = { ...match, status: 'aprovado' };
+    const { data, error } = await supabase.rpc('approve_quote_and_create_order', { p_quote_id: id });
+    if (error) {
+      warnCaught('Erro ao aprovar orçamento e criar pedido no Supabase:', error);
+      showToast('Não foi possível aprovar o orçamento. Tente novamente.', 'error');
+      return null;
+    }
 
-    // 2. Automatically generate an Order
-    const orderNumber = getNextOrderNumber(orders);
-    void saveQuoteWithItems(approvedQuote, 'aprovado').then((savedQuote) => {
-      if (!savedQuote) return;
+    const payload = data as ApprovedQuotePayload;
+    const savedOrder = normalizeOrderPayload(payload);
+    if (!savedOrder || !payload.quote) {
+      warnCaught('Resposta inválida ao aprovar orçamento no Supabase:', data);
+      showToast('O orçamento foi enviado, mas a resposta do servidor veio incompleta.', 'error');
+      return null;
+    }
 
-      const quoteNotes = String(savedQuote.notes || '').trim();
-      const convertedNotes = `Convertido do Orçamento #${savedQuote.number}.${quoteNotes ? ` ${quoteNotes}` : ''}`;
-
-      const newOrder: Order = {
-        id: `order-${Date.now()}`,
-        company_id: currentCompanyId,
-        customer_id: savedQuote.customer_id,
-        customer_name: savedQuote.customer_name,
-        number: orderNumber,
-        status: 'aguardando_pagamento',
-        total_amount: savedQuote.total_amount,
-        paid_amount: 0,
-        payment_status: 'pendente',
-        shipping_cost: savedQuote.delivery_fee || 0,
-        deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
-        notes: convertedNotes,
-        additional_services: savedQuote.additional_services || [],
-        items: savedQuote.items.map(i => ({
-          id: `oi-${Math.random().toString(36).substr(2, 9)}`,
-          product_id: i.product_id,
-          product_name: i.product_name,
-          quantity: i.quantity,
-          unit_price: i.unit_price,
-          total_price: i.total_price,
-          details: i.details,
-          outsourced: false
-        })),
-        created_at: new Date().toISOString(),
-        delivery_type: savedQuote.delivery_type,
-        delivery_origin_address: savedQuote.delivery_origin_address,
-        delivery_address: savedQuote.delivery_address,
-        delivery_distance_km: savedQuote.delivery_distance_km
-      };
-
-      void saveOrderWithItems(newOrder, 'convertido do orçamento').then((savedOrder) => {
-        if (savedOrder) {
-          showToast(`Pedido ${formatOrderDisplayNumber(savedOrder.number)} criado a partir do orçamento #${savedQuote.number}.`);
-        }
-      });
-    });
+    upsertQuoteState({ ...match, ...payload.quote, items: match.items, status: 'aprovado' });
+    upsertOrderState(savedOrder);
+    showToast(`Pedido ${formatOrderDisplayNumber(savedOrder.number)} criado a partir do orçamento #${match.number}.`);
+    return savedOrder;
   };
 
   // ----------------------------------------------------
   // ORDERS & PRODUCTION/STOCK TRIGGER API
   // ----------------------------------------------------
-  const addOrder = (order: Omit<Order, 'id' | 'company_id' | 'number' | 'created_at'>) => {
-    const orderNumber = getNextOrderNumber(orders);
+  const addOrder = async (order: Omit<Order, 'id' | 'company_id' | 'number' | 'created_at'>) => {
     const newOrder: Order = {
       ...order,
       id: `order-${Date.now()}`,
       company_id: currentCompanyId,
-      number: orderNumber,
+      number: '',
       created_at: new Date().toISOString()
     };
 
-    void saveOrderWithItems(newOrder, 'criado').then((savedOrder) => {
-      if (!savedOrder) return;
+    const savedOrder = await saveOrderWithItems(newOrder, 'criado');
+    if (!savedOrder) return null;
 
-      // Handle initial state production injection if order begins in production
-      if (savedOrder.status === 'producao' || savedOrder.status === 'impressao' || savedOrder.status === 'acabamento') {
-        injectProductionQueue(savedOrder);
-      }
-    });
+    if (savedOrder.status === 'producao' || savedOrder.status === 'impressao' || savedOrder.status === 'acabamento') {
+      injectProductionQueue(savedOrder);
+    }
 
-    return newOrder;
+    return savedOrder;
   };
 
   const updateOrder = (order: Order) => {
@@ -2385,7 +2357,7 @@ useEffect(() => {
   // ----------------------------------------------------
   // POS / PDV API
   // ----------------------------------------------------
-  const addOrderFromPOS = (posOrder: {
+  const addOrderFromPOS = async (posOrder: {
     customer_id: string;
     customer_name: string;
     items: Omit<OrderItem, 'id' | 'outsourced'>[];
@@ -2394,7 +2366,6 @@ useEffect(() => {
     payment_method: 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado';
     notes?: string;
   }) => {
-    const orderNumber = getNextOrderNumber(orders);
     const subtotal = posOrder.items.reduce((sum, item) => sum + item.total_price, 0);
     const total = subtotal - posOrder.discount;
     const orderId = `order-${Date.now()}`;
@@ -2404,7 +2375,7 @@ useEffect(() => {
       company_id: currentCompanyId,
       customer_id: posOrder.customer_id,
       customer_name: posOrder.customer_name,
-      number: orderNumber,
+      number: '',
       status: posOrder.payment_method === 'faturado' || posOrder.paid_amount >= total ? 'producao' : 'aguardando_pagamento',
       total_amount: total,
       paid_amount: posOrder.payment_method === 'faturado' ? 0 : posOrder.paid_amount,
@@ -2426,8 +2397,12 @@ useEffect(() => {
       created_at: new Date().toISOString()
     };
 
-    setOrders(prev => [newOrder, ...prev]);
-    injectProductionQueue(newOrder);
+    const savedOrder = await saveOrderWithItems(newOrder, 'criado no PDV');
+    if (!savedOrder) return null;
+
+    const orderNumber = savedOrder.number;
+    const savedOrderId = savedOrder.id;
+    injectProductionQueue(savedOrder);
 
     if (posOrder.payment_method === 'faturado') {
       const matchCust = customers.find(c => c.id === posOrder.customer_id);
@@ -2449,7 +2424,7 @@ useEffect(() => {
       const trans: FinancialTransaction = {
         id: `fin-pos-${Date.now()}`,
         company_id: currentCompanyId,
-        order_id: orderId,
+        order_id: savedOrderId,
         order_number: orderNumber,
         type: 'receita',
         category: 'Vendas',
@@ -2465,7 +2440,7 @@ useEffect(() => {
       const trans: FinancialTransaction = {
         id: `fin-pos-${Date.now()}`,
         company_id: currentCompanyId,
-        order_id: orderId,
+        order_id: savedOrderId,
         order_number: orderNumber,
         type: 'receita',
         category: 'Vendas',
@@ -2504,7 +2479,7 @@ useEffect(() => {
       }
     }
 
-    return newOrder;
+    return savedOrder;
   };
 
   const addBanner = (banner: Omit<StoreBanner, 'id'>) => {

@@ -36,13 +36,3 @@ export const areOrderNumbersEquivalent = (left?: string | null, right?: string |
 
 export const replaceOrderNumbersForDisplay = (text?: string | null): string =>
   String(text || '').replace(/\bORD-(\d+)\b/gi, 'PED-$1');
-
-export const getNextOrderNumber = (orders: Array<{ number?: string | null }>): string => {
-  const maxNum = orders.reduce((max, order) => {
-    const match = String(order.number || '').match(/(?:ORD|PED)-(\d+)$/i);
-    const numericValue = match ? parseInt(match[1], 10) : 0;
-    return Number.isFinite(numericValue) ? Math.max(max, numericValue) : max;
-  }, 0);
-
-  return `PED-${String(maxNum + 1).padStart(4, '0')}`;
-};
