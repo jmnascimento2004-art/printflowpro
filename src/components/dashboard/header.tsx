@@ -11,6 +11,15 @@ import { UserProfile } from '@/lib/dummy-data';
 
 const CATALOG_INTERESTS_READ_KEY = 'printflow_catalog_interests_read_ids';
 const CATALOG_INTERESTS_READ_EVENT = 'printflow_catalog_interests_read_change';
+const ROLE_LABELS: Record<UserProfile['role'], string> = {
+  admin: 'Administrador',
+  gerente: 'Gerente',
+  financeiro: 'Financeiro',
+  producao: 'Produção',
+  vendas: 'Vendas',
+  estoque: 'Estoque',
+  arte_finalista: 'Arte Finalista'
+};
 
 export default function Header({
   sidebarOpen,
@@ -251,24 +260,27 @@ export default function Header({
           )}
         </div>
 
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-primary/10 text-xs font-bold text-primary shadow-sm"
-          title={activeProfile.name}
-        >
-          {activeProfile.avatar_url ? (
-            <Image
-              src={activeProfile.avatar_url}
-              alt={`Foto de ${activeProfile.name}`}
-              width={40}
-              height={40}
-              unoptimized
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <span aria-label={`Avatar de ${activeProfile.name}`}>
-              {activeProfile.name.charAt(0).toUpperCase()}
-            </span>
-          )}
+        <div className="flex min-w-0 items-center gap-2" title={activeProfile.name}>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-primary/10 text-xs font-bold text-primary shadow-sm">
+            {activeProfile.avatar_url ? (
+              <Image
+                src={activeProfile.avatar_url}
+                alt={`Foto de ${activeProfile.name}`}
+                width={40}
+                height={40}
+                unoptimized
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span aria-label={`Avatar de ${activeProfile.name}`}>
+                {activeProfile.name.charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div className="flex min-w-0 max-w-28 flex-col text-left leading-tight sm:max-w-40">
+            <span className="truncate text-xs font-semibold text-foreground">{activeProfile.name}</span>
+            <span className="truncate text-[10px] text-muted-foreground">{ROLE_LABELS[activeProfile.role]}</span>
+          </div>
         </div>
       </div>
     </header>
