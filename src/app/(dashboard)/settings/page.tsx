@@ -1140,6 +1140,7 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {['empresa', 'catalogo', 'financas', 'sistema'].includes(activeTab) && (
           <form id="general-settings-form" onSubmit={handleSaveSettings} className="space-y-6">
             
             {activeTab === 'empresa' && (
@@ -2231,6 +2232,7 @@ export default function SettingsPage() {
             )}
 
           </form>
+          )}
 
 
 
