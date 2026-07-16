@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
 import { 
   Settings, 
   Key, 
@@ -2848,7 +2849,7 @@ export default function SettingsPage() {
               )}
 
               {/* Add/Edit Modal inside tab */}
-              {empIsModalOpen && (
+              {empIsModalOpen && createPortal((
                 <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/65 p-2 backdrop-blur-sm sm:items-center sm:p-6">
                   <div className="animate-in flex max-h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl zoom-in-95 duration-200 sm:max-h-[calc(100dvh-3rem)]">
                     <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3.5 sm:px-6">
@@ -3022,7 +3023,7 @@ export default function SettingsPage() {
                     </form>
                   </div>
                 </div>
-              )}
+              ), document.body)}
             </div>
           )}
 
