@@ -529,6 +529,7 @@ export default function SettingsPage() {
   const [empSearchTerm, setEmpSearchTerm] = useState('');
   const [empSelectedRole, setEmpSelectedRole] = useState('all');
   const [empIsModalOpen, setEmpIsModalOpen] = useState(false);
+  const [empIsSaving, setEmpIsSaving] = useState(false);
   const [empEditingProfile, setEmpEditingProfile] = useState<UserProfile | null>(null);
   
   const [empFormName, setEmpFormName] = useState('');
@@ -591,42 +592,49 @@ export default function SettingsPage() {
     setEmpIsModalOpen(true);
   };
 
-  const handleEmpSubmit = (e: React.FormEvent) => {
+  const handleEmpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!empFormName.trim() || !empFormEmail.trim()) {
       alert('Nome e E-mail são obrigatórios!');
       return;
     }
 
-    if (empEditingProfile) {
-      const updatedProfile: UserProfile = {
-        ...empEditingProfile,
-        name: empFormName,
-        email: empFormEmail,
-        phone: empFormPhone,
-        avatar_url: empFormAvatar || null,
-        role: empFormRole,
-        active: empFormActive
-      };
-      updateProfile(updatedProfile);
-      if (activeProfile.id === updatedProfile.id) {
-        setActiveProfile(updatedProfile);
+    setEmpIsSaving(true);
+    try {
+      if (empEditingProfile) {
+        const updatedProfile: UserProfile = {
+          ...empEditingProfile,
+          name: empFormName,
+          email: empFormEmail,
+          phone: empFormPhone,
+          avatar_url: empFormAvatar || null,
+          role: empFormRole,
+          active: empFormActive
+        };
+        const persistedProfile = await updateProfile(updatedProfile);
+        if (activeProfile.id === persistedProfile.id) {
+          setActiveProfile(persistedProfile);
+        }
+        setNotification('Funcionário atualizado com sucesso!');
+      } else {
+        addProfile({
+          name: empFormName,
+          email: empFormEmail,
+          phone: empFormPhone,
+          avatar_url: empFormAvatar || null,
+          role: empFormRole,
+          active: empFormActive
+        });
+        setNotification('Funcionário cadastrado com sucesso!');
       }
-      setNotification('Funcionário atualizado com sucesso!');
-    } else {
-      addProfile({
-        name: empFormName,
-        email: empFormEmail,
-        phone: empFormPhone,
-        avatar_url: empFormAvatar || null,
-        role: empFormRole,
-        active: empFormActive
-      });
-      setNotification('Funcionário cadastrado com sucesso!');
+
+      setEmpIsModalOpen(false);
+      setTimeout(() => setNotification(null), 3000);
+    } catch {
+      alert('Não foi possível salvar o funcionário. A alteração não foi confirmada pelo banco de dados. Tente novamente.');
+    } finally {
+      setEmpIsSaving(false);
     }
-    
-    setEmpIsModalOpen(false);
-    setTimeout(() => setNotification(null), 3000);
   };
 
   const handleEmpAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2940,15 +2948,17 @@ export default function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => setEmpIsModalOpen(false)}
+                          disabled={empIsSaving}
                           className="px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-bold shadow-sm"
                         >
                           Cancelar
                         </button>
                         <button
                           type="submit"
-                          className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-bold flex items-center gap-1 shadow-md shadow-primary/10"
+                          disabled={empIsSaving}
+                          className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-bold flex items-center gap-1 shadow-md shadow-primary/10 disabled:cursor-wait disabled:opacity-60"
                         >
-                          <Check className="h-4 w-4" /> {empEditingProfile ? 'Salvar Alterações' : 'Confirmar Cadastro'}
+                          <Check className="h-4 w-4" /> {empIsSaving ? 'Salvando...' : empEditingProfile ? 'Salvar Alterações' : 'Confirmar Cadastro'}
                         </button>
                       </div>
                     </form>

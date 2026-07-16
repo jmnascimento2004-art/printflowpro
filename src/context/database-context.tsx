@@ -193,7 +193,7 @@ interface DatabaseContextType {
   // Employees CRUD
   profiles: UserProfile[];
   addProfile: (profile: Omit<UserProfile, 'id' | 'company_id'>) => UserProfile;
-  updateProfile: (profile: UserProfile) => void;
+  updateProfile: (profile: UserProfile) => Promise<UserProfile>;
   deleteProfile: (id: string) => void;
 
   // Permissions
@@ -2747,15 +2747,41 @@ useEffect(() => {
     return newProfile;
   };
 
-  const updateProfile = (profile: UserProfile) => {
+  const updateProfile = async (profile: UserProfile) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        name: profile.name,
+        email: profile.email,
+        phone: profile.phone || null,
+        avatar_url: profile.avatar_url || null,
+        role: profile.role,
+        active: profile.active,
+      })
+      .eq('id', profile.id)
+      .eq('company_id', currentCompanyId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      warnCaught('Erro ao atualizar funcionário no Supabase:', error);
+      throw error;
+    }
+
+    if (!data) {
+      const persistenceError = new Error('O perfil não foi confirmado pelo banco de dados.');
+      warnCaught('Erro ao atualizar funcionário no Supabase:', persistenceError);
+      throw persistenceError;
+    }
+
+    const persistedProfile = data as UserProfile;
     setProfiles(prev => {
-      const nextProfiles = prev.map(p => p.id === profile.id ? profile : p);
+      const nextProfiles = prev.map(p => p.id === persistedProfile.id ? persistedProfile : p);
       persistDemoSnapshot('profiles', nextProfiles);
       return nextProfiles;
     });
-    supabase.from('profiles').update(profile).eq('id', profile.id).then(({ error }) => {
-      if (error) warnCaught('Erro ao atualizar funcionário no Supabase:', error);
-    });
+
+    return persistedProfile;
   };
 
   const deleteProfile = (id: string) => {
