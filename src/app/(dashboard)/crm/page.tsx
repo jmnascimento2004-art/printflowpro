@@ -34,6 +34,8 @@ import {
   formatCNPJ,
   formatCurrencyInput,
   formatCPF,
+  formatBrazilianPhoneInput,
+  getBrazilianPhoneDisplay,
   parseCurrencyInputToNumber,
   sanitizeCEP,
   validateCEP,
@@ -161,8 +163,8 @@ export default function CustomersPage() {
     setDocument(customer.document || '');
     setStateRegistration(extra.inscricao_estadual || '');
     setResponsibleName(extra.responsavel_nome || extra.responsavel_financeiro_nome || '');
-    setPhone(customer.phone || '');
-    setWhatsapp(extra.whatsapp || customer.phone || '');
+    setPhone(formatBrazilianPhoneInput(customer.phone));
+    setWhatsapp(formatBrazilianPhoneInput(extra.whatsapp || customer.phone));
     setEmail(customer.email || '');
     setBirthDate(extra.birth_date || '');
     setZipCode(customer.address?.zip_code || '');
@@ -300,8 +302,8 @@ export default function CustomersPage() {
       setDocument(formatCNPJ(data.cnpj || clean));
       setName((current) => current || data.razaoSocial || data.nomeFantasia);
       setTradeName((current) => current || data.nomeFantasia || data.razaoSocial);
-      setPhone((current) => current || data.telefone);
-      setWhatsapp((current) => current || data.telefone);
+      setPhone((current) => current || formatBrazilianPhoneInput(data.telefone));
+      setWhatsapp((current) => current || formatBrazilianPhoneInput(data.telefone));
       setEmail((current) => current || data.email);
       setZipCode((current) => data.cep || current);
       setStreet((current) => current || data.logradouro);
@@ -570,7 +572,7 @@ export default function CustomersPage() {
                     const location = [customer.address?.neighborhood, customer.address?.city].filter(Boolean).join(' - ') || 'Não informado';
                     return <tr key={customer.id} className="transition-colors hover:bg-secondary/15">
                       <td className="px-3 py-2.5"><div className="flex min-w-0 items-center gap-1.5"><button type="button" onClick={() => openCustomerDetails(customer)} className="min-w-0 truncate text-left font-black text-foreground hover:text-primary" title={customer.name}>{customer.name}</button><PersonBadge type={type} /></div><p className="mt-0.5 truncate text-[10px] text-muted-foreground">{customer.document || 'Documento não informado'}</p></td>
-                      <td className="px-3 py-2.5"><p className="truncate font-semibold text-foreground">{extra.whatsapp || customer.phone || 'Sem telefone'}</p><p className="mt-0.5 truncate text-[10px] text-muted-foreground">{customer.email || 'Sem e-mail'}</p></td>
+                      <td className="px-3 py-2.5"><p className="truncate font-semibold text-foreground">{getBrazilianPhoneDisplay(extra.whatsapp || customer.phone) || 'Sem telefone'}</p><p className="mt-0.5 truncate text-[10px] text-muted-foreground">{customer.email || 'Sem e-mail'}</p></td>
                       <td className="px-3 py-2.5 font-semibold text-muted-foreground"><p className="line-clamp-2">{location}</p></td>
                       <td className="px-3 py-2.5 text-[11px] leading-tight text-muted-foreground"><span className="whitespace-nowrap">{customerQuotes.length} orç.</span><span className="mx-1 text-border">·</span><span className="whitespace-nowrap">{customerOrders.length} ped.</span></td>
                       <td className="px-3 py-2.5">{isBlockedCustomer(customer) ? <MiniBadge>Bloqueado</MiniBadge> : isCatalogCustomer(customer) ? <CatalogBadge /> : <MiniBadge>Ativo</MiniBadge>}</td>
@@ -630,7 +632,7 @@ export default function CustomersPage() {
                     </div>
                     <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                       <Phone className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                      <span className="truncate">{extra.whatsapp || customer.phone || 'Sem telefone'}</span>
+                      <span className="truncate">{getBrazilianPhoneDisplay(extra.whatsapp || customer.phone) || 'Sem telefone'}</span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {catalogCustomer && <CatalogBadge />}
@@ -748,10 +750,10 @@ export default function CustomersPage() {
                 )}
 
                 <Field label="Telefone *">
-                  <input required value={phone} onChange={(event) => setPhone(event.target.value)} className={inputClass} placeholder="(00) 00000-0000" />
+                  <input required type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(formatBrazilianPhoneInput(event.target.value))} className={inputClass} placeholder="(00) 00000-0000" />
                 </Field>
                 <Field label="WhatsApp">
-                  <input value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className={inputClass} placeholder="(00) 00000-0000" />
+                  <input type="tel" inputMode="tel" autoComplete="tel" value={whatsapp} onChange={(event) => setWhatsapp(formatBrazilianPhoneInput(event.target.value))} className={inputClass} placeholder="(00) 00000-0000" />
                 </Field>
                 <Field label="E-mail">
                   <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} placeholder="cliente@email.com" />
@@ -939,8 +941,8 @@ export default function CustomersPage() {
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <DetailCard title="Contato">
-                    <DetailLine label="Telefone" value={selectedCustomer.phone || 'Não informado'} />
-                    <DetailLine label="WhatsApp" value={selectedExtra.whatsapp || selectedCustomer.phone || 'Não informado'} />
+                    <DetailLine label="Telefone" value={getBrazilianPhoneDisplay(selectedCustomer.phone) || 'Não informado'} />
+                    <DetailLine label="WhatsApp" value={getBrazilianPhoneDisplay(selectedExtra.whatsapp || selectedCustomer.phone) || 'Não informado'} />
                     <DetailLine label="E-mail" value={selectedCustomer.email || 'Não informado'} />
                     {selectedPersonType === 'fisica' && selectedExtra.birth_date && (
                       <DetailLine label="Nascimento" value={new Date(selectedExtra.birth_date).toLocaleDateString('pt-BR')} />
@@ -1084,8 +1086,8 @@ export default function CustomersPage() {
                   </DetailCard>
 
                   <DetailCard title="Contato">
-                    <DetailLine label="Telefone" value={detailsCustomer.phone || 'Não informado'} />
-                    <DetailLine label="WhatsApp" value={detailExtra.whatsapp || detailsCustomer.phone || 'Não informado'} />
+                    <DetailLine label="Telefone" value={getBrazilianPhoneDisplay(detailsCustomer.phone) || 'Não informado'} />
+                    <DetailLine label="WhatsApp" value={getBrazilianPhoneDisplay(detailExtra.whatsapp || detailsCustomer.phone) || 'Não informado'} />
                     <DetailLine label="E-mail" value={detailsCustomer.email || 'Não informado'} />
                     {detailPersonType === 'fisica' && detailExtra.birth_date && (
                       <DetailLine label="Nascimento" value={new Date(detailExtra.birth_date).toLocaleDateString('pt-BR')} />
@@ -1254,7 +1256,7 @@ function CustomerCard({
 
       <div className="mt-3 space-y-1.5 text-[11px] font-semibold text-slate-600">
         <CardLine icon={<FileText className="h-3.5 w-3.5" />} value={customer.document || 'Documento não informado'} />
-        <CardLine icon={<Phone className="h-3.5 w-3.5" />} value={extra.whatsapp || customer.phone || 'Sem telefone'} />
+        <CardLine icon={<Phone className="h-3.5 w-3.5" />} value={getBrazilianPhoneDisplay(extra.whatsapp || customer.phone) || 'Sem telefone'} />
         <CardLine icon={<MapPin className="h-3.5 w-3.5" />} value={location || 'Endereço não informado'} />
       </div>
 
