@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { 
   Settings, 
   Key, 
@@ -78,7 +79,7 @@ const getModuleIcon = (path: string) => {
 };
 
 export default function SettingsPage() {
-  const { activeProfile } = useAuth();
+  const { activeProfile, setActiveProfile } = useAuth();
   const { 
     settings, 
     updateSettings, 
@@ -533,6 +534,7 @@ export default function SettingsPage() {
   const [empFormName, setEmpFormName] = useState('');
   const [empFormEmail, setEmpFormEmail] = useState('');
   const [empFormPhone, setEmpFormPhone] = useState('');
+  const [empFormAvatar, setEmpFormAvatar] = useState('');
   const [empFormRole, setEmpFormRole] = useState<EmployeeRole>('vendas');
   const [empFormActive, setEmpFormActive] = useState(true);
   const [activePermissionsTab, setActivePermissionsTab] = useState<'employees' | 'permissions'>('employees');
@@ -572,6 +574,7 @@ export default function SettingsPage() {
     setEmpFormName('');
     setEmpFormEmail('');
     setEmpFormPhone('');
+    setEmpFormAvatar('');
     setEmpFormRole('vendas');
     setEmpFormActive(true);
     setEmpIsModalOpen(true);
@@ -582,6 +585,7 @@ export default function SettingsPage() {
     setEmpFormName(profile.name);
     setEmpFormEmail(profile.email);
     setEmpFormPhone(profile.phone || '');
+    setEmpFormAvatar(profile.avatar_url || '');
     setEmpFormRole(profile.role as EmployeeRole);
     setEmpFormActive(profile.active);
     setEmpIsModalOpen(true);
@@ -595,20 +599,26 @@ export default function SettingsPage() {
     }
 
     if (empEditingProfile) {
-      updateProfile({
+      const updatedProfile: UserProfile = {
         ...empEditingProfile,
         name: empFormName,
         email: empFormEmail,
         phone: empFormPhone,
+        avatar_url: empFormAvatar || null,
         role: empFormRole,
         active: empFormActive
-      });
+      };
+      updateProfile(updatedProfile);
+      if (activeProfile.id === updatedProfile.id) {
+        setActiveProfile(updatedProfile);
+      }
       setNotification('Funcionário atualizado com sucesso!');
     } else {
       addProfile({
         name: empFormName,
         email: empFormEmail,
         phone: empFormPhone,
+        avatar_url: empFormAvatar || null,
         role: empFormRole,
         active: empFormActive
       });
@@ -617,6 +627,28 @@ export default function SettingsPage() {
     
     setEmpIsModalOpen(false);
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleEmpAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Selecione uma imagem JPG, PNG ou WEBP.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('A foto deve ter no máximo 2 MB.');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => setEmpFormAvatar(reader.result as string);
+    reader.onerror = () => alert('Não foi possível carregar a foto selecionada.');
+    reader.readAsDataURL(file);
   };
 
   const handleEmpDelete = (id: string, name: string) => {
@@ -2603,8 +2635,19 @@ export default function SettingsPage() {
                             className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-primary/20 transition-all flex flex-col justify-between space-y-4 group relative overflow-hidden text-slate-800 dark:text-slate-100"
                           >
                             <div className="flex items-start gap-4">
-                              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary/20 to-indigo-500/20 border border-primary/10 text-primary flex items-center justify-center font-extrabold text-base uppercase shrink-0">
-                                {profile.name.charAt(0)}
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-br from-primary/20 to-indigo-500/20 text-base font-extrabold uppercase text-primary">
+                                {profile.avatar_url ? (
+                                  <Image
+                                    src={profile.avatar_url}
+                                    alt={`Foto de ${profile.name}`}
+                                    width={48}
+                                    height={48}
+                                    unoptimized
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  profile.name.charAt(0)
+                                )}
                               </div>
                               <div className="space-y-1 truncate">
                                 <h4 className="font-bold text-foreground text-sm group-hover:text-primary transition-colors truncate">
@@ -2774,6 +2817,50 @@ export default function SettingsPage() {
                     </div>
 
                     <form onSubmit={handleEmpSubmit} className="space-y-4">
+                      <div className="flex items-center gap-4 rounded-2xl border border-border bg-secondary/20 p-3">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-primary/10 text-lg font-black text-primary">
+                          {empFormAvatar ? (
+                            <Image
+                              src={empFormAvatar}
+                              alt="Pré-visualização da foto do funcionário"
+                              width={64}
+                              height={64}
+                              unoptimized
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            (empFormName.trim().charAt(0) || '?').toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase text-foreground">Foto de avatar</p>
+                            <p className="text-[9px] text-muted-foreground">JPG, PNG ou WEBP, com até 2 MB.</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[10px] font-bold text-primary-foreground transition-colors hover:bg-primary/90">
+                              <Upload className="h-3.5 w-3.5" />
+                              {empFormAvatar ? 'Trocar foto' : 'Selecionar foto'}
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={handleEmpAvatarUpload}
+                                className="sr-only"
+                              />
+                            </label>
+                            {empFormAvatar && (
+                              <button
+                                type="button"
+                                onClick={() => setEmpFormAvatar('')}
+                                className="rounded-lg border border-border px-3 py-1.5 text-[10px] font-bold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                              >
+                                Remover foto
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-1 text-xs">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">Nome Completo *</label>
                         <input

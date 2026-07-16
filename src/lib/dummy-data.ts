@@ -121,7 +121,7 @@ export interface UserProfile {
   role: 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
   active: boolean;
   phone?: string;
-  avatar_url?: string;
+  avatar_url?: string | null;
 }
 
 export interface Customer {

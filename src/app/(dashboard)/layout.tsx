@@ -47,13 +47,11 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const {
     activeProfile,
-    setActiveProfile,
     isAuthenticated,
     isLoading,
     authError,
     signIn,
-    signUp,
-    logout
+    signUp
   } = useAuth();
   const { rolePermissions } = useDatabase();
   const pathname = usePathname();
@@ -88,8 +86,6 @@ export default function DashboardLayout({
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           activeProfile={activeProfile}
-          setActiveProfile={setActiveProfile}
-          logout={logout}
         />
 
         <main className="flex-1 w-full max-w-7xl min-w-0 mx-auto animate-in fade-in duration-300 flex flex-col overflow-x-hidden px-3 py-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-4 md:p-6">
