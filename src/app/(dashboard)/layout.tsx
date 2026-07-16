@@ -231,8 +231,12 @@ function LoginScreen({
             <div className="flex items-center gap-3">
               <div className="lg:hidden"><BrandMark className="h-11 w-11" /></div>
               <div>
-                <h1 className="text-xl font-black text-slate-950">{mode === 'login' ? 'Entrar no ERP' : 'Criar acesso'}</h1>
-                <p className="text-xs text-slate-500">{mode === 'login' ? 'Use seu e-mail e senha cadastrados.' : 'Crie o primeiro acesso da empresa.'}</p>
+                <h1 className="text-lg font-black text-slate-950 sm:text-xl">
+                  {mode === 'login' ? 'Boas-vindas ao PrintFlowPRO' : 'Criar acesso'}
+                </h1>
+                <p className="text-xs text-slate-500">
+                  {mode === 'login' ? 'Acesse sua conta para continuar.' : 'Crie o primeiro acesso da empresa.'}
+                </p>
               </div>
             </div>
             <Sparkles className="hidden h-5 w-5 text-primary sm:block" />
@@ -356,7 +360,7 @@ function LoginScreen({
           </button>
 
           <p className="mt-4 text-center text-[11px] leading-5 text-slate-500">
-            Ao acessar, sua sessao e validada pelo Supabase Auth e pelas regras RLS do banco.
+            Sua operação protegida para você trabalhar com segurança e tranquilidade.
           </p>
         </form>
       </section>

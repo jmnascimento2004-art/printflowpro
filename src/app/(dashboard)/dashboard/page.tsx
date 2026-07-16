@@ -155,10 +155,19 @@ export default function DashboardPage() {
       description: 'Orçamento do catalogo aguardando atendimento'
     }));
 
-  const quotedCatalogCustomerIds = new Set(catalogQuoteLeads.map((lead) => {
-    const quote = quotes.find((item) => item.id === lead.id);
-    return quote?.customer_id;
-  }));
+  const quotedCatalogCustomerIds = new Set(
+    quotes
+      .filter((quote) => {
+        const customer = customers.find((item) => item.id === quote.customer_id);
+        return (
+          quote.customer_id.startsWith('cust-web-') ||
+          quote.customer_name.includes('(Web)') ||
+          customer?.tags?.includes('Catalogo Online') ||
+          customer?.tags?.includes('Catalogo')
+        );
+      })
+      .map((quote) => quote.customer_id)
+  );
 
   const catalogCustomerLeads = customers
     .filter((customer) => {
@@ -254,8 +263,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* 1. Quick Welcome banner */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gradient-to-r from-primary/10 to-indigo-500/10 border border-primary/20 rounded-2xl p-5 md:p-6 shadow-sm">
-        <div>
+      <div className="flex min-w-0 flex-col items-stretch justify-between gap-4 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 to-indigo-500/10 p-5 shadow-sm md:p-6 xl:flex-row xl:items-center">
+        <div className="min-w-0">
           <h2 className="text-xl md:text-2xl font-bold text-foreground">
             Bem-vindo ao Painel Executivo
           </h2>
@@ -263,16 +272,16 @@ export default function DashboardPage() {
             Aqui está o resumo operacional e financeiro da sua gráfica para hoje.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:w-auto xl:shrink-0">
           <Link
             href="/quotes"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-semibold shadow-md shadow-primary/20 transition-all shrink-0"
+            className="flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition-all hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" /> Novo Orçamento
           </Link>
           <Link
             href="/pricing"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-card border border-border hover:bg-secondary text-foreground text-sm font-semibold transition-all shrink-0"
+            className="flex min-w-0 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground transition-all hover:bg-secondary"
           >
             <Calculator className="h-4 w-4" /> Precificar m²
           </Link>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   Home, 
   Users, 
@@ -31,8 +31,10 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
   const pathname = usePathname();
   const { theme } = useTheme();
   const { company, rolePermissions } = useDatabase();
-  const { activeProfile } = useAuth();
+  const { activeProfile, logout } = useAuth();
+  const router = useRouter();
   const [isMobile, setIsMobile] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const storeDomain = (company.store_domain || company.custom_domain || '').trim();
   const storeHref = storeDomain ? `https://${storeDomain.replace(/^https?:\/\//, '')}/store` : '/store';
 
@@ -77,6 +79,20 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
   const handleLinkClick = () => {
     if (isMobile) {
       setIsOpen(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
+    try {
+      await logout();
+      router.replace('/login');
+      router.refresh();
+    } finally {
+      setIsSigningOut(false);
+      if (isMobile) setIsOpen(false);
     }
   };
 
@@ -175,14 +191,16 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
             )}
           </Link>
 
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all"
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isSigningOut}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-red-500 transition-all hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-60"
             title="Sair do Sistema"
           >
             <LogOut className="h-5 w-5 shrink-0" />
-            {isOpen && <span className="truncate">Sair / Início</span>}
-          </Link>
+            {isOpen && <span className="truncate">{isSigningOut ? 'Saindo...' : 'Sair'}</span>}
+          </button>
         </div>
       </aside>
     </>
