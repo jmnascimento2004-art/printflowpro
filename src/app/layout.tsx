@@ -15,8 +15,6 @@ import { StoreCookieBanner } from "@/components/store/StoreCookieBanner";
 const companyHeadBootScript = `
 (function () {
   try {
-    var raw = window.localStorage && window.localStorage.getItem('printflow_company');
-    var company = raw ? JSON.parse(raw) : null;
     var host = window.location.hostname.replace(/^www\\./, '').toLowerCase();
     var hostParts = host.split('.').filter(Boolean);
     var hostBrand = '';
@@ -25,9 +23,7 @@ const companyHeadBootScript = `
       hostBrand = hostParts[1].replace(/-/g, ' ').toUpperCase();
     }
 
-    var companyName = company && typeof company.name === 'string' && company.name.trim()
-      ? company.name.trim()
-      : hostBrand;
+    var companyName = hostBrand;
     var isStore = window.location.pathname === '/store' ||
       window.location.pathname.indexOf('/store/') === 0 ||
       hostParts[0] === 'store';
@@ -36,13 +32,7 @@ const companyHeadBootScript = `
       document.title = (isStore ? 'Catálogo - ' : 'Dashboard - ') + companyName;
     }
 
-    var favicon = company && typeof company.favicon === 'string' ? company.favicon.trim() : '';
-    var logo = company && (
-      (typeof company.logo_light === 'string' && company.logo_light.trim()) ||
-      (typeof company.logo_url === 'string' && company.logo_url.trim()) ||
-      (typeof company.logo_dark === 'string' && company.logo_dark.trim())
-    );
-    var icon = favicon || logo || '/api/public/branding/icon?size=192&v=boot';
+    var icon = '/api/public/branding/icon?size=192&v=boot';
 
     var lower = icon.toLowerCase();
     var supported = !lower.endsWith('.cdr') && (

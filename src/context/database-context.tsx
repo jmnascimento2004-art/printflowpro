@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { publicStoreSelect } from '@/lib/publicSupabaseClient';
 import { warnCaught } from '@/lib/safe-log';
@@ -65,6 +65,7 @@ import {
   DUMMY_PROFILES
 } from '@/lib/dummy-data';
 import { isProductionActiveOrder, normalizeStatus } from '@/lib/order-status';
+import { useAuth } from '@/context/auth-context';
 
 export interface CashRegisterSession {
   id: string;
@@ -91,6 +92,8 @@ export interface CashRegisterTransaction {
 }
 
 interface DatabaseContextType {
+  isTenantReady: boolean;
+  isSessionSwitching: boolean;
   customers: Customer[];
   suppliers: Supplier[];
   categories: Category[];
@@ -431,9 +434,15 @@ const mergeSettingsWithDefaults = (
 };
 
 export function DatabaseProvider({ children }: { children: React.ReactNode }) {
+  const { session, activeProfile, isLoading: isAuthLoading } = useAuth();
   const [initialized, setInitialized] = useState(false);
+  const [isTenantReady, setIsTenantReady] = useState(false);
+  const [isSessionSwitching, setIsSessionSwitching] = useState(true);
   const [canShowToast, setCanShowToast] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const loadGenerationRef = useRef(0);
+  const loadedSessionScopeKeyRef = useRef('');
+  const tenantPersistenceArmedRef = useRef(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -448,13 +457,13 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   useEffect(() => {
-    if (initialized) {
+    if (initialized && isTenantReady) {
       const timer = setTimeout(() => {
         setCanShowToast(true);
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [initialized]);
+  }, [initialized, isTenantReady]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -476,7 +485,42 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<CashRegisterSession[]>([]);
   const [registerTransactions, setRegisterTransactions] = useState<CashRegisterTransaction[]>([]);
   const activeSession = sessions.find(s => s.status === 'aberto') || null;
-  const currentCompanyId = company.id || DUMMY_COMPANY.id;
+  const currentCompanyId = company.id || '';
+
+  const resetTenantState = useCallback(() => {
+    tenantPersistenceArmedRef.current = false;
+    if (isBrowser()) {
+      try {
+        window.localStorage.removeItem('printflow_company');
+        window.localStorage.removeItem('printflow_settings');
+      } catch {
+        // Storage cleanup is best effort; in-memory isolation does not depend on it.
+      }
+    }
+    setInitialized(false);
+    setIsTenantReady(false);
+    setIsSessionSwitching(true);
+    setCanShowToast(false);
+    setToast(null);
+    setCustomers([]);
+    setSuppliers([]);
+    setCategories([]);
+    setProducts([]);
+    setQuotes([]);
+    setOrders([]);
+    setProduction([]);
+    setFinancial([]);
+    setShipments([]);
+    setStockMovements([]);
+    setSettings(DUMMY_SETTINGS);
+    setPickupPoints([]);
+    setCompany(createUnprovisionedCompany(DUMMY_COMPANY));
+    setBanners([]);
+    setProfiles([]);
+    setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
+    setSessions([]);
+    setRegisterTransactions([]);
+  }, []);
 
   const refreshStoreCatalog = useCallback(async () => {
     const hostname = getCurrentHostname();
@@ -551,12 +595,15 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     setRolePermissions(DEFAULT_ROLE_PERMISSIONS);
     setSessions([]);
     setRegisterTransactions([]);
+    setIsTenantReady(true);
+    setIsSessionSwitching(false);
     setInitialized(true);
   }, []);
 
   // Load from Supabase on mount; demo/localStorage fallback is explicit opt-in only.
   useEffect(() => {
     if (!isBrowser()) return;
+    if (!isPublicStoreRoute()) return;
 
     const init = async () => {
       try {
@@ -836,8 +883,176 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     init();
   }, [refreshStoreCatalog]);
 
+  const authUserId = session?.user.id || '';
+  const profileMatchesSession = Boolean(
+    authUserId &&
+    activeProfile.active &&
+    activeProfile.auth_user_id === authUserId &&
+    activeProfile.company_id
+  );
+  const sessionScopeKey = `${authUserId || 'signed-out'}:${
+    profileMatchesSession ? activeProfile.id : 'profile-pending'
+  }:${profileMatchesSession ? activeProfile.company_id : 'company-pending'}`;
+
+  // AuthProvider owns the single Supabase auth listener. React to its validated
+  // user/profile scope, empty the old tenant first, and reject stale responses.
   useEffect(() => {
-    if (!isBrowser() || !isDemoFallbackAllowed()) return;
+    if (!isBrowser() || isPublicStoreRoute()) return;
+
+    const generation = ++loadGenerationRef.current;
+    let disposed = false;
+    const isCurrentGeneration = () => !disposed && generation === loadGenerationRef.current;
+
+    resetTenantState();
+
+    const finishEmptyState = () => {
+      if (!isCurrentGeneration()) return;
+      loadedSessionScopeKeyRef.current = sessionScopeKey;
+      setIsSessionSwitching(false);
+      setInitialized(true);
+    };
+
+    if (isAuthLoading) {
+      return () => {
+        disposed = true;
+        if (generation === loadGenerationRef.current) loadGenerationRef.current += 1;
+      };
+    }
+
+    if (!authUserId || !profileMatchesSession) {
+      finishEmptyState();
+      return () => {
+        disposed = true;
+        if (generation === loadGenerationRef.current) loadGenerationRef.current += 1;
+      };
+    }
+
+    const companyId = activeProfile.company_id;
+
+    const loadTenant = async () => {
+      try {
+        const { data: activeCompany, error: companyError } = await supabase
+          .from('companies')
+          .select('*')
+          .eq('id', companyId)
+          .maybeSingle();
+
+        if (companyError) throw companyError;
+        if (!activeCompany) throw new Error('Empresa do perfil autenticado nao encontrada.');
+
+        const customerData = await listCustomers(companyId);
+        const [
+          { data: settingsData },
+          { data: profilesData },
+          { data: suppliersData },
+          { data: categoriesData },
+          { data: productsData },
+          { data: quotesData, error: quotesError },
+          { data: quoteItemsData, error: quoteItemsError },
+          { data: ordersData, error: ordersError },
+          { data: orderItemsData, error: orderItemsError },
+          { data: productionData },
+          { data: financialData },
+          { data: shipmentsData },
+          { data: stockMovementsData },
+          { data: pickupPointsData },
+          { data: bannersData },
+          { data: rolePermsData },
+          { data: sessionsData },
+          { data: regTransData }
+        ] = await Promise.all([
+          supabase.from('settings').select('*').eq('company_id', companyId),
+          supabase.from('profiles').select('*').eq('company_id', companyId),
+          supabase.from('suppliers').select('*').eq('company_id', companyId),
+          supabase.from('categories').select('*').eq('company_id', companyId),
+          supabase.from('products').select('*').eq('company_id', companyId),
+          supabase.from('quotes').select('*').eq('company_id', companyId),
+          supabase.from('quote_items').select('*'),
+          supabase.from('orders').select('*').eq('company_id', companyId),
+          supabase.from('order_items').select('*'),
+          supabase.from('production_queue').select('*').eq('company_id', companyId),
+          supabase.from('financial_transactions').select('*').eq('company_id', companyId),
+          supabase.from('shipments').select('*').eq('company_id', companyId),
+          supabase.from('stock_movements').select('*').eq('company_id', companyId),
+          supabase.from('pickup_points').select('*').eq('company_id', companyId),
+          supabase.from('store_banners').select('*').eq('company_id', companyId),
+          supabase.from('role_permissions').select('*').eq('company_id', companyId),
+          supabase.from('cash_register_sessions').select('*').eq('company_id', companyId),
+          supabase.from('cash_register_transactions').select('*')
+        ]);
+
+        if (!isCurrentGeneration()) return;
+
+        if (quotesError) warnCaught('Erro ao carregar orcamentos no Supabase:', quotesError);
+        if (quoteItemsError) warnCaught('Erro ao carregar itens de orcamentos no Supabase:', quoteItemsError);
+        if (ordersError) warnCaught('Erro ao carregar pedidos no Supabase:', ordersError);
+        if (orderItemsError) warnCaught('Erro ao carregar itens de pedidos no Supabase:', orderItemsError);
+
+        const scopedSessions = (sessionsData || []) as CashRegisterSession[];
+        const sessionIds = new Set(scopedSessions.map((item) => item.id));
+        const permissions: Record<string, string[]> = {};
+        (rolePermsData || []).forEach((permission) => {
+          permissions[permission.path] = permission.roles;
+        });
+
+        setCompany(activeCompany as Company);
+        setSettings(settingsData?.[0]
+          ? mergeSettingsWithDefaults(settingsData[0] as Partial<typeof DUMMY_SETTINGS>)
+          : DUMMY_SETTINGS
+        );
+        setProfiles((profilesData || []) as UserProfile[]);
+        setCustomers(customerData);
+        setSuppliers((suppliersData || []) as Supplier[]);
+        setCategories(mergeCategoriesWithStoredVisibility((categoriesData || []) as Category[], []));
+        setProducts((productsData || []) as Product[]);
+        setQuotes(reconstructQuotesWithItems(
+          (quotesData || []) as Quote[],
+          quoteItemsError ? [] : (quoteItemsData || []) as QuoteItemRow[]
+        ));
+        setOrders(reconstructOrdersWithItems(
+          (ordersData || []) as Order[],
+          orderItemsError ? [] : (orderItemsData || []) as OrderItemRow[]
+        ));
+        setProduction((productionData || []) as ProductionItem[]);
+        setFinancial((financialData || []) as FinancialTransaction[]);
+        setShipments((shipmentsData || []) as Shipment[]);
+        setStockMovements((stockMovementsData || []) as StockMovement[]);
+        setPickupPoints((pickupPointsData || []) as PickupPoint[]);
+        setBanners((bannersData || []) as StoreBannerRow[]);
+        setRolePermissions(Object.keys(permissions).length > 0 ? permissions : DEFAULT_ROLE_PERMISSIONS);
+        setSessions(scopedSessions);
+        setRegisterTransactions(((regTransData || []) as CashRegisterTransaction[]).filter((item) =>
+          sessionIds.has(item.session_id)
+        ));
+        loadedSessionScopeKeyRef.current = sessionScopeKey;
+        setIsTenantReady(true);
+        setIsSessionSwitching(false);
+        setInitialized(true);
+      } catch (error) {
+        if (!isCurrentGeneration()) return;
+        warnCaught('Erro ao carregar tenant autenticado:', error);
+        finishEmptyState();
+      }
+    };
+
+    void loadTenant();
+
+    return () => {
+      disposed = true;
+      if (generation === loadGenerationRef.current) loadGenerationRef.current += 1;
+    };
+  }, [
+    activeProfile.company_id,
+    activeProfile.id,
+    authUserId,
+    isAuthLoading,
+    profileMatchesSession,
+    resetTenantState,
+    sessionScopeKey
+  ]);
+
+  useEffect(() => {
+    if (!isBrowser() || !isDemoFallbackAllowed() || !isPublicStoreRoute()) return;
 
     const handleQuoteStorageSync = (event: StorageEvent) => {
       if (event.key !== 'printflow_quotes' || !event.newValue) return;
@@ -858,7 +1073,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   // Save triggers mapped to both localStorage and Supabase
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('suppliers', suppliers);
       supabase.from('suppliers').upsert(suppliers).then(({ error }) => {
@@ -871,7 +1086,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [suppliers, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('categories', categories);
       supabase.from('categories').upsert(categories).then(({ error }) => {
@@ -884,7 +1099,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [categories, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('products', products);
       supabase.from('products').upsert(products).then(({ error }) => {
@@ -897,7 +1112,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [products, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('quotes', quotes);
     } catch {
@@ -906,7 +1121,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [quotes, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('orders', orders);
     } catch {
@@ -915,7 +1130,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [orders, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
 
     const activeProductionOrders = orders.filter(isProductionActiveOrder);
     if (activeProductionOrders.length === 0) return;
@@ -937,7 +1152,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [orders, initialized, currentCompanyId]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('production', production);
       supabase.from('production_queue').upsert(production).then(({ error }) => {
@@ -950,7 +1165,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [production, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('financial', financial);
       supabase.from('financial_transactions').upsert(financial).then(({ error }) => {
@@ -963,7 +1178,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [financial, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('shipments', shipments);
       supabase.from('shipments').upsert(shipments).then(({ error }) => {
@@ -976,7 +1191,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [shipments, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('stockMovements', stockMovements);
       supabase.from('stock_movements').upsert(stockMovements).then(({ error }) => {
@@ -989,7 +1204,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [stockMovements, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute() || !company?.id) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute() || !company?.id) return;
     try {
       window.localStorage.setItem('printflow_settings', JSON.stringify(settings));
       supabase.from('settings').upsert({
@@ -1036,7 +1251,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 }, [settings, company?.id, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('pickupPoints', pickupPoints);
       supabase.from('pickup_points').upsert(pickupPoints).then(({ error }) => {
@@ -1049,7 +1264,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [pickupPoints, initialized, canShowToast]);
 
 useEffect(() => {
-  if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
 
   try {
     window.localStorage.setItem('printflow_company', JSON.stringify(company));
@@ -1141,7 +1356,7 @@ useEffect(() => {
 }, [company, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('banners', banners);
       const formatted = banners.map(b => ({ company_id: company.id, ...b }));
@@ -1155,7 +1370,7 @@ useEffect(() => {
   }, [banners, company.id, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('role_permissions', rolePermissions);
       const formatted = Object.entries(rolePermissions).map(([path, roles]) => ({
@@ -1178,7 +1393,7 @@ useEffect(() => {
   }, [rolePermissions, company.id, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('sessions', sessions);
       supabase.from('cash_register_sessions').upsert(sessions).then(({ error }) => {
@@ -1191,7 +1406,7 @@ useEffect(() => {
   }, [sessions, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
       persistDemoSnapshot('registerTransactions', registerTransactions);
       supabase.from('cash_register_transactions').upsert(registerTransactions).then(({ error }) => {
@@ -1202,6 +1417,20 @@ useEffect(() => {
       if (canShowToast) showToast('Erro ao salvar transações!', 'error');
     }
   }, [registerTransactions, initialized, canShowToast]);
+
+  // Arm write-through effects only after the hydration commit. This prevents a
+  // read-only login/session switch from upserting the freshly loaded snapshots.
+  useEffect(() => {
+    if (
+      !isPublicStoreRoute() &&
+      initialized &&
+      isTenantReady &&
+      profileMatchesSession &&
+      company.id === activeProfile.company_id
+    ) {
+      tenantPersistenceArmedRef.current = true;
+    }
+  }, [activeProfile.company_id, company.id, initialized, isTenantReady, profileMatchesSession]);
 
   // Dynamically update DOM favicon when configured
   useEffect(() => {
@@ -2540,13 +2769,19 @@ useEffect(() => {
     setRolePermissions(permissions);
   };
 
-  if (!initialized) {
+  const canRenderCurrentScope = isPublicStoreRoute() || (
+    !isAuthLoading && loadedSessionScopeKeyRef.current === sessionScopeKey
+  );
+
+  if (!initialized || !canRenderCurrentScope) {
   return null;
   }
   
   return (
     <DatabaseContext.Provider
       value={{
+        isTenantReady,
+        isSessionSwitching,
         customers,
         suppliers,
         categories,

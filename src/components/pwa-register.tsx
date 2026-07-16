@@ -11,23 +11,7 @@ type SplashBranding = {
 };
 
 function resolveSplashBranding(): SplashBranding {
-  if (typeof window === 'undefined') {
-    return { name: 'PrintFlowPRO', icon: '/api/public/branding/icon?size=192&v=splash' };
-  }
-
-  try {
-    const raw = window.localStorage.getItem('printflow_company');
-    const company = raw ? JSON.parse(raw) : null;
-    const icon = company?.favicon || company?.logo_light || company?.logo_url || company?.logo_dark;
-    const name = typeof company?.name === 'string' && company.name.trim() ? company.name.trim() : 'PrintFlowPRO';
-
-    return {
-      name,
-      icon: icon || '/api/public/branding/icon?size=192&v=splash'
-    };
-  } catch {
-    return { name: 'PrintFlowPRO', icon: '/api/public/branding/icon?size=192&v=splash' };
-  }
+  return { name: 'PrintFlowPRO', icon: '/api/public/branding/icon?size=192&v=splash' };
 }
 
 function cleanupDevelopmentPWA() {
