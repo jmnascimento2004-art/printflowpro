@@ -921,16 +921,16 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 space-y-4 sm:space-y-6">
       {notification && (
         <div className="bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl text-xs font-semibold animate-in fade-in duration-300">
           {notification}
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row gap-6 items-start">
+      <div className="flex min-w-0 flex-col items-start gap-4 sm:gap-6 xl:flex-row">
         {/* Sidebar Abas */}
-        <div className="w-full md:w-64 bg-card border border-border rounded-2xl p-2 shrink-0 flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible gap-1 scrollbar-none">
+        <div className="flex w-full min-w-0 shrink-0 flex-row gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-2 scrollbar-none xl:w-64 xl:flex-col xl:overflow-x-visible">
           {[
             { id: 'empresa', label: 'Empresa & Marca', icon: Building2 },
             { id: 'catalogo', label: 'Catálogo & Banners', icon: Layers },
@@ -946,7 +946,7 @@ export default function SettingsPage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as SettingsTab)}
-                className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 md:w-full ${
+                className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-4 py-3 text-xs font-semibold transition-all xl:w-full ${
                   isActive 
                     ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/10' 
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
@@ -960,11 +960,11 @@ export default function SettingsPage() {
         </div>
 
         {/* Conteúdo da Aba Ativa */}
-        <div className="flex-1 w-full space-y-6">
+        <div className="w-full min-w-0 flex-1 space-y-4 sm:space-y-6">
           {/* Banners do Catálogo (outside form) */}
           {activeTab === 'catalogo' && (
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in duration-200">
-              <div className="border-b border-border pb-3 flex items-center justify-between">
+            <div className="animate-in space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm fade-in duration-200 sm:p-6">
+              <div className="flex flex-col items-start justify-between gap-3 border-b border-border pb-3 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-2">
                   <Layers className="h-4.5 w-4.5 text-primary" />
                   <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Banners do Catálogo Online (Slider)</h3>
@@ -973,7 +973,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setIsAddingBanner(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/95 text-white text-[11px] font-bold shadow-sm transition-all"
+                    className="flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-bold text-white shadow-sm transition-all hover:bg-primary/95 sm:w-auto"
                   >
                     <Plus className="h-3.5 w-3.5" /> Novo Banner
                   </button>
@@ -2236,8 +2236,8 @@ export default function SettingsPage() {
 
           {/* Balcões de Retirada (outside form) */}
           {activeTab === 'coleta' && (
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in duration-200">
-              <div className="border-b border-border pb-3 flex items-center justify-between">
+            <div className="animate-in space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm fade-in duration-200 sm:p-6">
+              <div className="flex flex-col items-start justify-between gap-3 border-b border-border pb-3 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4.5 w-4.5 text-primary" />
                   <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Balcões de Retirada / Pontos de Coleta</h3>
@@ -2431,7 +2431,7 @@ export default function SettingsPage() {
               <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
                 {pickupPoints && pickupPoints.length > 0 ? (
                   pickupPoints.map((point) => (
-                    <div key={point.id} className="p-4 flex items-center justify-between bg-card hover:bg-secondary/10 transition-colors">
+                    <div key={point.id} className="flex flex-col items-start justify-between gap-3 bg-card p-4 transition-colors hover:bg-secondary/10 sm:flex-row sm:items-center">
                       <div className="space-y-1 pr-4">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-xs text-foreground">{point.name}</span>
@@ -2482,9 +2482,9 @@ export default function SettingsPage() {
 
           {/* Aba Funcionários */}
           {activeTab === 'funcionarios' && activeProfile?.role === 'admin' && (
-            <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="min-w-0 space-y-4 animate-in fade-in duration-200 sm:space-y-6">
               {/* Header with mini-tabs */}
-              <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm lg:flex-row lg:items-center">
                 <div className="space-y-1">
                   <h3 className="font-extrabold text-sm uppercase text-foreground">Gestão de Equipe & Acessos</h3>
                   <p className="text-xs text-muted-foreground font-medium">
@@ -2493,11 +2493,11 @@ export default function SettingsPage() {
                 </div>
                 
                 {/* Mini Tabs */}
-                <div className="flex bg-secondary/50 p-1 rounded-xl border border-border/80 text-[11px] font-bold shrink-0">
+                <div className="flex w-full shrink-0 rounded-xl border border-border/80 bg-secondary/50 p-1 text-[11px] font-bold sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setActivePermissionsTab('employees')}
-                    className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 transition-all sm:flex-none ${
                       activePermissionsTab === 'employees'
                         ? 'bg-card text-foreground shadow-sm border border-border/20'
                         : 'text-muted-foreground hover:text-foreground'
@@ -2508,7 +2508,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setActivePermissionsTab('permissions')}
-                    className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 transition-all sm:flex-none ${
                       activePermissionsTab === 'permissions'
                         ? 'bg-card text-foreground shadow-sm border border-border/20'
                         : 'text-muted-foreground hover:text-foreground'
@@ -2562,8 +2562,8 @@ export default function SettingsPage() {
                   </div>
 
                   {/* Filter Toolbar */}
-                  <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-                    <div className="relative w-full md:w-80">
+                  <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm lg:flex-row">
+                    <div className="relative w-full lg:w-80">
                       <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-muted-foreground" />
                       <input
                         type="text"
@@ -2574,7 +2574,7 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <div className="w-full md:w-auto flex flex-col sm:flex-row gap-3 items-center">
+                    <div className="flex w-full flex-col items-center gap-3 sm:flex-row lg:w-auto">
                       <select
                         value={empSelectedRole}
                         onChange={(e) => setEmpSelectedRole(e.target.value)}
@@ -2704,8 +2704,8 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                  <div className="p-6 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-secondary/10">
+                <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+                  <div className="flex flex-col items-start justify-between gap-4 border-b border-border bg-secondary/10 p-4 sm:p-6 lg:flex-row lg:items-center">
                     <div className="space-y-1">
                       <h3 className="font-extrabold text-sm uppercase text-foreground">Definições de Controle de Acesso</h3>
                       <p className="text-xs text-muted-foreground">
@@ -2715,24 +2715,27 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={handleEmpSavePermissions}
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold shadow-md shadow-primary/10 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md shadow-primary/10 transition-all hover:bg-primary/90 lg:w-auto"
                     >
                       <Check className="h-4 w-4" /> Salvar Configurações de Acesso
                     </button>
                   </div>
 
-                  <div className="px-6 py-3.5 bg-violet-500/5 border-b border-border/80 flex items-start gap-2.5">
+                  <div className="flex items-start gap-2.5 border-b border-border/80 bg-violet-500/5 px-4 py-3.5 sm:px-6">
                     <ShieldAlert className="h-4.5 w-4.5 text-violet-500 shrink-0 mt-0.5" />
                     <p className="text-[11px] text-violet-600 dark:text-violet-400 font-medium leading-relaxed">
                       <span className="font-extrabold uppercase text-[10px]">Restrição de Segurança:</span> O cargo de <strong className="font-bold">Administrador (Admin)</strong> possui acesso irrestrito por padrão para evitar travamento acidental de acesso. As permissões de Admin não podem ser desativadas.
                     </p>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                  <p className="border-b border-border/60 px-4 py-2 text-[10px] font-medium text-muted-foreground lg:hidden">
+                    Deslize horizontalmente para consultar todos os cargos.
+                  </p>
+                  <div className="max-w-full overflow-x-auto overscroll-x-contain">
+                    <table className="w-full min-w-[880px] border-collapse text-left">
                       <thead>
                         <tr className="border-b border-border bg-secondary/30">
-                          <th className="p-4 text-[10px] font-bold text-muted-foreground uppercase tracking-wider min-w-[240px]">Módulo do Sistema</th>
+                          <th className="sticky left-0 z-20 min-w-[240px] bg-secondary p-4 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Módulo do Sistema</th>
                           {[
                             { key: 'admin', label: 'Admin' },
                             { key: 'gerente', label: 'Gerente' },
@@ -2751,7 +2754,7 @@ export default function SettingsPage() {
                       <tbody className="divide-y divide-border/60">
                         {SYSTEM_MODULES.map(mod => (
                           <tr key={mod.path} className="hover:bg-secondary/20 transition-all group">
-                            <td className="p-4 space-y-1">
+                            <td className="sticky left-0 z-10 space-y-1 bg-card p-4 group-hover:bg-secondary/20">
                               <div className="flex items-center gap-2.5">
                                 <div className="p-1.5 rounded-lg bg-secondary border border-border group-hover:border-primary/20 transition-all">
                                   {getModuleIcon(mod.path)}
@@ -2800,8 +2803,8 @@ export default function SettingsPage() {
 
               {/* Add/Edit Modal inside tab */}
               {empIsModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center py-6 px-4">
-                  <div className="bg-card border border-border rounded-3xl w-full max-w-md shadow-2xl p-6 text-foreground space-y-5 animate-in zoom-in-95 duration-200" style={{ borderRadius: '10px' }}>
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-6">
+                  <div className="animate-in max-h-[calc(100dvh-1.5rem)] w-full max-w-md space-y-5 overflow-y-auto rounded-3xl border border-border bg-card p-4 text-foreground shadow-2xl zoom-in-95 duration-200 sm:max-h-[calc(100dvh-3rem)] sm:p-6" style={{ borderRadius: '10px' }}>
                     <div className="flex justify-between items-center border-b border-border pb-3">
                       <h3 className="font-bold text-sm uppercase flex items-center gap-2">
                         <Users className="h-4.5 w-4.5 text-primary" />
@@ -2955,7 +2958,7 @@ export default function SettingsPage() {
 
           {/* Avançado & Sistema Danger Zone */}
           {activeTab === 'sistema' && (
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4 animate-in fade-in duration-200">
+            <div className="animate-in space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm fade-in duration-200 sm:p-6">
               <div className="border-b border-border pb-3 flex items-center gap-2 text-rose-500">
                 <Trash2 className="h-4.5 w-4.5" />
                 <h3 className="font-bold text-sm uppercase tracking-wide">Área de Perigo</h3>
