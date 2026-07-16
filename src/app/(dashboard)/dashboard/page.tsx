@@ -118,13 +118,6 @@ export default function DashboardPage() {
     .filter(f => f.type === 'despesa' && f.status === 'pendente')
     .reduce((sum, f) => sum + f.amount, 0);
 
-  // Financial summary
-  const totalReceived = paidIncomeTransactions.reduce((sum, f) => sum + f.amount, 0);
-
-  const totalPaid = validFinancial
-    .filter(f => f.type === 'despesa' && f.status === 'pago')
-    .reduce((sum, f) => sum + f.amount, 0);
-
   // Profit estimation (estimated based on average product margins or overall revenue - direct expenses)
   const estimatedProfit = salesMonth * 0.42; // standard 42% average net profit rate for prints
 
@@ -225,6 +218,66 @@ export default function DashboardPage() {
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
+
+  // Real cash flow for the current week and the four preceding weeks.
+  const currentWeekStart = new Date();
+  currentWeekStart.setHours(0, 0, 0, 0);
+  currentWeekStart.setDate(currentWeekStart.getDate() - ((currentWeekStart.getDay() + 6) % 7));
+
+  const firstChartWeekStart = new Date(currentWeekStart);
+  firstChartWeekStart.setDate(firstChartWeekStart.getDate() - 28);
+
+  const chartPeriodEnd = new Date(currentWeekStart);
+  chartPeriodEnd.setDate(chartPeriodEnd.getDate() + 7);
+
+  const cashFlowByWeek = Array.from({ length: 5 }, (_, index) => ({
+    label: index === 4 ? 'Semana 5 (Atual)' : `Semana ${index + 1}`,
+    income: 0,
+    expense: 0,
+  }));
+
+  validFinancial
+    .filter((entry) => normalizeKey(entry.status) === 'pago')
+    .forEach((entry) => {
+      const transactionDate = getFinancialPaymentDate(entry);
+      if (
+        Number.isNaN(transactionDate.getTime()) ||
+        transactionDate < firstChartWeekStart ||
+        transactionDate >= chartPeriodEnd
+      ) {
+        return;
+      }
+
+      const weekIndex = Math.floor(
+        (transactionDate.getTime() - firstChartWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000)
+      );
+      const amount = Number(entry.amount) || 0;
+
+      if (normalizeKey(entry.type) === 'receita') {
+        cashFlowByWeek[weekIndex].income += amount;
+      } else if (normalizeKey(entry.type) === 'despesa') {
+        cashFlowByWeek[weekIndex].expense += amount;
+      }
+    });
+
+  const chartPeriodReceived = cashFlowByWeek.reduce((sum, week) => sum + week.income, 0);
+  const chartPeriodPaid = cashFlowByWeek.reduce((sum, week) => sum + week.expense, 0);
+  const chartMaximum = Math.max(
+    ...cashFlowByWeek.flatMap((week) => [week.income, week.expense]),
+    0
+  );
+  const chartX = (index: number) => 50 + index * 125;
+  const chartY = (value: number) => chartMaximum > 0
+    ? 175 - (value / chartMaximum) * 145
+    : 175;
+  const incomePoints = cashFlowByWeek
+    .map((week, index) => `${chartX(index)},${chartY(week.income)}`)
+    .join(' ');
+  const expensePoints = cashFlowByWeek
+    .map((week, index) => `${chartX(index)},${chartY(week.expense)}`)
+    .join(' ');
+  const incomeAreaPoints = `50,175 ${incomePoints} 550,175`;
+  const expenseAreaPoints = `50,175 ${expensePoints} 550,175`;
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -430,11 +483,11 @@ export default function DashboardPage() {
             <div className="flex items-center gap-4 text-xs font-medium">
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                <span>Receitas: {formatCurrency(totalReceived)}</span>
+                <span>Receitas: {formatCurrency(chartPeriodReceived)}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-                <span>Despesas: {formatCurrency(totalPaid)}</span>
+                <span>Despesas: {formatCurrency(chartPeriodPaid)}</span>
               </div>
             </div>
           </div>
@@ -450,34 +503,53 @@ export default function DashboardPage() {
             </div>
 
             {/* SVG lines */}
-            <svg className="w-full h-full absolute inset-0 z-10" viewBox="0 0 600 200" preserveAspectRatio="none">
+            <svg
+              className="w-full h-full absolute inset-0 z-10"
+              viewBox="0 0 600 200"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Receitas e despesas pagas nas últimas cinco semanas"
+            >
               {/* Receipts Line (Green) */}
-              <path
-                d="M 50 150 Q 150 100, 250 80 T 450 60 T 550 40"
+              <polyline
+                points={incomePoints}
                 fill="none"
                 stroke="rgb(16, 185, 129)"
                 strokeWidth="3.5"
+                strokeLinejoin="round"
                 strokeLinecap="round"
               />
-              <path
-                d="M 50 150 Q 150 100, 250 80 T 450 60 T 550 40 L 550 200 L 50 200 Z"
+              <polygon
+                points={incomeAreaPoints}
                 fill="url(#green-gradient)"
                 opacity="0.08"
               />
 
               {/* Expenses Line (Red) */}
-              <path
-                d="M 50 180 Q 150 160, 250 150 T 450 120 T 550 110"
+              <polyline
+                points={expensePoints}
                 fill="none"
                 stroke="rgb(244, 63, 94)"
                 strokeWidth="3"
+                strokeLinejoin="round"
                 strokeLinecap="round"
               />
-              <path
-                d="M 50 180 Q 150 160, 250 150 T 450 120 T 550 110 L 550 200 L 50 200 Z"
+              <polygon
+                points={expenseAreaPoints}
                 fill="url(#red-gradient)"
                 opacity="0.05"
               />
+
+              {cashFlowByWeek.map((week, index) => (
+                <React.Fragment key={week.label}>
+                  <circle cx={chartX(index)} cy={chartY(week.income)} r="4" fill="rgb(16, 185, 129)">
+                    <title>{`${week.label} — Receitas: ${formatCurrency(week.income)}`}</title>
+                  </circle>
+                  <circle cx={chartX(index)} cy={chartY(week.expense)} r="4" fill="rgb(244, 63, 94)">
+                    <title>{`${week.label} — Despesas: ${formatCurrency(week.expense)}`}</title>
+                  </circle>
+                </React.Fragment>
+              ))}
 
               {/* Definitions */}
               <defs>
