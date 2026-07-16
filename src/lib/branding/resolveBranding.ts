@@ -162,8 +162,6 @@ export function resolveBranding(company?: Partial<Company> | null, settings?: Pa
     `${displayName} - gestão completa para gráficas, pedidos e produção.`;
   const themeColor = normalizeThemeColor(company?.theme_color);
   const brandingVersion = createBrandingVersion([
-    getStringField(company, ['updated_at', 'custom_domain_verified_at']),
-    getStringField(settings, ['updated_at']),
     displayName,
     faviconUrl,
     pwaIconUrl,

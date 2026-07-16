@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { isStandaloneApp } from '@/lib/pwa';
@@ -37,6 +37,8 @@ export default function PWARegister() {
   const pathname = usePathname();
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const [showSplash, setShowSplash] = useState(false);
   const [splashBranding, setSplashBranding] = useState<SplashBranding>({
     name: 'PrintFlowPRO',
@@ -78,16 +80,7 @@ export default function PWARegister() {
 
     const registerServiceWorker = () => {
       navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(async (registration) => {
-        await navigator.serviceWorker.ready;
-
-        if (process.env.NODE_ENV === 'development') {
-          console.info('[PWA] Admin service worker ready', registration.scope);
-        }
-
-        if (registration.waiting) {
-          setWaitingWorker(registration.waiting);
-          setShowUpdate(true);
-        }
+        registrationRef.current = registration;
 
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
@@ -100,6 +93,18 @@ export default function PWARegister() {
             }
           });
         });
+
+        if (registration.waiting) {
+          setWaitingWorker(registration.waiting);
+          setShowUpdate(true);
+        }
+
+        await navigator.serviceWorker.ready;
+        await registration.update();
+
+        if (process.env.NODE_ENV === 'development') {
+          console.info('[PWA] Admin service worker ready', registration.scope);
+        }
       }).catch((error) => {
         console.warn('[PWA] Falha ao registrar service worker administrativo.', error);
       });
@@ -117,9 +122,31 @@ export default function PWARegister() {
     };
   }, [pathname]);
 
-  const updateNow = () => {
-    if (!waitingWorker) return;
-    waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+  const updateNow = async () => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+
+    try {
+      const registration = registrationRef.current || await navigator.serviceWorker.getRegistration('/');
+      if (!registration) {
+        window.location.reload();
+        return;
+      }
+
+      await registration.update();
+      const worker = registration.waiting || waitingWorker;
+
+      if (worker) {
+        worker.postMessage({ type: 'SKIP_WAITING' });
+        window.setTimeout(() => window.location.reload(), 4000);
+        return;
+      }
+
+      window.location.reload();
+    } catch (error) {
+      console.warn('[PWA] Falha ao aplicar atualização.', error);
+      window.location.reload();
+    }
   };
 
   return (
@@ -155,9 +182,10 @@ export default function PWARegister() {
                 <button
                   type="button"
                   onClick={updateNow}
-                  className="rounded-lg bg-[#1D35C9] px-3 py-2 text-xs font-black text-white"
+                  disabled={isUpdating}
+                  className="rounded-lg bg-[#1D35C9] px-3 py-2 text-xs font-black text-white disabled:cursor-wait disabled:opacity-60"
                 >
-                  Atualizar agora
+                  {isUpdating ? 'Atualizando...' : 'Atualizar agora'}
                 </button>
                 <button
                   type="button"

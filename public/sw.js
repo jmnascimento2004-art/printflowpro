@@ -1,4 +1,4 @@
-const VERSION = '2026-06-19-02';
+const VERSION = '2026-07-16-01';
 const STATIC_CACHE = `printflowpro-static-${VERSION}`;
 const BRANDING_CACHE = `printflowpro-branding-${VERSION}`;
 const OFFLINE_URL = '/offline';
@@ -73,7 +73,6 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => cache.addAll(STATIC_ASSETS))
-      .then(() => self.skipWaiting())
   );
 });
 
