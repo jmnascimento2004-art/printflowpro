@@ -148,19 +148,29 @@ export default function DashboardPage() {
       description: 'Orçamento do catalogo aguardando atendimento'
     }));
 
-  const quotedCatalogCustomerIds = new Set(
-    quotes
-      .filter((quote) => {
-        const customer = customers.find((item) => item.id === quote.customer_id);
-        return (
-          quote.customer_id.startsWith('cust-web-') ||
-          quote.customer_name.includes('(Web)') ||
-          customer?.tags?.includes('Catalogo Online') ||
-          customer?.tags?.includes('Catalogo')
-        );
-      })
-      .map((quote) => quote.customer_id)
-  );
+  const normalizeCustomerName = (value?: string) => normalizeKey(value)
+    .replace(/\s*\(web\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const normalizePhone = (value?: string) => (value || '').replace(/\D/g, '');
+
+  const customerHasCommercialActivity = (customer: typeof customers[number]) => {
+    const customerName = normalizeCustomerName(customer.name);
+    const customerPhone = normalizePhone(customer.phone);
+
+    const hasQuote = quotes.some((quote) => (
+      quote.customer_id === customer.id ||
+      (customerName !== '' && normalizeCustomerName(quote.customer_name) === customerName) ||
+      (customerPhone !== '' && normalizePhone(quote.customer_phone) === customerPhone)
+    ));
+
+    const hasOrder = orders.some((order) => (
+      order.customer_id === customer.id ||
+      (customerName !== '' && normalizeCustomerName(order.customer_name) === customerName)
+    ));
+
+    return hasQuote || hasOrder;
+  };
 
   const catalogCustomerLeads = customers
     .filter((customer) => {
@@ -169,7 +179,7 @@ export default function DashboardPage() {
         customer.tags?.includes('Catalogo Online') ||
         customer.tags?.includes('Catalogo');
 
-      return isCatalogCustomer && !quotedCatalogCustomerIds.has(customer.id);
+      return isCatalogCustomer && !customerHasCommercialActivity(customer);
     })
     .map((customer) => ({
       id: customer.id,
