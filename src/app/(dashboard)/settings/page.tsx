@@ -38,6 +38,13 @@ import { lookupCNPJ } from '@/lib/cnpj-lookup';
 import { DUMMY_COMPANY, PickupPoint, UserProfile } from '@/lib/dummy-data';
 import { warnCaught } from '@/lib/safe-log';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { supabase } from '@/lib/supabaseClient';
+import {
+  getEmployeeAvatarStoragePath,
+  removeEmployeeAvatar,
+  uploadEmployeeAvatar,
+  validateEmployeeAvatar,
+} from '@/lib/employee-avatars';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
 type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'sistema';
@@ -530,6 +537,8 @@ export default function SettingsPage() {
   const [empSelectedRole, setEmpSelectedRole] = useState('all');
   const [empIsModalOpen, setEmpIsModalOpen] = useState(false);
   const [empIsSaving, setEmpIsSaving] = useState(false);
+  const [empFormError, setEmpFormError] = useState('');
+  const [empAvatarFile, setEmpAvatarFile] = useState<File | null>(null);
   const [empEditingProfile, setEmpEditingProfile] = useState<UserProfile | null>(null);
   
   const [empFormName, setEmpFormName] = useState('');
@@ -576,6 +585,8 @@ export default function SettingsPage() {
     setEmpFormEmail('');
     setEmpFormPhone('');
     setEmpFormAvatar('');
+    setEmpAvatarFile(null);
+    setEmpFormError('');
     setEmpFormRole('vendas');
     setEmpFormActive(true);
     setEmpIsModalOpen(true);
@@ -587,6 +598,8 @@ export default function SettingsPage() {
     setEmpFormEmail(profile.email);
     setEmpFormPhone(profile.phone || '');
     setEmpFormAvatar(profile.avatar_url || '');
+    setEmpAvatarFile(null);
+    setEmpFormError('');
     setEmpFormRole(profile.role as EmployeeRole);
     setEmpFormActive(profile.active);
     setEmpIsModalOpen(true);
@@ -600,14 +613,28 @@ export default function SettingsPage() {
     }
 
     setEmpIsSaving(true);
+    setEmpFormError('');
+    let uploadedAvatarPath: string | null = null;
     try {
+      let avatarUrl = empFormAvatar || null;
+      const profileIdForUpload = empEditingProfile?.id || crypto.randomUUID();
+
+      if (empAvatarFile) {
+        const upload = await uploadEmployeeAvatar(supabase, empAvatarFile, {
+          companyId: empEditingProfile?.company_id || company.id,
+          profileId: profileIdForUpload,
+        });
+        avatarUrl = upload.publicUrl;
+        uploadedAvatarPath = upload.path;
+      }
+
       if (empEditingProfile) {
         const updatedProfile: UserProfile = {
           ...empEditingProfile,
           name: empFormName,
           email: empFormEmail,
           phone: empFormPhone,
-          avatar_url: empFormAvatar || null,
+          avatar_url: avatarUrl,
           role: empFormRole,
           active: empFormActive
         };
@@ -615,13 +642,19 @@ export default function SettingsPage() {
         if (activeProfile.id === persistedProfile.id) {
           setActiveProfile(persistedProfile);
         }
+        const previousAvatarPath = getEmployeeAvatarStoragePath(empEditingProfile.avatar_url);
+        if (previousAvatarPath && previousAvatarPath !== uploadedAvatarPath && previousAvatarPath !== getEmployeeAvatarStoragePath(avatarUrl)) {
+          void removeEmployeeAvatar(supabase, previousAvatarPath).catch((cleanupError) => {
+            warnCaught('Não foi possível remover a foto anterior do funcionário:', cleanupError);
+          });
+        }
         setNotification('Funcionário atualizado com sucesso!');
       } else {
         addProfile({
           name: empFormName,
           email: empFormEmail,
           phone: empFormPhone,
-          avatar_url: empFormAvatar || null,
+          avatar_url: avatarUrl,
           role: empFormRole,
           active: empFormActive
         });
@@ -630,8 +663,14 @@ export default function SettingsPage() {
 
       setEmpIsModalOpen(false);
       setTimeout(() => setNotification(null), 3000);
-    } catch {
-      alert('Não foi possível salvar o funcionário. A alteração não foi confirmada pelo banco de dados. Tente novamente.');
+    } catch (error) {
+      if (uploadedAvatarPath) {
+        void removeEmployeeAvatar(supabase, uploadedAvatarPath).catch((cleanupError) => {
+          warnCaught('Não foi possível limpar o avatar após falha ao salvar:', cleanupError);
+        });
+      }
+      const message = error instanceof Error ? error.message : 'A alteração não foi confirmada pelo banco de dados.';
+      setEmpFormError(`Não foi possível salvar o funcionário. ${message}`);
     } finally {
       setEmpIsSaving(false);
     }
@@ -641,21 +680,18 @@ export default function SettingsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      alert('Selecione uma imagem JPG, PNG ou WEBP.');
+    const validation = validateEmployeeAvatar(file);
+    if (!validation.valid) {
+      setEmpFormError(validation.message);
       event.target.value = '';
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('A foto deve ter no máximo 2 MB.');
-      event.target.value = '';
-      return;
-    }
-
+    setEmpFormError('');
+    setEmpAvatarFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setEmpFormAvatar(reader.result as string);
-    reader.onerror = () => alert('Não foi possível carregar a foto selecionada.');
+    reader.onerror = () => setEmpFormError('Não foi possível carregar a foto selecionada.');
     reader.readAsDataURL(file);
   };
 
@@ -2813,25 +2849,33 @@ export default function SettingsPage() {
 
               {/* Add/Edit Modal inside tab */}
               {empIsModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-6">
-                  <div className="animate-in max-h-[calc(100dvh-1.5rem)] w-full max-w-md space-y-5 overflow-y-auto rounded-3xl border border-border bg-card p-4 text-foreground shadow-2xl zoom-in-95 duration-200 sm:max-h-[calc(100dvh-3rem)] sm:p-6" style={{ borderRadius: '10px' }}>
-                    <div className="flex justify-between items-center border-b border-border pb-3">
-                      <h3 className="font-bold text-sm uppercase flex items-center gap-2">
-                        <Users className="h-4.5 w-4.5 text-primary" />
-                        <span>{empEditingProfile ? 'Editar Funcionário' : 'Novo Funcionário'}</span>
-                      </h3>
+                <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/65 p-2 backdrop-blur-sm sm:items-center sm:p-6">
+                  <div className="animate-in flex max-h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl zoom-in-95 duration-200 sm:max-h-[calc(100dvh-3rem)]">
+                    <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3.5 sm:px-6">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Users className="h-4.5 w-4.5" />
+                        </span>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-bold">{empEditingProfile ? 'Editar funcionário' : 'Novo funcionário'}</h3>
+                          <p className="text-[11px] text-muted-foreground">Dados de acesso, contato e identificação do operador.</p>
+                        </div>
+                      </div>
                       <button 
                         type="button"
                         onClick={() => setEmpIsModalOpen(false)}
-                        className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                        disabled={empIsSaving}
+                        aria-label="Fechar edição do funcionário"
+                        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:cursor-wait disabled:opacity-50"
                       >
                         <X className="h-5 w-5" />
                       </button>
                     </div>
 
-                    <form onSubmit={handleEmpSubmit} className="space-y-4">
-                      <div className="flex items-center gap-4 rounded-2xl border border-border bg-secondary/20 p-3">
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-primary/10 text-lg font-black text-primary">
+                    <form onSubmit={handleEmpSubmit} className="flex min-h-0 flex-1 flex-col">
+                      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+                      <div className="flex flex-col gap-4 rounded-2xl border border-border bg-secondary/20 p-4 sm:flex-row sm:items-center">
+                        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-primary/10 text-xl font-black text-primary shadow-sm">
                           {empFormAvatar ? (
                             <Image
                               src={empFormAvatar}
@@ -2845,10 +2889,10 @@ export default function SettingsPage() {
                             (empFormName.trim().charAt(0) || '?').toUpperCase()
                           )}
                         </div>
-                        <div className="min-w-0 flex-1 space-y-2">
+                        <div className="min-w-0 flex-1 space-y-3">
                           <div>
-                            <p className="text-[10px] font-bold uppercase text-foreground">Foto de avatar</p>
-                            <p className="text-[9px] text-muted-foreground">JPG, PNG ou WEBP, com até 2 MB.</p>
+                            <p className="text-xs font-bold text-foreground">Foto de perfil</p>
+                            <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">JPG, PNG ou WEBP, com até 2 MB. A imagem será armazenada com segurança e permanecerá após atualizar a página.</p>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[10px] font-bold text-primary-foreground transition-colors hover:bg-primary/90">
@@ -2864,7 +2908,11 @@ export default function SettingsPage() {
                             {empFormAvatar && (
                               <button
                                 type="button"
-                                onClick={() => setEmpFormAvatar('')}
+                                onClick={() => {
+                                  setEmpFormAvatar('');
+                                  setEmpAvatarFile(null);
+                                  setEmpFormError('');
+                                }}
                                 className="rounded-lg border border-border px-3 py-1.5 text-[10px] font-bold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                               >
                                 Remover foto
@@ -2874,6 +2922,13 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
+                      {empFormError && (
+                        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300">
+                          {empFormError}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-1 text-xs">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase">Nome Completo *</label>
                         <input
@@ -2903,7 +2958,7 @@ export default function SettingsPage() {
                         <input
                           type="text"
                           value={empFormPhone}
-                          onChange={(e) => setEmpFormPhone(e.target.value)}
+                          onChange={(e) => setEmpFormPhone(getBrazilianPhoneDisplay(onlyPhoneDigits(e.target.value)))}
                           placeholder="Ex: (51) 98765-4321"
                           className="w-full px-3.5 py-2 bg-secondary/50 border border-border rounded-xl font-semibold text-foreground focus:outline-none focus:border-primary"
                         />
@@ -2925,8 +2980,9 @@ export default function SettingsPage() {
                           <option value="estoque">Estoque (Insumos/Logística)</option>
                         </select>
                       </div>
+                      </div>
 
-                      <div className="flex items-center justify-between p-3 bg-secondary/20 border border-border rounded-2xl">
+                      <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary/20 p-3.5">
                         <div className="text-xs">
                           <span className="font-bold text-[10px] text-foreground uppercase block">Conta Ativa</span>
                           <span className="text-[9px] text-muted-foreground font-medium">Permitir login e simulação</span>
@@ -2944,19 +3000,21 @@ export default function SettingsPage() {
                         </button>
                       </div>
 
-                      <div className="flex justify-end gap-2 border-t border-border pt-4 mt-2">
+                      </div>
+
+                      <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-card px-4 py-3 sm:flex-row sm:justify-end sm:px-6">
                         <button
                           type="button"
                           onClick={() => setEmpIsModalOpen(false)}
                           disabled={empIsSaving}
-                          className="px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-bold shadow-sm"
+                          className="rounded-xl bg-secondary px-4 py-2.5 text-xs font-bold text-foreground shadow-sm hover:bg-secondary/80 sm:min-w-28"
                         >
                           Cancelar
                         </button>
                         <button
                           type="submit"
                           disabled={empIsSaving}
-                          className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-bold flex items-center gap-1 shadow-md shadow-primary/10 disabled:cursor-wait disabled:opacity-60"
+                          className="flex items-center justify-center gap-1.5 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-md shadow-primary/10 hover:bg-primary/95 disabled:cursor-wait disabled:opacity-60 sm:min-w-40"
                         >
                           <Check className="h-4 w-4" /> {empIsSaving ? 'Salvando...' : empEditingProfile ? 'Salvar Alterações' : 'Confirmar Cadastro'}
                         </button>
