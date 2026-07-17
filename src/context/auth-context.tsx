@@ -115,19 +115,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!data.auth_user_id) {
-      const { data: claimedProfile, error: claimError } = await supabase
-        .from('profiles')
-        .update({ auth_user_id: userId, active: true })
-        .eq('id', data.id)
-        .select('*')
-        .maybeSingle();
-
-      if (!claimError && claimedProfile) {
-        setActiveProfileState(claimedProfile as UserProfile);
-        setAuthError(null);
-        return;
-      }
-
       const repaired = await applyProvisionedProfile();
       if (repaired) return;
     }

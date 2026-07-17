@@ -132,6 +132,11 @@ Ou em Application > Service Workers, use `Unregister` e recarregue a pagina.
 Substitua os arquivos em `public/icons/` mantendo os mesmos nomes e tamanhos.
 Atualize tambem `public/printflowpro-mark.svg` se a marca base mudar.
 
+Imagens remotas usadas pelo manifest precisam ser HTTPS e ter o hostname exato
+configurado em `PWA_ICON_ALLOWED_HOSTS` (lista separada por virgulas). Inclua, por
+exemplo, apenas o hostname do Storage usado pela aplicacao. Sem essa configuracao,
+o endpoint usa o icone local de fallback por seguranca.
+
 ## Limites do modo offline
 
 O modo offline nao disponibiliza dados privados do ERP. Por seguranca, o service worker nao cacheia:

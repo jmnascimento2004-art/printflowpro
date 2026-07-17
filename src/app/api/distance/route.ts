@@ -1,5 +1,18 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { warnCaught } from '@/lib/safe-log';
+import { getSupabaseAdminClient } from '@/lib/supabase/server-admin';
+import {
+  DISTANCE_BODY_MAX_BYTES,
+  calculateEstimatedDistanceKm,
+  createCandidatePairs,
+  createDistanceCacheKey,
+  createDistanceRateKey,
+  fetchJsonWithTimeout,
+  isAuthorizedDistanceIdentity,
+  validateDistancePayload
+} from '@/lib/security/distance-request.mjs';
 
 type OrsGeocodeResponse = {
   features?: Array<{
@@ -170,17 +183,8 @@ function candidateMatchesParsedAddress(candidate: GeocodeCandidate, parsed: Retu
 }
 
 async function fetchOrsGeocode(url: URL, parsed: ReturnType<typeof parseBrazilianAddress>) {
-  let response: Response;
-  try {
-    response = await fetch(url, { cache: 'no-store' });
-  } catch (error) {
-    warnCaught('Falha ao consultar geocode da OpenRouteService:', error);
-    return [];
-  }
-
-  if (!response.ok) return [];
-
-  const data = (await response.json()) as OrsGeocodeResponse;
+  const data = await fetchJsonWithTimeout(url, { cache: 'no-store' }) as OrsGeocodeResponse | null;
+  if (!data) return [];
   return uniqueCandidates(
     (data.features || [])
       .map<GeocodeCandidate | null>(feature => {
@@ -220,7 +224,7 @@ async function fetchNominatimCandidates(parsed: ReturnType<typeof parseBrazilian
 
   const candidates: GeocodeCandidate[] = [];
 
-  for (const query of queries) {
+  for (const query of queries.slice(0, 1)) {
     const url = new URL('https://nominatim.openstreetmap.org/search');
     url.searchParams.set('format', 'json');
     url.searchParams.set('addressdetails', '1');
@@ -228,22 +232,11 @@ async function fetchNominatimCandidates(parsed: ReturnType<typeof parseBrazilian
     url.searchParams.set('limit', '5');
     url.searchParams.set('q', query);
 
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        cache: 'no-store',
-        headers: {
-          'User-Agent': 'PrintFlowPRO distance validation'
-        }
-      });
-    } catch (error) {
-      warnCaught('Falha ao consultar geocode do Nominatim:', error);
-      continue;
-    }
-
-    if (!response.ok) continue;
-
-    const data = (await response.json()) as NominatimGeocodeResponse;
+    const data = await fetchJsonWithTimeout(url, {
+      cache: 'no-store',
+      headers: { 'User-Agent': 'PrintFlowPRO distance validation' }
+    }) as NominatimGeocodeResponse | null;
+    if (!data) continue;
     candidates.push(...data
       .map<GeocodeCandidate | null>(item => {
         const lon = Number(item.lon);
@@ -296,15 +289,6 @@ async function geocodeAddressCandidates(address: string, apiKey: string): Promis
     candidates.push(...await fetchOrsGeocode(url, parsed));
   }
 
-  if (apiKey && parsed.cep) {
-    const cepUrl = new URL('/geocode/search', ORS_BASE_URL);
-    cepUrl.searchParams.set('api_key', apiKey);
-    cepUrl.searchParams.set('text', `${parsed.cep}, ${parsed.city}, ${parsed.state}, Brasil`);
-    cepUrl.searchParams.set('boundary.country', 'BR');
-    cepUrl.searchParams.set('size', '3');
-    candidates.push(...await fetchOrsGeocode(cepUrl, parsed));
-  }
-
   const unique = uniqueCandidates(candidates);
   const addressLevelCandidates = unique.filter(candidate => candidate.precision === 'address');
   if (addressLevelCandidates.length > 0) return addressLevelCandidates;
@@ -322,7 +306,7 @@ async function geocodeAddress(address: string, apiKey: string): Promise<GeocodeC
 
   if (candidates.length === 0) {
     const parsed = parseBrazilianAddress(address);
-    throw new Error(`Endereco nao localizado com seguranca em ${parsed.city || 'cidade nao informada'}/${parsed.state || 'UF nao informada'}: ${address}`);
+    throw new Error(`Endereco nao localizado com seguranca (${parsed.city ? 'cidade informada' : 'cidade ausente'}/${parsed.state ? 'UF informada' : 'UF ausente'}).`);
   }
 
   return candidates;
@@ -344,9 +328,7 @@ async function calculateOpenRouteServiceRoute(
 ) {
   const originCoordinates = originCandidate.coordinates;
   const destinationCoordinates = destinationCandidate.coordinates;
-  let response: Response;
-  try {
-    response = await fetch(`${ORS_BASE_URL}/v2/directions/${profile}`, {
+  const routeData = await fetchJsonWithTimeout(`${ORS_BASE_URL}/v2/directions/${profile}`, {
       method: 'POST',
       cache: 'no-store',
       headers: {
@@ -359,15 +341,8 @@ async function calculateOpenRouteServiceRoute(
         instructions: false,
         units: 'km'
       })
-    });
-  } catch (error) {
-    warnCaught('Falha ao consultar rota da OpenRouteService:', error);
-    return null;
-  }
-
-  if (!response.ok) return null;
-
-  const routeData = (await response.json()) as OrsDirectionsResponse;
+    }) as OrsDirectionsResponse | null;
+  if (!routeData) return null;
   const summary = readDistanceFromDirections(routeData);
 
   if (!summary?.distance || summary.distance <= 0) return null;
@@ -396,10 +371,8 @@ async function calculateOsrmRoute(
   url.searchParams.set('alternatives', 'false');
 
   try {
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) return null;
-
-    const data = (await response.json()) as { routes?: Array<{ distance?: number; duration?: number }> };
+    const data = await fetchJsonWithTimeout(url, { cache: 'no-store' }) as { routes?: Array<{ distance?: number; duration?: number }> } | null;
+    if (!data) return null;
     const route = data.routes?.[0];
     if (!route?.distance || route.distance <= 0) return null;
 
@@ -426,20 +399,13 @@ function calculateEstimatedRoadDistance(
 ): RouteResult {
   const [originLon, originLat] = originCandidate.coordinates;
   const [destinationLon, destinationLat] = destinationCandidate.coordinates;
-  const earthRadiusKm = 6371;
-  const toRadians = (value: number) => (value * Math.PI) / 180;
-  const deltaLat = toRadians(destinationLat - originLat);
-  const deltaLon = toRadians(destinationLon - originLon);
-  const a =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(toRadians(originLat)) *
-      Math.cos(toRadians(destinationLat)) *
-      Math.sin(deltaLon / 2) ** 2;
-  const straightLineKm = 2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const estimatedRoadKm = Math.max(straightLineKm * 1.35, straightLineKm + 1);
+  const estimatedRoadKm = calculateEstimatedDistanceKm(
+    [originLon, originLat],
+    [destinationLon, destinationLat]
+  );
 
   return {
-    distanceKm: Math.round(estimatedRoadKm * 100) / 100,
+    distanceKm: estimatedRoadKm,
     durationMinutes: null,
     originCoordinates: originCandidate.coordinates,
     destinationCoordinates: destinationCandidate.coordinates,
@@ -459,8 +425,7 @@ async function chooseBestRoutedPair(
 ) {
   const routeResults: RouteResult[] = [];
 
-  for (const originCandidate of originCandidates.slice(0, 5)) {
-    for (const destinationCandidate of destinationCandidates.slice(0, 5)) {
+  for (const [originCandidate, destinationCandidate] of createCandidatePairs(originCandidates, destinationCandidates)) {
       if (isSameCoordinates(originCandidate.coordinates, destinationCandidate.coordinates)) continue;
 
       const route = apiKey
@@ -468,19 +433,6 @@ async function chooseBestRoutedPair(
         : await calculateOsrmRoute(originCandidate, destinationCandidate);
 
       if (route) routeResults.push(route);
-    }
-  }
-
-  if (routeResults.length > 0) {
-    return routeResults.sort((a, b) => a.distanceKm - b.distanceKm)[0];
-  }
-
-  for (const originCandidate of originCandidates.slice(0, 5)) {
-    for (const destinationCandidate of destinationCandidates.slice(0, 5)) {
-      if (isSameCoordinates(originCandidate.coordinates, destinationCandidate.coordinates)) continue;
-      const osrmRoute = await calculateOsrmRoute(originCandidate, destinationCandidate);
-      if (osrmRoute) routeResults.push(osrmRoute);
-    }
   }
 
   if (routeResults.length > 0) {
@@ -490,41 +442,76 @@ async function chooseBestRoutedPair(
   const originCandidate = originCandidates[0];
   const destinationCandidate = destinationCandidates[0];
   if (originCandidate && destinationCandidate && !isSameCoordinates(originCandidate.coordinates, destinationCandidate.coordinates)) {
+    if (apiKey) {
+      const osrmRoute = await calculateOsrmRoute(originCandidate, destinationCandidate);
+      if (osrmRoute) return osrmRoute;
+    }
     return calculateEstimatedRoadDistance(originCandidate, destinationCandidate);
   }
 
   return null;
 }
 
+async function getAuthenticatedUser() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+  const cookieStore = await cookies();
+  const client = createServerClient(supabaseUrl, supabaseKey, {
+    cookies: { getAll: () => cookieStore.getAll(), setAll: () => undefined }
+  });
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return null;
+  const admin = getSupabaseAdminClient();
+  const { data: profile } = await admin.from('profiles').select('id').eq('auth_user_id', user.id).eq('active', true).maybeSingle();
+  return isAuthorizedDistanceIdentity(user, profile) ? user : null;
+}
+
 export async function POST(request: Request) {
   try {
+    if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+      return jsonError('Requisicao invalida.', 415);
+    }
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength > DISTANCE_BODY_MAX_BYTES) return jsonError('Requisicao invalida.', 413);
+
+    const user = await getAuthenticatedUser();
+    if (!user) return jsonError('Nao autorizado.', 401);
+
     const apiKey = getOpenRouteServiceKey();
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, 'utf8') > DISTANCE_BODY_MAX_BYTES) return jsonError('Requisicao invalida.', 413);
+    const body = (() => {
+      try { return JSON.parse(rawBody) as unknown; } catch { return null; }
+    })();
+    const payload = validateDistancePayload(body);
+    if (!payload) return jsonError('Dados de rota invalidos.', 400);
+    const { origin, destination, profile } = payload;
+    const admin = getSupabaseAdminClient();
+    const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+    const ip = forwardedFor || request.headers.get('x-real-ip') || 'unknown';
+    const rateKey = createDistanceRateKey(user.id, ip);
+    const { data: allowed, error: rateError } = await admin.rpc('consume_distance_rate_limit', {
+      p_key: rateKey, p_limit: 20, p_window_seconds: 900
+    });
+    if (rateError || !allowed) return jsonError('Limite de consultas excedido.', 429);
 
-    const body = (await request.json()) as {
-      origin?: string;
-      destination?: string;
-      profile?: string;
-    };
-
-    const origin = body.origin?.trim();
-    const destination = body.destination?.trim();
-
-    if (!origin) return jsonError('Endereco de origem nao informado.');
-    if (!destination) return jsonError('Endereco de destino nao informado.');
+    const cacheKey = createDistanceCacheKey(origin, destination, profile);
+    const { data: cached } = await admin.from('distance_route_cache').select('response').eq('cache_key', cacheKey).gt('expires_at', new Date().toISOString()).maybeSingle();
+    if (cached?.response) return NextResponse.json(cached.response, { headers: { 'Cache-Control': 'private, max-age=60' } });
 
     const [originCandidates, destinationCandidates] = await Promise.all([
       geocodeAddress(origin, apiKey),
       geocodeAddress(destination, apiKey)
     ]);
 
-    const profile = body.profile || 'driving-car';
     const route = await chooseBestRoutedPair(apiKey, profile, originCandidates, destinationCandidates);
 
     if (!route) {
       return jsonError('Nao foi possivel calcular a rota. Confira numero, CEP, bairro e cidade dos enderecos.', 502);
     }
 
-    return NextResponse.json({
+    const responsePayload = {
       distance_km: route.distanceKm,
       duration_minutes: route.durationMinutes,
       provider: route.provider,
@@ -534,9 +521,15 @@ export async function POST(request: Request) {
       destination_precision: route.destinationPrecision,
       origin_label: route.originLabel,
       destination_label: route.destinationLabel
+    };
+    await admin.from('distance_route_cache').upsert({
+      cache_key: cacheKey,
+      response: responsePayload,
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     });
+    return NextResponse.json(responsePayload);
   } catch (error) {
     warnCaught('Erro capturado:', error);
-    return jsonError(error instanceof Error ? error.message : 'Erro ao calcular distancia.', 500);
+    return jsonError('Nao foi possivel calcular a distancia.', 500);
   }
 }

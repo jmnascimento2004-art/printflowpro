@@ -2748,33 +2748,49 @@ useEffect(() => {
   };
 
   const updateProfile = async (profile: UserProfile) => {
-    const { data, error } = await supabase
+    const currentProfile = profiles.find(item => item.id === profile.id);
+    const accessChanged = Boolean(
+      currentProfile &&
+      (currentProfile.role !== profile.role || currentProfile.active !== profile.active)
+    );
+    const { data: commonData, error: commonError } = await supabase
       .from('profiles')
       .update({
         name: profile.name,
         email: profile.email,
         phone: profile.phone || null,
-        avatar_url: profile.avatar_url || null,
-        role: profile.role,
-        active: profile.active,
+        avatar_url: profile.avatar_url || null
       })
       .eq('id', profile.id)
       .eq('company_id', currentCompanyId)
       .select('*')
       .maybeSingle();
 
-    if (error) {
-      warnCaught('Erro ao atualizar funcionário no Supabase:', error);
-      throw error;
+    if (commonError) {
+      warnCaught('Erro ao atualizar funcionário no Supabase:', commonError);
+      throw commonError;
     }
 
-    if (!data) {
+    if (!commonData) {
       const persistenceError = new Error('O perfil não foi confirmado pelo banco de dados.');
       warnCaught('Erro ao atualizar funcionário no Supabase:', persistenceError);
       throw persistenceError;
     }
 
-    const persistedProfile = data as UserProfile;
+    let persistedProfile = commonData as UserProfile;
+    if (accessChanged) {
+      const { data: accessData, error: accessError } = await supabase.rpc('set_profile_access', {
+        p_profile_id: profile.id,
+        p_role: profile.role,
+        p_active: profile.active
+      });
+      if (accessError || !accessData) {
+        const persistenceError = accessError || new Error('A alteração de acesso não foi confirmada pelo banco de dados.');
+        warnCaught('Erro ao atualizar acesso do funcionário no Supabase:', persistenceError);
+        throw persistenceError;
+      }
+      persistedProfile = accessData as UserProfile;
+    }
     setProfiles(prev => {
       const nextProfiles = prev.map(p => p.id === persistedProfile.id ? persistedProfile : p);
       persistDemoSnapshot('profiles', nextProfiles);
@@ -2785,9 +2801,17 @@ useEffect(() => {
   };
 
   const deleteProfile = (id: string) => {
-    setProfiles(prev => prev.filter(p => p.id !== id));
-    supabase.from('profiles').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir funcionário no Supabase:', error);
+    void supabase.rpc('delete_company_profile', { p_profile_id: id }).then(({ data, error }) => {
+      if (error || !data) {
+        warnCaught('Erro ao excluir funcionário no Supabase:', error);
+        showToast('Não foi possível excluir o funcionário.', 'error');
+        return;
+      }
+      setProfiles(prev => {
+        const nextProfiles = prev.filter(p => p.id !== id);
+        persistDemoSnapshot('profiles', nextProfiles);
+        return nextProfiles;
+      });
     });
   };
 
