@@ -735,11 +735,9 @@ export default function QuotesPage() {
         : manualPricingType === 'linear'
           ? `${Number((manualItemLinearMeters * 100).toFixed(3))} cm - ${quantity} un`
           : `${quantity} un`;
-      const displayName = `${description} — ${manualSummary}`;
-
       const newItem: DraftQuoteItem = {
         product_id: '',
-        product_name: displayName,
+        product_name: description,
         quantity,
         unit_price: unitPrice,
         total_price: manualItemTotal,

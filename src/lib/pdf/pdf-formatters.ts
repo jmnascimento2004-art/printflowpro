@@ -1,5 +1,6 @@
 import type { AdditionalService, Company, Customer, OrderItem, QuoteItem } from '@/lib/dummy-data';
 import type { PdfSettings } from '@/lib/pdf/pdf-data';
+import { buildPdfItemViewModel } from '@/lib/pdf/pdf-item-view-model.mjs';
 
 export function formatPdfCurrency(value?: number | string | null, options?: { maximumFractionDigits?: number }) {
   const numeric = Number(value || 0);
@@ -16,10 +17,7 @@ export function formatPdfUnitCurrency(value?: number | string | null) {
 }
 
 export function getPdfItemUnitFromTotal(item: Pick<QuoteItem | OrderItem, 'quantity' | 'unit_price' | 'total_price'>) {
-  const quantity = Number(item.quantity || 0);
-  const total = Number(item.total_price || 0);
-  if (quantity > 0 && Number.isFinite(total)) return total / quantity;
-  return Number(item.unit_price || 0);
+  return buildPdfItemViewModel(item as QuoteItem | OrderItem).unitPrice;
 }
 
 export function formatPdfDate(value?: string | null) {
@@ -135,19 +133,11 @@ export function getItemDescriptionLines(item: QuoteItem | OrderItem) {
 }
 
 export function getCompactItemDescription(item: QuoteItem | OrderItem) {
-  return normalizePdfText(item.product_name);
+  return buildPdfItemViewModel(item).description;
 }
 
 export function formatPdfItemSize(item: QuoteItem | OrderItem) {
-  const pricingSnapshot = item.details?.pricing_snapshot as Record<string, unknown> | undefined;
-  const size = normalizePdfText(
-    item.details?.configuration_snapshot?.size ||
-    (typeof pricingSnapshot?.size === 'string' ? pricingSnapshot.size : '')
-  );
-  if (size) return size;
-  if (item.details?.width && item.details?.height) return `${Number((item.details.width * 100).toFixed(3))}x${Number((item.details.height * 100).toFixed(3))}cm`;
-  if (item.details?.length) return `${Number((item.details.length * 100).toFixed(3))}cm`;
-  return '-';
+  return buildPdfItemViewModel(item).size;
 }
 
 export function getPdfFooterText(company?: Company | null) {
