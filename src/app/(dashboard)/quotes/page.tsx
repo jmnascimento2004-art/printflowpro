@@ -35,6 +35,13 @@ import { warnCaught } from '@/lib/safe-log';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
 import {
+  calculateQuoteDiscount,
+  calculateQuoteNetTotal,
+  normalizePtBrDecimalOnBlur,
+  parsePtBrDecimal,
+  sanitizePtBrDecimalInput
+} from '@/lib/quote-discount.mjs';
+import {
   findVariantPricingMatrixRow,
   formatUnitCurrency,
   getNormalizedVariantPricingMatrix,
@@ -226,9 +233,8 @@ export default function QuotesPage() {
     const resolvedQuote = withResolvedCustomer(quote);
     setEditingQuoteId(resolvedQuote.id);
     setCustomerId(resolvedQuote.customer_id);
-    setDiscount(resolvedQuote.discount);
+    setDiscountInput(normalizePtBrDecimalOnBlur(resolvedQuote.discount));
     setDiscountMode('fixed');
-    setDiscountPercentage(0);
     setValidUntil(resolvedQuote.valid_until);
     setNotes(resolvedQuote.notes || '');
     setAdditionalServices(resolvedQuote.additional_services || []);
@@ -308,9 +314,8 @@ export default function QuotesPage() {
 
   // Form State
   const [customerId, setCustomerId] = useState('');
-  const [discount, setDiscount] = useState(0);
+  const [discountInput, setDiscountInput] = useState('0,00');
   const [discountMode, setDiscountMode] = useState<'fixed' | 'percentage'>('fixed');
-  const [discountPercentage, setDiscountPercentage] = useState(0);
   const [validUntil, setValidUntil] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<DraftQuoteItem[]>([]);
@@ -877,9 +882,8 @@ export default function QuotesPage() {
     setCustomerId('');
     setRequestedCustomerId('');
     setCustomerPrefillMessage('');
-    setDiscount(0);
+    setDiscountInput('0,00');
     setDiscountMode('fixed');
-    setDiscountPercentage(0);
     setValidUntil('');
     setNotes('');
     setItems([]);
@@ -929,11 +933,8 @@ export default function QuotesPage() {
     }));
 
     const grossTotal = sub + servicesTotal + deliveryFee;
-    const calculatedDiscount = discountMode === 'percentage'
-      ? grossTotal * Math.min(100, Math.max(0, discountPercentage)) / 100
-      : Math.min(grossTotal, Math.max(0, discount));
-    const effectiveDiscount = Math.round(calculatedDiscount * 100) / 100;
-    const finalTotal = Math.max(0, grossTotal - effectiveDiscount);
+    const effectiveDiscount = calculateQuoteDiscount(grossTotal, discountInput, discountMode);
+    const finalTotal = calculateQuoteNetTotal(grossTotal, discountInput, discountMode);
 
     const successMessage = status === 'pendente'
       ? 'Proposta salva como enviada.'
@@ -2219,20 +2220,27 @@ export default function QuotesPage() {
                     {discountMode === 'fixed' ? (
                       <input
                         type="text"
-                        value={formatCurrencyInput(discount)}
-                        onChange={(e) => setDiscount(parseCurrencyInputToNumber(e.target.value))}
+                        inputMode="decimal"
+                        value={discountInput}
+                        onChange={(e) => {
+                          const nextValue = sanitizePtBrDecimalInput(e.target.value);
+                          if (nextValue !== null) setDiscountInput(nextValue);
+                        }}
+                        onBlur={() => setDiscountInput(normalizePtBrDecimalOnBlur(discountInput))}
                         className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-right text-xs font-bold text-emerald-500 focus:outline-none"
                         aria-label="Desconto em reais"
                       />
                     ) : (
                       <div className="relative">
                         <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={discountPercentage || ''}
-                          onChange={(e) => setDiscountPercentage(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                          type="text"
+                          inputMode="decimal"
+                          value={discountInput}
+                          onChange={(e) => {
+                            const nextValue = sanitizePtBrDecimalInput(e.target.value, { max: 100 });
+                            if (nextValue !== null) setDiscountInput(nextValue);
+                          }}
+                          onBlur={() => setDiscountInput(normalizePtBrDecimalOnBlur(discountInput, { max: 100 }))}
                           className="w-full rounded-lg border border-border bg-card px-2 py-1.5 pr-7 text-right text-xs font-bold text-emerald-500 focus:outline-none"
                           aria-label="Desconto em porcentagem"
                         />
@@ -2240,16 +2248,16 @@ export default function QuotesPage() {
                       </div>
                     )}
                   </div>
-                  {discountMode === 'percentage' && discountPercentage > 0 && (
+                  {discountMode === 'percentage' && parsePtBrDecimal(discountInput) > 0 && (
                     <p className="text-right text-[9px] font-semibold text-muted-foreground">
-                      Equivale a {formatCurrency((getSubtotal() + getServicesTotal() + deliveryFee) * discountPercentage / 100)}
+                      Equivale a {formatCurrency(calculateQuoteDiscount(getSubtotal() + getServicesTotal() + deliveryFee, discountInput, discountMode))}
                     </p>
                   )}
                 </div>
                 <div className="flex justify-between items-center border-t border-border pt-3 mt-3 font-bold text-sm">
                   <span className="text-foreground">Total Líquido:</span>
                   <span className="text-primary text-base font-extrabold">
-                    {formatCurrency(Math.max(0, getSubtotal() + getServicesTotal() + deliveryFee - (discountMode === 'percentage' ? (getSubtotal() + getServicesTotal() + deliveryFee) * discountPercentage / 100 : discount)))}
+                    {formatCurrency(calculateQuoteNetTotal(getSubtotal() + getServicesTotal() + deliveryFee, discountInput, discountMode))}
                   </span>
                 </div>
               </div>
