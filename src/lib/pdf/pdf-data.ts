@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Company, Customer, FinancialTransaction, Order, OrderItem, Quote, QuoteItem } from '@/lib/dummy-data';
 import { getActivePaymentTransactions } from '@/lib/finance-rules';
 import { areOrderNumbersEquivalent } from '@/lib/order-number';
+import { requireActivePdfProfile } from '@/lib/pdf/pdf-access.mjs';
 
 type QuoteItemRow = QuoteItem & { quote_id?: string };
 type OrderItemRow = OrderItem & { order_id?: string };
@@ -93,13 +94,18 @@ async function loadCompany(supabase: SupabaseClient, companyId: string) {
   return data as Company;
 }
 
-async function loadCustomer(supabase: SupabaseClient, customerId?: string | null) {
+async function loadCustomer(
+  supabase: SupabaseClient,
+  companyId: string,
+  customerId?: string | null
+) {
   if (!customerId) return null;
 
   const { data, error } = await supabase
     .from('customers')
     .select('*')
     .eq('id', customerId)
+    .eq('company_id', companyId)
     .maybeSingle();
 
   if (error) throw error;
@@ -119,11 +125,13 @@ async function loadPdfSettings(supabase: SupabaseClient, companyId: string): Pro
 
 export async function loadQuotePdfData(id: string): Promise<QuotePdfData | null> {
   const supabase = getSupabaseServerClient();
+  const access = await requireActivePdfProfile(supabase);
 
   const { data: quoteRow, error: quoteError } = await supabase
     .from('quotes')
     .select('*')
     .eq('id', id)
+    .eq('company_id', access.companyId)
     .maybeSingle();
 
   if (quoteError) throw quoteError;
@@ -148,9 +156,9 @@ export async function loadQuotePdfData(id: string): Promise<QuotePdfData | null>
   } as Quote;
 
   const [company, customer, settings] = await Promise.all([
-    loadCompany(supabase, quote.company_id),
-    loadCustomer(supabase, quote.customer_id),
-    loadPdfSettings(supabase, quote.company_id)
+    loadCompany(supabase, access.companyId),
+    loadCustomer(supabase, access.companyId, quote.customer_id),
+    loadPdfSettings(supabase, access.companyId)
   ]);
 
   return { quote, company, customer, settings };
@@ -158,11 +166,13 @@ export async function loadQuotePdfData(id: string): Promise<QuotePdfData | null>
 
 export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null> {
   const supabase = getSupabaseServerClient();
+  const access = await requireActivePdfProfile(supabase);
 
   const { data: orderRow, error: orderError } = await supabase
     .from('orders')
     .select('*')
     .eq('id', id)
+    .eq('company_id', access.companyId)
     .maybeSingle();
 
   if (orderError) throw orderError;
@@ -192,13 +202,14 @@ export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null>
     settings,
     invoicedTransactionRow
   ] = await Promise.all([
-    loadCompany(supabase, order.company_id),
-    loadCustomer(supabase, order.customer_id),
-    loadPdfSettings(supabase, order.company_id),
+    loadCompany(supabase, access.companyId),
+    loadCustomer(supabase, access.companyId, order.customer_id),
+    loadPdfSettings(supabase, access.companyId),
     supabase
       .from('financial_transactions')
       .select('*')
       .eq('order_id', order.id)
+      .eq('company_id', access.companyId)
       .eq('type', 'receita')
       .eq('payment_method', 'faturado')
       .eq('status', 'pendente')
@@ -225,11 +236,13 @@ export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null>
 
 export async function loadReceiptPdfData(transactionId: string): Promise<ReceiptPdfData | null> {
   const supabase = getSupabaseServerClient();
+  const access = await requireActivePdfProfile(supabase);
 
   const { data: transactionRow, error: transactionError } = await supabase
     .from('financial_transactions')
     .select('*')
     .eq('id', transactionId)
+    .eq('company_id', access.companyId)
     .eq('type', 'receita')
     .maybeSingle();
 
@@ -252,6 +265,7 @@ export async function loadReceiptPdfData(transactionId: string): Promise<Receipt
     .from('financial_transactions')
     .select('*')
     .eq('order_id', transaction.order_id)
+    .eq('company_id', access.companyId)
     .eq('type', 'receita')
     .order('created_at', { ascending: true });
 

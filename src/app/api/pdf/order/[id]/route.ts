@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { PdfAccessError } from '@/lib/pdf/pdf-access.mjs';
+import { createPdfResponseHeaders } from '@/lib/pdf/pdf-http.mjs';
 import { renderOrderPdf } from '@/lib/pdf/pdf-render';
 
 export const runtime = 'nodejs';
@@ -17,19 +19,13 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     return new Response(new Uint8Array(renderedPdf.buffer), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `${shouldDownload ? 'attachment' : 'inline'}; filename="${renderedPdf.filename}"`,
-        'Cache-Control': 'no-store'
-      }
+      headers: createPdfResponseHeaders(renderedPdf.filename, shouldDownload)
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Erro desconhecido ao gerar PDF.';
-    return NextResponse.json(
-      process.env.NODE_ENV === 'development'
-        ? { error: 'Nao foi possivel gerar o PDF do pedido.', details: message }
-        : { error: 'Nao foi possivel gerar o PDF do pedido.' },
-      { status: 500 }
-    );
+    if (error instanceof PdfAccessError) {
+      return NextResponse.json({ error: error.status === 401 ? 'Nao autenticado.' : 'Acesso negado.' }, { status: error.status });
+    }
+
+    return NextResponse.json({ error: 'Nao foi possivel gerar o PDF do pedido.' }, { status: 500 });
   }
 }

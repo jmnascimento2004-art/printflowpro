@@ -10,7 +10,7 @@ export default function OrderPdfPreviewPage() {
   return (
     <PdfPreviewViewer
       title="Pre-visualizacao do Pedido"
-      previewDataUrl={`/api/pdf-preview-data/order/${orderId}`}
+      previewDataUrl={`/api/pdf/order/${orderId}`}
       pdfUrl={`/api/pdf/order/${orderId}`}
       downloadUrl={`/api/pdf/order/${orderId}?download=1`}
       backUrl="/orders"

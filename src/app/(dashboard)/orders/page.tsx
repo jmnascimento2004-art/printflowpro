@@ -553,7 +553,7 @@ export default function OrdersPage() {
   const handlePrintOrderPdf = (order: Order) => {
     setSelectedPdfPreview({
       title: `Pedido ${formatOrderDisplayNumber(order.number)}`,
-      previewDataUrl: `/api/pdf-preview-data/order/${order.id}`,
+      previewDataUrl: `/api/pdf/order/${order.id}`,
       downloadUrl: `/api/pdf/order/${order.id}?download=1`,
       directPdfUrl: `/api/pdf/order/${order.id}`
     });
@@ -592,7 +592,7 @@ export default function OrdersPage() {
 
     setSelectedPdfPreview({
       title: `Recibo de Pagamento - ${formatOrderDisplayNumber(order.number)}`,
-      previewDataUrl: `/api/pdf-preview-data/receipt/${transaction.id}`,
+      previewDataUrl: `/api/pdf/receipt/${transaction.id}`,
       downloadUrl: `/api/pdf/receipt/${transaction.id}?download=1`,
       directPdfUrl: `/api/pdf/receipt/${transaction.id}`,
       downloadLabel: 'Baixar Recibo'

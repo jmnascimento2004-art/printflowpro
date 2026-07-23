@@ -988,7 +988,7 @@ export default function QuotesPage() {
   const openQuotePdf = (quote: Quote) => {
     setSelectedPdfPreview({
       title: `Orçamento #${quote.number}`,
-      previewDataUrl: `/api/pdf-preview-data/quote/${quote.id}`,
+      previewDataUrl: `/api/pdf/quote/${quote.id}`,
       downloadUrl: `/api/pdf/quote/${quote.id}?download=1`,
       directPdfUrl: `/api/pdf/quote/${quote.id}`
     });

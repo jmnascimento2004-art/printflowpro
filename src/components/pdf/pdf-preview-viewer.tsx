@@ -34,35 +34,6 @@ type PdfLoadingTask = {
   destroy: () => Promise<void>;
 };
 
-type PdfPreviewData = {
-  filename: string;
-  contentType: string;
-  base64: string;
-};
-
-function base64ToBytes(base64: string) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return bytes;
-}
-
-function isPdfPreviewData(value: unknown): value is PdfPreviewData {
-  if (!value || typeof value !== 'object') return false;
-
-  const data = value as Partial<PdfPreviewData>;
-  return (
-    typeof data.filename === 'string' &&
-    data.contentType === 'application/pdf' &&
-    typeof data.base64 === 'string' &&
-    data.base64.length > 0
-  );
-}
-
 export function PdfPreviewViewer({
   title,
   previewDataUrl,
@@ -119,31 +90,18 @@ export function PdfPreviewViewer({
         }
 
         const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
+        if (!contentType.includes('application/pdf')) {
           if (process.env.NODE_ENV === 'development') {
-            const preview = await response.text();
             console.error('PDF preview endpoint returned an unexpected response.', {
               status: response.status,
-              contentType,
-              body: preview.slice(0, 300)
+              contentType
             });
           }
           throw new Error('Não foi possível carregar a pré-visualização do PDF.');
         }
 
-        const previewData = await response.json();
-        if (!isPdfPreviewData(previewData)) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('PDF preview endpoint returned invalid JSON.', {
-              status: response.status,
-              contentType,
-              body: previewData
-            });
-          }
-          throw new Error('Não foi possível carregar a pré-visualização do PDF.');
-        }
-
-        loadingTask = pdfjs.getDocument({ data: base64ToBytes(previewData.base64) }) as PdfLoadingTask;
+        const pdfBytes = new Uint8Array(await response.arrayBuffer());
+        loadingTask = pdfjs.getDocument({ data: pdfBytes }) as PdfLoadingTask;
         const pdf = await loadingTask.promise;
 
         if (!isMounted || !pagesRef.current) return;
