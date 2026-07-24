@@ -5,6 +5,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 import { downloadFileFromUrl, openPdfFromUrl } from '@/lib/download';
 import { fetchAuthenticatedPdf } from '@/lib/pdf/pdf-authenticated-client';
+import {
+  blobToPdfData,
+  createPdfPreviewRunController
+} from '@/lib/pdf/pdf-preview-runtime.mjs';
 
 type PdfPreviewViewerProps = {
   title: string;
@@ -48,20 +52,23 @@ export function PdfPreviewViewer({
   embedded = false
 }: PdfPreviewViewerProps) {
   const pagesRef = useRef<HTMLDivElement | null>(null);
-  const renderTasksRef = useRef<RenderTask[]>([]);
+  const runControllerRef = useRef<ReturnType<typeof createPdfPreviewRunController> | null>(null);
+  if (!runControllerRef.current) {
+    runControllerRef.current = createPdfPreviewRunController();
+  }
+
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState('Carregando pre-visualizacao do PDF...');
   const [error, setError] = useState<string | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    let isMounted = true;
-    let loadingTask: PdfLoadingTask | null = null;
-    let objectUrl: string | null = null;
+    const runController = runControllerRef.current;
+    if (!runController) return;
+    const generation = runController.begin();
 
     const clearRenderedPages = () => {
-      renderTasksRef.current.forEach((task) => task.cancel());
-      renderTasksRef.current = [];
       if (pagesRef.current) {
         pagesRef.current.replaceChildren();
       }
@@ -71,6 +78,7 @@ export function PdfPreviewViewer({
       if (!pagesRef.current) return;
 
       setIsLoading(true);
+      setLoadingMessage('Carregando pre-visualizacao do PDF...');
       setError(null);
       setPageCount(0);
       clearRenderedPages();
@@ -83,22 +91,30 @@ export function PdfPreviewViewer({
         ).toString();
 
         const { blob } = await fetchAuthenticatedPdf(previewDataUrl);
-        objectUrl = URL.createObjectURL(blob);
-        loadingTask = pdfjs.getDocument(objectUrl) as PdfLoadingTask;
+        const pdfData = await blobToPdfData(blob);
+        if (!runController.isCurrent(generation)) return;
+
+        const loadingTask = pdfjs.getDocument({
+          data: new Uint8Array(pdfData)
+        }) as PdfLoadingTask;
+        if (!runController.setLoadingTask(generation, loadingTask)) return;
+
         const pdf = await loadingTask.promise;
+        if (!runController.isCurrent(generation) || !pagesRef.current) return;
 
-        if (!isMounted || !pagesRef.current) return;
-
+        setLoadingMessage('Renderizando paginas do PDF...');
         setPageCount(pdf.numPages);
         const containerWidth = Math.max(320, pagesRef.current.clientWidth || 960);
 
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-          if (!isMounted || !pagesRef.current) return;
+          if (!runController.isCurrent(generation) || !pagesRef.current) return;
 
           const page = await pdf.getPage(pageNumber) as {
             getViewport: (options: { scale: number }) => { width: number; height: number };
             render: (options: { canvasContext: CanvasRenderingContext2D; viewport: { width: number; height: number } }) => RenderTask;
           };
+          if (!runController.isCurrent(generation) || !pagesRef.current) return;
+
           const baseViewport = page.getViewport({ scale: 1 });
           const scale = Math.min(Math.max((containerWidth - 32) / baseViewport.width, 0.6), 1.45);
           const viewport = page.getViewport({ scale });
@@ -129,27 +145,26 @@ export function PdfPreviewViewer({
           pagesRef.current.appendChild(pageShell);
 
           const renderTask = page.render({ canvasContext: context, viewport });
-          renderTasksRef.current.push(renderTask);
+          if (!runController.addRenderTask(generation, renderTask)) return;
           await renderTask.promise;
+          runController.removeRenderTask(renderTask);
+          if (!runController.isCurrent(generation)) return;
         }
-      } catch (err) {
-        if (!isMounted) return;
-        const message = err instanceof Error ? err.message : 'Não foi possível carregar a pré-visualização do PDF.';
-        setError(message);
+      } catch {
+        if (!runController.isCurrent(generation)) return;
+        clearRenderedPages();
+        setPageCount(0);
+        setError('Nao foi possivel renderizar a pre-visualizacao. Tente recarregar ou use o download do PDF.');
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (runController.isCurrent(generation)) setIsLoading(false);
       }
     };
 
-    renderPdf();
+    void renderPdf();
 
     return () => {
-      isMounted = false;
+      runController.cancel(generation);
       clearRenderedPages();
-      if (loadingTask) {
-        void loadingTask.destroy();
-      }
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [previewDataUrl, reloadKey]);
 
@@ -221,7 +236,7 @@ export function PdfPreviewViewer({
           </div>
           )}
         </div>
-      </div>
+    </div>
   );
 
   const content = (
@@ -229,7 +244,7 @@ export function PdfPreviewViewer({
         {isLoading && (
           <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-6 text-sm font-bold text-slate-600 shadow-sm">
             <Loader2 className="h-5 w-5 animate-spin text-[#1D35C9]" />
-            Carregando pre-visualizacao do PDF...
+            {loadingMessage}
           </div>
         )}
 
