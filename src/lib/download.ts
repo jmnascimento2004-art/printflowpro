@@ -1,13 +1,7 @@
+import { fetchAuthenticatedPdf } from '@/lib/pdf/pdf-authenticated-client';
+
 export async function downloadFileFromUrl(url: string, fallbackFilename = 'download.pdf'): Promise<void> {
-  const response = await fetch(url, { credentials: 'include' });
-
-  if (!response.ok) {
-    throw new Error(`Download failed with status ${response.status}`);
-  }
-
-  const blob = await response.blob();
-  const contentDisposition = response.headers.get('Content-Disposition') || '';
-  const filename = getFilenameFromContentDisposition(contentDisposition) || fallbackFilename;
+  const { blob, filename } = await fetchAuthenticatedPdf(url, fallbackFilename);
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement('a');
 
@@ -20,10 +14,18 @@ export async function downloadFileFromUrl(url: string, fallbackFilename = 'downl
   URL.revokeObjectURL(objectUrl);
 }
 
-function getFilenameFromContentDisposition(value: string): string {
-  const utfFilename = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  if (utfFilename) return decodeURIComponent(utfFilename.replace(/"/g, ''));
+export async function openPdfFromUrl(url: string): Promise<void> {
+  const popup = window.open('about:blank', '_blank');
+  if (!popup) throw new Error('Popup blocked.');
+  popup.opener = null;
 
-  const filename = value.match(/filename="?([^";]+)"?/i)?.[1];
-  return filename ? filename.trim() : '';
+  try {
+    const { blob } = await fetchAuthenticatedPdf(url);
+    const objectUrl = URL.createObjectURL(blob);
+    popup.location.replace(objectUrl);
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    popup.close();
+    throw error;
+  }
 }

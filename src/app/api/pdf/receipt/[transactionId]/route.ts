@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PdfAccessError } from '@/lib/pdf/pdf-access.mjs';
 import { createPdfResponseHeaders } from '@/lib/pdf/pdf-http.mjs';
 import { renderReceiptPdf } from '@/lib/pdf/pdf-render';
+import { authenticatePdfRequest, getAuthenticatedPdfClient } from '@/lib/pdf/pdf-server-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,7 +12,11 @@ export async function GET(request: Request, context: { params: Promise<{ transac
     const { transactionId } = await context.params;
     const { searchParams } = new URL(request.url);
     const shouldDownload = searchParams.get('download') === '1';
-    const renderedPdf = await renderReceiptPdf(transactionId);
+    const access = await authenticatePdfRequest(request);
+    const renderedPdf = await renderReceiptPdf(transactionId, {
+      access,
+      supabase: getAuthenticatedPdfClient(request)
+    });
 
     if (!renderedPdf) {
       return NextResponse.json({ error: 'Recibo nao encontrado.' }, { status: 404 });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PdfAccessError } from '@/lib/pdf/pdf-access.mjs';
 import { createPdfResponseHeaders } from '@/lib/pdf/pdf-http.mjs';
 import { renderQuotePdf } from '@/lib/pdf/pdf-render';
+import { authenticatePdfRequest, getAuthenticatedPdfClient } from '@/lib/pdf/pdf-server-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,7 +12,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
     const shouldDownload = searchParams.get('download') === '1';
-    const renderedPdf = await renderQuotePdf(id);
+    const access = await authenticatePdfRequest(request);
+    const renderedPdf = await renderQuotePdf(id, {
+      access,
+      supabase: getAuthenticatedPdfClient(request)
+    });
 
     if (!renderedPdf) {
       return NextResponse.json({ error: 'Orcamento nao encontrado.' }, { status: 404 });

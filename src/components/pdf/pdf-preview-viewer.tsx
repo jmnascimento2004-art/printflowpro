@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
-import { downloadFileFromUrl } from '@/lib/download';
+import { downloadFileFromUrl, openPdfFromUrl } from '@/lib/download';
+import { fetchAuthenticatedPdf } from '@/lib/pdf/pdf-authenticated-client';
 
 type PdfPreviewViewerProps = {
   title: string;
@@ -56,6 +57,7 @@ export function PdfPreviewViewer({
   useEffect(() => {
     let isMounted = true;
     let loadingTask: PdfLoadingTask | null = null;
+    let objectUrl: string | null = null;
 
     const clearRenderedPages = () => {
       renderTasksRef.current.forEach((task) => task.cancel());
@@ -80,28 +82,9 @@ export function PdfPreviewViewer({
           import.meta.url
         ).toString();
 
-        const response = await fetch(previewDataUrl, {
-          credentials: 'include',
-          cache: 'no-store'
-        });
-
-        if (!response.ok) {
-          throw new Error(`Não foi possível carregar a pré-visualização do PDF (${response.status}).`);
-        }
-
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('application/pdf')) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('PDF preview endpoint returned an unexpected response.', {
-              status: response.status,
-              contentType
-            });
-          }
-          throw new Error('Não foi possível carregar a pré-visualização do PDF.');
-        }
-
-        const pdfBytes = new Uint8Array(await response.arrayBuffer());
-        loadingTask = pdfjs.getDocument({ data: pdfBytes }) as PdfLoadingTask;
+        const { blob } = await fetchAuthenticatedPdf(previewDataUrl);
+        objectUrl = URL.createObjectURL(blob);
+        loadingTask = pdfjs.getDocument(objectUrl) as PdfLoadingTask;
         const pdf = await loadingTask.promise;
 
         if (!isMounted || !pagesRef.current) return;
@@ -166,12 +149,9 @@ export function PdfPreviewViewer({
       if (loadingTask) {
         void loadingTask.destroy();
       }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [previewDataUrl, reloadKey]);
-
-  const openUrl = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
 
   const handleDownload = async () => {
     try {
@@ -181,6 +161,14 @@ export function PdfPreviewViewer({
         console.warn('Erro ao baixar PDF:', err);
       }
       alert('Não foi possível baixar o PDF. Tente novamente.');
+    }
+  };
+
+  const handleOpenPdf = async (url: string) => {
+    try {
+      await openPdfFromUrl(url);
+    } catch {
+      alert('Não foi possível abrir o PDF. Verifique se o navegador bloqueou a nova guia.');
     }
   };
 
@@ -223,7 +211,7 @@ export function PdfPreviewViewer({
             {resolvedDirectPdfUrl && (
               <button
                 type="button"
-                onClick={() => openUrl(resolvedDirectPdfUrl)}
+                onClick={() => void handleOpenPdf(resolvedDirectPdfUrl)}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
               >
                 <ExternalLink className="h-4 w-4" />

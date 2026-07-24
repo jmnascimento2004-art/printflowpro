@@ -6,14 +6,15 @@ import { loadOrderPdfData, loadQuotePdfData, loadReceiptPdfData } from '@/lib/pd
 import { OrderPdfDocument } from '@/lib/pdf/order-pdf';
 import { QuotePdfDocument } from '@/lib/pdf/quote-pdf';
 import { ReceiptPdfDocument } from '@/lib/pdf/receipt-pdf';
+import type { PdfRequestContext } from '@/lib/pdf/pdf-server-auth';
 
 export type RenderedPdf = {
   buffer: Buffer;
   filename: string;
 };
 
-export async function renderOrderPdf(id: string): Promise<RenderedPdf | null> {
-  const data = await loadOrderPdfData(id);
+export async function renderOrderPdf(id: string, context: PdfRequestContext): Promise<RenderedPdf | null> {
+  const data = await loadOrderPdfData(id, context);
 
   if (!data) return null;
 
@@ -25,8 +26,8 @@ export async function renderOrderPdf(id: string): Promise<RenderedPdf | null> {
   return { buffer, filename };
 }
 
-export async function renderQuotePdf(id: string): Promise<RenderedPdf | null> {
-  const data = await loadQuotePdfData(id);
+export async function renderQuotePdf(id: string, context: PdfRequestContext): Promise<RenderedPdf | null> {
+  const data = await loadQuotePdfData(id, context);
 
   if (!data) return null;
 
@@ -38,8 +39,8 @@ export async function renderQuotePdf(id: string): Promise<RenderedPdf | null> {
   return { buffer, filename };
 }
 
-export async function renderReceiptPdf(transactionId: string): Promise<RenderedPdf | null> {
-  const data = await loadReceiptPdfData(transactionId);
+export async function renderReceiptPdf(transactionId: string, context: PdfRequestContext): Promise<RenderedPdf | null> {
+  const data = await loadReceiptPdfData(transactionId, context);
 
   if (!data) return null;
 

@@ -1,10 +1,8 @@
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Company, Customer, FinancialTransaction, Order, OrderItem, Quote, QuoteItem } from '@/lib/dummy-data';
 import { getActivePaymentTransactions } from '@/lib/finance-rules';
 import { areOrderNumbersEquivalent } from '@/lib/order-number';
-import { requireActivePdfProfile } from '@/lib/pdf/pdf-access.mjs';
+import type { PdfRequestContext } from '@/lib/pdf/pdf-server-auth';
 
 type QuoteItemRow = QuoteItem & { quote_id?: string };
 type OrderItemRow = OrderItem & { order_id?: string };
@@ -35,27 +33,6 @@ export type PdfSettings = {
   footer_show_address?: boolean | null;
   company_address?: string | null;
 };
-
-function getSupabaseServerClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-  if (!supabaseUrl || !supabasePublishableKey) {
-    throw new Error('Supabase credentials are missing for PDF generation.');
-  }
-
-  return createServerClient(supabaseUrl, supabasePublishableKey, {
-    cookies: {
-      async getAll() {
-        const cookieStore = await cookies();
-        return cookieStore.getAll();
-      },
-      setAll() {
-        // PDF routes only read the current session; they do not mutate auth cookies.
-      }
-    }
-  });
-}
 
 function normalizeQuoteItem(item: QuoteItemRow): QuoteItem {
   const cleanItem = { ...item };
@@ -123,9 +100,8 @@ async function loadPdfSettings(supabase: SupabaseClient, companyId: string): Pro
   return (data || {}) as PdfSettings;
 }
 
-export async function loadQuotePdfData(id: string): Promise<QuotePdfData | null> {
-  const supabase = getSupabaseServerClient();
-  const access = await requireActivePdfProfile(supabase);
+export async function loadQuotePdfData(id: string, context: PdfRequestContext): Promise<QuotePdfData | null> {
+  const { supabase, access } = context;
 
   const { data: quoteRow, error: quoteError } = await supabase
     .from('quotes')
@@ -164,9 +140,8 @@ export async function loadQuotePdfData(id: string): Promise<QuotePdfData | null>
   return { quote, company, customer, settings };
 }
 
-export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null> {
-  const supabase = getSupabaseServerClient();
-  const access = await requireActivePdfProfile(supabase);
+export async function loadOrderPdfData(id: string, context: PdfRequestContext): Promise<OrderPdfData | null> {
+  const { supabase, access } = context;
 
   const { data: orderRow, error: orderError } = await supabase
     .from('orders')
@@ -234,9 +209,8 @@ export async function loadOrderPdfData(id: string): Promise<OrderPdfData | null>
   };
 }
 
-export async function loadReceiptPdfData(transactionId: string): Promise<ReceiptPdfData | null> {
-  const supabase = getSupabaseServerClient();
-  const access = await requireActivePdfProfile(supabase);
+export async function loadReceiptPdfData(transactionId: string, context: PdfRequestContext): Promise<ReceiptPdfData | null> {
+  const { supabase, access } = context;
 
   const { data: transactionRow, error: transactionError } = await supabase
     .from('financial_transactions')
@@ -258,7 +232,7 @@ export async function loadReceiptPdfData(transactionId: string): Promise<Receipt
     throw new Error('Transacao sem pedido vinculado para gerar recibo.');
   }
 
-  const orderData = await loadOrderPdfData(transaction.order_id);
+  const orderData = await loadOrderPdfData(transaction.order_id, context);
   if (!orderData) return null;
 
   const { data: paidRows, error: paidError } = await supabase

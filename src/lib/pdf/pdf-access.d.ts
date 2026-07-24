@@ -6,11 +6,15 @@ export class PdfAccessError extends Error {
 }
 
 export type PdfAccessProfile = {
-  id: string;
+  userId: string;
+  profileId: string;
   companyId: string;
   role: string;
 };
 
+export function getPdfBearerToken(request: Request): string | null;
+
 export function requireActivePdfProfile(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  accessToken?: string
 ): Promise<PdfAccessProfile>;

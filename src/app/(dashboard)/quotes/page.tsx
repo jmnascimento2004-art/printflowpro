@@ -33,7 +33,7 @@ import { openWhatsAppWithMessage } from '@/lib/whatsapp-order';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
-import { downloadFileFromUrl } from '@/lib/download';
+import { downloadFileFromUrl, openPdfFromUrl } from '@/lib/download';
 import {
   calculateQuoteDiscount,
   calculateQuoteNetTotal,
@@ -282,7 +282,9 @@ export default function QuotesPage() {
     }
 
     if (typeof window !== 'undefined') {
-      window.open(`/api/pdf/quote/${quoteForSending.id}`, '_blank', 'noopener,noreferrer');
+      void openPdfFromUrl(`/api/pdf/quote/${quoteForSending.id}`).catch(() => {
+        alert('Não foi possível abrir o PDF. Verifique se o navegador bloqueou a nova guia.');
+      });
     }
 
     const message = [

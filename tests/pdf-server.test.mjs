@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React from 'react';
 import { Document, Page, Text, renderToBuffer } from '@react-pdf/renderer';
-import { PdfAccessError, requireActivePdfProfile } from '../src/lib/pdf/pdf-access.mjs';
+import { PdfAccessError, getPdfBearerToken, requireActivePdfProfile } from '../src/lib/pdf/pdf-access.mjs';
 import { createPdfResponseHeaders } from '../src/lib/pdf/pdf-http.mjs';
 
 function createAccessClient({ user = { id: 'user-1' }, authError = null, profile = null } = {}) {
   const filters = [];
+  const getUserTokens = [];
   const query = {
     select() {
       return this;
@@ -23,12 +24,16 @@ function createAccessClient({ user = { id: 'user-1' }, authError = null, profile
   return {
     filters,
     client: {
-      auth: { getUser: async () => ({ data: { user }, error: authError }) },
+      auth: { getUser: async (token) => {
+        getUserTokens.push(token);
+        return { data: { user }, error: authError };
+      } },
       from: (table) => {
         assert.equal(table, 'profiles');
         return query;
       }
-    }
+    },
+    getUserTokens
   };
 }
 
@@ -70,6 +75,46 @@ test('rejects PDF generation without an authenticated session', async () => {
   );
 });
 
+test('accepts a missing Authorization header for the secure cookie fallback', () => {
+  assert.equal(getPdfBearerToken(new Request('http://localhost/api/pdf/quote/1')), null);
+});
+
+test('rejects a malformed Authorization header', () => {
+  const request = new Request('http://localhost/api/pdf/quote/1', {
+    headers: { Authorization: 'Basic credentials' }
+  });
+
+  assert.throws(
+    () => getPdfBearerToken(request),
+    (error) => error instanceof PdfAccessError && error.status === 401
+  );
+});
+
+test('validates a Bearer access token with getUser(token)', async () => {
+  const request = new Request('http://localhost/api/pdf/quote/1', {
+    headers: { Authorization: 'Bearer opaque-token' }
+  });
+  const token = getPdfBearerToken(request);
+  const { client, getUserTokens } = createAccessClient({
+    profile: { id: 'profile-1', company_id: 'company-1', role: 'admin' }
+  });
+
+  await requireActivePdfProfile(client, token);
+  assert.deepEqual(getUserTokens, ['opaque-token']);
+});
+
+test('rejects an invalid Bearer token without exposing it', async () => {
+  const token = 'invalid-secret-token';
+  const { client } = createAccessClient({ user: null, authError: new Error('invalid') });
+
+  await assert.rejects(
+    requireActivePdfProfile(client, token),
+    (error) => error instanceof PdfAccessError
+      && error.status === 401
+      && !error.message.includes(token)
+  );
+});
+
 test('rejects PDF generation without an active company profile', async () => {
   const { client } = createAccessClient();
 
@@ -86,6 +131,11 @@ test('derives PDF company access from the authenticated active profile', async (
 
   const access = await requireActivePdfProfile(client);
 
-  assert.deepEqual(access, { id: 'profile-1', companyId: 'company-1', role: 'admin' });
+  assert.deepEqual(access, {
+    userId: 'user-1',
+    profileId: 'profile-1',
+    companyId: 'company-1',
+    role: 'admin'
+  });
   assert.deepEqual(filters, [['auth_user_id', 'user-1'], ['active', true]]);
 });

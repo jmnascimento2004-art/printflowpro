@@ -6,8 +6,20 @@ export class PdfAccessError extends Error {
   }
 }
 
-export async function requireActivePdfProfile(supabase) {
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+export function getPdfBearerToken(request) {
+  const authorization = request.headers.get('authorization');
+  if (!authorization) return null;
+
+  const match = authorization.match(/^Bearer ([^\s]+)$/i);
+  if (!match) {
+    throw new PdfAccessError(401, 'Authentication is required to generate a PDF.');
+  }
+
+  return match[1];
+}
+
+export async function requireActivePdfProfile(supabase, accessToken) {
+  const { data: authData, error: authError } = await supabase.auth.getUser(accessToken);
 
   if (authError || !authData.user) {
     throw new PdfAccessError(401, 'Authentication is required to generate a PDF.');
@@ -26,7 +38,8 @@ export async function requireActivePdfProfile(supabase) {
   }
 
   return {
-    id: String(profile.id),
+    userId: String(authData.user.id),
+    profileId: String(profile.id),
     companyId: String(profile.company_id),
     role: String(profile.role || '')
   };
