@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, X } from 'lucide-react';
 import { downloadFileFromUrl, openPdfFromUrl } from '@/lib/download';
 import { fetchAuthenticatedPdf } from '@/lib/pdf/pdf-authenticated-client';
 import {
@@ -48,6 +48,7 @@ export function PdfPreviewViewer({
   directPdfUrl,
   downloadLabel = 'Baixar PDF',
   height,
+  onClose,
   showHeaderActions = true,
   embedded = false
 }: PdfPreviewViewerProps) {
@@ -191,8 +192,8 @@ export function PdfPreviewViewer({
 
   const header = (
     <div className={embedded ? 'border-b border-slate-200 bg-white' : 'sticky top-0 z-20 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur'}>
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start">
+          <div className="min-w-0 flex-1">
             {backUrl && (
               <Link href={backUrl} className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-500 hover:text-slate-950">
                 <ArrowLeft className="h-4 w-4" />
@@ -205,36 +206,50 @@ export function PdfPreviewViewer({
             </p>
           </div>
 
-          {showHeaderActions && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setReloadKey((value) => value + 1)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Recarregar
-            </button>
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#1D35C9] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#172AA3]"
-            >
-              <Download className="h-4 w-4" />
-              {downloadLabel}
-            </button>
-            {resolvedDirectPdfUrl && (
+          <div className="flex w-full items-start gap-2 sm:w-auto sm:items-center">
+            {showHeaderActions && (
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-none">
+                <button
+                  type="button"
+                  onClick={() => setReloadKey((value) => value + 1)}
+                  className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Recarregar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl bg-[#1D35C9] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#172AA3]"
+                >
+                  <Download className="h-4 w-4" />
+                  {downloadLabel}
+                </button>
+                {resolvedDirectPdfUrl && (
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenPdf(resolvedDirectPdfUrl)}
+                    className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Abrir PDF direto
+                  </button>
+                )}
+              </div>
+            )}
+
+            {onClose && (
               <button
                 type="button"
-                onClick={() => void handleOpenPdf(resolvedDirectPdfUrl)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                onClick={onClose}
+                className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D35C9] focus-visible:ring-offset-2"
+                aria-label="Fechar visualização do PDF"
+                title="Fechar"
               >
-                <ExternalLink className="h-4 w-4" />
-                Abrir PDF direto
+                <X className="h-4 w-4" />
               </button>
             )}
           </div>
-          )}
         </div>
     </div>
   );

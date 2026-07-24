@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import { X } from 'lucide-react';
 import { PdfPreviewViewer } from '@/components/pdf/pdf-preview-viewer';
 
 type PdfPreviewDialogProps = {
@@ -25,13 +24,19 @@ export function PdfPreviewDialog({
 }: PdfPreviewDialogProps) {
   useEffect(() => {
     if (!open) return;
+    const previouslyFocused = document.activeElement;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onOpenChange(false);
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) {
+        previouslyFocused.focus();
+      }
+    };
   }, [open, onOpenChange]);
 
   if (!open) return null;
@@ -44,15 +49,6 @@ export function PdfPreviewDialog({
       }}
     >
       <div className="relative flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <button
-          type="button"
-          onClick={() => onOpenChange(false)}
-          className="absolute right-3 top-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-950"
-          aria-label="Fechar visualizacao do PDF"
-        >
-          <X className="h-4 w-4" />
-        </button>
-
         <PdfPreviewViewer
           embedded
           title={title}
