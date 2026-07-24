@@ -985,7 +985,7 @@ export function ProductConfiguratorModal({
               <section className="rounded-2xl border border-slate-200 bg-white p-4">
                 <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">Descrição do produto</h3>
                 <div
-                  className="rich-text-description mt-2 text-xs font-medium leading-relaxed text-slate-600"
+                  className="rich-text-description mt-2 text-xs font-normal leading-relaxed text-slate-600"
                   dangerouslySetInnerHTML={{ __html: productDescription }}
                 />
               </section>

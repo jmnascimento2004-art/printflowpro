@@ -3421,8 +3421,10 @@ export default function ProductsCRUDPage() {
 
               {/* Description */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Descrição / Detalhes de Produção</label>
+                <label htmlFor="product-description-editor" className="text-xs font-semibold text-muted-foreground">Descrição / Detalhes de Produção</label>
                 <RichTextEditor
+                  id="product-description-editor"
+                  ariaLabel="Descrição e detalhes de produção"
                   value={description}
                   onChange={setDescription}
                   placeholder="Detalhes sobre o produto, aplicacao, materiais..."

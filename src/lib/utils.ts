@@ -2,6 +2,11 @@
  * Utility helper functions for PrintFlowPRO
  */
 import { buildWhatsAppUrl } from '@/lib/whatsapp';
+import {
+  normalizeRichTextHtml as normalizeRichTextHtmlCore,
+  sanitizeRichTextHtml as sanitizeRichTextHtmlCore,
+  stripRichTextHtml as stripRichTextHtmlCore
+} from '@/lib/rich-text-editor-core.mjs';
 
 /**
  * Calculates the CRC16 checksum for the PIX payload
@@ -318,99 +323,9 @@ export function formatCEP(cep: string): string {
   return `${clean.substring(0, 5)}-${clean.substring(5, 8)}`;
 }
 
-function removeHtmlComments(value: string = ''): string {
-  return value.replace(/<!--[\s\S]*?-->/g, '');
-}
-
-export function stripRichTextHtml(value: string = ''): string {
-  return removeHtmlComments(decodeRichTextEntities(value))
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<\/(p|div|li|h[1-6])>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function decodeRichTextEntities(value: string = ''): string {
-  let decoded = value;
-
-  for (let index = 0; index < 2; index += 1) {
-    decoded = decoded
-      .replace(/&amp;/gi, '&')
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
-      .replace(/&quot;/gi, '"')
-      .replace(/&#39;/gi, "'")
-      .replace(/&nbsp;/gi, ' ');
-  }
-
-  return decoded;
-}
-
-export function normalizeRichTextHtml(value: string = ''): string {
-  const decodedValue = removeHtmlComments(decodeRichTextEntities(value));
-  const decodedLooksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(decodedValue);
-  return sanitizeRichTextHtml(decodedLooksLikeHtml ? decodedValue : removeHtmlComments(value));
-}
-
-export function sanitizeRichTextHtml(value: string = ''): string {
-  const cleanValue = removeHtmlComments(value);
-  const allowedTags = ['a', 'b', 'blockquote', 'br', 'div', 'em', 'h1', 'h2', 'h3', 'i', 'img', 'li', 'ol', 'p', 'span', 'strong', 's', 'u', 'ul'];
-  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(cleanValue);
-  const escapeHtml = (text: string) =>
-    text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-
-  if (!hasHtml) {
-    return escapeHtml(cleanValue).replace(/\n/g, '<br />');
-  }
-
-  return cleanValue
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
-    .replace(/\son[a-z]+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi, '')
-    .replace(/<\/?([a-z0-9]+)(?:\s[^>]*)?>/gi, (match, tag) => {
-      const cleanTag = String(tag).toLowerCase();
-      if (!allowedTags.includes(cleanTag)) return '';
-      if (match.startsWith('</')) return `</${cleanTag}>`;
-
-      if (cleanTag === 'a') {
-        const href = match.match(/\shref\s*=\s*["']([^"']+)["']/i)?.[1] || '';
-        const safeHref = /^(https?:\/\/|mailto:|tel:)/i.test(href) ? href : '';
-        return safeHref ? `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">` : '<a>';
-      }
-
-      if (cleanTag === 'img') {
-        const src = match.match(/\ssrc\s*=\s*["']([^"']+)["']/i)?.[1] || '';
-        const alt = match.match(/\salt\s*=\s*["']([^"']*)["']/i)?.[1] || '';
-        const safeSrc = /^(https?:\/\/|data:image\/(png|jpe?g|gif|webp);base64,)/i.test(src) ? src : '';
-        return safeSrc ? `<img src="${safeSrc}" alt="${escapeHtml(alt)}" />` : '';
-      }
-
-      if (cleanTag === 'span') {
-        const color = match.match(/color\s*:\s*(#[0-9a-f]{3,8}|rgb\([^)]+\)|[a-z]+)\s*;?/i)?.[1] || '';
-        const background = match.match(/background(?:-color)?\s*:\s*(#[0-9a-f]{3,8}|rgb\([^)]+\)|[a-z]+)\s*;?/i)?.[1] || '';
-        const style = [
-          color ? `color: ${color}` : '',
-          background ? `background-color: ${background}` : ''
-        ].filter(Boolean).join('; ');
-        return style ? `<span style="${style}">` : '<span>';
-      }
-
-      return `<${cleanTag}>`;
-    })
-    .trim();
-}
+export const stripRichTextHtml = stripRichTextHtmlCore;
+export const normalizeRichTextHtml = normalizeRichTextHtmlCore;
+export const sanitizeRichTextHtml = sanitizeRichTextHtmlCore;
 
 export function sanitizeProductDescription(description: string = ''): string {
   return normalizeRichTextHtml(description);
