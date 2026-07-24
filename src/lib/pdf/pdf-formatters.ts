@@ -1,15 +1,10 @@
 import type { AdditionalService, Company, Customer, OrderItem, QuoteItem } from '@/lib/dummy-data';
 import type { PdfSettings } from '@/lib/pdf/pdf-data';
+import { formatPdfCurrencyCell, normalizePdfCellText } from '@/lib/pdf/pdf-cell-text.mjs';
 import { buildPdfItemViewModel } from '@/lib/pdf/pdf-item-view-model.mjs';
 
 export function formatPdfCurrency(value?: number | string | null, options?: { maximumFractionDigits?: number }) {
-  const numeric = Number(value || 0);
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: options?.maximumFractionDigits ?? 2
-  }).format(Number.isFinite(numeric) ? numeric : 0);
+  return formatPdfCurrencyCell(value, options);
 }
 
 export function formatPdfUnitCurrency(value?: number | string | null) {
@@ -71,12 +66,10 @@ export function buildCustomerAddress(customer?: Customer | null, fallbackAddress
 }
 
 export function normalizePdfText(value?: string | number | null) {
-  return String(value ?? '')
+  return normalizePdfCellText(String(value ?? '')
     .replace(/\bnull\b/gi, '')
     .replace(/\bundefined\b/gi, '')
-    .replace(/\s+\./g, '.')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/\s+\./g, '.'));
 }
 
 export function getPdfLogoUrl(company?: Company | null) {

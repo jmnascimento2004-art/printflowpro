@@ -6,15 +6,12 @@ import {
   buildCustomerAddress,
   formatPdfCurrency,
   formatPdfDate,
-  formatPdfItemSize,
-  formatPdfUnitCurrency,
   getAdditionalServicesTotal,
-  getCompactItemDescription,
-  getPdfItemUnitFromTotal,
   getPdfFooterText,
   getPdfLogoUrl,
   normalizePdfText
 } from '@/lib/pdf/pdf-formatters';
+import { PdfProductTable } from '@/lib/pdf/pdf-product-table.mjs';
 
 const styles = StyleSheet.create({
   page: {
@@ -58,8 +55,6 @@ const styles = StyleSheet.create({
   cell: { paddingVertical: 6, paddingHorizontal: 6, lineHeight: 1.2 },
   qtyCol: { width: '9%', textAlign: 'center' },
   descCol: { width: '61%' },
-  itemDescCol: { width: '49%' },
-  sizeCol: { width: '12%', textAlign: 'center' },
   moneyCol: { width: '15%', textAlign: 'right' },
   itemName: { fontSize: 9, fontWeight: 500 },
   itemDetail: { fontSize: 8, color: '#4b5870', marginTop: 2 },
@@ -94,26 +89,6 @@ const styles = StyleSheet.create({
     textAlign: 'center'
   }
 });
-
-function ItemRows({ data }: { data: QuotePdfData }) {
-  return (
-    <>
-      {data.quote.items.map((item) => {
-        return (
-          <View key={item.id} style={styles.tableRow} wrap={false}>
-            <Text style={[styles.cell, styles.qtyCol]}>{item.quantity}</Text>
-            <View style={[styles.cell, styles.itemDescCol]}>
-              <Text style={styles.itemName}>{getCompactItemDescription(item)}</Text>
-            </View>
-            <Text style={[styles.cell, styles.sizeCol]}>{formatPdfItemSize(item)}</Text>
-            <Text style={[styles.cell, styles.moneyCol]}>{formatPdfUnitCurrency(getPdfItemUnitFromTotal(item))}</Text>
-            <Text style={[styles.cell, styles.moneyCol]}>{formatPdfCurrency(item.total_price)}</Text>
-          </View>
-        );
-      })}
-    </>
-  );
-}
 
 function ServicesRows({ data }: { data: QuotePdfData }) {
   const services = data.quote.additional_services || [];
@@ -196,16 +171,7 @@ export function QuotePdfDocument({ data }: { data: QuotePdfData }) {
         </View>
 
         <Text style={styles.sectionTitle}>Produtos</Text>
-        <View style={styles.table}>
-          <View style={styles.tableHeader} fixed>
-            <Text style={[styles.tableHeaderCell, styles.qtyCol]}>QTD</Text>
-            <Text style={[styles.tableHeaderCell, styles.itemDescCol]}>DESCRIÇÃO</Text>
-            <Text style={[styles.tableHeaderCell, styles.sizeCol]}>TAMANHO</Text>
-            <Text style={[styles.tableHeaderCell, styles.moneyCol]}>UNIT</Text>
-            <Text style={[styles.tableHeaderCell, styles.moneyCol]}>TOTAL</Text>
-          </View>
-          <ItemRows data={data} />
-        </View>
+        <PdfProductTable items={data.quote.items} />
 
         <ServicesRows data={data} />
 

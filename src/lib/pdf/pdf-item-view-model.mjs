@@ -1,6 +1,4 @@
-function normalizeText(value) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim();
-}
+import { keepPdfSizeTogether, normalizePdfCellText } from './pdf-cell-text.mjs';
 
 function formatPtBrDecimal(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -13,7 +11,7 @@ const LEGACY_DIMENSION_SUFFIX = /\s+[—-]\s+\d+(?:[.,]\d+)?\s*(?:m|cm)\s*[x×]\
 const LEGACY_LINEAR_SUFFIX = /\s+[—-]\s+\d+(?:[.,]\d+)?\s*(?:m|cm)\s*-\s*\d+(?:[.,]\d+)?\s*un\s*$/iu;
 
 export function cleanLegacyGeneratedDescription(value) {
-  const description = normalizeText(value);
+  const description = normalizePdfCellText(value);
   return description
     .replace(LEGACY_DIMENSION_SUFFIX, '')
     .replace(LEGACY_LINEAR_SUFFIX, '')
@@ -21,10 +19,10 @@ export function cleanLegacyGeneratedDescription(value) {
 }
 
 function normalizeStructuredSize(value) {
-  const size = normalizeText(value);
+  const size = normalizePdfCellText(value);
   const match = /^(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm$/iu.exec(size);
-  if (!match) return size;
-  return `${formatPtBrDecimal(Number(match[1].replace(',', '.')))} × ${formatPtBrDecimal(Number(match[2].replace(',', '.')))} cm`;
+  if (!match) return keepPdfSizeTogether(size);
+  return keepPdfSizeTogether(`${formatPtBrDecimal(Number(match[1].replace(',', '.')))} × ${formatPtBrDecimal(Number(match[2].replace(',', '.')))} cm`);
 }
 
 export function formatPdfItemSizeValue(item) {
@@ -32,11 +30,11 @@ export function formatPdfItemSizeValue(item) {
   const width = Number(details.width || 0);
   const height = Number(details.height || 0);
   if (width > 0 && height > 0) {
-    return `${formatPtBrDecimal(width * 100)} × ${formatPtBrDecimal(height * 100)} cm`;
+    return keepPdfSizeTogether(`${formatPtBrDecimal(width * 100)} × ${formatPtBrDecimal(height * 100)} cm`);
   }
 
   const length = Number(details.length || 0);
-  if (length > 0) return `${formatPtBrDecimal(length * 100)} cm`;
+  if (length > 0) return keepPdfSizeTogether(`${formatPtBrDecimal(length * 100)} cm`);
 
   const pricingSnapshot = details.pricing_snapshot || {};
   const structuredSize = details.configuration_snapshot?.size ||
@@ -49,7 +47,7 @@ export function buildPdfItemViewModel(item) {
   const totalPrice = Math.max(0, Number(item?.total_price || 0));
   const pricingSnapshot = item?.details?.pricing_snapshot || {};
   const structuredDescription = typeof pricingSnapshot.description === 'string'
-    ? normalizeText(pricingSnapshot.description)
+    ? normalizePdfCellText(pricingSnapshot.description)
     : '';
   const savedDescription = cleanLegacyGeneratedDescription(item?.product_name);
 

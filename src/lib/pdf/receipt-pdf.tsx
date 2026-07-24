@@ -6,15 +6,12 @@ import {
   buildVisibleCompanyAddress,
   formatPdfCurrency,
   formatPdfDate,
-  formatPdfItemSize,
-  formatPdfUnitCurrency,
   getAdditionalServicesTotal,
-  getCompactItemDescription,
-  getPdfItemUnitFromTotal,
   getPdfFooterText,
   getPdfLogoUrl,
   normalizePdfText
 } from '@/lib/pdf/pdf-formatters';
+import { PdfProductTable } from '@/lib/pdf/pdf-product-table.mjs';
 
 const styles = StyleSheet.create({
   page: {
@@ -60,17 +57,6 @@ const styles = StyleSheet.create({
   },
   formalText: { fontSize: 11, lineHeight: 1.45, color: '#172033' },
   formalMeta: { marginTop: 8, color: '#4b5870', fontSize: 8.5, lineHeight: 1.35 },
-  table: { width: '100%', borderWidth: 1, borderColor: '#d8dee9', borderRadius: 6, overflow: 'hidden' },
-  tableHeader: { flexDirection: 'row', backgroundColor: '#050505', color: '#ffffff' },
-  tableHeaderCell: { paddingVertical: 7, paddingHorizontal: 6, fontSize: 8, fontWeight: 700 },
-  tableRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#e8edf5' },
-  cell: { paddingVertical: 6, paddingHorizontal: 6, lineHeight: 1.2 },
-  qtyCol: { width: '9%', textAlign: 'center' },
-  descCol: { width: '61%' },
-  itemDescCol: { width: '49%' },
-  sizeCol: { width: '12%', textAlign: 'center' },
-  moneyCol: { width: '15%', textAlign: 'right' },
-  itemName: { fontSize: 9, fontWeight: 500 },
   sectionTitle: { fontSize: 10, fontWeight: 700, marginBottom: 7, marginTop: 14 },
   totals: { marginLeft: 'auto', width: 260, marginTop: 14 },
   totalLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
@@ -123,24 +109,6 @@ function getReceiptPaymentKind(data: ReceiptPdfData) {
   }
 
   return 'pagamento parcial';
-}
-
-function ReceiptItemRows({ data }: { data: ReceiptPdfData }) {
-  return (
-    <>
-      {data.order.items.map((item) => (
-        <View key={item.id} style={styles.tableRow} wrap={false}>
-          <Text style={[styles.cell, styles.qtyCol]}>{item.quantity}</Text>
-          <View style={[styles.cell, styles.itemDescCol]}>
-            <Text style={styles.itemName}>{getCompactItemDescription(item)}</Text>
-          </View>
-          <Text style={[styles.cell, styles.sizeCol]}>{formatPdfItemSize(item)}</Text>
-          <Text style={[styles.cell, styles.moneyCol]}>{formatPdfUnitCurrency(getPdfItemUnitFromTotal(item))}</Text>
-          <Text style={[styles.cell, styles.moneyCol]}>{formatPdfCurrency(item.total_price)}</Text>
-        </View>
-      ))}
-    </>
-  );
 }
 
 export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
@@ -204,16 +172,7 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
         </View>
 
         <Text style={styles.sectionTitle}>Produtos e serviços do pedido</Text>
-        <View style={styles.table}>
-          <View style={styles.tableHeader} fixed>
-            <Text style={[styles.tableHeaderCell, styles.qtyCol]}>QTD</Text>
-            <Text style={[styles.tableHeaderCell, styles.itemDescCol]}>DESCRIÇÃO</Text>
-            <Text style={[styles.tableHeaderCell, styles.sizeCol]}>TAMANHO</Text>
-            <Text style={[styles.tableHeaderCell, styles.moneyCol]}>UNIT</Text>
-            <Text style={[styles.tableHeaderCell, styles.moneyCol]}>TOTAL</Text>
-          </View>
-          <ReceiptItemRows data={data} />
-        </View>
+        <PdfProductTable items={data.order.items} />
 
         <View style={styles.totals}>
           <View style={styles.totalLine}>
