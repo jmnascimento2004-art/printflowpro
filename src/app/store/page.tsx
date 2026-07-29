@@ -137,6 +137,7 @@ export default function StorefrontPage() {
     addresses: storeCustomerAddresses,
     defaultAddress: storeDefaultAddress,
     favoriteProductIds,
+    favoritePendingProductIds,
     toggleProductFavorite
   } = useStoreCustomer();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -144,7 +145,6 @@ export default function StorefrontPage() {
   const [showcaseTab, setShowcaseTab] = useState<'bestsellers' | 'promo' | 'highlight'>('bestsellers');
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
   const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
-  const [favoriteSavingProductId, setFavoriteSavingProductId] = useState<string | null>(null);
 
   // Local store theme state (catalog defaults to light mode!)
   const [storeTheme, setStoreTheme] = useState<'light' | 'dark'>('light');
@@ -183,6 +183,7 @@ export default function StorefrontPage() {
   };
 
   const favoriteProductIdSet = useMemo(() => new Set(favoriteProductIds), [favoriteProductIds]);
+  const favoritePendingProductIdSet = useMemo(() => new Set(favoritePendingProductIds), [favoritePendingProductIds]);
 
   useEffect(() => {
     if (!company?.id) return;
@@ -230,20 +231,19 @@ export default function StorefrontPage() {
 
   const handleProductFavorite = async (productId: string) => {
     if (!storeCustomerAuthenticated) {
-      setFavoriteNotice('Entre ou crie sua conta para salvar favoritos.');
+      setFavoriteNotice('Entre na sua conta para salvar produtos nos favoritos.');
       return;
     }
 
-    if (favoriteSavingProductId) return;
+    if (favoritePendingProductIdSet.has(productId)) return;
 
-    setFavoriteSavingProductId(productId);
     try {
       const favorited = await toggleProductFavorite(productId);
       setFavoriteNotice(favorited ? 'Produto salvo nos favoritos.' : 'Produto removido dos favoritos.');
-    } catch {
-      setFavoriteNotice('Não foi possível atualizar seus favoritos agora.');
-    } finally {
-      setFavoriteSavingProductId(null);
+    } catch (error) {
+      setFavoriteNotice(error instanceof Error && error.message === 'session_expired'
+        ? 'Sua sessão expirou. Entre novamente para continuar.'
+        : 'Não foi possível atualizar seus favoritos agora. Tente novamente.');
     }
   };
 
@@ -1565,12 +1565,12 @@ export default function StorefrontPage() {
                         {/* Floating Heart Icon Button (Moved to top-left) */}
                         {(() => {
                           const isFavorite = favoriteProductIdSet.has(p.id);
-                          const isSaving = favoriteSavingProductId === p.id;
+                          const isSaving = favoritePendingProductIdSet.has(p.id);
 
                           return (
                             <button
                               type="button"
-                              className={`absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10 disabled:cursor-wait disabled:opacity-70 ${
+                              className={`absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70 ${
                                 isFavorite ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'
                               }`}
                               onClick={(e) => {
@@ -1578,6 +1578,8 @@ export default function StorefrontPage() {
                                 handleProductFavorite(p.id);
                               }}
                               disabled={isSaving}
+                              aria-pressed={isFavorite}
+                              aria-busy={isSaving}
                               aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                               title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                             >
@@ -2160,12 +2162,12 @@ export default function StorefrontPage() {
 
                           {(() => {
                             const isFavorite = favoriteProductIdSet.has(product.id);
-                            const isSaving = favoriteSavingProductId === product.id;
+                            const isSaving = favoritePendingProductIdSet.has(product.id);
 
                             return (
                               <button
                                 type="button"
-                                className={`absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10 disabled:cursor-wait disabled:opacity-70 ${
+                                className={`absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70 ${
                                   isFavorite ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'
                                 }`}
                                 onClick={(e) => {
@@ -2173,6 +2175,8 @@ export default function StorefrontPage() {
                                   handleProductFavorite(product.id);
                                 }}
                                 disabled={isSaving}
+                                aria-pressed={isFavorite}
+                                aria-busy={isSaving}
                                 aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                                 title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                               >
