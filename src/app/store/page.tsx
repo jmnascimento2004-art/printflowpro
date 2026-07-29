@@ -20,7 +20,6 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
-  Heart,
   Menu,
   Tag,
   Star,
@@ -46,6 +45,7 @@ import {
   ProductConfiguratorModal,
   type ProductConfiguratorCartPayload
 } from '@/components/store/ProductConfiguratorModal';
+import { StoreFavoriteButton } from '@/components/store/StoreFavoriteButton';
 
 interface CartItem {
   product: Product;
@@ -239,7 +239,7 @@ export default function StorefrontPage() {
 
     try {
       const favorited = await toggleProductFavorite(productId);
-      setFavoriteNotice(favorited ? 'Produto salvo nos favoritos.' : 'Produto removido dos favoritos.');
+      setFavoriteNotice(favorited ? 'Produto adicionado aos favoritos.' : 'Produto removido dos favoritos.');
     } catch (error) {
       setFavoriteNotice(error instanceof Error && error.message === 'session_expired'
         ? 'Sua sessão expirou. Entre novamente para continuar.'
@@ -1563,30 +1563,13 @@ export default function StorefrontPage() {
                         )}
 
                         {/* Floating Heart Icon Button (Moved to top-left) */}
-                        {(() => {
-                          const isFavorite = favoriteProductIdSet.has(p.id);
-                          const isSaving = favoritePendingProductIdSet.has(p.id);
-
-                          return (
-                            <button
-                              type="button"
-                              className={`absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70 ${
-                                isFavorite ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'
-                              }`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleProductFavorite(p.id);
-                              }}
-                              disabled={isSaving}
-                              aria-pressed={isFavorite}
-                              aria-busy={isSaving}
-                              aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                              title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                            >
-                              <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
-                            </button>
-                          );
-                        })()}
+                        <StoreFavoriteButton
+                          productId={p.id}
+                          isFavorite={favoriteProductIdSet.has(p.id)}
+                          isPending={favoritePendingProductIdSet.has(p.id)}
+                          onToggle={handleProductFavorite}
+                          className="absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 z-10"
+                        />
 
                         {/* Floating Promo / Highlight tags (Top-right) */}
                         <div className="absolute top-2.5 right-2.5 flex flex-col gap-1 items-end z-10">
@@ -1736,6 +1719,9 @@ export default function StorefrontPage() {
             ? getProductCategoryName(activeAdvancedConfigProduct)
             : undefined
         }
+        isFavorite={Boolean(activeAdvancedConfigProduct && favoriteProductIdSet.has(activeAdvancedConfigProduct.id))}
+        isFavoritePending={Boolean(activeAdvancedConfigProduct && favoritePendingProductIdSet.has(activeAdvancedConfigProduct.id))}
+        onToggleFavorite={handleProductFavorite}
       />
 
       {/* 8. Cart Drawer Panel */}
@@ -2160,30 +2146,13 @@ export default function StorefrontPage() {
                             </div>
                           )}
 
-                          {(() => {
-                            const isFavorite = favoriteProductIdSet.has(product.id);
-                            const isSaving = favoritePendingProductIdSet.has(product.id);
-
-                            return (
-                              <button
-                                type="button"
-                                className={`absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center hover:scale-110 transition-all z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70 ${
-                                  isFavorite ? 'text-rose-500' : 'text-slate-400 hover:text-rose-500'
-                                }`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleProductFavorite(product.id);
-                                }}
-                                disabled={isSaving}
-                                aria-pressed={isFavorite}
-                                aria-busy={isSaving}
-                                aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                                title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-                              >
-                                <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
-                              </button>
-                            );
-                          })()}
+                          <StoreFavoriteButton
+                            productId={product.id}
+                            isFavorite={favoriteProductIdSet.has(product.id)}
+                            isPending={favoritePendingProductIdSet.has(product.id)}
+                            onToggle={handleProductFavorite}
+                            className="absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 z-10"
+                          />
 
                           <div className="absolute top-2.5 right-2.5 flex flex-col gap-1 items-end z-10">
                             {product.is_promo && (
