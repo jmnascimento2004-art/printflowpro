@@ -139,3 +139,34 @@ test('product form and catalog use the shared sanitized editor without visual bo
   assert.match(catalogSource, /rich-text-description mt-2 text-xs font-normal/);
   assert.doesNotMatch(catalogSource, /rich-text-description mt-2 text-xs font-medium/);
 });
+
+test('color controls are unified accessible buttons with horizontal live swatches', async () => {
+  const source = await readFile(new URL('../src/components/rich-text-editor.tsx', import.meta.url), 'utf8');
+  const colorControl = source.slice(source.indexOf('function RichTextColorControl'), source.indexOf('export function RichTextEditor'));
+
+  assert.match(colorControl, /type="button"/);
+  assert.match(colorControl, /aria-label=\{label\}/);
+  assert.match(colorControl, /aria-pressed=\{active\}/);
+  assert.match(colorControl, /title=\{label\}/);
+  assert.match(colorControl, /onMouseDown=\{onPreserveSelection\}/);
+  assert.match(colorControl, /onClick=\{\(\) => inputRef\.current\?\.click\(\)\}/);
+  assert.match(colorControl, /type="color"/);
+  assert.match(colorControl, /tabIndex=\{-1\}/);
+  assert.match(colorControl, /data-color-swatch="horizontal"/);
+  assert.match(colorControl, /h-1 w-6/);
+  assert.match(colorControl, /h-10 min-w-11 shrink-0/);
+  assert.match(colorControl, /backgroundColor: value/);
+  assert.match(colorControl, /border-black\/20/);
+  assert.doesNotMatch(colorControl, /(?:-mt-|-mr-|-mb-|-ml-|-translate-|overflow-(?:hidden|clip)|h-5 w-5)/);
+});
+
+test('text and background color controls keep selection commands and form safety', async () => {
+  const source = await readFile(new URL('../src/components/rich-text-editor.tsx', import.meta.url), 'utf8');
+
+  assert.match(source, /label="Cor do texto"[\s\S]*shortLabel="A"[\s\S]*onChange=\{\(nextColor\) => runCommand\('foreColor', nextColor\)\}/);
+  assert.match(source, /label="Cor de fundo"[\s\S]*shortLabel="Bg"[\s\S]*onChange=\{\(nextColor\) => runCommand\('backColor', nextColor\)\}/);
+  assert.match(source, /onPreserveSelection=\{preserveSelectionOnToolbar\}/g);
+  assert.match(source, /style=\{shortLabel === 'A' \? \{ color: value \} : undefined\}/);
+  assert.match(source, /textColorActive = Boolean\(selectedElement\?\.closest\('\[style\*="color"\]'\)\)/);
+  assert.match(source, /backgroundColorActive = Boolean\(selectedElement\?\.closest\('\[style\*="background"\]'\)\)/);
+});

@@ -57,6 +57,15 @@ type ToolbarState = {
   backColor: string;
 };
 
+type ColorControlProps = {
+  active: boolean;
+  label: string;
+  shortLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  onPreserveSelection: (event: React.MouseEvent<HTMLButtonElement>) => void;
+};
+
 const emptyToolbarState: ToolbarState = {
   bold: false,
   italic: false,
@@ -125,6 +134,48 @@ function colorPickerValue(value: string, fallback: string) {
   const rgb = value.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
   if (!rgb) return fallback;
   return `#${rgb.slice(1, 4).map((channel) => Math.min(255, Number(channel)).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function RichTextColorControl({
+  active,
+  label,
+  shortLabel,
+  value,
+  onChange,
+  onPreserveSelection
+}: ColorControlProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="relative shrink-0">
+      <input
+        ref={inputRef}
+        type="color"
+        value={value}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(event) => onChange(event.target.value)}
+        className="pointer-events-none absolute inset-0 h-px w-px opacity-0"
+      />
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={active}
+        title={label}
+        onMouseDown={onPreserveSelection}
+        onClick={() => inputRef.current?.click()}
+        className={`flex h-10 min-w-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md border px-2 text-[11px] font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${active ? 'border-primary bg-primary/10 text-primary' : 'border-primary/20 bg-background text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary'}`}
+      >
+        <span style={shortLabel === 'A' ? { color: value } : undefined}>{shortLabel}</span>
+        <span
+          aria-hidden="true"
+          data-color-swatch="horizontal"
+          className="h-1 w-6 rounded-full border border-black/20 shadow-[inset_0_0_0_0.5px_rgba(255,255,255,0.45)]"
+          style={{ backgroundColor: value }}
+        />
+      </button>
+    </div>
+  );
 }
 
 export function RichTextEditor({
@@ -277,6 +328,14 @@ export function RichTextEditor({
     return Boolean(toolbarState[command as keyof ToolbarState]);
   };
 
+  const textColor = colorPickerValue(toolbarState.foreColor, '#111827');
+  const backgroundColor = colorPickerValue(toolbarState.backColor, '#fef3c7');
+  const selectedElement = savedRangeRef.current?.commonAncestorContainer instanceof Element
+    ? savedRangeRef.current.commonAncestorContainer
+    : savedRangeRef.current?.commonAncestorContainer.parentElement;
+  const textColorActive = Boolean(selectedElement?.closest('[style*="color"]'));
+  const backgroundColorActive = Boolean(selectedElement?.closest('[style*="background"]'));
+
   return (
     <div className="overflow-hidden rounded-xl border border-primary/25 bg-background shadow-sm focus-within:border-primary/70 focus-within:ring-2 focus-within:ring-primary/20">
       <div
@@ -318,28 +377,22 @@ export function RichTextEditor({
           <ImageIcon className="h-3.5 w-3.5" />
         </button>
 
-        <label className="flex h-8 items-center gap-1 rounded-md border border-primary/20 bg-background px-1.5 text-[10px] font-semibold text-muted-foreground" title="Cor do texto">
-          A
-          <input
-            type="color"
-            aria-label="Cor do texto"
-            value={colorPickerValue(toolbarState.foreColor, '#111827')}
-            onMouseDown={rememberSelection}
-            onChange={(event) => runCommand('foreColor', event.target.value)}
-            className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
-          />
-        </label>
-        <label className="flex h-8 items-center gap-1 rounded-md border border-primary/20 bg-background px-1.5 text-[10px] font-semibold text-muted-foreground" title="Cor de fundo">
-          Bg
-          <input
-            type="color"
-            aria-label="Cor de fundo"
-            value={colorPickerValue(toolbarState.backColor, '#fef3c7')}
-            onMouseDown={rememberSelection}
-            onChange={(event) => runCommand('backColor', event.target.value)}
-            className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0"
-          />
-        </label>
+        <RichTextColorControl
+          active={textColorActive}
+          label="Cor do texto"
+          shortLabel="A"
+          value={textColor}
+          onPreserveSelection={preserveSelectionOnToolbar}
+          onChange={(nextColor) => runCommand('foreColor', nextColor)}
+        />
+        <RichTextColorControl
+          active={backgroundColorActive}
+          label="Cor de fundo"
+          shortLabel="Bg"
+          value={backgroundColor}
+          onPreserveSelection={preserveSelectionOnToolbar}
+          onChange={(nextColor) => runCommand('backColor', nextColor)}
+        />
         <button type="button" onMouseDown={preserveSelectionOnToolbar} onClick={() => runCommand('removeFormat')} aria-label="Limpar formatação" title="Limpar formatação do trecho selecionado" className="flex h-8 w-8 items-center justify-center rounded-md border border-primary/20 bg-background text-muted-foreground transition hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
           <Eraser className="h-3.5 w-3.5" />
         </button>
