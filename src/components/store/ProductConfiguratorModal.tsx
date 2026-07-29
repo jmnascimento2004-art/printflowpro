@@ -554,7 +554,8 @@ export function ProductConfiguratorModal({
               isFavorite={isFavorite}
               isPending={isFavoritePending}
               onToggle={onToggleFavorite}
-              className="h-9 w-9 rounded-xl border border-slate-200 bg-white shadow-sm hover:bg-rose-50"
+              className="h-11 w-11"
+              surfaceClassName="h-9 w-9 rounded-xl border border-slate-200 bg-white shadow-sm hover:bg-rose-50"
             />
             <button
               type="button"

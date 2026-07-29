@@ -1568,7 +1568,8 @@ export default function StorefrontPage() {
                           isFavorite={favoriteProductIdSet.has(p.id)}
                           isPending={favoritePendingProductIdSet.has(p.id)}
                           onToggle={handleProductFavorite}
-                          className="absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 z-10"
+                          className="absolute top-2.5 left-2.5 h-11 w-11 z-10"
+                          surfaceClassName="h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm transition-transform hover:scale-110"
                         />
 
                         {/* Floating Promo / Highlight tags (Top-right) */}
@@ -2151,7 +2152,8 @@ export default function StorefrontPage() {
                             isFavorite={favoriteProductIdSet.has(product.id)}
                             isPending={favoritePendingProductIdSet.has(product.id)}
                             onToggle={handleProductFavorite}
-                            className="absolute top-2.5 left-2.5 h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 z-10"
+                            className="absolute top-2.5 left-2.5 h-11 w-11 z-10"
+                            surfaceClassName="h-7 w-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm transition-transform hover:scale-110"
                           />
 
                           <div className="absolute top-2.5 right-2.5 flex flex-col gap-1 items-end z-10">

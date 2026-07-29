@@ -50,6 +50,28 @@ test('favorite button remains accessible and shares pending state', async () => 
   assert.doesNotMatch(source, /service_role/i);
 });
 
+test('favorite controls separate a 44px touch target from the visual surface', async () => {
+  const [storeSource, modalSource, buttonSource] = await Promise.all([
+    readFile(storeUrl, 'utf8'),
+    readFile(modalUrl, 'utf8'),
+    readFile(favoriteButtonUrl, 'utf8')
+  ]);
+
+  assert.equal((storeSource.match(/className="absolute top-2\.5 left-2\.5 h-11 w-11 z-10"/g) || []).length, 2);
+  assert.equal((storeSource.match(/surfaceClassName="h-7 w-7 rounded-full/g) || []).length, 2);
+  assert.doesNotMatch(storeSource, /className="[^"]*h-7 w-7[^"]*"/);
+  assert.match(modalSource, /className="h-11 w-11"/);
+  assert.match(modalSource, /surfaceClassName="h-9 w-9 rounded-xl/);
+  assert.match(buttonSource, /surfaceClassName\?: string/);
+  assert.match(buttonSource, /<span className=\{`flex items-center justify-center \$\{surfaceClassName\}`\}>/);
+  assert.match(buttonSource, /<Heart className=\{`h-4 w-4/);
+  assert.match(buttonSource, /type="button"/);
+  assert.match(buttonSource, /event\.preventDefault\(\);[\s\S]+event\.stopPropagation\(\);/);
+  assert.match(buttonSource, /onDoubleClick=\{handleDoubleClick\}/);
+  assert.match(buttonSource, /if \(isPending\) return;/);
+  assert.doesNotMatch(buttonSource, /service_role/i);
+});
+
 test('configurator consumes the shared favorite state without its own query or state', async () => {
   const source = await readFile(modalUrl, 'utf8');
   assert.match(source, /<StoreFavoriteButton/);

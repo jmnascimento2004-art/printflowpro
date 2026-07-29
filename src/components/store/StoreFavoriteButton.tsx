@@ -9,6 +9,7 @@ interface StoreFavoriteButtonProps {
   isPending: boolean;
   onToggle: (productId: string) => void;
   className?: string;
+  surfaceClassName?: string;
 }
 
 export function StoreFavoriteButton({
@@ -16,7 +17,8 @@ export function StoreFavoriteButton({
   isFavorite,
   isPending,
   onToggle,
-  className = ''
+  className = '',
+  surfaceClassName = ''
 }: StoreFavoriteButtonProps) {
   const stopMousePropagation = (event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
@@ -65,7 +67,9 @@ export function StoreFavoriteButton({
         aria-label={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
         title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
       >
-        <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+        <span className={`flex items-center justify-center ${surfaceClassName}`}>
+          <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+        </span>
       </button>
     </span>
   );
