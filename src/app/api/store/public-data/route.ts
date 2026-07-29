@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '@/lib/supabase/server-admin';
 import { isLocalStoreHost, normalizeStoreHost } from '@/lib/store/normalize-store-host';
+import { resolveStoreLookupHostname } from '@/lib/store/resolve-store-lookup-hostname.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,7 +94,8 @@ export async function GET(request: NextRequest) {
   const developmentHost = process.env.NODE_ENV !== 'production'
     ? normalizeStoreHost(process.env.STORE_PUBLIC_DEV_HOST)
     : null;
-  const host = requestHost && isLocalStoreHost(requestHost) ? developmentHost : requestHost;
+  const localAwareHost = requestHost && isLocalStoreHost(requestHost) ? developmentHost : requestHost;
+  const host = resolveStoreLookupHostname(localAwareHost);
 
   if (!host || isLocalStoreHost(host)) {
     return publicError('Dominio da loja ausente ou invalido.', 'INVALID_STORE_HOST', 400);
