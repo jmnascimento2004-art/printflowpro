@@ -33,6 +33,7 @@ import {
 } from '@/lib/pricing';
 import { getPrimaryProductImage, normalizeProductGallery } from '@/lib/product-images';
 import { sanitizeProductDescription, stripRichTextHtml } from '@/lib/utils';
+import { StoreFavoriteButton } from '@/components/store/StoreFavoriteButton';
 
 export interface ProductConfiguratorCartPayload {
   product: Product;
@@ -80,6 +81,9 @@ interface ProductConfiguratorModalProps {
   onAddToCart: (payload: ProductConfiguratorCartPayload) => void;
   onRequestWhatsApp?: (payload: ProductConfiguratorCartPayload) => void;
   categoryName?: string;
+  isFavorite: boolean;
+  isFavoritePending: boolean;
+  onToggleFavorite: (productId: string) => void;
 }
 
 const saleModeLabels: Record<ProductSaleMode, string> = {
@@ -146,7 +150,10 @@ export function ProductConfiguratorModal({
   onClose,
   onAddToCart,
   onRequestWhatsApp,
-  categoryName
+  categoryName,
+  isFavorite,
+  isFavoritePending,
+  onToggleFavorite
 }: ProductConfiguratorModalProps) {
   const savedConfigurator = getProductConfigurator(product);
   const initialVolumeTier = useMemo(() => getInitialVolumePricingTier(product), [product]);
@@ -541,14 +548,24 @@ export function ProductConfiguratorModal({
               {product.name}
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center"
-            aria-label="Fechar configurador"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <StoreFavoriteButton
+              productId={product.id}
+              isFavorite={isFavorite}
+              isPending={isFavoritePending}
+              onToggle={onToggleFavorite}
+              className="h-11 w-11"
+              surfaceClassName="h-9 w-9 rounded-xl border border-slate-200 bg-white shadow-sm hover:bg-rose-50"
+            />
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center"
+              aria-label="Fechar configurador"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <div className="grid max-h-[calc(100dvh-5.5rem)] grid-cols-1 overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)_320px]">

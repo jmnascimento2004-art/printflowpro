@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -26,6 +26,7 @@ type StoreCustomerContextType = {
   orders: StoreCustomerOrder[];
   quotes: StoreCustomerQuote[];
   favoriteProductIds: string[];
+  favoritePendingProductIds: string[];
   defaultAddress: StoreCustomerAddress | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -117,6 +118,18 @@ const warnStoreCustomerError = (message: string, error: unknown) => {
   }
 };
 
+export class StoreFavoriteError extends Error {
+  constructor(public readonly reason: 'session_expired' | 'not_authenticated' | 'failed') {
+    super(reason);
+    this.name = 'StoreFavoriteError';
+  }
+}
+
+const isExpiredSessionError = (error: unknown) => {
+  const candidate = error as { code?: string; status?: number; message?: string } | null;
+  return candidate?.status === 401 || candidate?.code === 'PGRST301' || /jwt|session.*expired|not authenticated/i.test(candidate?.message || '');
+};
+
 export function StoreCustomerProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -129,6 +142,9 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
   const [orders, setOrders] = useState<StoreCustomerOrder[]>([]);
   const [quotes, setQuotes] = useState<StoreCustomerQuote[]>([]);
   const [favoriteProductIds, setFavoriteProductIds] = useState<string[]>([]);
+  const [favoritePendingProductIds, setFavoritePendingProductIds] = useState<string[]>([]);
+  const pendingFavoritesRef = useRef(new Set<string>());
+  const loadGenerationRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,6 +154,8 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
   );
 
   const resetStoreCustomerState = useCallback(() => {
+    loadGenerationRef.current += 1;
+    pendingFavoritesRef.current.clear();
     setSession(null);
     setAccount(null);
     setCustomer(null);
@@ -145,6 +163,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     setOrders([]);
     setQuotes([]);
     setFavoriteProductIds([]);
+    setFavoritePendingProductIds([]);
     setError(null);
     setIsLoading(false);
   }, []);
@@ -189,6 +208,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
   };
 
   const loadStoreCustomer = async (nextSession = session) => {
+    const generation = ++loadGenerationRef.current;
     if (!nextSession?.user || !company.id) {
       setAccount(null);
       setCustomer(null);
@@ -329,7 +349,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
           .order('created_at', { ascending: false }),
         supabase
           .from('store_customer_favorites')
-          .select('*')
+          .select('product_id')
           .eq('company_id', company.id)
           .eq('customer_id', nextCustomer.id)
           .order('created_at', { ascending: false })
@@ -340,6 +360,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       if (quotesError) warnStoreCustomerError('Erro ao carregar orcamentos do cliente:', quotesError);
       if (favoritesError) warnStoreCustomerError('Erro ao carregar favoritos do cliente:', favoritesError);
 
+      if (generation !== loadGenerationRef.current) return;
       setAddresses(addressesError ? emptyAddressList : (addressesData || []) as StoreCustomerAddress[]);
       setOrders(ordersError ? [] : (ordersData || []) as StoreCustomerOrder[]);
       setQuotes(quotesError ? [] : (quotesData || []) as StoreCustomerQuote[]);
@@ -349,6 +370,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
           : ((favoritesData || []) as StoreCustomerFavorite[]).map((favorite) => favorite.product_id)
       );
     } catch (loadError) {
+      if (generation !== loadGenerationRef.current) return;
       warnStoreCustomerError('Erro ao carregar area do cliente:', loadError);
       setAccount(null);
       setCustomer(null);
@@ -358,7 +380,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
       setFavoriteProductIds([]);
       setError('Não foi possível carregar sua conta agora.');
     } finally {
-      setIsLoading(false);
+      if (generation === loadGenerationRef.current) setIsLoading(false);
     }
   };
 
@@ -454,6 +476,8 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
   };
 
   const signOut = async () => {
+    loadGenerationRef.current += 1;
+    pendingFavoritesRef.current.clear();
     await supabase.auth.signOut();
     if (typeof window !== 'undefined') {
       try {
@@ -477,6 +501,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     setOrders([]);
     setQuotes([]);
     setFavoriteProductIds([]);
+    setFavoritePendingProductIds([]);
     router.push('/store');
   };
 
@@ -617,37 +642,38 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
   };
 
   const toggleProductFavorite = async (productId: string) => {
-    if (!customer) throw new Error('Cliente nao autenticado.');
-
-    const isFavorite = favoriteProductIds.includes(productId);
-
-    if (isFavorite) {
-      const { error: deleteError } = await supabase
-        .from('store_customer_favorites')
-        .delete()
-        .eq('company_id', customer.company_id)
-        .eq('customer_id', customer.id)
-        .eq('product_id', productId);
-
-      if (deleteError) throw deleteError;
-      setFavoriteProductIds((current) => current.filter((id) => id !== productId));
-      return false;
+    if (!session?.user || !customer || !account || account.customer_id !== customer.id) {
+      throw new StoreFavoriteError('not_authenticated');
+    }
+    if (!productId || pendingFavoritesRef.current.has(productId)) {
+      return favoriteProductIds.includes(productId);
     }
 
-    const { error: insertError } = await supabase
-      .from('store_customer_favorites')
-      .upsert(
-        {
-          company_id: customer.company_id,
-          customer_id: customer.id,
-          product_id: productId
-        },
-        { onConflict: 'company_id,customer_id,product_id', ignoreDuplicates: true }
-      );
+    const isFavorite = favoriteProductIds.includes(productId);
+    pendingFavoritesRef.current.add(productId);
+    setFavoritePendingProductIds((current) => [...current, productId]);
+    setFavoriteProductIds((current) => isFavorite ? current.filter((id) => id !== productId) : [...new Set([...current, productId])]);
 
-    if (insertError) throw insertError;
-    setFavoriteProductIds((current) => (current.includes(productId) ? current : [...current, productId]));
-    return true;
+    try {
+      const result = isFavorite
+        ? await supabase.from('store_customer_favorites').delete()
+          .eq('company_id', customer.company_id).eq('customer_id', customer.id).eq('product_id', productId)
+        : await supabase.from('store_customer_favorites').insert({ company_id: customer.company_id, customer_id: customer.id, product_id: productId });
+      if (result.error && !(!isFavorite && result.error.code === '23505')) throw result.error;
+      if (!isFavorite && result.error?.code === '23505') setFavoriteProductIds((current) => [...new Set([...current, productId])]);
+      return !isFavorite;
+    } catch (favoriteError) {
+      setFavoriteProductIds((current) => isFavorite ? [...new Set([...current, productId])] : current.filter((id) => id !== productId));
+      if (isExpiredSessionError(favoriteError)) {
+        setFavoriteProductIds([]);
+        throw new StoreFavoriteError('session_expired');
+      }
+      warnStoreCustomerError('Erro ao atualizar favorito:', favoriteError);
+      throw new StoreFavoriteError('failed');
+    } finally {
+      pendingFavoritesRef.current.delete(productId);
+      setFavoritePendingProductIds((current) => current.filter((id) => id !== productId));
+    }
   };
 
   const value: StoreCustomerContextType = {
@@ -659,6 +685,7 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
     orders,
     quotes,
     favoriteProductIds,
+    favoritePendingProductIds,
     defaultAddress,
     isAuthenticated: Boolean(session?.user && account?.status === 'active' && customer),
     isLoading,
