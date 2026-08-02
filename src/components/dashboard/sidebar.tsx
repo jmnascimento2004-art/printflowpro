@@ -17,7 +17,8 @@ import {
   Settings, 
   ShoppingBag,
   LogOut,
-  Layers
+  Layers,
+  MessageCircle
 } from 'lucide-react';
 import { useTheme } from '@/context/theme-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
@@ -59,6 +60,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'PDV / Caixa', path: '/pos', icon: ShoppingBag },
     { name: 'Clientes', path: '/crm', icon: Users },
+    { name: 'WhatsApp', path: '/whatsapp', icon: MessageCircle },
     { name: 'Produtos (Catálogo)', path: '/products', icon: Package },
     { name: 'Orçamentos', path: '/quotes', icon: FileText },
     { name: 'Precificação', path: '/pricing', icon: Calculator },
