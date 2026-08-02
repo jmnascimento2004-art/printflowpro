@@ -367,7 +367,7 @@ export function StoreFooter({
       <button
         type="button"
         onClick={handleBackToTop}
-        className="fixed bottom-[calc(6.15rem+env(safe-area-inset-bottom))] right-3 z-40 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-secondary px-3.5 text-secondary-foreground shadow-lg shadow-slate-950/20 transition-all hover:-translate-y-0.5 hover:bg-secondary/90 hover:shadow-xl active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-foreground/30 focus-visible:ring-offset-2 [&_svg]:!text-secondary-foreground md:bottom-6 md:right-6 md:w-auto md:px-4"
+        className="fixed bottom-[calc(6.15rem+env(safe-area-inset-bottom))] right-3 z-40 inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/20 bg-slate-950 px-3.5 text-white shadow-lg shadow-slate-950/35 transition-all hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-xl active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 [&_svg]:!text-white md:bottom-6 md:right-6 md:w-auto md:px-4"
         aria-label="Voltar ao início do catálogo"
         title="Voltar ao início"
       >
