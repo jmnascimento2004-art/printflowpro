@@ -1122,6 +1122,8 @@ export function ProductConfiguratorModal({
                 type="button"
                 onClick={handleWhatsAppRequest}
                 disabled={isConfigurationIncomplete || Boolean(linearWidthError) || isWhatsAppRequestPending}
+                aria-busy={isWhatsAppRequestPending}
+                aria-disabled={isConfigurationIncomplete || Boolean(linearWidthError) || isWhatsAppRequestPending}
                 className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 flex items-center justify-center gap-2"
               >
                 <MessageCircle className="h-4 w-4" />

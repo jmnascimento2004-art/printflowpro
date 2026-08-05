@@ -20,6 +20,7 @@ const subject = await compile('../src/lib/store/whatsapp-product-request.ts', {
   '@/lib/whatsapp/template-engine': engine,
   '@/lib/whatsapp/template-registry': registry
 });
+const lockSubject = await compile('../src/lib/store/product-request-lock.ts');
 const route = await readFile(new URL('../src/app/api/store/whatsapp/product-request/route.ts', import.meta.url), 'utf8');
 const page = await readFile(new URL('../src/app/store/page.tsx', import.meta.url), 'utf8');
 const modal = await readFile(new URL('../src/components/store/ProductConfiguratorModal.tsx', import.meta.url), 'utf8');
@@ -91,12 +92,72 @@ test('public response is minimized and client never imports service role', () =>
   assert.match(route, /select\('country_code,business_phone,signature,open_mode,confirm_before_open,include_company_name'\)/);
 });
 
-test('store performs one request on explicit click and applies pending duplicate protection', () => {
-  assert.match(page, /if \(whatsAppRequestPending\) return/);
+test('store performs one request on explicit click and keeps visual pending protection', () => {
+  assert.match(page, /whatsAppProductRequestLocksRef = useRef<Set<string>>/);
+  assert.match(page, /withProductRequestLock\(whatsAppProductRequestLocksRef\.current, payload\.product_id/);
   assert.match(page, /fetch\('\/api\/store\/whatsapp\/product-request'/);
   assert.match(modal, /isWhatsAppRequestPending/);
   assert.match(modal, /disabled=.*isWhatsAppRequestPending/);
   assert.doesNotMatch(page, /buildWhatsAppOrderMessage|openWhatsAppWithMessage/);
+});
+
+test('same-tick duplicate requests execute one fetch and one open, then release for a later retry', async () => {
+  const locks = new Set();
+  let releaseFetch;
+  let fetchCount = 0;
+  let openCount = 0;
+  const controlledFetch = new Promise((resolve) => { releaseFetch = resolve; });
+  const operation = async () => {
+    fetchCount += 1;
+    const result = await controlledFetch;
+    if (result.confirmBeforeOpen === false) openCount += 1;
+  };
+
+  const first = lockSubject.withProductRequestLock(locks, 'product-a', operation);
+  const duplicate = lockSubject.withProductRequestLock(locks, 'product-a', operation);
+  assert.equal(fetchCount, 1);
+  assert.deepEqual(await duplicate, { executed: false });
+  releaseFetch({ confirmBeforeOpen: false });
+  await first;
+  assert.equal(openCount, 1);
+
+  await lockSubject.withProductRequestLock(locks, 'product-a', async () => { fetchCount += 1; openCount += 1; });
+  assert.equal(fetchCount, 2);
+  assert.equal(openCount, 2);
+});
+
+test('lock releases after failure and permits a successful retry', async () => {
+  const locks = new Set();
+  let releaseFailure;
+  let attempts = 0;
+  const failure = new Promise((_, reject) => { releaseFailure = reject; });
+  const first = lockSubject.withProductRequestLock(locks, 'product-a', async () => { attempts += 1; await failure; });
+  const duplicate = lockSubject.withProductRequestLock(locks, 'product-a', async () => { attempts += 1; });
+  assert.deepEqual(await duplicate, { executed: false });
+  releaseFailure(new Error('network failure'));
+  await assert.rejects(first, /network failure/);
+  await lockSubject.withProductRequestLock(locks, 'product-a', async () => { attempts += 1; });
+  assert.equal(attempts, 2);
+});
+
+test('locks are independent per product and confirmation preparation is not duplicated', async () => {
+  const locks = new Set();
+  let releaseA;
+  let releaseB;
+  let modalCount = 0;
+  const operation = (promise) => async () => { const result = await promise; if (result.confirmBeforeOpen) modalCount += 1; };
+  const promiseA = new Promise((resolve) => { releaseA = resolve; });
+  const promiseB = new Promise((resolve) => { releaseB = resolve; });
+  const firstA = lockSubject.withProductRequestLock(locks, 'product-a', operation(promiseA));
+  const duplicateA = lockSubject.withProductRequestLock(locks, 'product-a', operation(promiseA));
+  const firstB = lockSubject.withProductRequestLock(locks, 'product-b', operation(promiseB));
+  assert.deepEqual(await duplicateA, { executed: false });
+  assert.equal(locks.size, 2);
+  releaseA({ confirmBeforeOpen: true });
+  releaseB({ confirmBeforeOpen: true });
+  await Promise.all([firstA, firstB]);
+  assert.equal(modalCount, 2);
+  assert.equal(locks.size, 0);
 });
 
 test('confirmation is shown only when requested and cancellation never opens WhatsApp', () => {

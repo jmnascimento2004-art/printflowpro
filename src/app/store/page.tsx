@@ -32,6 +32,7 @@ import { formatCEP, normalizeRichTextHtml } from '@/lib/utils';
 import { formatCurrency, formatUnitCurrency, getCatalogPricePresentation } from '@/lib/pricing';
 import { getPrimaryProductImage } from '@/lib/product-images';
 import { safeHref } from '@/lib/safe-url';
+import { withProductRequestLock } from '@/lib/store/product-request-lock';
 import { StorePWARegister } from '@/components/store/store-pwa-register';
 import StoreMobileBottomNavigation from '@/components/store/StoreMobileBottomNavigation';
 import { StoreAccountMenu } from '@/components/store/StoreAccountMenu';
@@ -436,6 +437,7 @@ export default function StorefrontPage() {
   const [activeAdvancedConfigProduct, setActiveAdvancedConfigProduct] = useState<Product | null>(null);
   const [whatsAppRequestPending, setWhatsAppRequestPending] = useState(false);
   const [pendingWhatsAppOpen, setPendingWhatsAppOpen] = useState<{ href: string; message: string } | null>(null);
+  const whatsAppProductRequestLocksRef = useRef<Set<string>>(new Set());
 
   // Client checkout info
   const [clientName, setClientName] = useState('');
@@ -661,39 +663,40 @@ export default function StorefrontPage() {
   };
 
   const handleWhatsAppProductRequest = async (payload: ProductConfiguratorCartPayload) => {
-    if (whatsAppRequestPending) return;
-    setWhatsAppRequestPending(true);
-    try {
-      const response = await fetch('/api/store/whatsapp/product-request', {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: payload.product_id,
-          quantity: payload.quantity,
-          dimensions: payload.dimensions,
-          selectedOptions: payload.selected_options,
-          productionDays: payload.production_days,
-          estimatedDeadline: payload.production_time || payload.product.delivery_time || payload.product.pricing_details?.delivery_time,
-          customerName: clientName,
-          customerPhone: clientPhone,
-          notes: clientNotes
-        })
-      });
-      const result = await response.json() as StoreWhatsAppRequestResult;
-      if (!response.ok) throw new Error(result.error || 'Não foi possível preparar a mensagem.');
-      if (!result.enabled) {
-        alert('As solicitações por WhatsApp estão temporariamente indisponíveis.');
-        return;
+    await withProductRequestLock(whatsAppProductRequestLocksRef.current, payload.product_id, async () => {
+      setWhatsAppRequestPending(true);
+      try {
+        const response = await fetch('/api/store/whatsapp/product-request', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: payload.product_id,
+            quantity: payload.quantity,
+            dimensions: payload.dimensions,
+            selectedOptions: payload.selected_options,
+            productionDays: payload.production_days,
+            estimatedDeadline: payload.production_time || payload.product.delivery_time || payload.product.pricing_details?.delivery_time,
+            customerName: clientName,
+            customerPhone: clientPhone,
+            notes: clientNotes
+          })
+        });
+        const result = await response.json() as StoreWhatsAppRequestResult;
+        if (!response.ok) throw new Error(result.error || 'Não foi possível preparar a mensagem.');
+        if (!result.enabled) {
+          alert('As solicitações por WhatsApp estão temporariamente indisponíveis.');
+          return;
+        }
+        if (!result.href || !result.message) throw new Error('Não foi possível preparar a mensagem.');
+        if (result.confirmBeforeOpen) setPendingWhatsAppOpen({ href: result.href, message: result.message });
+        else window.open(result.href, '_blank', 'noopener,noreferrer');
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Não foi possível preparar a mensagem agora.');
+      } finally {
+        setWhatsAppRequestPending(false);
       }
-      if (!result.href || !result.message) throw new Error('Não foi possível preparar a mensagem.');
-      if (result.confirmBeforeOpen) setPendingWhatsAppOpen({ href: result.href, message: result.message });
-      else window.open(result.href, '_blank', 'noopener,noreferrer');
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível preparar a mensagem agora.');
-    } finally {
-      setWhatsAppRequestPending(false);
-    }
+    });
   };
 
   const handleRemoveFromCart = (idx: number) => {
