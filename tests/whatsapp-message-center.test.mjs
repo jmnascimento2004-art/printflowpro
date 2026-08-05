@@ -59,14 +59,17 @@ test('existing admin flows resolve templates and keep manual opening', async () 
   }
 });
 
-test('public store request uses the central default without reading administrative tables', async () => {
-  const [orderHelper, storePage] = await Promise.all([
-    read('../src/lib/whatsapp-order.ts'),
+test('public store request resolves the effective template through a server-only boundary', async () => {
+  const [route, resolver, storePage] = await Promise.all([
+    read('../src/app/api/store/whatsapp/product-request/route.ts'),
+    read('../src/lib/store/whatsapp-product-request.ts'),
     read('../src/app/store/page.tsx')
   ]);
-  assert.match(orderHelper, /getWhatsAppTemplateDefinition\('store_product_request'\)/);
-  assert.match(storePage, /buildWhatsAppOrderMessage/);
-  assert.doesNotMatch(storePage, /whatsapp_message_templates|whatsapp_settings/);
+  assert.match(resolver, /^import 'server-only';/);
+  assert.match(route, /resolveStoreLookupHostname/);
+  assert.match(route, /store_product_request/);
+  assert.match(storePage, /\/api\/store\/whatsapp\/product-request/);
+  assert.doesNotMatch(storePage, /whatsapp_message_templates|whatsapp_settings|service_role/i);
 });
 
 test('client files never import the server admin Supabase client', async () => {
