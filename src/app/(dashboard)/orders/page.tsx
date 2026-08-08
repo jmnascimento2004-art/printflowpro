@@ -38,6 +38,7 @@ import { formatUnitCurrency } from '@/lib/pricing';
 import { isActiveOrder, isCancelledOrder, isProductionActiveOrder, normalizeOrderOperationalStatus } from '@/lib/order-status';
 import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
+import { resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
 import {
@@ -953,7 +954,7 @@ export default function OrdersPage() {
     return isPast && active;
   };
 
-  const sendPixWhatsApp = (order: Order) => {
+  const sendPixWhatsApp = async (order: Order) => {
     const customer = customers.find(c => c.name === order.customer_name);
     const phone = customer?.phone;
     if (!phone) {
@@ -983,9 +984,23 @@ export default function OrdersPage() {
     });
 
     const greeting = getWhatsAppTimeGreeting();
-    const message = `${greeting}, *${order.customer_name}*! 👋\nOlá, tudo bem?\n\nSegue a cobrança do seu pedido *${formatOrderDisplayNumber(order.number)}*:\n\n💰 *Valor a pagar:* *${formatCurrency(balance)}*\n\n🔑 *${pixInfo.label}:*\n${pixInfo.value}${pixInfo.securityText}\n\n✅ Após realizar o pagamento, por favor nos envie o comprovante por aqui.\n\nQualquer dúvida, estamos à disposição! 😊\n\nAtenciosamente,\n*${company?.name || "PrintFlowPRO"}*`;
+    const resolved = await resolveWhatsAppTemplate(company.id, 'order_payment_pending', {
+      saudacao: greeting,
+      cliente_nome: order.customer_name,
+      pedido_codigo: formatOrderDisplayNumber(order.number),
+      saldo_pendente: formatCurrency(balance),
+      chave_pix_rotulo: pixInfo.label,
+      chave_pix: pixInfo.value,
+      seguranca_pix: pixInfo.securityText,
+      empresa_nome: company?.name || 'PrintFlowPRO'
+    });
+    if (!resolved.active) {
+      alert('Este modelo está inativo na Central de WhatsApp.');
+      return;
+    }
+    if (resolved.settings.confirm_before_open && !window.confirm('Abrir o WhatsApp com a cobrança preparada?')) return;
 
-    const opened = openWhatsAppUrl(phone, message);
+    const opened = openWhatsAppUrl(phone, resolved.renderedContent, resolved.settings);
     if (!opened) {
       alert("Cliente sem telefone válido para WhatsApp.");
     }

@@ -29,7 +29,8 @@ import {
   formatCEP,
   getPublicImageUrl
 } from '@/lib/utils';
-import { openWhatsAppWithMessage } from '@/lib/whatsapp-order';
+import { openWhatsAppUrl } from '@/lib/whatsapp';
+import { resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
@@ -265,7 +266,7 @@ export default function QuotesPage() {
     setIsCreating(true);
   };
 
-  const sendQuoteProposalWhatsApp = (quote: Quote) => {
+  const sendQuoteProposalWhatsApp = async (quote: Quote) => {
     const customer = resolveQuoteCustomer(quote);
     const phone = customer?.phone || quote.customer_phone;
     if (!phone) {
@@ -287,25 +288,22 @@ export default function QuotesPage() {
       });
     }
 
-    const message = [
-      `Olá, ${customer?.name || getQuoteCustomerName(quote)}! Tudo bem?`,
-      '',
-      `Segue a proposta/orçamento #${quote.number} da ${company?.name || 'CibelePRINT'}.`,
-      '',
-      `Valor total: ${formatCurrency(quote.total_amount)}`,
-      `Validade: ${new Date(quote.valid_until).toLocaleDateString('pt-BR')}`,
-      '',
-      'Estou enviando o PDF do orçamento para sua conferência.',
-      'Por segurança do navegador, o PDF deve ser anexado manualmente nesta conversa.',
-      '',
-      'Qualquer dúvida, fico à disposição.',
-      '',
-      `Atenciosamente\n${company?.name || 'CibelePRINT'}`
-    ].join('\n');
+    const resolved = await resolveWhatsAppTemplate(company.id, 'quote_proposal', {
+      cliente_nome: customer?.name || getQuoteCustomerName(quote),
+      orcamento_codigo: quote.number,
+      empresa_nome: company?.name || 'CibelePRINT',
+      valor_total: formatCurrency(quote.total_amount),
+      validade_orcamento: new Date(quote.valid_until).toLocaleDateString('pt-BR')
+    });
+    if (!resolved.active) {
+      alert('Este modelo está inativo na Central de WhatsApp.');
+      return;
+    }
+    if (resolved.settings.confirm_before_open && !window.confirm('Abrir o WhatsApp com a proposta preparada?')) return;
 
     if (typeof window === 'undefined') return;
     window.setTimeout(() => {
-      const opened = openWhatsAppWithMessage(phone, message);
+      const opened = openWhatsAppUrl(phone, resolved.renderedContent, resolved.settings);
       if (!opened) {
         alert('Não foi possível abrir o WhatsApp. Verifique o telefone do cliente.');
         return;

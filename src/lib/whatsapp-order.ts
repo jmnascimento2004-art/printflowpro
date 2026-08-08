@@ -2,6 +2,8 @@ import type { Product, ProductSaleMode } from '@/lib/dummy-data';
 import type { PricingSelectedOption } from '@/lib/pricing';
 import { formatCurrency } from '@/lib/pricing';
 import { normalizeWhatsAppPhone, openWhatsAppUrl } from '@/lib/whatsapp';
+import { renderWhatsAppTemplate } from '@/lib/whatsapp/template-engine';
+import { getWhatsAppTemplateDefinition } from '@/lib/whatsapp/template-registry';
 
 type WhatsAppSelectedOption = PricingSelectedOption & {
   group_name?: string;
@@ -82,26 +84,22 @@ export const buildWhatsAppOrderMessage = ({
     productionDays > 0 ? `+ ${productionDays} dia(s)` : ''
   ].filter(Boolean);
 
-  const lines = [
-    'Ola! Gostaria de solicitar este produto:',
-    '',
-    companyName ? `Empresa: ${companyName}` : null,
-    `Produto: ${productName}`,
-    `Tipo: ${resolvedSaleType}`,
-    `Quantidade: ${quantity}`,
-    dimensionsText ? `Medidas: ${dimensionsText}` : null,
-    lengthText ? `Metragem: ${lengthText}` : null,
-    optionsText ? `Opcoes: ${optionsText}` : null,
-    deadlineParts.length > 0 ? `Prazo: ${deadlineParts.join(' ')}` : null,
-    `Total estimado: ${formatCurrency(subtotal)}`,
-    customerName?.trim() ? `Cliente: ${customerName.trim()}` : null,
-    customerPhone?.trim() ? `Telefone: ${customerPhone.trim()}` : null,
-    notes?.trim() ? `Observacoes: ${notes.trim()}` : null,
-    '',
-    'Aguardo atendimento.'
-  ];
-
-  return lines.filter((line) => line !== null).join('\n');
+  const definition = getWhatsAppTemplateDefinition('store_product_request');
+  if (!definition) return '';
+  return renderWhatsAppTemplate(definition.defaultContent, definition, {
+    empresa_nome: companyName,
+    produto_nome: productName,
+    tipo_venda: resolvedSaleType,
+    quantidade: quantity,
+    medidas: dimensionsText,
+    metragem: lengthText,
+    opcoes: optionsText,
+    prazo: deadlineParts.join(' '),
+    valor_total: formatCurrency(subtotal),
+    cliente_nome: customerName?.trim(),
+    cliente_telefone: customerPhone?.trim(),
+    observacoes: notes?.trim()
+  }).replace(/^(Empresa|Medidas|Metragem|Opções|Prazo|Cliente|Telefone|Observações):\s*\n/gm, '');
 };
 
 export const normalizeBrazilWhatsAppPhone = (phone: string) => {
