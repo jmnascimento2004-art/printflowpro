@@ -2,7 +2,7 @@ import type { WhatsAppTemplateDefinition } from './types';
 
 const COMMON_SAMPLES = {
   cliente_nome: 'Maria Silva',
-  empresa_nome: 'CibelePRINT',
+  empresa_nome: 'Sua Empresa',
   saudacao: 'Olá',
   orcamento_codigo: 'ORC-0018',
   pedido_codigo: 'PED-0017',

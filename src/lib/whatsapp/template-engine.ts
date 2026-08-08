@@ -47,6 +47,17 @@ export function renderWhatsAppTemplate(
   });
 }
 
+export function resolveWhatsAppPreviewVariables(
+  definition: WhatsAppTemplateDefinition,
+  currentCompanyName?: string | null
+) {
+  const companyName = currentCompanyName?.trim();
+  return {
+    ...definition.sampleVariables,
+    empresa_nome: companyName || definition.sampleVariables.empresa_nome || 'Sua Empresa'
+  };
+}
+
 export function renderConfiguredWhatsAppTemplate(
   content: string,
   definition: WhatsAppTemplateDefinition,

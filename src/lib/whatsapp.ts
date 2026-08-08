@@ -6,6 +6,7 @@ export {
   openWhatsAppUrl,
   renderConfiguredWhatsAppTemplate,
   renderWhatsAppTemplate,
+  resolveWhatsAppPreviewVariables,
   validateWhatsAppTemplate,
   WHATSAPP_TEMPLATE_MAX_LENGTH
 } from '@/lib/whatsapp/template-engine';

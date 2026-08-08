@@ -19,6 +19,7 @@ const {
   normalizeWhatsAppTemplateContent,
   renderConfiguredWhatsAppTemplate,
   renderWhatsAppTemplate,
+  resolveWhatsAppPreviewVariables,
   validateWhatsAppTemplate
 } = module.exports;
 
@@ -95,4 +96,26 @@ test('applies company-name preference and signature in one configured render', (
     { include_company_name: false, signature: 'Equipe comercial' }
   );
   assert.equal(rendered, 'Olá, Maria.\n\nEquipe comercial');
+});
+
+test('resolves preview company from the current authenticated tenant without stale values', () => {
+  const tenantA = resolveWhatsAppPreviewVariables(definition, 'TESTE_WHATSAPP_CENTER_A_20260808');
+  const tenantB = resolveWhatsAppPreviewVariables(definition, 'TESTE_WHATSAPP_CENTER_B_20260808');
+  const cibele = resolveWhatsAppPreviewVariables(definition, '  CibelePRINT  ');
+
+  assert.equal(tenantA.empresa_nome, 'TESTE_WHATSAPP_CENTER_A_20260808');
+  assert.equal(tenantB.empresa_nome, 'TESTE_WHATSAPP_CENTER_B_20260808');
+  assert.equal(cibele.empresa_nome, 'CibelePRINT');
+  assert.equal(tenantB.cliente_nome, definition.sampleVariables.cliente_nome);
+  assert.notEqual(tenantA.empresa_nome, tenantB.empresa_nome);
+});
+
+test('uses the neutral registry sample when the current company is absent or blank', () => {
+  const neutralDefinition = {
+    ...definition,
+    sampleVariables: { ...definition.sampleVariables, empresa_nome: 'Sua Empresa' }
+  };
+
+  assert.equal(resolveWhatsAppPreviewVariables(neutralDefinition).empresa_nome, 'Sua Empresa');
+  assert.equal(resolveWhatsAppPreviewVariables(neutralDefinition, '   ').empresa_nome, 'Sua Empresa');
 });

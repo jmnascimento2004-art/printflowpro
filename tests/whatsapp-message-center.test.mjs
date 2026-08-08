@@ -45,6 +45,31 @@ test('admin page includes permissions-safe route UI, tabs, editor, chips and pre
   assert.match(page, /xl:grid-cols-\[270px_minmax\(0,1fr\)_320px\]/);
 });
 
+test('WhatsApp editor exposes 44px touch targets for variable chips and preview copy', async () => {
+  const page = await read('../src/app/(dashboard)/whatsapp/page.tsx');
+  assert.match(page, /insertVariable\(variable\)[\s\S]{0,180}className="[^"]*min-h-11[^"]*focus-visible:ring-2/);
+  assert.match(page, /aria-label="Copiar pré-visualização"[\s\S]{0,180}className="[^"]*min-h-11/);
+  assert.doesNotMatch(page, /insertVariable\(variable\)[\s\S]{0,180}min-h-9/);
+  assert.match(page, /navigator\.clipboard\.writeText\(preview\)/);
+  assert.match(page, /type="button" onClick=\{\(\) => insertVariable\(variable\)\}/);
+  assert.match(page, /flex flex-wrap gap-2/);
+});
+
+test('admin preview derives only the company name already loaded by the authenticated context', async () => {
+  const [page, registry, engine] = await Promise.all([
+    read('../src/app/(dashboard)/whatsapp/page.tsx'),
+    read('../src/lib/whatsapp/template-registry.ts'),
+    read('../src/lib/whatsapp/template-engine.ts')
+  ]);
+  assert.doesNotMatch(registry, /empresa_nome:\s*'CibelePRINT'/);
+  assert.match(registry, /empresa_nome:\s*'Sua Empresa'/);
+  assert.match(page, /resolveWhatsAppPreviewVariables\(selected\.definition, company\.name\)/);
+  assert.match(page, /\[company\.name, selected\.definition\]/);
+  assert.match(engine, /currentCompanyName\?\.trim\(\)/);
+  assert.doesNotMatch(page, /from\(['"]companies['"]\)|select\([^)]*company_name/);
+  assert.doesNotMatch(page, /useState[^;]*company.*name/i);
+});
+
 test('existing admin flows resolve templates and keep manual opening', async () => {
   const files = await Promise.all([
     read('../src/app/(dashboard)/quotes/page.tsx'),
