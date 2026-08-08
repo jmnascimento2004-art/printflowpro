@@ -1,7 +1,8 @@
 import type { WhatsAppSettings, WhatsAppTemplateDefinition } from './types';
+import type { WhatsAppVariableValue } from './variable-contract';
 
 export const WHATSAPP_TEMPLATE_MAX_LENGTH = 4000;
-const VARIABLE_PATTERN = /\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/g;
+const VARIABLE_PATTERN = /\{\{\s*([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)\s*\}\}/g;
 const PROTOCOL_PATTERN = /(?:https?:|javascript:|data:|\/\/)/i;
 
 export function normalizeWhatsAppTemplateContent(content: string) {
@@ -23,7 +24,7 @@ export function validateWhatsAppTemplate(content: string, definition: WhatsAppTe
   const unknownVariables = variables.filter((variable) => !allowed.has(variable));
   const malformedVariables = [...normalized.matchAll(/\{\{([^}]*)\}\}/g)]
     .map((match) => match[1].trim())
-    .filter((variable) => !/^[a-z][a-z0-9_]*$/.test(variable));
+    .filter((variable) => !/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/.test(variable));
 
   const errors: string[] = [];
   if (!normalized) errors.push('A mensagem não pode ficar vazia.');
@@ -37,7 +38,7 @@ export function validateWhatsAppTemplate(content: string, definition: WhatsAppTe
 export function renderWhatsAppTemplate(
   content: string,
   definition: WhatsAppTemplateDefinition,
-  values: Readonly<Record<string, string | number | null | undefined>>
+  values: Readonly<Record<string, WhatsAppVariableValue | undefined>>
 ) {
   const allowed = new Set(definition.allowedVariables);
   return normalizeWhatsAppTemplateContent(content).replace(VARIABLE_PATTERN, (fullMatch, variable: string) => {
@@ -54,18 +55,19 @@ export function resolveWhatsAppPreviewVariables(
   const companyName = currentCompanyName?.trim();
   return {
     ...definition.sampleVariables,
-    empresa_nome: companyName || definition.sampleVariables.empresa_nome || 'Sua Empresa'
+    empresa_nome: companyName || definition.sampleVariables.empresa_nome || 'Sua Empresa',
+    'empresa.nome': companyName || definition.sampleVariables['empresa.nome'] || 'Sua Empresa'
   };
 }
 
 export function renderConfiguredWhatsAppTemplate(
   content: string,
   definition: WhatsAppTemplateDefinition,
-  values: Readonly<Record<string, string | number | null | undefined>>,
+  values: Readonly<Record<string, WhatsAppVariableValue | undefined>>,
   settings?: Pick<WhatsAppSettings, 'include_company_name' | 'signature'>
 ) {
   const effectiveValues = settings?.include_company_name === false
-    ? { ...values, empresa_nome: '' }
+    ? { ...values, empresa_nome: '', 'empresa.nome': '' }
     : values;
   let rendered = renderWhatsAppTemplate(content, definition, effectiveValues)
     .replace(/\n[ \t]+\n/g, '\n\n')

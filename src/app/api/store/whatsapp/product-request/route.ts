@@ -3,6 +3,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/server-admin';
 import { isLocalStoreHost, normalizeStoreHost } from '@/lib/store/normalize-store-host';
 import { resolveStoreLookupHostname } from '@/lib/store/resolve-store-lookup-hostname.mjs';
 import { resolveStoreProductRequest, type StoreProductRequestInput } from '@/lib/store/whatsapp-product-request';
+import { resolveWhatsAppCompanyVariables } from '@/lib/whatsapp/variable-resolver.server';
 
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store, max-age=0' };
@@ -29,14 +30,29 @@ export async function POST(request: NextRequest) {
     const company = companies.data[0];
     const [product, publicSettings, template, whatsappSettings] = await Promise.all([
       supabase.from('products').select('id,name,active,catalog_active,sales_price,pricing_type').eq('id', productId).eq('company_id', company.id).maybeSingle(),
-      supabase.from('settings').select('catalog_whatsapp').eq('company_id', company.id).maybeSingle(),
+      supabase.from('settings').select('company_id,catalog_whatsapp').eq('company_id', company.id).maybeSingle(),
       supabase.from('whatsapp_message_templates').select('content,active').eq('company_id', company.id).eq('event_key', 'store_product_request').maybeSingle(),
-      supabase.from('whatsapp_settings').select('country_code,business_phone,signature,open_mode,confirm_before_open,include_company_name').eq('company_id', company.id).maybeSingle()
+      supabase.from('whatsapp_settings').select('company_id,country_code,business_phone,signature,open_mode,confirm_before_open,include_company_name').eq('company_id', company.id).maybeSingle()
     ]);
     if (product.error || publicSettings.error) return json({ error: 'Solicitação indisponível.' }, 503);
     const schemaMissing = [template.error, whatsappSettings.error].some((error) => Boolean(error?.code && missingSchemaCodes.has(error.code)));
     if ((template.error || whatsappSettings.error) && !schemaMissing) console.error('[Store WhatsApp request]', { stage: 'settings', code: template.error?.code || whatsappSettings.error?.code });
-    const result = resolveStoreProductRequest(input, { companyName: company.name, publicPhone: publicSettings.data?.catalog_whatsapp || '', product: product.data, template: template.error ? null : template.data, settings: whatsappSettings.error ? null : whatsappSettings.data });
+    const companyResolution = await resolveWhatsAppCompanyVariables({
+      companyId: company.id,
+      trustedCompanyId: company.id,
+      eventKey: 'store_product_request',
+      existingCompany: company,
+      existingSettings: publicSettings.data,
+      existingWhatsAppSettings: whatsappSettings.error ? null : whatsappSettings.data
+    });
+    const result = resolveStoreProductRequest(input, {
+      companyName: companyResolution.variables['empresa.nome'] || '',
+      publicPhone: companyResolution.variables['empresa.whatsapp'] || '',
+      effectiveBusinessPhone: companyResolution.metadataSanitized.effectiveBusinessPhone,
+      product: product.data,
+      template: template.error ? null : template.data,
+      settings: whatsappSettings.error ? null : whatsappSettings.data
+    });
     if (!result.ok) return json({ error: result.reason === 'STORE_PHONE_UNAVAILABLE' ? 'WhatsApp da empresa não configurado.' : 'Produto indisponível.' }, result.status);
     return json(result);
   } catch (error) {

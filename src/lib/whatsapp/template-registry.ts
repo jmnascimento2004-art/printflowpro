@@ -117,7 +117,7 @@ Aguardo atendimento.`,
   }
 ] as const satisfies readonly WhatsAppTemplateDefinition[];
 
-export type WhatsAppEventKey = (typeof WHATSAPP_TEMPLATE_REGISTRY)[number]['eventKey'];
+export type { WhatsAppEventKey } from './variable-contract';
 
 export function getWhatsAppTemplateDefinition(eventKey: string) {
   return WHATSAPP_TEMPLATE_REGISTRY.find((definition) => definition.eventKey === eventKey);

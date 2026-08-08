@@ -1,9 +1,11 @@
+import type { WhatsAppEventKey } from './variable-contract';
+
 export type WhatsAppTemplateVariable = string;
 
 export type WhatsAppTemplateCategory = 'Orçamentos' | 'Pedidos' | 'Produção' | 'Atendimento';
 
 export interface WhatsAppTemplateDefinition {
-  eventKey: string;
+  eventKey: WhatsAppEventKey;
   name: string;
   description: string;
   category: WhatsAppTemplateCategory;
