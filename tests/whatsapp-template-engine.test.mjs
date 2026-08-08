@@ -34,12 +34,25 @@ const definition = {
   enabledByDefault: true
 };
 
+const canonicalDefinition = {
+  ...definition,
+  allowedVariables: [...definition.allowedVariables, 'empresa.nome'],
+  sampleVariables: { ...definition.sampleVariables, 'empresa.nome': 'CibelePRINT' }
+};
+
 test('extracts unique variables in declaration order', () => {
   assert.deepEqual(extractWhatsAppTemplateVariables('{{cliente_nome}} {{empresa_nome}} {{cliente_nome}}'), ['cliente_nome', 'empresa_nome']);
 });
 
 test('validates known variables', () => {
   assert.equal(validateWhatsAppTemplate('Olá {{cliente_nome}}', definition).valid, true);
+});
+
+test('accepts registered namespaced variables without arbitrary nested lookup', () => {
+  assert.equal(validateWhatsAppTemplate('Empresa: {{empresa.nome}}', canonicalDefinition).valid, true);
+  assert.equal(renderWhatsAppTemplate('{{empresa.nome}}', canonicalDefinition, { 'empresa.nome': 'Empresa Real' }), 'Empresa Real');
+  assert.equal(validateWhatsAppTemplate('{{empresa.segredo}}', canonicalDefinition).valid, false);
+  assert.equal(validateWhatsAppTemplate('{{empresa.nome.interno}}', canonicalDefinition).valid, false);
 });
 
 test('rejects unknown variables', () => {

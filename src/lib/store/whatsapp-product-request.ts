@@ -5,7 +5,7 @@ import type { WhatsAppSettings } from '@/lib/whatsapp/types';
 
 export type StoreProductRequestInput = { productId?: unknown; quantity?: unknown; dimensions?: unknown; selectedOptions?: unknown; productionDays?: unknown; estimatedDeadline?: unknown; customerName?: unknown; customerPhone?: unknown; notes?: unknown };
 export type StoreProductRequestContext = {
-  companyName: string; publicPhone: string;
+  companyName: string; publicPhone: string; effectiveBusinessPhone?: string;
   product: { id: string; name: string; active: boolean; catalog_active: boolean; sales_price: number; pricing_type?: string | null } | null;
   template: { content: string; active: boolean } | null;
   settings: Partial<WhatsAppSettings> | null;
@@ -36,7 +36,7 @@ export function resolveStoreProductRequest(input: StoreProductRequestInput, cont
   const definition = getWhatsAppTemplateDefinition('store_product_request');
   if (!definition) throw new Error('STORE_TEMPLATE_NOT_FOUND');
   if (!context.product || !context.product.active || !context.product.catalog_active) return { ok: false as const, status: 404, reason: 'PRODUCT_UNAVAILABLE' as const };
-  const settings: WhatsAppSettings = { company_id: '', country_code: context.settings?.country_code || '55', business_phone: context.settings?.business_phone || context.publicPhone || null, signature: context.settings?.signature || null, open_mode: context.settings?.open_mode || 'auto', confirm_before_open: context.settings?.confirm_before_open ?? true, include_company_name: context.settings?.include_company_name ?? true };
+  const settings: WhatsAppSettings = { company_id: '', country_code: context.settings?.country_code || '55', business_phone: context.effectiveBusinessPhone || context.settings?.business_phone || context.publicPhone || null, signature: context.settings?.signature || null, open_mode: context.settings?.open_mode || 'auto', confirm_before_open: context.settings?.confirm_before_open ?? true, include_company_name: context.settings?.include_company_name ?? true };
   if (context.template?.active === false) return { ok: true as const, enabled: false as const, reason: 'MESSAGE_TEMPLATE_DISABLED' as const };
   const quantity = positiveInteger(input.quantity);
   const days = Math.max(0, Math.min(365, Number(input.productionDays) || 0));
