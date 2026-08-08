@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getWhatsAppTemplateDefinition, WHATSAPP_TEMPLATE_REGISTRY } from './template-registry';
 import { normalizeWhatsAppPhone, renderConfiguredWhatsAppTemplate, validateWhatsAppTemplate } from './template-engine';
 import type { WhatsAppMessageTemplate, WhatsAppResolvedTemplate, WhatsAppSettings } from './types';
+import type { WhatsAppResolvedVariables } from './variable-contract';
 
 const MISSING_SCHEMA_CODES = new Set(['42P01', 'PGRST204', 'PGRST205']);
 
@@ -95,7 +96,7 @@ export async function saveWhatsAppSettings(settings: WhatsAppSettings, userId?: 
 export async function resolveWhatsAppTemplate(
   companyId: string,
   eventKey: string,
-  values: Readonly<Record<string, string | number | null | undefined>>
+  values: WhatsAppResolvedVariables
 ): Promise<WhatsAppResolvedTemplate> {
   const definition = getWhatsAppTemplateDefinition(eventKey);
   if (!definition) throw new Error('Evento de WhatsApp desconhecido.');

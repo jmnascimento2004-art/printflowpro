@@ -89,7 +89,71 @@ test('route derives tenant from hostname, ignores body company id and filters pr
 test('public response is minimized and client never imports service role', () => {
   assert.doesNotMatch(page, /server-admin|SUPABASE_SERVICE_ROLE|whatsapp_message_templates|whatsapp_settings/);
   assert.doesNotMatch(route, /return json\(\{[^}]*company_id/s);
-  assert.match(route, /select\('country_code,business_phone,signature,open_mode,confirm_before_open,include_company_name'\)/);
+  assert.doesNotMatch(route, /metadataSanitized[^\n]*return json/);
+});
+
+test('Store handler executes least-privilege projections and passes only preloaded tenant sources', async () => {
+  const selections = [];
+  const filters = [];
+  const rows = {
+    products: { id: 'p1', name: 'Produto do servidor', active: true, catalog_active: true, sales_price: 10, pricing_type: 'Unidade' },
+    settings: { company_id: 'company-a', catalog_whatsapp: '51999999999' },
+    whatsapp_message_templates: null,
+    whatsapp_settings: { company_id: 'company-a', country_code: '55', business_phone: null, signature: null, open_mode: 'auto', confirm_before_open: false, include_company_name: true }
+  };
+  const supabase = {
+    from(table) {
+      return {
+        select(columns) {
+          selections.push({ table, columns });
+          const builder = {
+            or() { return builder; },
+            eq(column, value) { filters.push({ table, column, value }); return builder; },
+            async limit() { return { data: [{ id: 'company-a', name: 'Empresa A' }], error: null }; },
+            async maybeSingle() { return { data: rows[table], error: null }; }
+          };
+          return builder;
+        }
+      };
+    }
+  };
+  let resolverContext;
+  const routeSubject = await compile('../src/app/api/store/whatsapp/product-request/route.ts', {
+    'next/server': { NextResponse: { json: (body, options) => ({ body, ...options }) } },
+    '@/lib/supabase/server-admin': { getSupabaseAdminClient: () => supabase },
+    '@/lib/store/normalize-store-host': { isLocalStoreHost: () => false, normalizeStoreHost: (value) => String(value || '').split(':')[0] },
+    '@/lib/store/resolve-store-lookup-hostname.mjs': { resolveStoreLookupHostname: (value) => value },
+    '@/lib/store/whatsapp-product-request': subject,
+    '@/lib/whatsapp/variable-resolver.server': {
+      resolveWhatsAppCompanyVariables: async (context) => {
+        resolverContext = context;
+        return {
+          variables: { 'empresa.nome': context.existingCompany.name, 'empresa.whatsapp': context.existingSettings.catalog_whatsapp },
+          missing: [],
+          metadataSanitized: { eventKey: context.eventKey, effectiveBusinessPhone: '5551999999999', businessPhoneSource: 'catalog_whatsapp', queryCounts: { company: 0, settings: 0, whatsappSettings: 0 } }
+        };
+      }
+    }
+  });
+  const response = await routeSubject.POST({
+    headers: { get: (name) => name === 'host' ? 'store.example.com' : null },
+    nextUrl: { hostname: 'store.example.com' },
+    json: async () => ({ productId: 'p1', quantity: 1 })
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(selections.find((entry) => entry.table === 'companies').columns, 'id,name');
+  assert.equal(selections.find((entry) => entry.table === 'settings').columns, 'company_id,catalog_whatsapp');
+  assert.equal(selections.find((entry) => entry.table === 'whatsapp_settings').columns, 'company_id,country_code,business_phone,signature,open_mode,confirm_before_open,include_company_name');
+  assert.deepEqual(filters.filter((entry) => entry.table === 'products'), [
+    { table: 'products', column: 'id', value: 'p1' },
+    { table: 'products', column: 'company_id', value: 'company-a' }
+  ]);
+  assert.deepEqual(Object.keys(resolverContext.existingCompany).sort(), ['id', 'name']);
+  assert.deepEqual(Object.keys(resolverContext.existingSettings).sort(), ['catalog_whatsapp', 'company_id']);
+  assert.equal(resolverContext.companyId, 'company-a');
+  assert.equal(resolverContext.trustedCompanyId, 'company-a');
+  assert.equal(resolverContext.eventKey, 'store_product_request');
 });
 
 test('store performs one request on explicit click and keeps visual pending protection', () => {
