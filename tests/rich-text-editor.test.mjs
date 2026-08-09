@@ -7,6 +7,7 @@ import {
   normalizeRichTextUrl,
   rangeBelongsToEditor,
   rangeHasSelectedText,
+  richTextToPlainText,
   restoreEditorRange,
   sanitizeRichTextHtml,
   stripRichTextHtml
@@ -35,6 +36,59 @@ test('removes executable markup, event handlers and unsafe CSS', () => {
 
   assert.equal(result, '<p><span>Seguro</span></p>');
   assert.doesNotMatch(result, /script|iframe|onerror|onmouseover|javascript|expression|data:image/i);
+});
+
+test('converts sanitized rich text to readable plain text for message channels', () => {
+  const input = '<p>Banner <strong>premium</strong><br>Segunda linha</p><ul><li>Primeiro</li><li>Segundo</li></ul><script>alert(1)</script><style>body{display:none}</style>';
+  assert.equal(
+    richTextToPlainText(input),
+    'Banner premium\nSegunda linha\n- Primeiro\n- Segundo'
+  );
+  assert.equal(richTextToPlainText('<p>Seguro</p><script>alert(1)'), 'Seguro');
+});
+
+test('removes entity-encoded executable content without damaging legitimate encoded text', () => {
+  assert.equal(richTextToPlainText('&lt;script&gt;alert(1)&lt;/script&gt;'), '');
+  assert.equal(richTextToPlainText('&lt;style&gt;body{display:none}&lt;/style&gt;'), '');
+  assert.equal(
+    richTextToPlainText('Produto premium&lt;script&gt;alert(1)&lt;/script&gt;Tamanho A4'),
+    'Produto premiumTamanho A4'
+  );
+  assert.equal(
+    richTextToPlainText('Produto premium&lt;style&gt;body{display:none}&lt;/style&gt;Tamanho A4'),
+    'Produto premiumTamanho A4'
+  );
+  assert.equal(richTextToPlainText('&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;'), '');
+  assert.equal(richTextToPlainText('&lt;strong&gt;Premium&lt;/strong&gt;'), 'Premium');
+  assert.equal(richTextToPlainText('&lt;p&gt;Parágrafo&lt;/p&gt;'), 'Parágrafo');
+  assert.equal(richTextToPlainText('Use &lt; 10 unidades &amp; mantenha o texto'), 'Use < 10 unidades & mantenha o texto');
+});
+
+test('removes numeric and mixed entity executable blocks with bounded decoding', () => {
+  for (const input of [
+    '&#60;script&#62;alert(1)&#60;/script&#62;',
+    '&#x3c;script&#x3e;alert(1)&#x3c;/script&#x3e;',
+    '&#X3C;script&#X3E;alert(1)&#X3C;/script&#X3E;',
+    '&lt;script&#62;alert(1)&lt;/script&#62;',
+    '&#60;script&gt;alert(1)&#60;/script&gt;',
+    '&amp;#60;script&amp;#62;alert(1)&amp;#60;/script&amp;#62;',
+    '&amp;#x3c;script&amp;#x3e;alert(1)&amp;#x3c;/script&amp;#x3e;',
+    '&amp;amp;#60;script&amp;amp;#62;alert(1)&amp;amp;#60;/script&amp;amp;#62;',
+    '&#60;style&#62;body{display:none}&#60;/style&#62;',
+    '&#x3c;style&#x3e;.x{color:red}&#x3c;/style&#x3e;',
+    '&#x3c;style&gt;.x{color:red}&#x3c;/style&gt;'
+  ]) {
+    assert.equal(richTextToPlainText(input), '', input);
+  }
+  assert.equal(
+    richTextToPlainText('Produto premium&#60;script&#62;alert(1)&#60;/script&#62;Tamanho A4'),
+    'Produto premiumTamanho A4'
+  );
+  assert.equal(
+    richTextToPlainText('Produto premium&#x3c;style&#x3e;.x{color:red}&#x3c;/style&#x3e;Tamanho A4'),
+    'Produto premiumTamanho A4'
+  );
+  assert.equal(richTextToPlainText('5 &#60; 10'), '5 < 10');
 });
 
 test('accepts only approved link protocols and hardens external links', () => {

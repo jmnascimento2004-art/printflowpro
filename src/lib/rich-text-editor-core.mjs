@@ -33,9 +33,20 @@ function decodeRichTextEntities(value = '') {
       .replace(/&gt;/gi, '>')
       .replace(/&quot;/gi, '"')
       .replace(/&#39;/gi, "'")
-      .replace(/&nbsp;/gi, ' ');
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&#(?:x([0-9a-f]{1,6})|([0-9]{1,7}));/gi, (entity, hexValue, decimalValue) => {
+        const codePoint = Number.parseInt(hexValue || decimalValue, hexValue ? 16 : 10);
+        if (!Number.isInteger(codePoint) || codePoint <= 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+          return '\ufffd';
+        }
+        return String.fromCodePoint(codePoint);
+      });
   }
   return decoded;
+}
+
+function removeExecutableRichTextBlocks(value = '') {
+  return value.replace(/<(script|style)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '');
 }
 
 function getAttribute(markup, name) {
@@ -85,6 +96,21 @@ export function stripRichTextHtml(value = '') {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function richTextToPlainText(value = '') {
+  const decoded = decodeRichTextEntities(String(value || ''));
+  const withoutExecutableContent = removeExecutableRichTextBlocks(decoded);
+  const sanitized = sanitizeRichTextHtml(withoutExecutableContent);
+  return removeExecutableRichTextBlocks(decodeRichTextEntities(sanitized))
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li\b[^>]*>/gi, '- ')
+    .replace(/<\/(p|div|li|blockquote|h[1-6]|ol|ul)>/gi, '\n')
+    .replace(/<\/?[a-z][^>]*>/gi, '')
+    .replace(/[^\S\r\n]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 

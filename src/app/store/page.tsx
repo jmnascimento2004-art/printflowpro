@@ -675,6 +675,7 @@ export default function StorefrontPage() {
             quantity: payload.quantity,
             dimensions: payload.dimensions,
             selectedOptions: payload.selected_options,
+            configurationSnapshot: payload.configuration_snapshot,
             productionDays: payload.production_days,
             estimatedDeadline: payload.production_time || payload.product.delivery_time || payload.product.pricing_details?.delivery_time,
             customerName: clientName,

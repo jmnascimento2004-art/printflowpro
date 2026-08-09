@@ -4,6 +4,7 @@
 import { buildWhatsAppUrl } from '@/lib/whatsapp';
 import {
   normalizeRichTextHtml as normalizeRichTextHtmlCore,
+  richTextToPlainText as richTextToPlainTextCore,
   sanitizeRichTextHtml as sanitizeRichTextHtmlCore,
   stripRichTextHtml as stripRichTextHtmlCore
 } from '@/lib/rich-text-editor-core.mjs';
@@ -324,6 +325,7 @@ export function formatCEP(cep: string): string {
 }
 
 export const stripRichTextHtml = stripRichTextHtmlCore;
+export const richTextToPlainText = richTextToPlainTextCore;
 export const normalizeRichTextHtml = normalizeRichTextHtmlCore;
 export const sanitizeRichTextHtml = sanitizeRichTextHtmlCore;
 
