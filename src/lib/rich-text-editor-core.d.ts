@@ -1,5 +1,6 @@
 export function normalizeRichTextUrl(value: unknown, options?: { assumeHttps?: boolean }): string;
 export function stripRichTextHtml(value?: string): string;
+export function richTextToPlainText(value?: string): string;
 export function sanitizeRichTextHtml(value?: string): string;
 export function normalizeRichTextHtml(value?: string): string;
 export function rangeBelongsToEditor(editor: HTMLElement | null, range: Range | null): boolean;

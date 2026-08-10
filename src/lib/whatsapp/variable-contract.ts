@@ -29,13 +29,36 @@ export const COMPANY_CANONICAL_TOKENS = [
   'empresa.banco'
 ] as const;
 
+export const CUSTOMER_CANONICAL_TOKENS = [
+  'cliente.nome',
+  'cliente.nome_fantasia',
+  'cliente.whatsapp',
+  'cliente.email'
+] as const;
+
+export const PRODUCT_CANONICAL_TOKENS = [
+  'produto.nome',
+  'produto.descricao',
+  'produto.categoria',
+  'produto.imagem',
+  'produto.tipo_venda',
+  'produto.preco'
+] as const;
+
 export type WhatsAppCompanyCanonicalToken = (typeof COMPANY_CANONICAL_TOKENS)[number];
-export type WhatsAppRegisteredToken = LegacyWhatsAppToken | WhatsAppCompanyCanonicalToken;
+export type WhatsAppCustomerCanonicalToken = (typeof CUSTOMER_CANONICAL_TOKENS)[number];
+export type WhatsAppProductCanonicalToken = (typeof PRODUCT_CANONICAL_TOKENS)[number];
+export type WhatsAppCanonicalToken = WhatsAppCompanyCanonicalToken | WhatsAppCustomerCanonicalToken | WhatsAppProductCanonicalToken;
+export type WhatsAppRegisteredToken = LegacyWhatsAppToken | WhatsAppCanonicalToken;
 
 export const LEGACY_TOKEN_ALIASES = {
   empresa_nome: 'empresa.nome',
-  chave_pix: 'empresa.pix_chave'
-} as const satisfies Partial<Record<LegacyWhatsAppToken, WhatsAppCompanyCanonicalToken>>;
+  chave_pix: 'empresa.pix_chave',
+  cliente_nome: 'cliente.nome',
+  cliente_telefone: 'cliente.whatsapp',
+  produto_nome: 'produto.nome',
+  tipo_venda: 'produto.tipo_venda'
+} as const satisfies Partial<Record<LegacyWhatsAppToken, WhatsAppCanonicalToken>>;
 
 const COMPANY_CONTACT_TOKENS = [
   'empresa.nome', 'empresa.whatsapp', 'empresa.telefone', 'empresa.email'
@@ -47,6 +70,27 @@ export const COMPANY_TOKENS_BY_EVENT = {
   production_status_changed: COMPANY_CONTACT_TOKENS,
   store_product_request: COMPANY_CONTACT_TOKENS
 } as const satisfies Record<WhatsAppEventKey, readonly WhatsAppCompanyCanonicalToken[]>;
+
+export const CUSTOMER_TOKENS_BY_EVENT = {
+  quote_proposal: CUSTOMER_CANONICAL_TOKENS,
+  order_payment_pending: [],
+  production_status_changed: [],
+  store_product_request: []
+} as const satisfies Record<WhatsAppEventKey, readonly WhatsAppCustomerCanonicalToken[]>;
+
+export const PRODUCT_TOKENS_BY_EVENT = {
+  quote_proposal: [],
+  order_payment_pending: [],
+  production_status_changed: [],
+  store_product_request: PRODUCT_CANONICAL_TOKENS
+} as const satisfies Record<WhatsAppEventKey, readonly WhatsAppProductCanonicalToken[]>;
+
+export const EVENT_DOMAIN_LOADING_MAP = {
+  quote_proposal: ['company'],
+  order_payment_pending: ['company'],
+  production_status_changed: ['company'],
+  store_product_request: ['company', 'product']
+} as const;
 
 export interface WhatsAppCompanyVariableSource {
   name: string | null;
@@ -82,7 +126,9 @@ export interface WhatsAppVariableResolutionResult {
 
 const REGISTERED_TOKENS = new Set<string>([
   ...LEGACY_WHATSAPP_TOKENS,
-  ...COMPANY_CANONICAL_TOKENS
+  ...COMPANY_CANONICAL_TOKENS,
+  ...CUSTOMER_CANONICAL_TOKENS,
+  ...PRODUCT_CANONICAL_TOKENS
 ]);
 
 export function isWhatsAppEventKey(value: string): value is WhatsAppEventKey {
@@ -94,7 +140,7 @@ export function isRegisteredWhatsAppToken(value: string): value is WhatsAppRegis
 }
 
 export function resolveCanonicalWhatsAppToken(token: WhatsAppRegisteredToken): WhatsAppRegisteredToken {
-  const aliases: Partial<Record<LegacyWhatsAppToken, WhatsAppCompanyCanonicalToken>> = LEGACY_TOKEN_ALIASES;
+  const aliases: Partial<Record<LegacyWhatsAppToken, WhatsAppCanonicalToken>> = LEGACY_TOKEN_ALIASES;
   return aliases[token as LegacyWhatsAppToken] || token;
 }
 

@@ -346,6 +346,8 @@ export function ProductConfiguratorModal({
     return selectedOptions.map((option) => ({
       name: option.name,
       option_name: option.name,
+      group_id: 'group_id' in option && typeof option.group_id === 'string' ? option.group_id : undefined,
+      group_name: option.group_name,
       price_delta: option.price_delta,
       additional_days: option.additional_days
     }));
@@ -401,8 +403,8 @@ export function ProductConfiguratorModal({
   const resolvedProductionTime = priceResolution.productionTime || 'Prazo sob consulta';
   const resolvedProductionTimeSource = priceResolution.productionTimeSource;
   const formattedSubtotal = formatCurrency(subtotalForCart);
-  const isConfigurationUnavailable = hasVariantPricingMatrix && !priceResolution.canPurchase;
-  const isConfigurationIncomplete = hasVariantPricingMatrix && !priceResolution.isComplete;
+  const isConfigurationUnavailable = (hasVariantPricingMatrix || !priceResolution.isComplete) && !priceResolution.canPurchase;
+  const isConfigurationIncomplete = !priceResolution.isComplete;
   const missingConfigurationLabel = priceResolution.missingRequiredGroups.length > 0
     ? priceResolution.missingRequiredGroups.join(', ')
     : 'material, tamanho, cor e finalização';

@@ -15,6 +15,8 @@ export interface PricingConfig {
 export interface PricingSelectedOption {
   name?: string;
   option_name?: string;
+  group_id?: string;
+  group_name?: string;
   price_delta?: number | string | null;
   additional_days?: number | string | null;
 }
@@ -97,6 +99,7 @@ export interface ProductPriceResolution {
   productionTime: string;
   productionTimeSource: 'matrix' | 'quantity_tier' | 'product_default' | 'fallback';
   selectedOptionsSnapshot: PricingSelectedOption[];
+  configurationSelectionValidated: boolean;
   canPurchase: boolean;
   warningMessage?: string;
   breakdown: PriceBreakdown;
@@ -107,6 +110,13 @@ export interface ProductQuantityTierSummary {
   source: 'volume_pricing' | 'variant_pricing_matrix' | null;
   sourceLabel: string;
   matrixRow: NormalizedVariantPricingMatrixRow | null;
+}
+
+export interface ProductConfigurationCompleteness {
+  isComplete: boolean;
+  missingRequiredGroups: string[];
+  selectedOptions: PricingSelectedOption[];
+  selectionValidated: boolean;
 }
 
 const matrixFieldLabels: Record<keyof VariantPricingSelection, string> = {
@@ -490,6 +500,82 @@ export function getProductConfigurator(product: ProductLike | null | undefined):
   return hasConfiguratorContent(configurator) ? configurator : null;
 }
 
+const getSelectedOptionName = (option: PricingSelectedOption): string => {
+  return normalizeTextValue(option.name || option.option_name);
+};
+
+export function resolveProductConfigurationCompleteness(
+  product: ProductLike | null | undefined,
+  selectedOptions: PricingSelectedOption[] = [],
+  options: { matrixSelectionValidated?: boolean } = {}
+): ProductConfigurationCompleteness {
+  const configurator = getProductConfigurator(product);
+  const groups = Array.isArray(configurator?.option_groups)
+    ? configurator.option_groups.filter((group) => Boolean(group && typeof group === 'object' && !Array.isArray(group)))
+    : [];
+  const rawSelections = Array.isArray(selectedOptions)
+    ? selectedOptions.filter((option): option is PricingSelectedOption => Boolean(option && typeof option === 'object'))
+    : [];
+  const trustedSelections: PricingSelectedOption[] = [];
+  const selectedCountByGroup = new Map<string, number>();
+  let invalidGroupedSelection = false;
+  let ungroupedSelectionCount = 0;
+
+  for (const selection of rawSelections) {
+    const groupId = normalizeTextValue(selection.group_id);
+    if (!groupId) {
+      ungroupedSelectionCount += 1;
+      trustedSelections.push(selection);
+      continue;
+    }
+
+    const group = groups.find((candidate) => normalizeTextValue(candidate.id) === groupId);
+    const selectedName = getSelectedOptionName(selection);
+    const groupOptions = Array.isArray(group?.options) ? group.options : [];
+    const trustedOption = groupOptions.find((candidate) => (
+      normalizeCombinationKey(candidate.name) === normalizeCombinationKey(selectedName)
+    ));
+    if (!group || !selectedName || !trustedOption) {
+      invalidGroupedSelection = true;
+      continue;
+    }
+
+    const currentCount = selectedCountByGroup.get(groupId) || 0;
+    if (group.selection_type === 'single' && currentCount > 0) {
+      invalidGroupedSelection = true;
+      continue;
+    }
+    selectedCountByGroup.set(groupId, currentCount + 1);
+    trustedSelections.push({
+      name: trustedOption.name,
+      option_name: trustedOption.name,
+      group_id: group.id,
+      group_name: group.name,
+      price_delta: trustedOption.price_delta,
+      additional_days: trustedOption.additional_days
+    });
+  }
+
+  const missingRequiredGroups = groups
+    .filter((group) => group.required && (selectedCountByGroup.get(normalizeTextValue(group.id)) || 0) === 0)
+    .map((group) => normalizeTextValue(group.name) || 'opção obrigatória');
+  if (invalidGroupedSelection) missingRequiredGroups.push('opções do produto');
+
+  const isComplete = missingRequiredGroups.length === 0;
+  const selectionValidated = isComplete && (
+    rawSelections.length === 0 ||
+    (ungroupedSelectionCount === 0 && trustedSelections.length === rawSelections.length) ||
+    Boolean(options.matrixSelectionValidated && trustedSelections.length === rawSelections.length)
+  );
+
+  return {
+    isComplete,
+    missingRequiredGroups: [...new Set(missingRequiredGroups)],
+    selectedOptions: trustedSelections,
+    selectionValidated
+  };
+}
+
 export function hasAdvancedConfigurator(product: ProductLike | null | undefined): boolean {
   return getProductConfigurator(product) !== null;
 }
@@ -606,11 +692,24 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
 }
 
 export function resolveProductPrice(product: ProductLike | null | undefined, config: PricingConfig = {}): ProductPriceResolution {
-  const normalized = normalizePricingConfig(config);
+  const matrixRows = getNormalizedVariantPricingMatrix(product);
+  const rawSelectedOptions = Array.isArray(config.customOptions?.selectedOptions)
+    ? config.customOptions.selectedOptions
+    : [];
+  const optionCompleteness = resolveProductConfigurationCompleteness(product, rawSelectedOptions, {
+    matrixSelectionValidated: matrixRows.length > 0
+  });
+  const trustedConfig: PricingConfig = {
+    ...config,
+    customOptions: {
+      ...(config.customOptions || {}),
+      selectedOptions: optionCompleteness.selectedOptions
+    }
+  };
+  const normalized = normalizePricingConfig(trustedConfig);
   const selectedOptionsSnapshot = Array.isArray(normalized.customOptions?.selectedOptions)
     ? normalized.customOptions.selectedOptions
     : [];
-  const matrixRows = getNormalizedVariantPricingMatrix(product);
   const volumeTiers = getNormalizedVolumePricing(product);
   const selectedQuantityTier = volumeTiers.find((tier) => tier.min_qty === normalized.quantity) || null;
   const productDefaultProductionTime = getProductDefaultProductionTime(product);
@@ -631,13 +730,13 @@ export function resolveProductPrice(product: ProductLike | null | undefined, con
     const variantSelection = normalized.customOptions?.variantSelection || {};
     const requiredMatrixFields = (['material', 'size', 'colors', 'finishing'] as Array<keyof VariantPricingSelection>)
       .filter((field) => matrixRows.some((row) => normalizeCombinationKey(row[field])));
-    const missingRequiredGroups = requiredMatrixFields
+    const missingRequiredGroups = [...optionCompleteness.missingRequiredGroups, ...requiredMatrixFields
       .filter((field) => !normalizeCombinationKey(variantSelection[field]))
-      .map((field) => matrixFieldLabels[field]);
+      .map((field) => matrixFieldLabels[field])];
     const isComplete = missingRequiredGroups.length === 0;
     const matchedMatrixRow = findExactVariantPricingMatrixRow(matrixRows, variantSelection);
     const matchedTier = matchedMatrixRow?.tiers.find((tier) => tier.min_qty === normalized.quantity) || null;
-    const fallbackBreakdown = getPriceBreakdown(product, config);
+    const fallbackBreakdown = getPriceBreakdown(product, trustedConfig);
     const unresolvedProduction = resolveProductionTime(null);
 
     if (!isComplete) {
@@ -653,6 +752,7 @@ export function resolveProductPrice(product: ProductLike | null | undefined, con
         productionTime: unresolvedProduction.productionTime,
         productionTimeSource: unresolvedProduction.productionTimeSource,
         selectedOptionsSnapshot,
+        configurationSelectionValidated: optionCompleteness.selectionValidated,
         canPurchase: false,
         warningMessage: `Defina ${missingRequiredGroups.join(', ')} para saber o subtotal.`,
         breakdown: {
@@ -681,6 +781,7 @@ export function resolveProductPrice(product: ProductLike | null | undefined, con
         productionTime: unresolvedProduction.productionTime,
         productionTimeSource: unresolvedProduction.productionTimeSource,
         selectedOptionsSnapshot,
+        configurationSelectionValidated: optionCompleteness.selectionValidated,
         canPurchase: false,
         warningMessage: 'Essa combina\u00e7\u00e3o ainda n\u00e3o possui pre\u00e7o cadastrado. Solicite or\u00e7amento pelo WhatsApp.',
         breakdown: {
@@ -724,13 +825,14 @@ export function resolveProductPrice(product: ProductLike | null | undefined, con
       productionTime: resolvedProduction.productionTime,
       productionTimeSource: resolvedProduction.productionTimeSource,
       selectedOptionsSnapshot,
+      configurationSelectionValidated: optionCompleteness.selectionValidated,
       canPurchase: totalPrice > 0,
       warningMessage: totalPrice > 0 ? undefined : 'Essa combina\u00e7\u00e3o ainda n\u00e3o possui pre\u00e7o cadastrado. Solicite or\u00e7amento pelo WhatsApp.',
       breakdown
     };
   }
 
-  const breakdown = getPriceBreakdown(product, config);
+  const breakdown = getPriceBreakdown(product, trustedConfig);
   const resolvedProduction = resolveProductionTime(null);
   const pricingType = (product?.pricing_type || 'unidade') as PricingType;
   const pricingMode: ProductPriceResolution['pricingMode'] =
@@ -739,6 +841,35 @@ export function resolveProductPrice(product: ProductLike | null | undefined, con
       : getNormalizedVolumePricing(product).length > 0
         ? 'volume'
         : 'simple';
+
+  if (!optionCompleteness.isComplete) {
+    return {
+      totalPrice: 0,
+      unitPrice: 0,
+      pricingMode,
+      isComplete: false,
+      missingRequiredGroups: optionCompleteness.missingRequiredGroups,
+      matchedMatrixRow: null,
+      matchedTier: null,
+      selectedQuantityTier,
+      productionTime: resolvedProduction.productionTime,
+      productionTimeSource: resolvedProduction.productionTimeSource,
+      selectedOptionsSnapshot,
+      configurationSelectionValidated: false,
+      canPurchase: false,
+      warningMessage: `Defina ${optionCompleteness.missingRequiredGroups.join(', ')} para saber o subtotal.`,
+      breakdown: {
+        ...breakdown,
+        unitPrice: 0,
+        baseSubtotal: 0,
+        optionsTotal: 0,
+        optionReplacementTotal: 0,
+        subtotal: 0,
+        formattedTotal: formatCurrency(0),
+        formattedUnitPrice: formatUnitCurrency(0)
+      }
+    };
+  }
 
   return {
     totalPrice: breakdown.subtotal,
@@ -752,6 +883,7 @@ export function resolveProductPrice(product: ProductLike | null | undefined, con
     productionTime: resolvedProduction.productionTime,
     productionTimeSource: resolvedProduction.productionTimeSource,
     selectedOptionsSnapshot,
+    configurationSelectionValidated: optionCompleteness.selectionValidated,
     canPurchase: breakdown.subtotal > 0,
     warningMessage: breakdown.subtotal > 0 ? undefined : 'Este produto ainda n\u00e3o possui pre\u00e7o cadastrado. Solicite or\u00e7amento pelo WhatsApp.',
     breakdown

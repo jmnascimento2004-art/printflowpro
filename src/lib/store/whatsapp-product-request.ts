@@ -3,17 +3,17 @@ import { buildWhatsAppUrl, renderConfiguredWhatsAppTemplate } from '@/lib/whatsa
 import { getWhatsAppTemplateDefinition } from '@/lib/whatsapp/template-registry';
 import type { WhatsAppSettings } from '@/lib/whatsapp/types';
 
-export type StoreProductRequestInput = { productId?: unknown; quantity?: unknown; dimensions?: unknown; selectedOptions?: unknown; productionDays?: unknown; estimatedDeadline?: unknown; customerName?: unknown; customerPhone?: unknown; notes?: unknown };
+export type StoreProductRequestInput = { productId?: unknown; quantity?: unknown; dimensions?: unknown; selectedOptions?: unknown; configurationSnapshot?: unknown; productionDays?: unknown; estimatedDeadline?: unknown; customerName?: unknown; customerPhone?: unknown; notes?: unknown };
 export type StoreProductRequestContext = {
   companyName: string; publicPhone: string; effectiveBusinessPhone?: string;
   product: { id: string; name: string; active: boolean; catalog_active: boolean; sales_price: number; pricing_type?: string | null } | null;
+  productVariables?: Readonly<Record<string, string>>;
   template: { content: string; active: boolean } | null;
   settings: Partial<WhatsAppSettings> | null;
 };
 
 const boundedText = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const positiveInteger = (value: unknown) => { const number = Number(value); return Number.isInteger(number) && number > 0 && number <= 100000 ? number : 1; };
-const currency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 function summarizeDimensions(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
   const row = value as Record<string, unknown>;
@@ -40,10 +40,13 @@ export function resolveStoreProductRequest(input: StoreProductRequestInput, cont
   if (context.template?.active === false) return { ok: true as const, enabled: false as const, reason: 'MESSAGE_TEMPLATE_DISABLED' as const };
   const quantity = positiveInteger(input.quantity);
   const days = Math.max(0, Math.min(365, Number(input.productionDays) || 0));
+  const productName = context.productVariables?.produto_nome || context.product.name;
+  const productSaleType = context.productVariables?.tipo_venda || boundedText(context.product.pricing_type, 80) || 'Unidade';
   const message = renderConfiguredWhatsAppTemplate(context.template?.content || definition.defaultContent, definition, {
-    empresa_nome: context.companyName, produto_nome: context.product.name, tipo_venda: boundedText(context.product.pricing_type, 80) || 'Unidade', quantidade: quantity,
+    ...context.productVariables,
+    empresa_nome: context.companyName, produto_nome: productName, tipo_venda: productSaleType, quantidade: quantity,
     medidas: summarizeDimensions(input.dimensions), metragem: '', opcoes: summarizeOptions(input.selectedOptions),
-    prazo: boundedText(input.estimatedDeadline, 120) || (days ? `${days} dia(s)` : ''), valor_total: currency(Math.max(0, Number(context.product.sales_price) || 0) * quantity),
+    prazo: boundedText(input.estimatedDeadline, 120) || (days ? `${days} dia(s)` : ''), valor_total: context.productVariables?.['produto.preco'] || '',
     cliente_nome: boundedText(input.customerName, 120), cliente_telefone: boundedText(input.customerPhone, 30), observacoes: boundedText(input.notes, 500)
   }, settings);
   const href = buildWhatsAppUrl(settings.business_phone || context.publicPhone, message, settings);
