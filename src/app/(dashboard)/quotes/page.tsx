@@ -51,6 +51,7 @@ import {
   getVariantPricingTiersForSelection,
   getVariantPricingOptions,
   normalizeCombinationKey,
+  resolveProductPrice,
   updateVariantPricingSelection,
   NormalizedVolumePriceTier
 } from '@/lib/pricing';
@@ -801,35 +802,57 @@ export default function QuotesPage() {
     const { price, volumeTier } = configuredTier
       ? { price: configuredTier.price, volumeTier: configuredTier }
       : getProductPriceInfo(selectedProductId, normalizedQty);
+    const snapshotMaterial = hasVariantPricingMatrix ? selectedMatrixRow?.material || selectedMaterial : undefined;
+    const snapshotSize = hasVariantPricingMatrix ? selectedMatrixRow?.size || selectedMatrixSize : undefined;
+    const snapshotColors = hasVariantPricingMatrix ? selectedMatrixRow?.colors || selectedMatrixColors : undefined;
+    const snapshotFinishing = hasVariantPricingMatrix ? selectedMatrixRow?.finishing || selectedFinishing : undefined;
+    const selectedOptions = hasVariantPricingMatrix
+      ? [
+          snapshotMaterial ? { name: snapshotMaterial, option_name: snapshotMaterial, group_name: 'Material', price_delta: 0, additional_days: 0 } : null,
+          snapshotSize ? { name: snapshotSize, option_name: snapshotSize, group_name: 'Tamanho', price_delta: 0, additional_days: 0 } : null,
+          snapshotColors ? { name: snapshotColors, option_name: snapshotColors, group_name: 'Cores', price_delta: 0, additional_days: 0 } : null,
+          snapshotFinishing ? { name: snapshotFinishing, option_name: snapshotFinishing, group_name: 'Acabamento', price_delta: 0, additional_days: 0 } : null
+        ].filter(Boolean) as NonNullable<QuoteItem['details']>['selected_options']
+      : undefined;
+    const priceResolution = resolveProductPrice(prod, {
+      quantity: normalizedQty,
+      width: itemWidth,
+      height: itemHeight,
+      length: itemWidth,
+      customOptions: {
+        selectedOptions,
+        variantSelection: hasVariantPricingMatrix ? matrixSelection : undefined
+      }
+    });
+    const productionTime = volumeTier?.productionTime || priceResolution.productionTime;
+    const productionTimeSource = volumeTier?.productionTime
+      ? (hasVariantPricingMatrix ? 'matrix' as const : 'quantity_tier' as const)
+      : priceResolution.productionTimeSource;
     const configurationSnapshot = volumeTier ? {
       sale_mode: hasVariantPricingMatrix ? 'variant_matrix' as const : 'volume' as const,
-      material: hasVariantPricingMatrix ? selectedMatrixRow?.material || selectedMaterial : undefined,
-      size: hasVariantPricingMatrix ? selectedMatrixRow?.size || selectedMatrixSize : undefined,
-      colors: hasVariantPricingMatrix ? selectedMatrixRow?.colors || selectedMatrixColors : undefined,
-      finishing: hasVariantPricingMatrix ? selectedMatrixRow?.finishing || selectedFinishing : undefined,
+      material: snapshotMaterial,
+      size: snapshotSize,
+      colors: snapshotColors,
+      finishing: snapshotFinishing,
       quantity_tier: volumeTier.min_qty,
       unit_price: volumeTier.price,
       total_price: volumeTier.total,
+      production_time: productionTime,
+      production_time_source: productionTimeSource,
       display_label: buildConfigurationLabel({
         sale_mode: hasVariantPricingMatrix ? 'variant_matrix' : 'volume',
-        material: hasVariantPricingMatrix ? selectedMatrixRow?.material || selectedMaterial : undefined,
-        size: hasVariantPricingMatrix ? selectedMatrixRow?.size || selectedMatrixSize : undefined,
-        colors: hasVariantPricingMatrix ? selectedMatrixRow?.colors || selectedMatrixColors : undefined,
-        finishing: hasVariantPricingMatrix ? selectedMatrixRow?.finishing || selectedFinishing : undefined,
+        material: snapshotMaterial,
+        size: snapshotSize,
+        colors: snapshotColors,
+        finishing: snapshotFinishing,
         quantity_tier: volumeTier.min_qty,
         unit_price: volumeTier.price,
         total_price: volumeTier.total,
+        production_time: productionTime,
+        production_time_source: productionTimeSource,
         display_label: ''
       })
     } : undefined;
-    const selectedOptions = configurationSnapshot && hasVariantPricingMatrix
-      ? [
-          configurationSnapshot.material ? { name: configurationSnapshot.material, option_name: configurationSnapshot.material, group_name: 'Material', price_delta: 0, additional_days: 0 } : null,
-          configurationSnapshot.size ? { name: configurationSnapshot.size, option_name: configurationSnapshot.size, group_name: 'Tamanho', price_delta: 0, additional_days: 0 } : null,
-          configurationSnapshot.colors ? { name: configurationSnapshot.colors, option_name: configurationSnapshot.colors, group_name: 'Cores', price_delta: 0, additional_days: 0 } : null,
-          configurationSnapshot.finishing ? { name: configurationSnapshot.finishing, option_name: configurationSnapshot.finishing, group_name: 'Acabamento', price_delta: 0, additional_days: 0 } : null
-        ].filter(Boolean) as NonNullable<QuoteItem['details']>['selected_options']
-      : undefined;
 
     const newItem = {
       product_id: prod.id,
@@ -841,10 +864,21 @@ export default function QuotesPage() {
         height: prod.pricing_type === 'm2' ? itemHeight : undefined,
         selected_options: selectedOptions,
         pricing_type: prod.pricing_type,
+        production_time: productionTime,
+        production_time_source: productionTimeSource,
         configuration_summary: configurationSnapshot?.display_label,
         configuration_snapshot: configurationSnapshot,
+        pricing_snapshot: {
+          product_id: prod.id,
+          product_name: prod.name,
+          quantity: normalizedQty,
+          unit_price: price,
+          total_price: volumeTier?.total ?? roundQuoteNumber(normalizedQty * price),
+          production_time: productionTime,
+          production_time_source: productionTimeSource
+        },
         notes: volumeTier
-          ? `Faixa de preço aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un, ${formatCurrency(volumeTier.total)} total).`
+          ? `Faixa de preço aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un, ${formatCurrency(volumeTier.total)} total). Prazo contratado: ${productionTime}.`
           : ''
       }
     };

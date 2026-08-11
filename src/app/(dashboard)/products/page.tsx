@@ -28,10 +28,16 @@ import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductGa
 import {
   formatCurrencyInput,
   parseCurrencyInputToNumber,
-  parseUnitCurrencyInputToNumber,
   sanitizeRichTextHtml,
   stripRichTextHtml
 } from '@/lib/utils';
+import {
+  formatPtBrMoneyInput,
+  normalizePtBrMoneyInput,
+  parsePtBrMoneyDraft,
+  parsePtBrMoneyInput,
+  serializePtBrMoneyTierDrafts
+} from '@/lib/editable-money.mjs';
 import {
   formatUnitCurrency,
   getNormalizedVariantPricingMatrix,
@@ -528,6 +534,8 @@ type MatrixTierDraft = {
   unitPrice: string;
   totalPrice: string;
   productionTime: string;
+  unitPriceValid: boolean;
+  totalPriceValid: boolean;
 };
 
 type MatrixRowDraft = {
@@ -612,6 +620,8 @@ export default function ProductsCRUDPage() {
   const [pricingType, setPricingType] = useState<Product['pricing_type']>('unidade');
   const [baseCost, setBaseCost] = useState(0);
   const [salesPrice, setSalesPrice] = useState(0);
+  const [baseCostInput, setBaseCostInput] = useState('0,00');
+  const [salesPriceInput, setSalesPriceInput] = useState('0,00');
   const [stockControlled, setStockControlled] = useState(false);
   const [minStock, setMinStock] = useState(10);
   const [initialStock, setInitialStock] = useState(0); // For creation only
@@ -670,7 +680,8 @@ export default function ProductsCRUDPage() {
   const parsedTempMinQty = tempMinQty.trim()
     ? Math.max(0, parseInt(tempMinQty, 10) || 0)
     : 0;
-  const parsedTempUnitPrice = parseUnitCurrencyInputToNumber(tempUnitPriceInput);
+  const tempUnitPriceDraft = parsePtBrMoneyDraft(tempUnitPriceInput, 4);
+  const parsedTempUnitPrice = tempUnitPriceDraft.value ?? 0;
   const tempCalculatedTotal = parsedTempMinQty > 0 && parsedTempUnitPrice > 0
     ? Math.round(parsedTempMinQty * parsedTempUnitPrice * 100) / 100
     : 0;
@@ -680,24 +691,14 @@ export default function ProductsCRUDPage() {
   };
 
   const handleTempUnitPriceChange = (value: string) => {
-    const cleaned = value.replace(/[^\d,.]/g, '');
-    const separatorIndex = cleaned.search(/[,.]/);
-
-    if (separatorIndex === -1) {
-      setTempUnitPriceInput(cleaned);
-      return;
-    }
-
-    const integerPart = cleaned.slice(0, separatorIndex).replace(/[,.]/g, '');
-    const separator = cleaned[separatorIndex];
-    const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[,.]/g, '').slice(0, 4);
-    setTempUnitPriceInput(`${integerPart}${separator}${decimalPart}`);
+    setTempUnitPriceInput(value);
   };
 
   const parsedMatrixQuantity = matrixQuantity.trim()
     ? Math.max(0, parseInt(matrixQuantity, 10) || 0)
     : 0;
-  const parsedMatrixUnitPrice = parseUnitCurrencyInputToNumber(matrixUnitPriceInput);
+  const matrixUnitPriceDraft = parsePtBrMoneyDraft(matrixUnitPriceInput, 4);
+  const parsedMatrixUnitPrice = matrixUnitPriceDraft.value ?? 0;
   const matrixCalculatedTotal = parsedMatrixQuantity > 0 && parsedMatrixUnitPrice > 0
     ? Math.round(parsedMatrixQuantity * parsedMatrixUnitPrice * 100) / 100
     : 0;
@@ -707,75 +708,42 @@ export default function ProductsCRUDPage() {
   };
 
   const handleMatrixUnitPriceChange = (value: string) => {
-    const cleaned = value.replace(/[^\d,.]/g, '');
-    const separatorIndex = cleaned.search(/[,.]/);
-
-    if (separatorIndex === -1) {
-      setMatrixUnitPriceInput(cleaned);
-      return;
-    }
-
-    const integerPart = cleaned.slice(0, separatorIndex).replace(/[,.]/g, '');
-    const separator = cleaned[separatorIndex];
-    const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[,.]/g, '').slice(0, 4);
-    setMatrixUnitPriceInput(`${integerPart}${separator}${decimalPart}`);
+    setMatrixUnitPriceInput(value);
   };
 
-  const sanitizeDecimalInput = (value: string, maxDecimals = 4) => {
-    const cleaned = value.replace(/[^\d,.]/g, '');
-    const separatorIndex = cleaned.search(/[,.]/);
+  const baseCostDraft = parsePtBrMoneyDraft(baseCostInput, 2);
+  const salesPriceDraft = parsePtBrMoneyDraft(salesPriceInput, 2);
 
-    if (separatorIndex === -1) {
-      return cleaned;
-    }
-
-    const integerPart = cleaned.slice(0, separatorIndex).replace(/[,.]/g, '');
-    const separator = cleaned[separatorIndex];
-    const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[,.]/g, '').slice(0, maxDecimals);
-    return `${integerPart}${separator}${decimalPart}`;
+  const handleBaseCostChange = (value: string) => {
+    setBaseCostInput(value);
+    const parsed = parsePtBrMoneyDraft(value, 2);
+    if (parsed.valid && parsed.value !== null) setBaseCost(parsed.value);
   };
 
-  const formatDecimalDraft = (value?: number) => {
-    return Number.isFinite(value) ? String(value).replace('.', ',') : '';
+  const handleSalesPriceChange = (value: string) => {
+    setSalesPriceInput(value);
+    const parsed = parsePtBrMoneyDraft(value, 2);
+    if (parsed.valid && parsed.value !== null) setSalesPrice(parsed.value);
   };
 
-  const parseCurrencyBR = (value: unknown): number => {
-    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-
-    const text = String(value ?? '').trim();
-    if (!text) return 0;
-
-    const clean = text
-      .replace(/R\$/gi, '')
-      .replace(/\s+/g, '')
-      .replace(/[^\d,.-]/g, '');
-    if (!clean || clean === '-' || clean === '.' || clean === ',') return 0;
-
-    let normalized = clean;
-    const hasComma = clean.includes(',');
-    const hasDot = clean.includes('.');
-
-    if (hasComma) {
-      normalized = clean.replace(/\./g, '').replace(',', '.');
-    } else if (hasDot) {
-      const dotParts = clean.split('.');
-      const decimalPart = dotParts[dotParts.length - 1] || '';
-      normalized = dotParts.length > 2 || decimalPart.length === 3
-        ? clean.replace(/\./g, '')
-        : clean;
-    }
-
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
+  const matrixEditSerialization = matrixEditDraft
+    ? serializePtBrMoneyTierDrafts(matrixEditDraft.tiers)
+    : null;
+  const matrixEditErrors = new Map(
+    (matrixEditSerialization?.errors || []).map((error) => [error.draftId, error])
+  );
+  const hasInvalidMoneyDraft = !baseCostDraft.valid || !salesPriceDraft.valid ||
+    Boolean(tempUnitPriceInput.trim() && !tempUnitPriceDraft.valid) ||
+    Boolean(matrixUnitPriceInput.trim() && !matrixUnitPriceDraft.valid) ||
+    Boolean(matrixEditDraft && !matrixEditSerialization?.valid);
 
   const roundMoneyValue = (value: number) => Math.round(value * 100) / 100;
   const roundUnitValue = (value: number) => Math.round(value * 10000) / 10000;
 
   const getEffectiveMatrixTierTotal = (tier: { quantity?: unknown; unit_price?: unknown; price?: unknown; total_price?: unknown; total?: unknown }) => {
-    const quantity = Math.max(0, Math.round(parseCurrencyBR(tier.quantity)));
-    const unitPrice = parseUnitCurrencyInputToNumber(String(tier.unit_price ?? tier.price ?? ''));
-    const explicitTotal = parseCurrencyBR(tier.total_price ?? tier.total);
+    const quantity = Math.max(0, Math.round(parsePtBrMoneyInput(tier.quantity)));
+    const unitPrice = parsePtBrMoneyInput(tier.unit_price ?? tier.price);
+    const explicitTotal = parsePtBrMoneyInput(tier.total_price ?? tier.total);
 
     if (explicitTotal > 0) return roundMoneyValue(explicitTotal);
     return quantity > 0 && unitPrice > 0 ? roundMoneyValue(quantity * unitPrice) : 0;
@@ -783,9 +751,9 @@ export default function ProductsCRUDPage() {
 
   const normalizeMatrixTier = (tier: unknown) => {
     const tierRecord = tier as { quantity?: unknown; min_qty?: unknown; qty?: unknown; unit_price?: unknown; price?: unknown; total_price?: unknown; total?: unknown; production_time?: unknown };
-    const quantity = Math.max(0, Math.round(parseCurrencyBR(tierRecord.quantity ?? tierRecord.min_qty ?? tierRecord.qty)));
-    const explicitTotal = parseCurrencyBR(tierRecord.total_price ?? tierRecord.total);
-    const parsedUnitPrice = parseUnitCurrencyInputToNumber(String(tierRecord.unit_price ?? tierRecord.price ?? ''));
+    const quantity = Math.max(0, Math.round(parsePtBrMoneyInput(tierRecord.quantity ?? tierRecord.min_qty ?? tierRecord.qty)));
+    const explicitTotal = parsePtBrMoneyInput(tierRecord.total_price ?? tierRecord.total);
+    const parsedUnitPrice = parsePtBrMoneyInput(tierRecord.unit_price ?? tierRecord.price);
     const totalPrice = explicitTotal > 0
       ? roundMoneyValue(explicitTotal)
       : quantity > 0 && parsedUnitPrice > 0
@@ -815,9 +783,11 @@ export default function ProductsCRUDPage() {
       .map((tier, index) => ({
         draftId: `${row.id}-tier-${tier.quantity}-${index}`,
         quantity: String(tier.quantity || ''),
-        unitPrice: formatDecimalDraft(tier.unit_price),
-        totalPrice: formatDecimalDraft(getEffectiveMatrixTierTotal(tier)),
-        productionTime: tier.production_time || ''
+        unitPrice: formatPtBrMoneyInput(tier.unit_price, 4),
+        totalPrice: formatPtBrMoneyInput(getEffectiveMatrixTierTotal(tier)),
+        productionTime: tier.production_time || '',
+        unitPriceValid: true,
+        totalPriceValid: true
       }))
   });
 
@@ -1005,34 +975,52 @@ export default function ProductsCRUDPage() {
 
         if (field === 'quantity') {
           const quantity = value.replace(/\D/g, '');
-          const unitPrice = parseUnitCurrencyInputToNumber(tier.unitPrice);
-          const totalPrice = quantity && unitPrice > 0
-            ? formatDecimalDraft(Math.round(Number(quantity) * unitPrice * 100) / 100)
-            : '';
-          return { ...tier, quantity, totalPrice };
+          const unitPriceState = parsePtBrMoneyDraft(tier.unitPrice, 4);
+          const totalPrice = quantity && unitPriceState.valid && (unitPriceState.value ?? 0) > 0
+            ? formatPtBrMoneyInput(Math.round(Number(quantity) * (unitPriceState.value ?? 0) * 100) / 100)
+            : tier.totalPrice;
+          return { ...tier, quantity, totalPrice, totalPriceValid: true };
         }
 
         if (field === 'unitPrice') {
-          const unitPrice = sanitizeDecimalInput(value, 4);
+          const unitPriceState = parsePtBrMoneyDraft(value, 4);
+          if (!unitPriceState.valid) {
+            return { ...tier, unitPrice: value, unitPriceValid: false };
+          }
           const quantity = Number(tier.quantity || 0);
-          const numericUnitPrice = parseUnitCurrencyInputToNumber(unitPrice);
-          const totalPrice = quantity > 0 && numericUnitPrice > 0
-            ? formatDecimalDraft(Math.round(quantity * numericUnitPrice * 100) / 100)
+          const totalPrice = quantity > 0 && (unitPriceState.value ?? 0) > 0
+            ? formatPtBrMoneyInput(Math.round(quantity * (unitPriceState.value ?? 0) * 100) / 100)
             : '';
-          return { ...tier, unitPrice, totalPrice };
+          return { ...tier, unitPrice: value, unitPriceValid: true, totalPrice, totalPriceValid: true };
         }
 
-        const totalPrice = sanitizeDecimalInput(value, 2);
+        const totalPriceState = parsePtBrMoneyDraft(value, 2);
+        if (!totalPriceState.valid) {
+          return { ...tier, totalPrice: value, totalPriceValid: false };
+        }
         const quantity = Number(tier.quantity || 0);
-        const numericTotal = parseCurrencyBR(totalPrice);
-        const unitPrice = quantity > 0 && numericTotal > 0
-          ? formatDecimalDraft(roundUnitValue(numericTotal / quantity))
+        const unitPrice = quantity > 0 && (totalPriceState.value ?? 0) > 0
+          ? formatPtBrMoneyInput(roundUnitValue((totalPriceState.value ?? 0) / quantity), 4)
           : tier.unitPrice;
-        return { ...tier, totalPrice, unitPrice };
+        return { ...tier, totalPrice: value, totalPriceValid: true, unitPrice, unitPriceValid: true };
       });
 
       return { ...current, tiers };
     });
+  };
+
+  const normalizeMatrixEditTierMoney = (tierIndex: number, field: 'unitPrice' | 'totalPrice') => {
+    setMatrixEditDraft((current) => current ? {
+      ...current,
+      tiers: current.tiers.map((tier, index) => index === tierIndex
+        ? {
+            ...tier,
+            [field]: tier[field === 'unitPrice' ? 'unitPriceValid' : 'totalPriceValid']
+              ? normalizePtBrMoneyInput(tier[field], field === 'unitPrice' ? 4 : 2)
+              : tier[field]
+          }
+        : tier)
+    } : current);
   };
 
   const addMatrixEditTier = () => {
@@ -1045,7 +1033,9 @@ export default function ProductsCRUDPage() {
           quantity: '',
           unitPrice: '',
           totalPrice: '',
-          productionTime: ''
+          productionTime: '',
+          unitPriceValid: false,
+          totalPriceValid: true
         }
       ]
     } : current);
@@ -1084,28 +1074,9 @@ export default function ProductsCRUDPage() {
       return;
     }
 
-    const normalizedTiers = matrixEditDraft.tiers.map((tier) => {
-      const quantity = Number(tier.quantity || 0);
-      const unitPrice = parseUnitCurrencyInputToNumber(tier.unitPrice);
-      const totalPrice = parseCurrencyBR(tier.totalPrice);
-      const effectiveTotal = totalPrice > 0
-        ? totalPrice
-        : quantity > 0 && unitPrice > 0
-          ? roundMoneyValue(quantity * unitPrice)
-          : 0;
-      const effectiveUnitPrice = unitPrice > 0
-        ? unitPrice
-        : quantity > 0 && effectiveTotal > 0
-          ? roundUnitValue(effectiveTotal / quantity)
-          : 0;
-
-      return {
-        quantity,
-        unit_price: effectiveUnitPrice,
-        total_price: effectiveTotal,
-        production_time: tier.productionTime.trim() || undefined
-      };
-    });
+    const tierSerialization = serializePtBrMoneyTierDrafts(matrixEditDraft.tiers);
+    if (!tierSerialization.serializationAllowed || !tierSerialization.tiers) return;
+    const normalizedTiers = tierSerialization.tiers;
 
     if (normalizedTiers.length === 0 || normalizedTiers.some((tier) => tier.quantity <= 0 || tier.unit_price < 0 || tier.total_price < 0)) {
       alert('Revise as faixas: a quantidade deve ser maior que zero e os valores não podem ser negativos.');
@@ -1150,11 +1121,14 @@ export default function ProductsCRUDPage() {
   useEffect(() => {
     if (baseCost <= 0) {
       setSalesPrice(0);
+      setSalesPriceInput(formatPtBrMoneyInput(0));
       return;
     }
     const denominator = 1 - (profitMargin + taxPercent + commissionPercent) / 100;
     const calculated = denominator > 0.05 ? baseCost / denominator : baseCost * 3.5;
-    setSalesPrice(Math.round(calculated * 100) / 100);
+    const nextSalesPrice = Math.round(calculated * 100) / 100;
+    setSalesPrice(nextSalesPrice);
+    setSalesPriceInput(formatPtBrMoneyInput(nextSalesPrice));
   }, [baseCost, profitMargin, commissionPercent, taxPercent]);
 
   // Auto SKU Helper
@@ -1442,6 +1416,8 @@ export default function ProductsCRUDPage() {
     setPricingType('unidade');
     setBaseCost(0);
     setSalesPrice(0);
+    setBaseCostInput(formatPtBrMoneyInput(0));
+    setSalesPriceInput(formatPtBrMoneyInput(0));
     setStockControlled(false);
     setMinStock(10);
     setInitialStock(0);
@@ -1503,6 +1479,8 @@ export default function ProductsCRUDPage() {
     setPricingType(prod.pricing_type);
     setBaseCost(prod.base_cost);
     setSalesPrice(prod.sales_price);
+    setBaseCostInput(formatPtBrMoneyInput(prod.base_cost));
+    setSalesPriceInput(formatPtBrMoneyInput(prod.sales_price));
     setStockControlled(prod.stock_controlled);
     setMinStock(prod.min_stock);
     setActive(true);
@@ -1599,6 +1577,7 @@ export default function ProductsCRUDPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (hasInvalidMoneyDraft) return;
     const usesRequiredVolumePricing = saleMode === 'volume';
     const productVolumePricing = volumePricing.length > 0 ? volumePricing : undefined;
     const hasMatrixPricingRows = normalizeVariantMatrixRows(variantPricingMatrix)
@@ -3451,10 +3430,13 @@ export default function ProductsCRUDPage() {
                 <label className="text-xs font-semibold text-muted-foreground">Custo de Matéria-Prima / Aquisição (R$)</label>
                 <input
                   type="text"
-                  value={formatCurrencyInput(baseCost)}
-                  onChange={(e) => setBaseCost(parseCurrencyInputToNumber(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none font-semibold"
+                  value={baseCostInput}
+                  onChange={(e) => handleBaseCostChange(e.target.value)}
+                  onBlur={() => baseCostDraft.valid && setBaseCostInput(normalizePtBrMoneyInput(baseCostInput, 2))}
+                  aria-invalid={!baseCostDraft.valid}
+                  className={`w-full px-3 py-1.5 bg-secondary/50 border rounded-lg text-xs text-foreground focus:outline-none font-normal ${baseCostDraft.valid ? 'border-border' : 'border-rose-500'}`}
                 />
+                {!baseCostDraft.valid && <p className="text-[10px] font-medium text-rose-600">Informe um valor vÃ¡lido.</p>}
               </div>
 
               {/* Sales Price */}
@@ -3463,10 +3445,13 @@ export default function ProductsCRUDPage() {
                 <input
                   type="text"
                   required
-                  value={formatCurrencyInput(salesPrice)}
-                  onChange={(e) => setSalesPrice(parseCurrencyInputToNumber(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none font-bold"
+                  value={salesPriceInput}
+                  onChange={(e) => handleSalesPriceChange(e.target.value)}
+                  onBlur={() => salesPriceDraft.valid && setSalesPriceInput(normalizePtBrMoneyInput(salesPriceInput, 2))}
+                  aria-invalid={!salesPriceDraft.valid}
+                  className={`w-full px-3 py-1.5 bg-secondary/50 border rounded-lg text-xs text-foreground focus:outline-none font-normal ${salesPriceDraft.valid ? 'border-border' : 'border-rose-500'}`}
                 />
+                {!salesPriceDraft.valid && <p className="text-[10px] font-medium text-rose-600">Informe um valor vÃ¡lido.</p>}
               </div>
 
               {/* Margens de Precificação */}
@@ -3552,7 +3537,7 @@ export default function ProductsCRUDPage() {
                       value={tempMinQty}
                       onChange={(e) => handleTempMinQtyChange(e.target.value)}
                       placeholder="Ex: 1000"
-                      className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground text-center font-bold"
+                      className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground text-center font-normal"
                     />
                   </div>
                   
@@ -3563,14 +3548,17 @@ export default function ProductsCRUDPage() {
                       inputMode="decimal"
                       value={tempUnitPriceInput}
                       onChange={(e) => handleTempUnitPriceChange(e.target.value)}
+                      onBlur={() => tempUnitPriceDraft.valid && setTempUnitPriceInput(normalizePtBrMoneyInput(tempUnitPriceInput, 4))}
+                      aria-invalid={Boolean(tempUnitPriceInput.trim() && !tempUnitPriceDraft.valid)}
                       placeholder="Ex: 0,1053"
-                      className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
+                      className={`w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs text-foreground font-normal ${tempUnitPriceInput.trim() && !tempUnitPriceDraft.valid ? 'border-rose-500' : 'border-border'}`}
                     />
+                    {tempUnitPriceInput.trim() && !tempUnitPriceDraft.valid && <p className="text-[10px] font-medium text-rose-600">Informe um valor vÃ¡lido.</p>}
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-muted-foreground uppercase">Total do Lote (R$)</label>
-                    <div className="flex h-8 w-full items-center rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-bold text-foreground">
+                    <div className="flex h-8 w-full items-center rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-normal text-foreground">
                       {tempCalculatedTotal > 0 ? (
                         formatCurrency(tempCalculatedTotal)
                       ) : (
@@ -3586,14 +3574,15 @@ export default function ProductsCRUDPage() {
                       value={tempProductionTime}
                       onChange={(e) => setTempProductionTime(e.target.value)}
                       placeholder="Ex: 5 dias úteis"
-                      className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
+                      className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-normal"
                     />
                   </div>
                   
                   <button
                     type="button"
                     onClick={addVolumeTier}
-                    className="py-2 px-3 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all h-8 flex items-center justify-center w-full"
+                    disabled={!tempUnitPriceDraft.valid || parsedTempUnitPrice <= 0 || parsedTempMinQty <= 0}
+                    className="py-2 px-3 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all h-8 flex items-center justify-center w-full disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     + Adicionar
                   </button>
@@ -3619,10 +3608,10 @@ export default function ProductsCRUDPage() {
                           <div key={tier.min_qty} className="rounded-xl border border-emerald-500/20 bg-white p-3 shadow-sm">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <span className="block text-xs font-black text-foreground">A partir de {formattedTier.quantity}</span>
-                                <span className="mt-1 block text-[11px] font-bold text-primary">{formattedTier.unit}</span>
-                                <span className="mt-0.5 block text-[10px] font-semibold text-muted-foreground">{formattedTier.total}</span>
-                                <span className="mt-1 inline-flex rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-700">
+                                <span className="block text-xs font-semibold text-foreground">A partir de {formattedTier.quantity}</span>
+                                <span className="mt-1 block text-[11px] font-medium text-primary">{formattedTier.unit}</span>
+                                <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">{formattedTier.total}</span>
+                                <span className="mt-1 inline-flex rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-medium tracking-wide text-emerald-700">
                                   Prazo: {tier.production_time || 'Prazo sob consulta'}
                                 </span>
                               </div>
@@ -3732,7 +3721,7 @@ export default function ProductsCRUDPage() {
                         value={matrixQuantity}
                         onChange={(e) => handleMatrixQuantityChange(e.target.value)}
                         placeholder="Ex: 1000"
-                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground text-center font-bold"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground text-center font-normal"
                       />
                     </div>
                     <div className="space-y-1">
@@ -3742,13 +3731,16 @@ export default function ProductsCRUDPage() {
                         inputMode="decimal"
                         value={matrixUnitPriceInput}
                         onChange={(e) => handleMatrixUnitPriceChange(e.target.value)}
+                        onBlur={() => matrixUnitPriceDraft.valid && setMatrixUnitPriceInput(normalizePtBrMoneyInput(matrixUnitPriceInput, 4))}
+                        aria-invalid={Boolean(matrixUnitPriceInput.trim() && !matrixUnitPriceDraft.valid)}
                         placeholder="Ex: 0,1053"
-                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
+                        className={`w-full px-2.5 py-1.5 bg-background border rounded-lg text-xs text-foreground font-normal ${matrixUnitPriceInput.trim() && !matrixUnitPriceDraft.valid ? 'border-rose-500' : 'border-border'}`}
                       />
+                      {matrixUnitPriceInput.trim() && !matrixUnitPriceDraft.valid && <p className="text-[10px] font-medium text-rose-600">Informe um valor vÃ¡lido.</p>}
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-semibold text-muted-foreground uppercase">Total do Lote (R$)</label>
-                      <div className="flex h-8 w-full items-center rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-bold text-foreground">
+                      <div className="flex h-8 w-full items-center rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-normal text-foreground">
                         {matrixCalculatedTotal > 0 ? (
                           formatCurrency(matrixCalculatedTotal)
                         ) : (
@@ -3763,13 +3755,14 @@ export default function ProductsCRUDPage() {
                         value={matrixProductionTime}
                         onChange={(e) => setMatrixProductionTime(e.target.value)}
                         placeholder="Ex: 5 dias úteis"
-                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-bold"
+                        className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-normal"
                       />
                     </div>
                     <button
                       type="button"
                       onClick={addVariantMatrixTier}
-                      className="py-2 px-3 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all h-8 flex items-center justify-center w-full"
+                      disabled={!matrixUnitPriceDraft.valid || parsedMatrixUnitPrice <= 0 || parsedMatrixQuantity <= 0}
+                      className="py-2 px-3 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all h-8 flex items-center justify-center w-full disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       + Adicionar linha
                     </button>
@@ -3785,23 +3778,23 @@ export default function ProductsCRUDPage() {
                         <span className="text-[10px] font-semibold text-muted-foreground">Use para revisar combinações por tiragem, material, tamanho, cores e acabamento.</span>
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                        <select value={matrixFilterQuantity} onChange={(e) => setMatrixFilterQuantity(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                        <select value={matrixFilterQuantity} onChange={(e) => setMatrixFilterQuantity(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-normal text-foreground">
                           <option value="">Todas as quantidades</option>
                           {matrixFilterValues.quantities.map((quantity) => <option key={quantity} value={quantity}>{quantity} un</option>)}
                         </select>
-                        <select value={matrixFilterMaterial} onChange={(e) => setMatrixFilterMaterial(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                        <select value={matrixFilterMaterial} onChange={(e) => setMatrixFilterMaterial(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-normal text-foreground">
                           <option value="">Todos os materiais</option>
                           {matrixFilterValues.materials.map((material) => <option key={material} value={material}>{material}</option>)}
                         </select>
-                        <select value={matrixFilterSize} onChange={(e) => setMatrixFilterSize(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                        <select value={matrixFilterSize} onChange={(e) => setMatrixFilterSize(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-normal text-foreground">
                           <option value="">Todos os tamanhos</option>
                           {matrixFilterValues.sizes.map((size) => <option key={size} value={size}>{size}</option>)}
                         </select>
-                        <select value={matrixFilterColors} onChange={(e) => setMatrixFilterColors(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                        <select value={matrixFilterColors} onChange={(e) => setMatrixFilterColors(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-normal text-foreground">
                           <option value="">Todas as cores</option>
                           {matrixFilterValues.colors.map((colors) => <option key={colors} value={colors}>{colors}</option>)}
                         </select>
-                        <select value={matrixFilterFinishing} onChange={(e) => setMatrixFilterFinishing(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-bold text-foreground">
+                        <select value={matrixFilterFinishing} onChange={(e) => setMatrixFilterFinishing(e.target.value)} className="min-h-10 rounded-xl border border-border bg-background px-3 py-2 text-xs font-normal text-foreground">
                           <option value="">Todos os acabamentos</option>
                           {matrixFilterValues.finishings.map((finishing) => <option key={finishing} value={finishing}>{finishing}</option>)}
                         </select>
@@ -3817,13 +3810,13 @@ export default function ProductsCRUDPage() {
                         }`}>
                           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                             <div className="min-w-0 flex-1">
-                              <span className="mb-1 inline-flex rounded-full bg-sky-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-sky-700">
+                              <span className="mb-1 inline-flex rounded-full bg-sky-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-700">
                                 Ordem {rowIndex + 1}
                               </span>
-                              <p className="mt-1 break-words text-sm font-black leading-snug text-foreground">
+                              <p className="mt-1 break-words text-sm font-semibold leading-snug text-foreground">
                                 {row.material} | {row.size} | {row.colors} | {row.finishing}
                               </p>
-                              <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">
+                              <p className="mt-0.5 text-[10px] font-normal text-muted-foreground">
                                 {row.active === false
                                   ? 'Combinação inativa: não aparece no catálogo até ser reativada.'
                                   : 'Esta combinação aparecerá no catálogo com as faixas abaixo.'}
@@ -3901,25 +3894,25 @@ export default function ProductsCRUDPage() {
                             <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
                               <div className="grid gap-2 md:grid-cols-4">
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black uppercase text-muted-foreground">Material</label>
-                                  <input value={matrixEditDraft.material} onChange={(event) => updateMatrixEditField('material', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-bold text-foreground" />
+                                  <label className="text-[9px] font-semibold uppercase text-muted-foreground">Material</label>
+                                  <input value={matrixEditDraft.material} onChange={(event) => updateMatrixEditField('material', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-normal text-foreground" />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black uppercase text-muted-foreground">Tamanho</label>
-                                  <input value={matrixEditDraft.size} onChange={(event) => updateMatrixEditField('size', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-bold text-foreground" />
+                                  <label className="text-[9px] font-semibold uppercase text-muted-foreground">Tamanho</label>
+                                  <input value={matrixEditDraft.size} onChange={(event) => updateMatrixEditField('size', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-normal text-foreground" />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black uppercase text-muted-foreground">Cores</label>
-                                  <input value={matrixEditDraft.colors} onChange={(event) => updateMatrixEditField('colors', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-bold text-foreground" />
+                                  <label className="text-[9px] font-semibold uppercase text-muted-foreground">Cores</label>
+                                  <input value={matrixEditDraft.colors} onChange={(event) => updateMatrixEditField('colors', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-normal text-foreground" />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black uppercase text-muted-foreground">Acabamento</label>
-                                  <input value={matrixEditDraft.finishing} onChange={(event) => updateMatrixEditField('finishing', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-bold text-foreground" />
+                                  <label className="text-[9px] font-semibold uppercase text-muted-foreground">Acabamento</label>
+                                  <input value={matrixEditDraft.finishing} onChange={(event) => updateMatrixEditField('finishing', event.target.value)} className="w-full rounded-lg border border-border bg-white px-2 py-1.5 text-xs font-normal text-foreground" />
                                 </div>
                               </div>
                               <div className="mt-3 space-y-2">
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="text-[10px] font-black uppercase tracking-wide text-primary">Faixas desta combinação</span>
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">Faixas desta combinação</span>
                                   <button type="button" onClick={addMatrixEditTier} className="rounded-lg border border-primary/20 bg-white px-2 py-1 text-[10px] font-bold text-primary">
                                     + Adicionar faixa
                                   </button>
@@ -3927,20 +3920,22 @@ export default function ProductsCRUDPage() {
                                 {matrixEditDraft.tiers.map((tierDraft, tierIndex) => (
                                   <div key={tierDraft.draftId} className="grid gap-2 rounded-lg border border-border bg-white p-2 md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                                     <div className="space-y-1">
-                                      <label className="text-[9px] font-black uppercase text-muted-foreground">Quantidade</label>
-                                      <input value={tierDraft.quantity} onChange={(event) => updateMatrixEditTier(tierIndex, 'quantity', event.target.value)} placeholder="Ex: 1000" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
+                                      <label className="text-[9px] font-semibold uppercase text-muted-foreground">Quantidade</label>
+                                      <input value={tierDraft.quantity} onChange={(event) => updateMatrixEditTier(tierIndex, 'quantity', event.target.value)} placeholder="Ex: 1000" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-normal text-foreground" />
                                     </div>
                                     <div className="space-y-1">
-                                      <label className="text-[9px] font-black uppercase text-muted-foreground">Preço unitário</label>
-                                      <input value={tierDraft.unitPrice} onChange={(event) => updateMatrixEditTier(tierIndex, 'unitPrice', event.target.value)} placeholder="Ex: 0,067" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
+                                      <label className="text-[9px] font-semibold uppercase text-muted-foreground">Preço unitário</label>
+                                      <input value={tierDraft.unitPrice} onChange={(event) => updateMatrixEditTier(tierIndex, 'unitPrice', event.target.value)} onBlur={() => normalizeMatrixEditTierMoney(tierIndex, 'unitPrice')} aria-invalid={Boolean(matrixEditErrors.get(tierDraft.draftId)?.unitPrice)} placeholder="Ex: 0,067" className={`w-full rounded-lg border bg-background px-2 py-1.5 text-xs font-normal text-foreground ${matrixEditErrors.get(tierDraft.draftId)?.unitPrice ? 'border-rose-500' : 'border-border'}`} />
+                                      {matrixEditErrors.get(tierDraft.draftId)?.unitPrice && <p className="text-[9px] font-medium text-rose-600">{matrixEditErrors.get(tierDraft.draftId)?.unitPrice}</p>}
                                     </div>
                                     <div className="space-y-1">
-                                      <label className="text-[9px] font-black uppercase text-muted-foreground">Total do lote</label>
-                                      <input value={tierDraft.totalPrice} onChange={(event) => updateMatrixEditTier(tierIndex, 'totalPrice', event.target.value)} placeholder="Ex: 167,50" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
+                                      <label className="text-[9px] font-semibold uppercase text-muted-foreground">Total do lote</label>
+                                      <input value={tierDraft.totalPrice} onChange={(event) => updateMatrixEditTier(tierIndex, 'totalPrice', event.target.value)} onBlur={() => normalizeMatrixEditTierMoney(tierIndex, 'totalPrice')} aria-invalid={Boolean(matrixEditErrors.get(tierDraft.draftId)?.totalPrice)} placeholder="Ex: 167,50" className={`w-full rounded-lg border bg-background px-2 py-1.5 text-xs font-normal text-foreground ${matrixEditErrors.get(tierDraft.draftId)?.totalPrice ? 'border-rose-500' : 'border-border'}`} />
+                                      {matrixEditErrors.get(tierDraft.draftId)?.totalPrice && <p className="text-[9px] font-medium text-rose-600">{matrixEditErrors.get(tierDraft.draftId)?.totalPrice}</p>}
                                     </div>
                                     <div className="space-y-1">
-                                      <label className="text-[9px] font-black uppercase text-muted-foreground">Prazo</label>
-                                      <input value={tierDraft.productionTime} onChange={(event) => updateMatrixEditTier(tierIndex, 'productionTime', event.target.value)} placeholder="Ex: 5 dias úteis" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-bold text-foreground" />
+                                      <label className="text-[9px] font-semibold uppercase text-muted-foreground">Prazo</label>
+                                      <input value={tierDraft.productionTime} onChange={(event) => updateMatrixEditTier(tierIndex, 'productionTime', event.target.value)} placeholder="Ex: 5 dias úteis" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-normal text-foreground" />
                                     </div>
                                     <button type="button" onClick={() => removeMatrixEditTier(tierIndex)} className="self-end rounded-lg border border-rose-500/20 bg-rose-500/10 p-2 text-rose-500" title="Remover faixa">
                                       <Trash2 className="h-3.5 w-3.5" />
@@ -3952,7 +3947,7 @@ export default function ProductsCRUDPage() {
                                 <button type="button" onClick={cancelEditVariantMatrixRow} className="rounded-lg border border-border bg-white px-3 py-1.5 text-[10px] font-bold text-muted-foreground">
                                   Cancelar
                                 </button>
-                                <button type="button" onClick={() => saveVariantMatrixRowEdit(row.id)} className="rounded-lg bg-primary px-3 py-1.5 text-[10px] font-bold text-primary-foreground">
+                                <button type="button" onClick={() => saveVariantMatrixRowEdit(row.id)} disabled={!matrixEditSerialization?.saveAllowed} className="rounded-lg bg-primary px-3 py-1.5 text-[10px] font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
                                   Salvar alterações
                                 </button>
                               </div>
@@ -3964,19 +3959,19 @@ export default function ProductsCRUDPage() {
                                 <div className="grid min-w-0 grid-cols-2 gap-3 xl:grid-cols-4">
                                   <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
                                     <span className="block text-[9px] font-bold uppercase text-muted-foreground">Tiragem</span>
-                                    <span className="mt-0.5 block whitespace-nowrap font-black text-foreground">{tier.quantity} un</span>
+                                    <span className="mt-0.5 block whitespace-nowrap font-semibold text-foreground">{tier.quantity} un</span>
                                   </div>
                                   <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
                                     <span className="block text-[9px] font-bold uppercase text-muted-foreground">Unitário</span>
-                                    <span className="mt-0.5 block whitespace-nowrap font-black text-primary">{formatUnitCurrency(tier.unit_price)}/un</span>
+                                    <span className="mt-0.5 block whitespace-nowrap font-medium text-primary">{formatUnitCurrency(tier.unit_price)}/un</span>
                                   </div>
                                   <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
                                     <span className="block text-[9px] font-bold uppercase text-muted-foreground">Total</span>
-                                    <span className="mt-0.5 block whitespace-nowrap font-black text-foreground">{formatCurrency(tier.total_price || tier.quantity * tier.unit_price)}</span>
+                                    <span className="mt-0.5 block whitespace-nowrap font-normal text-foreground">{formatCurrency(tier.total_price || tier.quantity * tier.unit_price)}</span>
                                   </div>
                                   <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2">
                                     <span className="block text-[9px] font-bold uppercase text-muted-foreground">Prazo</span>
-                                    <span className="mt-0.5 block break-words font-black leading-snug text-emerald-700">{tier.production_time || 'Prazo sob consulta'}</span>
+                                    <span className="mt-0.5 block break-words font-normal leading-snug text-emerald-700">{tier.production_time || 'Prazo sob consulta'}</span>
                                   </div>
                                 </div>
                                 <button
@@ -3993,7 +3988,7 @@ export default function ProductsCRUDPage() {
                         </div>
                       ))}
                       {filteredVariantPricingMatrix.length === 0 && (
-                        <div className="rounded-xl border border-dashed border-sky-500/30 bg-white px-4 py-6 text-center text-xs font-bold text-muted-foreground">
+                        <div className="rounded-xl border border-dashed border-sky-500/30 bg-white px-4 py-6 text-center text-xs font-normal text-muted-foreground">
                           Nenhuma combinação encontrada para os filtros selecionados.
                         </div>
                       )}
@@ -4393,7 +4388,8 @@ export default function ProductsCRUDPage() {
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all flex items-center gap-1"
+                disabled={hasInvalidMoneyDraft}
+                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Check className="h-4 w-4" /> 
                 {isEditing ? 'Atualizar Produto' : 'Cadastrar Produto'}
