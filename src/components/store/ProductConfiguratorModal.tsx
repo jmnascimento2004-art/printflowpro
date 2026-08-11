@@ -27,6 +27,7 @@ import {
   getVariantPricingOptions,
   normalizeCombinationKey,
   resolveProductPrice,
+  updateVariantPricingSelection,
   type NormalizedVolumePriceTier,
   type PricingSelectedOption,
   type VariantPricingSelection
@@ -458,28 +459,11 @@ export function ProductConfiguratorModal({
         : undefined;
 
   const handleMatrixOptionSelect = (field: keyof VariantPricingSelection, value: string) => {
-    if (field === 'material') {
-      setSelectedMaterial(value);
-      setSelectedMatrixSize('');
-      setSelectedMatrixColors('');
-      setSelectedFinishing('');
-      return;
-    }
-
-    if (field === 'size') {
-      setSelectedMatrixSize(value);
-      setSelectedMatrixColors('');
-      setSelectedFinishing('');
-      return;
-    }
-
-    if (field === 'colors') {
-      setSelectedMatrixColors(value);
-      setSelectedFinishing('');
-      return;
-    }
-
-    setSelectedFinishing(value);
+    const nextSelection = updateVariantPricingSelection(matrixSelection, field, value);
+    setSelectedMaterial(nextSelection.material || '');
+    setSelectedMatrixSize(nextSelection.size || '');
+    setSelectedMatrixColors(nextSelection.colors || '');
+    setSelectedFinishing(nextSelection.finishing || '');
   };
 
   const matrixMaterialOptions = getVariantPricingOptions(variantPricingRows, 'material');

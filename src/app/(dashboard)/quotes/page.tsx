@@ -47,8 +47,11 @@ import {
   formatUnitCurrency,
   getNormalizedVariantPricingMatrix,
   getNormalizedVolumePricing,
+  getMissingVariantPricingSelectionFields,
+  getVariantPricingTiersForSelection,
   getVariantPricingOptions,
   normalizeCombinationKey,
+  updateVariantPricingSelection,
   NormalizedVolumePriceTier
 } from '@/lib/pricing';
 
@@ -605,12 +608,24 @@ export default function QuotesPage() {
   const selectedMatrixRow = useMemo(() => (
     hasVariantPricingMatrix ? findVariantPricingMatrixRow(selectedVariantPricingRows, matrixSelection) : null
   ), [hasVariantPricingMatrix, selectedVariantPricingRows, matrixSelection]);
+  const missingMatrixSelectionFields = useMemo(() => (
+    hasVariantPricingMatrix
+      ? getMissingVariantPricingSelectionFields(selectedVariantPricingRows, matrixSelection)
+      : []
+  ), [hasVariantPricingMatrix, selectedVariantPricingRows, matrixSelection]);
+  const isMatrixSelectionComplete = missingMatrixSelectionFields.length === 0;
+  const missingMatrixSelectionLabels = missingMatrixSelectionFields.map((field) => ({
+    material: 'material',
+    size: 'tamanho',
+    colors: 'cores',
+    finishing: 'acabamento'
+  }[field]));
   const effectiveQuantityTiers: NormalizedVolumePriceTier[] = useMemo(() => {
-    if (hasVariantPricingMatrix) return selectedMatrixRow?.tiers || [];
+    if (hasVariantPricingMatrix) return getVariantPricingTiersForSelection(selectedVariantPricingRows, matrixSelection);
     return getNormalizedVolumePricing(selectedProduct).sort((a, b) => a.min_qty - b.min_qty);
-  }, [hasVariantPricingMatrix, selectedMatrixRow, selectedProduct]);
-  const selectedQuantityTier = effectiveQuantityTiers.find((tier) => tier.min_qty === itemQty) || effectiveQuantityTiers[0] || null;
-  const requiresTierSelection = Boolean(selectedProductId && effectiveQuantityTiers.length > 0);
+  }, [hasVariantPricingMatrix, selectedVariantPricingRows, matrixSelection, selectedProduct]);
+  const selectedQuantityTier = effectiveQuantityTiers.find((tier) => tier.min_qty === itemQty) || null;
+  const requiresTierSelection = Boolean(selectedProductId && (hasVariantPricingMatrix || effectiveQuantityTiers.length > 0));
   const matrixMaterialOptions = getVariantPricingOptions(selectedVariantPricingRows, 'material');
   const matrixSizeOptions = getVariantPricingOptions(selectedVariantPricingRows, 'size', { material: selectedMaterial });
   const matrixColorOptions = getVariantPricingOptions(selectedVariantPricingRows, 'colors', { material: selectedMaterial, size: selectedMatrixSize });
@@ -651,20 +666,13 @@ export default function QuotesPage() {
   };
 
   const handleMatrixOptionSelect = (field: MatrixSelectionField, value: string) => {
-    const nextSelection = {
-      material: field === 'material' ? value : selectedMaterial,
-      size: field === 'size' ? value : selectedMatrixSize,
-      colors: field === 'colors' ? value : selectedMatrixColors,
-      finishing: field === 'finishing' ? value : selectedFinishing
-    };
-    const matchingRow = selectedVariantPricingRows.find((row) => (
-      (!nextSelection.material || normalizeCombinationKey(row.material) === normalizeCombinationKey(nextSelection.material)) &&
-      (!nextSelection.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(nextSelection.size)) &&
-      (!nextSelection.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(nextSelection.colors)) &&
-      (!nextSelection.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(nextSelection.finishing))
-    )) || selectedVariantPricingRows[0] || null;
-
-    applyMatrixRow(matchingRow);
+    const nextSelection = updateVariantPricingSelection(matrixSelection, field, value);
+    const matchingRow = findVariantPricingMatrixRow(selectedVariantPricingRows, nextSelection);
+    setSelectedMaterial(nextSelection.material || '');
+    setSelectedMatrixSize(nextSelection.size || '');
+    setSelectedMatrixColors(nextSelection.colors || '');
+    setSelectedFinishing(nextSelection.finishing || '');
+    setItemQty(matchingRow?.tiers[0]?.min_qty || 1);
   };
 
   // 1. Filter Quotes
@@ -1836,15 +1844,25 @@ export default function QuotesPage() {
                       </div>
                     ))}
                   </div>
-                  {!selectedMatrixRow && (
+                  {!isMatrixSelectionComplete && (
+                    <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] font-semibold text-primary">
+                      Complete {missingMatrixSelectionLabels.join(', ')} para liberar somente as tiragens da combinação escolhida.
+                    </div>
+                  )}
+                  {isMatrixSelectionComplete && !selectedMatrixRow && (
                     <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
                       Essa combinação não possui preço cadastrado. Escolha outra opção.
+                    </div>
+                  )}
+                  {isMatrixSelectionComplete && selectedMatrixRow && effectiveQuantityTiers.length === 0 && (
+                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                      Nenhuma tiragem/preço cadastrado para esta combinação.
                     </div>
                   )}
                 </div>
               )}
 
-              {selectedProductId && !isManualQuoteItem && requiresTierSelection && (
+              {selectedProductId && !isManualQuoteItem && effectiveQuantityTiers.length > 0 && (
                 <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground space-y-2">
                   <div>
                     <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Faixas de quantidade</h5>
@@ -1870,7 +1888,7 @@ export default function QuotesPage() {
                       </button>
                     ))}
                   </div>
-                  {selectedQuantityTier ? (
+                  {selectedQuantityTier && (
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <span className="font-semibold">
                         Faixa aplicada: a partir de {selectedQuantityTier.min_qty} un
@@ -1881,15 +1899,6 @@ export default function QuotesPage() {
                         {formatCurrency(selectedQuantityTier.total)} total
                       </span>
                     </div>
-                  ) : (
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="font-semibold text-amber-600">
-                        Este produto possui tabela por quantidade, mas a quantidade informada ainda não atingiu a primeira faixa.
-                      </span>
-                      <span className="font-bold text-foreground">
-                        Preço base: {formatUnitCurrency(getProductPriceInfo(selectedProductId).price)} / un
-                      </span>
-                    </div>
                   )}
                 </div>
               )}
@@ -1898,7 +1907,8 @@ export default function QuotesPage() {
                 <button
                   type="button"
                   onClick={handleAddItem}
-                  className="w-full py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold transition-all"
+                  disabled={requiresTierSelection && !selectedQuantityTier}
+                  className="w-full py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Incluir Item
                 </button>
