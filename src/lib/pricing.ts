@@ -126,6 +126,8 @@ const matrixFieldLabels: Record<keyof VariantPricingSelection, string> = {
   finishing: 'finalização'
 };
 
+const variantPricingSelectionFields = ['material', 'size', 'colors', 'finishing'] as const;
+
 type ProductLike = Partial<Product> & {
   sales_price?: number | string | null;
   base_cost?: number | string | null;
@@ -350,13 +352,48 @@ export function getNormalizedVariantPricingMatrix(product: ProductLike | null | 
         tiers
       };
     })
-    .filter((row) => row.active !== false && row.tiers.length > 0)
+    .filter((row) => row.active !== false)
     .sort((a, b) => a.position - b.position);
 }
 
+export function updateVariantPricingSelection(
+  selection: VariantPricingSelection,
+  field: keyof VariantPricingSelection,
+  value: string
+): VariantPricingSelection {
+  const changedFieldIndex = variantPricingSelectionFields.indexOf(field);
+
+  return variantPricingSelectionFields.reduce<VariantPricingSelection>((next, currentField, index) => {
+    next[currentField] = index < changedFieldIndex
+      ? normalizeTextValue(selection[currentField])
+      : index === changedFieldIndex
+        ? normalizeTextValue(value)
+        : '';
+    return next;
+  }, {});
+}
+
+export function getMissingVariantPricingSelectionFields(
+  rows: NormalizedVariantPricingMatrixRow[],
+  selection: VariantPricingSelection
+): Array<keyof VariantPricingSelection> {
+  return variantPricingSelectionFields
+    .filter((field) => rows.some((row) => normalizeCombinationKey(row[field])))
+    .filter((field) => !normalizeCombinationKey(selection[field]));
+}
+
+export function getVariantPricingTiersForSelection(
+  rows: NormalizedVariantPricingMatrixRow[],
+  selection: VariantPricingSelection
+): NormalizedVolumePriceTier[] {
+  if (getMissingVariantPricingSelectionFields(rows, selection).length > 0) return [];
+  return findVariantPricingMatrixRow(rows, selection)?.tiers || [];
+}
+
 export function getProductQuantityTierSummary(product: ProductLike | null | undefined): ProductQuantityTierSummary {
-  const matrixRow = getNormalizedVariantPricingMatrix(product)[0] || null;
-  if (matrixRow?.tiers.length) {
+  const matrixRow = getNormalizedVariantPricingMatrix(product)
+    .find((row) => row.tiers.length > 0) || null;
+  if (matrixRow) {
     const sourceLabel = [matrixRow.material, matrixRow.size, matrixRow.colors, matrixRow.finishing]
       .filter(Boolean)
       .join(' | ');
@@ -415,24 +452,17 @@ export function findVariantPricingMatrixRow(
   rows: NormalizedVariantPricingMatrixRow[],
   selection: VariantPricingSelection
 ): NormalizedVariantPricingMatrixRow | null {
-  return rows.find((row) => (
-    (!row.material || normalizeCombinationKey(row.material) === normalizeCombinationKey(selection.material)) &&
-    (!row.size || normalizeCombinationKey(row.size) === normalizeCombinationKey(selection.size)) &&
-    (!row.colors || normalizeCombinationKey(row.colors) === normalizeCombinationKey(selection.colors)) &&
-    (!row.finishing || normalizeCombinationKey(row.finishing) === normalizeCombinationKey(selection.finishing))
-  )) || null;
-}
+  const requiredFields = variantPricingSelectionFields.filter((field) => (
+    Boolean(normalizeCombinationKey(selection[field])) ||
+    rows.some((row) => Boolean(normalizeCombinationKey(row[field])))
+  ));
+  const matchingRows = rows.filter((row) => requiredFields.every((field) => {
+    const selectedValue = normalizeCombinationKey(selection[field]);
+    const rowValue = normalizeCombinationKey(row[field]);
+    return Boolean(selectedValue && rowValue && selectedValue === rowValue);
+  }));
 
-function findExactVariantPricingMatrixRow(
-  rows: NormalizedVariantPricingMatrixRow[],
-  selection: VariantPricingSelection
-): NormalizedVariantPricingMatrixRow | null {
-  return rows.find((row) => (
-    normalizeCombinationKey(row.material) === normalizeCombinationKey(selection.material) &&
-    normalizeCombinationKey(row.size) === normalizeCombinationKey(selection.size) &&
-    normalizeCombinationKey(row.colors) === normalizeCombinationKey(selection.colors) &&
-    normalizeCombinationKey(row.finishing) === normalizeCombinationKey(selection.finishing)
-  )) || null;
+  return matchingRows.find((row) => row.tiers.length > 0) || matchingRows[0] || null;
 }
 
 export function getCatalogPricePresentation(product: ProductLike | null | undefined): CatalogPricePresentation {
@@ -728,13 +758,10 @@ export function resolveProductPrice(product: ProductLike | null | undefined, con
 
   if (matrixRows.length > 0) {
     const variantSelection = normalized.customOptions?.variantSelection || {};
-    const requiredMatrixFields = (['material', 'size', 'colors', 'finishing'] as Array<keyof VariantPricingSelection>)
-      .filter((field) => matrixRows.some((row) => normalizeCombinationKey(row[field])));
-    const missingRequiredGroups = [...optionCompleteness.missingRequiredGroups, ...requiredMatrixFields
-      .filter((field) => !normalizeCombinationKey(variantSelection[field]))
+    const missingRequiredGroups = [...optionCompleteness.missingRequiredGroups, ...getMissingVariantPricingSelectionFields(matrixRows, variantSelection)
       .map((field) => matrixFieldLabels[field])];
     const isComplete = missingRequiredGroups.length === 0;
-    const matchedMatrixRow = findExactVariantPricingMatrixRow(matrixRows, variantSelection);
+    const matchedMatrixRow = findVariantPricingMatrixRow(matrixRows, variantSelection);
     const matchedTier = matchedMatrixRow?.tiers.find((tier) => tier.min_qty === normalized.quantity) || null;
     const fallbackBreakdown = getPriceBreakdown(product, trustedConfig);
     const unresolvedProduction = resolveProductionTime(null);
