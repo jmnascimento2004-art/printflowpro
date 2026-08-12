@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Clipboard, MessageCircle, RotateCcw, Save, Search, Send, Settings2, Variable, X } from 'lucide-react';
+import { MessageCircle, Save, Send, Settings2, X } from 'lucide-react';
+import { MessageEditor, MessagePreview, SystemMessageList } from '@/components/whatsapp/system-message-workspace';
 import { useAuth } from '@/context/auth-context';
 import { useDatabase } from '@/context/database-context';
 import { buildWhatsAppUrl, renderConfiguredWhatsAppTemplate, resolveWhatsAppPreviewVariables, validateWhatsAppTemplate, WHATSAPP_TEMPLATE_MAX_LENGTH } from '@/lib/whatsapp';
@@ -176,38 +177,42 @@ export default function WhatsAppCenterPage() {
       {(message || error) && <div className={`rounded-xl border px-4 py-3 text-xs ${error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{error || message}</div>}
 
       <div className="flex gap-1 rounded-xl border border-border bg-card p-1">
-        <TabButton active={tab === 'templates'} onClick={() => requestNavigation({ kind: 'tab', value: 'templates' })} icon={<MessageCircle className="h-4 w-4" />}>Modelos de mensagens</TabButton>
+        <TabButton active={tab === 'templates'} onClick={() => requestNavigation({ kind: 'tab', value: 'templates' })} icon={<MessageCircle className="h-4 w-4" />}>Mensagens do Sistema</TabButton>
         <TabButton active={tab === 'settings'} onClick={() => requestNavigation({ kind: 'tab', value: 'settings' })} icon={<Settings2 className="h-4 w-4" />}>Configurações</TabButton>
       </div>
 
       {tab === 'templates' ? (
         <div className="grid min-w-0 gap-4 xl:grid-cols-[270px_minmax(0,1fr)_320px]">
-          <aside className="rounded-2xl border border-border bg-card p-3">
-            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar modelo" className="h-10 w-full rounded-xl border border-border bg-background pl-9 pr-3 text-xs outline-none focus:border-primary" /></div>
-            <select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-xs outline-none focus:border-primary">{categories.map((item) => <option key={item}>{item}</option>)}</select>
-            <div className="mt-3 space-y-2">
-              {filteredTemplates.map(({ definition, custom }) => (
-                <button key={definition.eventKey} type="button" onClick={() => requestNavigation({ kind: 'template', value: definition.eventKey })} className={`w-full rounded-xl border p-3 text-left transition ${selectedEventKey === definition.eventKey ? 'border-primary bg-primary/5' : 'border-border hover:bg-secondary/60'}`}>
-                  <div className="flex items-start justify-between gap-2"><span className="text-xs font-bold text-foreground">{definition.name}</span><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${custom ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>{custom ? 'Personalizado' : 'Padrão'}</span></div>
-                  <p className="mt-1 text-[10px] text-muted-foreground">{definition.category}</p>
-                </button>
-              ))}
-            </div>
-          </aside>
-
-          <section className="min-w-0 rounded-2xl border border-border bg-card p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-sm font-black text-foreground">{selected.definition.name}</h2><p className="mt-1 text-[11px] leading-4 text-muted-foreground">{selected.definition.description}</p><code className="mt-2 inline-block rounded bg-secondary px-2 py-1 text-[10px]">{selected.definition.eventKey}</code></div><label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={active} onChange={(event) => { setActive(event.target.checked); setDirty(true); }} className="h-4 w-4" />Ativo</label></div>
-            <textarea ref={textareaRef} value={content} onChange={(event) => { setContent(event.target.value); setDirty(true); setMessage(null); }} maxLength={WHATSAPP_TEMPLATE_MAX_LENGTH + 100} className={`mt-4 min-h-[300px] w-full resize-y rounded-xl border bg-background p-3 font-mono text-xs leading-5 outline-none ${validation.valid ? 'border-border focus:border-primary' : 'border-rose-400'}`} aria-label="Conteúdo da mensagem" />
-            <div className="mt-2 flex justify-between text-[10px]"><span className={validation.valid ? 'text-muted-foreground' : 'text-rose-600'}>{validation.errors[0] || 'Mensagem válida.'}</span><span className={content.length > WHATSAPP_TEMPLATE_MAX_LENGTH ? 'font-bold text-rose-600' : 'text-muted-foreground'}>{content.length}/{WHATSAPP_TEMPLATE_MAX_LENGTH}</span></div>
-            <div className="mt-4"><div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-foreground"><Variable className="h-4 w-4" />Variáveis disponíveis</div><div className="flex flex-wrap gap-2">{selected.definition.allowedVariables.map((variable) => <button key={variable} type="button" onClick={() => insertVariable(variable)} className="min-h-11 rounded-lg border border-primary/20 bg-primary/5 px-2.5 font-mono text-[10px] text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">{`{{${variable}}}`}</button>)}</div></div>
-            <div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={handleRestore} disabled={saving || !selected.custom} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border px-3 text-xs font-bold disabled:opacity-40"><RotateCcw className="h-4 w-4" />Restaurar padrão</button><button type="button" onClick={handleSaveTemplate} disabled={saving || !validation.valid || !dirty} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground disabled:opacity-40"><Save className="h-4 w-4" />{saving ? 'Salvando...' : 'Salvar modelo'}</button></div>
-          </section>
-
-          <aside className="min-w-0 rounded-2xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between gap-2"><h2 className="text-xs font-black text-foreground">Pré-visualização</h2><button type="button" aria-label="Copiar pré-visualização" onClick={() => void navigator.clipboard.writeText(preview)} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-border px-2 text-[10px] font-bold transition hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><Clipboard className="h-3.5 w-3.5" />Copiar</button></div>
-            <div className="mt-3 rounded-2xl bg-[#efeae2] p-3"><div className="ml-auto max-w-[95%] whitespace-pre-wrap break-words rounded-xl rounded-tr-sm bg-[#d9fdd3] p-3 text-[11px] leading-5 text-slate-800 shadow-sm">{preview}</div></div>
-            <button type="button" onClick={() => setTestOpen(true)} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700"><Send className="h-4 w-4" />Testar mensagem</button>
-          </aside>
+          <SystemMessageList
+            messages={filteredTemplates}
+            selectedEventKey={selectedEventKey}
+            search={search}
+            category={category}
+            categories={categories}
+            onSearchChange={setSearch}
+            onCategoryChange={setCategory}
+            onSelect={(eventKey) => requestNavigation({ kind: 'template', value: eventKey })}
+          />
+          <MessageEditor
+            message={selected}
+            content={content}
+            active={active}
+            validation={validation}
+            maxLength={WHATSAPP_TEMPLATE_MAX_LENGTH}
+            saving={saving}
+            dirty={dirty}
+            textareaRef={textareaRef}
+            onContentChange={(value) => { setContent(value); setDirty(true); setMessage(null); }}
+            onActiveChange={(value) => { setActive(value); setDirty(true); }}
+            onInsertVariable={insertVariable}
+            onRestore={() => void handleRestore()}
+            onSave={() => void handleSaveTemplate()}
+          />
+          <MessagePreview
+            preview={preview}
+            onCopy={() => void navigator.clipboard.writeText(preview)}
+            onTest={() => setTestOpen(true)}
+          />
         </div>
       ) : (
         <SettingsPanel settings={settings} onChange={(next) => { setSettings(next); setDirty(true); setMessage(null); }} saving={saving} onSave={handleSaveSettings} />

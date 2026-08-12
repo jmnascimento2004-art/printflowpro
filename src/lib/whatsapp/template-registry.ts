@@ -1,4 +1,4 @@
-import type { WhatsAppTemplateDefinition } from './types';
+import type { WhatsAppSystemMessageDefinition } from './types';
 
 const COMMON_SAMPLES = {
   cliente_nome: 'Maria Silva',
@@ -26,6 +26,7 @@ const COMMON_SAMPLES = {
 
 export const WHATSAPP_TEMPLATE_REGISTRY = [
   {
+    kind: 'system',
     eventKey: 'quote_proposal',
     name: 'Proposta de orçamento',
     category: 'Orçamentos',
@@ -49,6 +50,7 @@ Atenciosamente
     enabledByDefault: true
   },
   {
+    kind: 'system',
     eventKey: 'order_payment_pending',
     name: 'Cobrança PIX do pedido',
     category: 'Pedidos',
@@ -74,6 +76,7 @@ Atenciosamente,
     enabledByDefault: true
   },
   {
+    kind: 'system',
     eventKey: 'production_status_changed',
     name: 'Atualização da produção',
     category: 'Produção',
@@ -91,6 +94,7 @@ Atenciosamente,
     enabledByDefault: true
   },
   {
+    kind: 'system',
     eventKey: 'store_product_request',
     name: 'Solicitação de produto da loja',
     category: 'Atendimento',
@@ -115,7 +119,7 @@ Aguardo atendimento.`,
     sampleVariables: COMMON_SAMPLES,
     enabledByDefault: true
   }
-] as const satisfies readonly WhatsAppTemplateDefinition[];
+] as const satisfies readonly WhatsAppSystemMessageDefinition[];
 
 export type { WhatsAppEventKey } from './variable-contract';
 
