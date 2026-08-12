@@ -14,6 +14,7 @@ import {
   normalizePdfText
 } from '@/lib/pdf/pdf-formatters';
 import { PdfProductTable } from '@/lib/pdf/pdf-product-table.mjs';
+import { resolveOrderDeliveryTime } from '@/lib/order-delivery-time.mjs';
 
 const orderStatusLabels: Record<ReturnType<typeof normalizeOrderOperationalStatus>, string> = {
   orcamento: 'ORÇAMENTO',
@@ -156,6 +157,7 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
   const financialStatusLabel = isInvoicedB2B
     ? 'FATURADO'
     : data.order.payment_status.toUpperCase();
+  const deliveryTime = resolveOrderDeliveryTime(data.order.items);
 
   return (
     <Document title={`Pedido ${orderDisplayNumber}`} author={data.company.name}>
@@ -173,7 +175,7 @@ export function OrderPdfDocument({ data }: { data: OrderPdfData }) {
             <Text style={styles.title}>PEDIDO COMERCIAL</Text>
             <Text style={styles.title}>{orderDisplayNumber}</Text>
             <Text style={styles.meta}>Emissão: {formatPdfDate(data.order.created_at)}</Text>
-            <Text style={styles.meta}>Prazo: {formatPdfDate(data.order.deadline)}</Text>
+            <Text style={styles.meta}>Prazo de entrega: {deliveryTime.label}</Text>
           </View>
         </View>
 
