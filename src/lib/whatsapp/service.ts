@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { getWhatsAppTemplateDefinition, WHATSAPP_TEMPLATE_REGISTRY } from './template-registry';
 import { normalizeWhatsAppPhone, renderConfiguredWhatsAppTemplate, validateWhatsAppTemplate } from './template-engine';
+import { getWhatsAppSystemMessages } from './message-model';
 import type { WhatsAppMessageTemplate, WhatsAppResolvedTemplate, WhatsAppSettings } from './types';
 import type { WhatsAppResolvedVariables } from './variable-contract';
 
@@ -129,7 +130,6 @@ export async function resolveWhatsAppTemplate(
   };
 }
 
-export function getResolvedWhatsAppTemplates(customTemplates: WhatsAppMessageTemplate[]) {
-  const customByEvent = new Map(customTemplates.map((template) => [template.event_key, template]));
-  return WHATSAPP_TEMPLATE_REGISTRY.map((definition) => ({ definition, custom: customByEvent.get(definition.eventKey) || null }));
+export function getResolvedWhatsAppTemplates(systemOverrides: WhatsAppMessageTemplate[]) {
+  return getWhatsAppSystemMessages(WHATSAPP_TEMPLATE_REGISTRY, systemOverrides);
 }

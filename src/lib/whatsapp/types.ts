@@ -15,7 +15,22 @@ export interface WhatsAppTemplateDefinition {
   enabledByDefault: boolean;
 }
 
-export interface WhatsAppMessageTemplate {
+export interface WhatsAppSystemMessageDefinition extends WhatsAppTemplateDefinition {
+  kind: 'system';
+}
+
+export interface WhatsAppCustomMessage {
+  kind: 'custom';
+  id: string;
+  name: string;
+  content: string;
+  active: boolean;
+  allowedVariables: readonly WhatsAppTemplateVariable[];
+  eventKey?: never;
+  event_key?: never;
+}
+
+export interface WhatsAppSystemMessageOverride {
   id: string;
   company_id: string;
   event_key: string;
@@ -27,6 +42,19 @@ export interface WhatsAppMessageTemplate {
   created_at: string;
   updated_at: string;
 }
+
+export type WhatsAppMessageTemplate = WhatsAppSystemMessageOverride;
+
+export interface WhatsAppSystemMessage {
+  kind: 'system';
+  definition: WhatsAppSystemMessageDefinition;
+  override: WhatsAppSystemMessageOverride | null;
+  content: string;
+  active: boolean;
+  customized: boolean;
+}
+
+export type WhatsAppMessage = WhatsAppSystemMessage | WhatsAppCustomMessage;
 
 export interface WhatsAppSettings {
   id?: string;
@@ -44,7 +72,7 @@ export interface WhatsAppSettings {
 }
 
 export interface WhatsAppResolvedTemplate {
-  definition: WhatsAppTemplateDefinition;
+  definition: WhatsAppSystemMessageDefinition;
   content: string;
   renderedContent: string;
   active: boolean;
