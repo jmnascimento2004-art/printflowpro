@@ -15,11 +15,12 @@ type PersistenceError = {
 };
 
 export type UpdateWhatsAppCustomMessageInput = WhatsAppCustomMessageInput & {
-  expectedUpdatedAt?: string;
+  expectedUpdatedAt: string;
 };
 
 export type WhatsAppCustomMessageDataErrorCode =
   | 'DUPLICATE_NAME'
+  | 'CONFLICT'
   | 'NOT_FOUND'
   | 'NOT_AUTHORIZED'
   | 'PERSISTENCE_ERROR';
@@ -49,11 +50,21 @@ function mapPersistenceError(error: PersistenceError): WhatsAppCustomMessageData
   if (error.code === '42501') {
     return new WhatsAppCustomMessageDataError('NOT_AUTHORIZED', 'Você não tem permissão para alterar mensagens personalizadas.', error.code);
   }
-  if (error.code === 'PGRST116') {
-    return new WhatsAppCustomMessageDataError('NOT_FOUND', 'Mensagem personalizada não encontrada.', error.code);
-  }
   return new WhatsAppCustomMessageDataError('PERSISTENCE_ERROR', 'Não foi possível acessar as mensagens personalizadas.', error.code);
 }
+
+type AtomicUpdateStatus = 'UPDATED' | 'CONFLICT' | 'NOT_FOUND' | 'NOT_AUTHORIZED';
+
+type AtomicUpdateResult = {
+  result_status: AtomicUpdateStatus;
+  message_id: string | null;
+  message_company_id: string | null;
+  message_name: string | null;
+  message_content: string | null;
+  message_context_type: WhatsAppCustomMessageRow['context_type'] | null;
+  message_created_at: string | null;
+  message_updated_at: string | null;
+};
 
 function toDomainMessage(row: WhatsAppCustomMessageRow): WhatsAppCustomMessage {
   return {
@@ -67,6 +78,33 @@ function toDomainMessage(row: WhatsAppCustomMessageRow): WhatsAppCustomMessage {
     updatedAt: row.updated_at,
     allowedVariables: getWhatsAppCustomVariables(row.context_type)
   };
+}
+
+function toDomainAtomicUpdate(result: AtomicUpdateResult): WhatsAppCustomMessage {
+  if (
+    !result.message_id
+    || !result.message_company_id
+    || result.message_name === null
+    || result.message_content === null
+    || !result.message_context_type
+    || !result.message_created_at
+    || !result.message_updated_at
+  ) {
+    throw new WhatsAppCustomMessageDataError(
+      'PERSISTENCE_ERROR',
+      'Não foi possível validar a mensagem personalizada atualizada.'
+    );
+  }
+
+  return toDomainMessage({
+    id: result.message_id,
+    company_id: result.message_company_id,
+    name: result.message_name,
+    content: result.message_content,
+    context_type: result.message_context_type,
+    created_at: result.message_created_at,
+    updated_at: result.message_updated_at
+  });
 }
 
 export async function listWhatsAppCustomMessages(
@@ -113,24 +151,42 @@ export async function updateWhatsAppCustomMessage(
   input: UpdateWhatsAppCustomMessageInput,
   client: SupabaseClient = supabase
 ): Promise<WhatsAppCustomMessage> {
-  const trustedCompanyId = requireIdentifier(companyId, 'Empresa');
+  requireIdentifier(companyId, 'Empresa');
   const trustedId = requireIdentifier(id, 'Mensagem');
+  const trustedExpectedUpdatedAt = requireIdentifier(input.expectedUpdatedAt, 'Versão da mensagem');
   const validated = assertValidWhatsAppCustomMessage(input);
-  let query = client
-    .from('whatsapp_custom_messages')
-    .update({
-      name: validated.name,
-      content: validated.content,
-      context_type: validated.contextType
+  const { data, error } = await client
+    .rpc('update_whatsapp_custom_message_atomic', {
+      p_message_id: trustedId,
+      p_name: validated.name,
+      p_content: validated.content,
+      p_context_type: validated.contextType,
+      p_expected_updated_at: trustedExpectedUpdatedAt
     })
-    .eq('id', trustedId)
-    .eq('company_id', trustedCompanyId);
-
-  if (input.expectedUpdatedAt) query = query.eq('updated_at', input.expectedUpdatedAt);
-  const { data, error } = await query.select(CUSTOM_MESSAGE_COLUMNS).single();
+    .single();
 
   if (error) throw mapPersistenceError(error);
-  return toDomainMessage(data as WhatsAppCustomMessageRow);
+  const result = data as AtomicUpdateResult;
+  if (result.result_status === 'UPDATED') return toDomainAtomicUpdate(result);
+  if (result.result_status === 'CONFLICT') {
+    throw new WhatsAppCustomMessageDataError(
+      'CONFLICT',
+      'A mensagem foi alterada por outro usuário. Recarregue os dados antes de salvar novamente.'
+    );
+  }
+  if (result.result_status === 'NOT_FOUND') {
+    throw new WhatsAppCustomMessageDataError('NOT_FOUND', 'Mensagem personalizada não encontrada.');
+  }
+  if (result.result_status === 'NOT_AUTHORIZED') {
+    throw new WhatsAppCustomMessageDataError(
+      'NOT_AUTHORIZED',
+      'Você não tem permissão para alterar mensagens personalizadas.'
+    );
+  }
+  throw new WhatsAppCustomMessageDataError(
+    'PERSISTENCE_ERROR',
+    'Não foi possível acessar as mensagens personalizadas.'
+  );
 }
 
 export async function deleteWhatsAppCustomMessage(

@@ -1,5 +1,5 @@
 begin;
-select plan(23);
+select plan(34);
 
 select has_table('public', 'whatsapp_custom_messages', 'custom messages table exists');
 select col_is_pk('public', 'whatsapp_custom_messages', 'id', 'id is the primary key');
@@ -41,6 +41,56 @@ select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_mess
 select table_privs_are('public', 'whatsapp_custom_messages', 'public', array[]::text[]);
 select table_privs_are('public', 'whatsapp_custom_messages', 'anon', array[]::text[]);
 select table_privs_are('public', 'whatsapp_custom_messages', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE']);
+
+select has_function('private', 'current_user_can_mutate_whatsapp_custom_messages', array['text']);
+select function_returns('private', 'current_user_can_mutate_whatsapp_custom_messages', array['text'], 'boolean');
+select ok(not coalesce((
+  select p.prosecdef
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'private'
+    and p.proname = 'current_user_can_mutate_whatsapp_custom_messages'
+    and pg_get_function_identity_arguments(p.oid) = 'p_path text'
+), true), 'permission helper is SECURITY INVOKER');
+select function_privs_are('private', 'current_user_can_mutate_whatsapp_custom_messages', array['text'], 'authenticated', array['EXECUTE']);
+select function_privs_are('private', 'current_user_can_mutate_whatsapp_custom_messages', array['text'], 'anon', array[]::text[]);
+select function_privs_are('private', 'current_user_can_mutate_whatsapp_custom_messages', array['text'], 'public', array[]::text[]);
+
+select has_function(
+  'public',
+  'update_whatsapp_custom_message_atomic',
+  array['text', 'text', 'text', 'text', 'timestamp with time zone']
+);
+select ok(not coalesce((
+  select p.prosecdef
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'update_whatsapp_custom_message_atomic'
+    and pg_get_function_identity_arguments(p.oid) =
+      'p_message_id text, p_name text, p_content text, p_context_type text, p_expected_updated_at timestamp with time zone'
+), true), 'atomic update is SECURITY INVOKER');
+select function_privs_are(
+  'public',
+  'update_whatsapp_custom_message_atomic',
+  array['text', 'text', 'text', 'text', 'timestamp with time zone'],
+  'authenticated',
+  array['EXECUTE']
+);
+select function_privs_are(
+  'public',
+  'update_whatsapp_custom_message_atomic',
+  array['text', 'text', 'text', 'text', 'timestamp with time zone'],
+  'anon',
+  array[]::text[]
+);
+select function_privs_are(
+  'public',
+  'update_whatsapp_custom_message_atomic',
+  array['text', 'text', 'text', 'text', 'timestamp with time zone'],
+  'public',
+  array[]::text[]
+);
 
 select ok(not exists (
   select 1 from information_schema.columns

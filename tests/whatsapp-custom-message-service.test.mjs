@@ -30,9 +30,30 @@ const row = {
   updated_at: '2026-08-12T12:00:00.000Z'
 };
 
+function atomicResult(result_status, source = row) {
+  return {
+    result_status,
+    message_id: source?.id ?? null,
+    message_company_id: source?.company_id ?? null,
+    message_name: source?.name ?? null,
+    message_content: source?.content ?? null,
+    message_context_type: source?.context_type ?? null,
+    message_created_at: source?.created_at ?? null,
+    message_updated_at: source?.updated_at ?? null
+  };
+}
+
 function mockClient(response) {
   const calls = [];
-  const state = { operation: null, payload: null, filters: [], orders: [], selection: null };
+  const state = {
+    operation: null,
+    payload: null,
+    filters: [],
+    orders: [],
+    selection: null,
+    rpcName: null,
+    rpcArguments: null
+  };
   const builder = {
     select(columns) { state.selection = columns; calls.push(['select', columns]); return builder; },
     insert(payload) { state.operation = 'insert'; state.payload = payload; calls.push(['insert', payload]); return builder; },
@@ -45,7 +66,16 @@ function mockClient(response) {
     then(resolve, reject) { return Promise.resolve(response).then(resolve, reject); }
   };
   return {
-    client: { from(table) { calls.push(['from', table]); return builder; } },
+    client: {
+      from(table) { calls.push(['from', table]); return builder; },
+      rpc(name, args) {
+        state.operation = 'rpc';
+        state.rpcName = name;
+        state.rpcArguments = args;
+        calls.push(['rpc', name, args]);
+        return builder;
+      }
+    },
     calls,
     state
   };
@@ -79,19 +109,71 @@ test('create builds an explicit normalized payload without event or omitted fiel
   assert.equal('active' in created, false);
 });
 
-test('update filters exact id and tenant, never writes company_id, and supports conflict token', async () => {
+test('atomic update sends one RPC without client-controlled company id and returns the updated row', async () => {
   const updatedRow = { ...row, name: 'Retorno', updated_at: '2026-08-12T13:00:00.000Z' };
-  const mock = mockClient({ data: updatedRow, error: null });
-  await service.updateWhatsAppCustomMessage('company-a', 'message-a', {
+  const mock = mockClient({ data: atomicResult('UPDATED', updatedRow), error: null });
+  const updated = await service.updateWhatsAppCustomMessage('company-a', 'message-a', {
     name: 'Retorno', content: 'Olá {{empresa.nome}}', contextType: 'generic', expectedUpdatedAt: row.updated_at
   }, mock.client);
-  assert.deepEqual(mock.state.payload, {
-    name: 'Retorno', content: 'Olá {{empresa.nome}}', context_type: 'generic'
+  assert.equal(updated.name, 'Retorno');
+  assert.equal(updated.updatedAt, updatedRow.updated_at);
+  assert.equal(mock.state.rpcName, 'update_whatsapp_custom_message_atomic');
+  assert.deepEqual(mock.state.rpcArguments, {
+    p_message_id: 'message-a',
+    p_name: 'Retorno',
+    p_content: 'Olá {{empresa.nome}}',
+    p_context_type: 'generic',
+    p_expected_updated_at: row.updated_at
   });
-  assert.deepEqual(mock.state.filters, [
-    ['id', 'message-a'], ['company_id', 'company-a'], ['updated_at', row.updated_at]
-  ]);
-  assert.equal('company_id' in mock.state.payload, false);
+  assert.equal('company_id' in mock.state.rpcArguments, false);
+  assert.equal('p_company_id' in mock.state.rpcArguments, false);
+  assert.equal(mock.calls.filter(([operation]) => operation === 'rpc').length, 1);
+  assert.equal(mock.calls.some(([operation]) => operation === 'from'), false);
+});
+
+test('stale optimistic concurrency token maps to CONFLICT instead of NOT_FOUND', async () => {
+  const mock = mockClient({ data: atomicResult('CONFLICT'), error: null });
+  await assert.rejects(
+    service.updateWhatsAppCustomMessage('company-a', 'message-a', {
+      name: 'Retorno', content: 'Olá', contextType: 'generic', expectedUpdatedAt: row.updated_at
+    }, mock.client),
+    (error) => error.code === 'CONFLICT' && /alterada por outro usuário/i.test(error.message)
+  );
+});
+
+test('atomic update maps a missing row to NOT_FOUND independently', async () => {
+  const mock = mockClient({ data: atomicResult('NOT_FOUND', null), error: null });
+  await assert.rejects(
+    service.updateWhatsAppCustomMessage('company-a', 'message-missing', {
+      name: 'Retorno', content: 'Olá', contextType: 'generic', expectedUpdatedAt: row.updated_at
+    }, mock.client),
+    (error) => error.code === 'NOT_FOUND'
+  );
+});
+
+test('atomic update preserves granular authorization denial', async () => {
+  const mock = mockClient({ data: atomicResult('NOT_AUTHORIZED', null), error: null });
+  await assert.rejects(
+    service.updateWhatsAppCustomMessage('company-a', 'message-a', {
+      name: 'Retorno', content: 'Olá', contextType: 'generic', expectedUpdatedAt: row.updated_at
+    }, mock.client),
+    (error) => error.code === 'NOT_AUTHORIZED'
+  );
+});
+
+test('atomic update requires the exact expected updated_at before persistence', async () => {
+  let persistenceCalls = 0;
+  const client = {
+    from() { persistenceCalls += 1; throw new Error('must not query'); },
+    rpc() { persistenceCalls += 1; throw new Error('must not query'); }
+  };
+  await assert.rejects(
+    service.updateWhatsAppCustomMessage('company-a', 'message-a', {
+      name: 'Retorno', content: 'Olá', contextType: 'generic', expectedUpdatedAt: ''
+    }, client),
+    (error) => error.code === 'NOT_FOUND'
+  );
+  assert.equal(persistenceCalls, 0);
 });
 
 test('delete targets exact id and tenant and reports missing rows', async () => {
@@ -106,11 +188,10 @@ test('delete targets exact id and tenant and reports missing rows', async () => 
   );
 });
 
-test('data layer maps duplicate, authorization and not-found persistence errors safely', async () => {
+test('data layer maps duplicate, authorization and unexpected persistence errors safely', async () => {
   const cases = [
     ['23505', 'DUPLICATE_NAME'],
     ['42501', 'NOT_AUTHORIZED'],
-    ['PGRST116', 'NOT_FOUND'],
     ['XX000', 'PERSISTENCE_ERROR']
   ];
   for (const [databaseCode, expectedCode] of cases) {
