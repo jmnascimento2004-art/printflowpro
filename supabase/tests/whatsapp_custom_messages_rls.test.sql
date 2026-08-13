@@ -33,10 +33,10 @@ select policy_roles_are('public', 'whatsapp_custom_messages', 'whatsapp_custom_m
 select policy_roles_are('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_insert', array['authenticated']);
 select policy_roles_are('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_update', array['authenticated']);
 select policy_roles_are('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_delete', array['authenticated']);
-select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_select', 'SELECT');
-select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_insert', 'INSERT');
-select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_update', 'UPDATE');
-select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_delete', 'DELETE');
+select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_select'::name, 'SELECT');
+select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_insert'::name, 'INSERT');
+select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_update'::name, 'UPDATE');
+select policy_cmd_is('public', 'whatsapp_custom_messages', 'whatsapp_custom_messages_tenant_delete'::name, 'DELETE');
 
 select table_privs_are('public', 'whatsapp_custom_messages', 'public', array[]::text[]);
 select table_privs_are('public', 'whatsapp_custom_messages', 'anon', array[]::text[]);
