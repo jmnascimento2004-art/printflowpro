@@ -19,13 +19,30 @@ export interface WhatsAppSystemMessageDefinition extends WhatsAppTemplateDefinit
   kind: 'system';
 }
 
+export type WhatsAppCustomMessageContext = 'generic' | 'customer';
+
 export interface WhatsAppCustomMessage {
   kind: 'custom';
   id: string;
+  companyId: string;
   name: string;
   content: string;
-  active: boolean;
+  contextType: WhatsAppCustomMessageContext;
+  createdAt: string;
+  updatedAt: string;
   allowedVariables: readonly WhatsAppTemplateVariable[];
+  eventKey?: never;
+  event_key?: never;
+}
+
+export interface WhatsAppCustomMessageRow {
+  id: string;
+  company_id: string;
+  name: string;
+  content: string;
+  context_type: WhatsAppCustomMessageContext;
+  created_at: string;
+  updated_at: string;
   eventKey?: never;
   event_key?: never;
 }
