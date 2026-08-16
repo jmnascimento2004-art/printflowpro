@@ -4,6 +4,7 @@ import {
   WHATSAPP_TEMPLATE_MAX_LENGTH
 } from './template-engine';
 import type { WhatsAppCustomMessageContext, WhatsAppTemplateVariable } from './types';
+import type { WhatsAppVariableValue } from './variable-contract';
 
 export const WHATSAPP_CUSTOM_MESSAGE_NAME_MAX_LENGTH = 120;
 
@@ -47,6 +48,7 @@ export type WhatsAppCustomMessageValidation = {
 
 const COMPLETE_PLACEHOLDER_PATTERN = /\{\{[^{}]*\}\}/g;
 const VALID_PLACEHOLDER_BODY_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?$/;
+const CUSTOM_VARIABLE_PATTERN = /\{\{\s*([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)\s*\}\}/g;
 
 export function isWhatsAppCustomMessageContext(value: string): value is WhatsAppCustomMessageContext {
   return (WHATSAPP_CUSTOM_MESSAGE_CONTEXTS as readonly string[]).includes(value);
@@ -54,6 +56,22 @@ export function isWhatsAppCustomMessageContext(value: string): value is WhatsApp
 
 export function getWhatsAppCustomVariables(contextType: WhatsAppCustomMessageContext) {
   return WHATSAPP_CUSTOM_VARIABLES_BY_CONTEXT[contextType];
+}
+
+export function renderWhatsAppCustomMessage(
+  content: string,
+  contextType: WhatsAppCustomMessageContext,
+  values: Readonly<Record<string, WhatsAppVariableValue | undefined>>
+) {
+  const allowed = new Set<string>(getWhatsAppCustomVariables(contextType));
+  return normalizeWhatsAppTemplateContent(content).replace(
+    CUSTOM_VARIABLE_PATTERN,
+    (fullMatch, variable: string) => {
+      if (!allowed.has(variable)) return fullMatch;
+      const value = values[variable];
+      return value === null || value === undefined ? '' : String(value);
+    }
+  );
 }
 
 export function validateWhatsAppCustomMessage(input: WhatsAppCustomMessageInput): WhatsAppCustomMessageValidation {

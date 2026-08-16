@@ -15,6 +15,7 @@ export {
   assertValidWhatsAppCustomMessage,
   getWhatsAppCustomVariables,
   isWhatsAppCustomMessageContext,
+  renderWhatsAppCustomMessage,
   validateWhatsAppCustomMessage,
   WHATSAPP_CUSTOM_MESSAGE_CONTEXTS,
   WHATSAPP_CUSTOM_MESSAGE_NAME_MAX_LENGTH,

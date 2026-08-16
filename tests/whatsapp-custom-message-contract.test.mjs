@@ -101,3 +101,19 @@ test('runtime validation rejects both system event key spellings instead of igno
     assert.match(result.errors.join(' '), /eventos do sistema/i);
   }
 });
+
+test('custom preview renders only variables allowed by its context', () => {
+  const values = {
+    'empresa.nome': 'Gráfica Exemplo',
+    'cliente.nome': 'Maria',
+    'cliente.email': 'maria@example.com'
+  };
+  assert.equal(
+    contract.renderWhatsAppCustomMessage('Olá da {{empresa.nome}} para {{cliente.nome}}', 'customer', values),
+    'Olá da Gráfica Exemplo para Maria'
+  );
+  assert.equal(
+    contract.renderWhatsAppCustomMessage('Olá {{cliente.nome}}', 'generic', values),
+    'Olá {{cliente.nome}}'
+  );
+});

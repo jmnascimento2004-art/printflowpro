@@ -1,28 +1,132 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageCircle, Save, Send, Settings2, X } from 'lucide-react';
+import { MessageCircle, MessagesSquare, Save, Send, Settings2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { CustomMessageEditor, CustomMessageList } from '@/components/whatsapp/custom-message-workspace';
 import { MessageEditor, MessagePreview, SystemMessageList } from '@/components/whatsapp/system-message-workspace';
 import { useAuth } from '@/context/auth-context';
-import { useDatabase } from '@/context/database-context';
-import { buildWhatsAppUrl, renderConfiguredWhatsAppTemplate, resolveWhatsAppPreviewVariables, validateWhatsAppTemplate, WHATSAPP_TEMPLATE_MAX_LENGTH } from '@/lib/whatsapp';
-import { getResolvedWhatsAppTemplates, loadWhatsAppCenter, restoreWhatsAppTemplate, saveWhatsAppSettings, saveWhatsAppTemplate } from '@/lib/whatsapp/service';
+import { DEFAULT_ROLE_PERMISSIONS, useDatabase } from '@/context/database-context';
+import type { Customer } from '@/lib/dummy-data';
+import {
+  buildWhatsAppUrl,
+  getWhatsAppCustomVariables,
+  renderConfiguredWhatsAppTemplate,
+  renderWhatsAppCustomMessage,
+  resolveWhatsAppPreviewVariables,
+  validateWhatsAppCustomMessage,
+  validateWhatsAppTemplate,
+  WHATSAPP_TEMPLATE_MAX_LENGTH
+} from '@/lib/whatsapp';
+import {
+  createWhatsAppCustomMessage,
+  deleteWhatsAppCustomMessage,
+  listWhatsAppCustomMessages,
+  updateWhatsAppCustomMessage,
+  WhatsAppCustomMessageDataError
+} from '@/lib/whatsapp/custom-message-service';
+import {
+  getResolvedWhatsAppTemplates,
+  loadWhatsAppCenter,
+  restoreWhatsAppTemplate,
+  saveWhatsAppSettings,
+  saveWhatsAppTemplate
+} from '@/lib/whatsapp/service';
 import { WHATSAPP_TEMPLATE_REGISTRY } from '@/lib/whatsapp/template-registry';
-import type { WhatsAppMessageTemplate, WhatsAppSettings } from '@/lib/whatsapp/types';
+import type {
+  WhatsAppCustomMessage,
+  WhatsAppCustomMessageContext,
+  WhatsAppMessageTemplate,
+  WhatsAppSettings
+} from '@/lib/whatsapp/types';
 
-type TabKey = 'templates' | 'settings';
-type PendingNavigation = { kind: 'template'; value: string } | { kind: 'tab'; value: TabKey };
+type TabKey = 'templates' | 'custom' | 'settings';
+type PendingNavigation =
+  | { kind: 'template'; value: string }
+  | { kind: 'custom'; value: string }
+  | { kind: 'new-custom' }
+  | { kind: 'route'; value: string }
+  | { kind: 'tab'; value: TabKey };
+
+type DiscardedWhatsAppDraftInput = {
+  tab: TabKey;
+  systemContent: string;
+  systemActive: boolean;
+  customMessage?: WhatsAppCustomMessage;
+  persistedSettings: WhatsAppSettings | null;
+};
+
+function resolveDiscardedWhatsAppDraft({
+  tab,
+  systemContent,
+  systemActive,
+  customMessage,
+  persistedSettings
+}: DiscardedWhatsAppDraftInput) {
+  if (tab === 'templates') {
+    return { kind: 'templates' as const, content: systemContent, active: systemActive, dirty: false };
+  }
+  if (tab === 'custom') {
+    return {
+      kind: 'custom' as const,
+      name: customMessage?.name || '',
+      content: customMessage?.content || '',
+      contextType: customMessage?.contextType || 'generic' as const,
+      creating: false,
+      dirty: false
+    };
+  }
+  return { kind: 'settings' as const, settings: persistedSettings, dirty: false };
+}
+
+const CUSTOM_PREVIEW_VALUES = {
+  'empresa.nome': 'Sua Empresa',
+  'empresa.whatsapp': '(51) 99999-0000',
+  'empresa.telefone': '(51) 3333-0000',
+  'empresa.email': 'contato@suaempresa.com.br',
+  'cliente.nome': 'Maria da Silva',
+  'cliente.nome_fantasia': 'Cliente Exemplo',
+  'cliente.whatsapp': '(51) 98888-0000',
+  'cliente.email': 'maria@exemplo.com.br'
+} as const;
+
+function customerPreviewValues(customer: Customer | undefined) {
+  if (!customer) return CUSTOM_PREVIEW_VALUES;
+  return {
+    ...CUSTOM_PREVIEW_VALUES,
+    'cliente.nome': customer.name || CUSTOM_PREVIEW_VALUES['cliente.nome'],
+    'cliente.nome_fantasia': customer.corporate_additional_info?.nome_fantasia || customer.name || CUSTOM_PREVIEW_VALUES['cliente.nome_fantasia'],
+    'cliente.whatsapp': customer.corporate_additional_info?.whatsapp || customer.phone || CUSTOM_PREVIEW_VALUES['cliente.whatsapp'],
+    'cliente.email': customer.email || CUSTOM_PREVIEW_VALUES['cliente.email']
+  };
+}
+
+function sortCustomMessages(messages: readonly WhatsAppCustomMessage[]) {
+  return [...messages].sort((left, right) => {
+    const byDate = right.updatedAt.localeCompare(left.updatedAt);
+    return byDate || left.id.localeCompare(right.id);
+  });
+}
 
 export default function WhatsAppCenterPage() {
-  const { company } = useDatabase();
+  const router = useRouter();
+  const { company, customers, rolePermissions } = useDatabase();
   const { activeProfile } = useAuth();
   const [tab, setTab] = useState<TabKey>('templates');
   const [templates, setTemplates] = useState<WhatsAppMessageTemplate[]>([]);
+  const [customMessages, setCustomMessages] = useState<WhatsAppCustomMessage[]>([]);
   const [settings, setSettings] = useState<WhatsAppSettings | null>(null);
+  const [persistedSettings, setPersistedSettings] = useState<WhatsAppSettings | null>(null);
   const [selectedEventKey, setSelectedEventKey] = useState<string>(WHATSAPP_TEMPLATE_REGISTRY[0].eventKey);
+  const [selectedCustomId, setSelectedCustomId] = useState<string | null>(null);
+  const [customCreating, setCustomCreating] = useState(false);
   const [content, setContent] = useState<string>(WHATSAPP_TEMPLATE_REGISTRY[0].defaultContent);
   const [active, setActive] = useState(true);
-  const [search, setSearch] = useState('');
+  const [customName, setCustomName] = useState('');
+  const [customContent, setCustomContent] = useState('');
+  const [customContext, setCustomContext] = useState<WhatsAppCustomMessageContext>('generic');
+  const [systemSearch, setSystemSearch] = useState('');
+  const [customSearch, setCustomSearch] = useState('');
   const [category, setCategory] = useState('Todas');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -31,39 +135,102 @@ export default function WhatsAppCenterPage() {
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [testPhone, setTestPhone] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [testCustomerId, setTestCustomerId] = useState('');
+  const systemTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const customTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const allowedWhatsAppRoles = rolePermissions['/whatsapp'] || DEFAULT_ROLE_PERMISSIONS['/whatsapp'] || [];
+  const canMutateCustomMessages = activeProfile.role === 'admin'
+    || (activeProfile.role === 'gerente' && allowedWhatsAppRoles.includes('gerente'));
 
   const resolvedTemplates = useMemo(() => getResolvedWhatsAppTemplates(templates), [templates]);
   const selected = resolvedTemplates.find((item) => item.definition.eventKey === selectedEventKey) || resolvedTemplates[0];
-  const validation = useMemo(() => validateWhatsAppTemplate(content, selected.definition), [content, selected.definition]);
-  const previewVariables = useMemo(
+  const systemValidation = useMemo(() => validateWhatsAppTemplate(content, selected.definition), [content, selected.definition]);
+  const systemPreviewVariables = useMemo(
     () => resolveWhatsAppPreviewVariables(selected.definition, company.name),
     [company.name, selected.definition]
   );
-  const preview = useMemo(
-    () => renderConfiguredWhatsAppTemplate(content, selected.definition, previewVariables, settings || undefined),
-    [content, previewVariables, selected.definition, settings]
+  const systemPreview = useMemo(
+    () => renderConfiguredWhatsAppTemplate(content, selected.definition, systemPreviewVariables, settings || undefined),
+    [content, selected.definition, settings, systemPreviewVariables]
   );
   const categories = useMemo(() => ['Todas', ...new Set(WHATSAPP_TEMPLATE_REGISTRY.map((item) => item.category))], []);
   const filteredTemplates = resolvedTemplates.filter(({ definition }) => {
-    const matchesSearch = `${definition.name} ${definition.description} ${definition.eventKey}`.toLowerCase().includes(search.toLowerCase());
-    return matchesSearch && (category === 'Todas' || definition.category === category);
+    const searchable = `${definition.name} ${definition.description} ${definition.eventKey}`.toLocaleLowerCase('pt-BR');
+    return searchable.includes(systemSearch.trim().toLocaleLowerCase('pt-BR'))
+      && (category === 'Todas' || definition.category === category);
   });
+
+  const selectedCustom = customMessages.find((item) => item.id === selectedCustomId);
+  const customVisible = customCreating || Boolean(selectedCustom);
+  const customValidation = useMemo(
+    () => validateWhatsAppCustomMessage({ name: customName, content: customContent, contextType: customContext }),
+    [customContent, customContext, customName]
+  );
+  const duplicateCustomName = customValidation.normalizedName.length > 0 && customMessages.some((item) => (
+    item.id !== selectedCustomId
+    && item.name.trim().toLocaleLowerCase('pt-BR') === customValidation.normalizedName.toLocaleLowerCase('pt-BR')
+  ));
+  const customErrors = duplicateCustomName
+    ? [...customValidation.errors, 'Já existe uma mensagem com esse nome.']
+    : customValidation.errors;
+  const customPreview = useMemo(
+    () => renderWhatsAppCustomMessage(customContent, customContext, CUSTOM_PREVIEW_VALUES),
+    [customContent, customContext]
+  );
+  const filteredCustomMessages = customMessages.filter((item) => (
+    `${item.name} ${item.contextType}`.toLocaleLowerCase('pt-BR').includes(customSearch.trim().toLocaleLowerCase('pt-BR'))
+  ));
+  const selectedTestCustomer = customers.find((item) => item.id === testCustomerId);
+  const customerRecipientRequired = tab === 'custom' && customContext === 'customer';
+  const customerRecipientPhone = selectedTestCustomer
+    ? selectedTestCustomer.corporate_additional_info?.whatsapp || selectedTestCustomer.phone || ''
+    : '';
+  const testPreview = tab === 'custom'
+    ? renderWhatsAppCustomMessage(customContent, customContext, customerPreviewValues(selectedTestCustomer))
+    : systemPreview;
+  const activePreview = tab === 'custom' ? customPreview : systemPreview;
+  const customerRecipientUrl = customerRecipientRequired
+    ? buildWhatsAppUrl(customerRecipientPhone, testPreview, settings || undefined)
+    : '';
+  const customerRecipientError = customerRecipientRequired
+    ? !selectedTestCustomer
+      ? 'Selecione um cliente para testar esta mensagem.'
+      : !customerRecipientUrl
+        ? 'O cliente selecionado não possui um telefone ou WhatsApp válido.'
+        : null
+    : null;
+  const effectiveTestPhone = customerRecipientRequired ? customerRecipientPhone : testPhone;
+  const testUrl = customerRecipientRequired
+    ? customerRecipientError ? '' : customerRecipientUrl
+    : buildWhatsAppUrl(testPhone, testPreview, settings || undefined);
 
   useEffect(() => {
     let mounted = true;
     if (!company.id) return;
     setLoading(true);
-    void loadWhatsAppCenter(company.id).then((result) => {
-      if (!mounted) return;
-      setTemplates(result.templates);
-      setSettings(result.settings);
-      setUsedFallback(result.usedFallback);
-      setTestPhone(result.settings.business_phone || '');
-      setLoading(false);
-    });
+    setError(null);
+    void Promise.all([loadWhatsAppCenter(company.id), listWhatsAppCustomMessages(company.id)])
+      .then(([center, custom]) => {
+        if (!mounted) return;
+        setTemplates(center.templates);
+        setSettings(center.settings);
+        setPersistedSettings(center.settings);
+        setUsedFallback(center.usedFallback);
+        setCustomMessages(sortCustomMessages(custom));
+        setTestCustomerId('');
+        setTestPhone(center.settings.business_phone || '');
+      })
+      .catch((loadError) => {
+        if (!mounted) return;
+        setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar a Central de WhatsApp.');
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
     return () => { mounted = false; };
   }, [company.id]);
 
@@ -77,25 +244,105 @@ export default function WhatsAppCenterPage() {
     setError(null);
   }, [selectedEventKey, templates]);
 
+  useEffect(() => {
+    if (customCreating || !selectedCustomId) return;
+    const current = customMessages.find((item) => item.id === selectedCustomId);
+    if (!current) {
+      setSelectedCustomId(null);
+      return;
+    }
+    setCustomName(current.name);
+    setCustomContent(current.content);
+    setCustomContext(current.contextType);
+    setDirty(false);
+    setMessage(null);
+    setError(null);
+  }, [customCreating, customMessages, selectedCustomId]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const confirmExit = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', confirmExit);
+    return () => window.removeEventListener('beforeunload', confirmExit);
+  }, [dirty]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const guardInternalNavigation = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (!(event.target instanceof Element)) return;
+      const anchor = event.target.closest('a[href]');
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      const destination = new URL(anchor.href, window.location.href);
+      if (destination.origin !== window.location.origin || destination.href === window.location.href) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingNavigation({ kind: 'route', value: `${destination.pathname}${destination.search}${destination.hash}` });
+    };
+    document.addEventListener('click', guardInternalNavigation, true);
+    return () => document.removeEventListener('click', guardInternalNavigation, true);
+  }, [dirty]);
+
+  const restoreCurrentDraft = () => {
+    const restored = resolveDiscardedWhatsAppDraft({
+      tab,
+      systemContent: selected.content,
+      systemActive: selected.active,
+      customMessage: selectedCustom,
+      persistedSettings
+    });
+    if (restored.kind === 'templates') {
+      setContent(restored.content);
+      setActive(restored.active);
+    }
+    if (restored.kind === 'custom') {
+      setCustomName(restored.name);
+      setCustomContent(restored.content);
+      setCustomContext(restored.contextType);
+      setCustomCreating(restored.creating);
+    }
+    if (restored.kind === 'settings' && restored.settings) setSettings(restored.settings);
+    setDirty(restored.dirty);
+  };
+
+  const applyNavigation = (next: PendingNavigation, discard = false) => {
+    if (discard) restoreCurrentDraft();
+    if (next.kind === 'template') setSelectedEventKey(next.value);
+    if (next.kind === 'custom') {
+      setSelectedCustomId(next.value);
+      setCustomCreating(false);
+    }
+    if (next.kind === 'new-custom') {
+      setSelectedCustomId(null);
+      setCustomCreating(true);
+      setCustomName('');
+      setCustomContent('');
+      setCustomContext('generic');
+    }
+    if (next.kind === 'route') router.push(next.value);
+    if (next.kind === 'tab') setTab(next.value);
+    setPendingNavigation(null);
+    setMessage(null);
+    setError(null);
+  };
+
   const requestNavigation = (next: PendingNavigation) => {
     if (dirty) setPendingNavigation(next);
     else applyNavigation(next);
   };
 
-  const applyNavigation = (next: PendingNavigation) => {
-    if (next.kind === 'template') setSelectedEventKey(next.value);
-    else setTab(next.value);
-    setPendingNavigation(null);
-    setDirty(false);
-  };
-
-  const insertVariable = (variable: string) => {
-    const textarea = textareaRef.current;
+  const insertVariable = (variable: string, target: 'system' | 'custom') => {
+    const textarea = target === 'system' ? systemTextareaRef.current : customTextareaRef.current;
+    const currentContent = target === 'system' ? content : customContent;
     const token = `{{${variable}}}`;
-    const start = textarea?.selectionStart ?? content.length;
-    const end = textarea?.selectionEnd ?? content.length;
-    const next = `${content.slice(0, start)}${token}${content.slice(end)}`;
-    setContent(next);
+    const start = textarea?.selectionStart ?? currentContent.length;
+    const end = textarea?.selectionEnd ?? currentContent.length;
+    const next = `${currentContent.slice(0, start)}${token}${currentContent.slice(end)}`;
+    if (target === 'system') setContent(next);
+    else setCustomContent(next);
     setDirty(true);
     requestAnimationFrame(() => {
       textarea?.focus();
@@ -104,7 +351,7 @@ export default function WhatsAppCenterPage() {
   };
 
   const handleSaveTemplate = async () => {
-    if (!validation.valid || saving) return;
+    if (!systemValidation.valid || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -142,6 +389,59 @@ export default function WhatsAppCenterPage() {
     }
   };
 
+  const handleSaveCustom = async () => {
+    if (!canMutateCustomMessages || saving || customErrors.length > 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const input = { name: customName, content: customContent, contextType: customContext };
+      const saved = selectedCustom
+        ? await updateWhatsAppCustomMessage(company.id, selectedCustom.id, { ...input, expectedUpdatedAt: selectedCustom.updatedAt })
+        : await createWhatsAppCustomMessage(company.id, input);
+      setCustomMessages((current) => sortCustomMessages([saved, ...current.filter((item) => item.id !== saved.id)]));
+      setSelectedCustomId(saved.id);
+      setCustomCreating(false);
+      setCustomName(saved.name);
+      setCustomContent(saved.content);
+      setCustomContext(saved.contextType);
+      setDirty(false);
+      setMessage(selectedCustom ? 'Mensagem personalizada atualizada.' : 'Mensagem personalizada criada.');
+    } catch (saveError) {
+      if (saveError instanceof WhatsAppCustomMessageDataError && saveError.code === 'CONFLICT') {
+        setError(`Conflito de edição: ${saveError.message}`);
+      } else if (saveError instanceof WhatsAppCustomMessageDataError && saveError.code === 'DUPLICATE_NAME') {
+        setError('Já existe uma mensagem personalizada com esse nome.');
+      } else {
+        setError(saveError instanceof Error ? saveError.message : 'Não foi possível salvar a mensagem personalizada.');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCustom = async () => {
+    if (!selectedCustom || !canMutateCustomMessages || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await deleteWhatsAppCustomMessage(company.id, selectedCustom.id);
+      setCustomMessages((current) => current.filter((item) => item.id !== selectedCustom.id));
+      setSelectedCustomId(null);
+      setCustomCreating(false);
+      setCustomName('');
+      setCustomContent('');
+      setCustomContext('generic');
+      setDirty(false);
+      setDeleteConfirmOpen(false);
+      setMessage('Mensagem personalizada excluída.');
+    } catch (deleteError) {
+      setDeleteConfirmOpen(false);
+      setError(deleteError instanceof Error ? deleteError.message : 'Não foi possível excluir a mensagem personalizada.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     if (!settings || saving) return;
     setSaving(true);
@@ -149,6 +449,7 @@ export default function WhatsAppCenterPage() {
     try {
       const saved = await saveWhatsAppSettings(settings, activeProfile.auth_user_id);
       setSettings(saved);
+      setPersistedSettings(saved);
       setTestPhone(saved.business_phone || '');
       setDirty(false);
       setMessage('Configurações salvas.');
@@ -159,14 +460,24 @@ export default function WhatsAppCenterPage() {
     }
   };
 
-  const testUrl = buildWhatsAppUrl(testPhone, preview, settings || undefined);
+  const openTest = () => {
+    setTestOpen(true);
+  };
 
-  if (loading || !settings) {
-    return <div className="flex min-h-[55vh] items-center justify-center text-sm text-muted-foreground">Carregando Central de WhatsApp...</div>;
-  }
+  const copyPreview = async () => {
+    try {
+      await navigator.clipboard.writeText(activePreview);
+      setMessage('Pré-visualização copiada.');
+    } catch {
+      setError('Não foi possível copiar a pré-visualização.');
+    }
+  };
+
+  if (loading) return <div className="flex min-h-[55vh] items-center justify-center text-sm text-muted-foreground">Carregando Central de WhatsApp...</div>;
+  if (!settings) return <div className="flex min-h-[55vh] items-center justify-center text-sm text-rose-600">{error || 'Não foi possível carregar a Central de WhatsApp.'}</div>;
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <header>
         <div className="flex items-center gap-2 text-primary"><MessageCircle className="h-5 w-5" /><span className="text-xs font-black uppercase tracking-wider">Atendimento</span></div>
         <h1 className="mt-2 text-xl font-black text-foreground">Central de WhatsApp</h1>
@@ -174,68 +485,52 @@ export default function WhatsAppCenterPage() {
       </header>
 
       {usedFallback && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">Os modelos padrão continuam ativos. As personalizações estarão disponíveis quando a migration local for aplicada em um ambiente autorizado.</div>}
-      {(message || error) && <div className={`rounded-xl border px-4 py-3 text-xs ${error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{error || message}</div>}
+      {(message || error) && <div role="status" className={`rounded-xl border px-4 py-3 text-xs ${error ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{error || message}</div>}
 
-      <div className="flex gap-1 rounded-xl border border-border bg-card p-1">
+      <div className="grid grid-cols-1 gap-1 rounded-xl border border-border bg-card p-1 sm:flex">
         <TabButton active={tab === 'templates'} onClick={() => requestNavigation({ kind: 'tab', value: 'templates' })} icon={<MessageCircle className="h-4 w-4" />}>Mensagens do Sistema</TabButton>
+        <TabButton active={tab === 'custom'} onClick={() => requestNavigation({ kind: 'tab', value: 'custom' })} icon={<MessagesSquare className="h-4 w-4" />}>Mensagens Personalizadas</TabButton>
         <TabButton active={tab === 'settings'} onClick={() => requestNavigation({ kind: 'tab', value: 'settings' })} icon={<Settings2 className="h-4 w-4" />}>Configurações</TabButton>
       </div>
 
-      {tab === 'templates' ? (
+      {tab === 'templates' && (
         <div className="grid min-w-0 gap-4 xl:grid-cols-[270px_minmax(0,1fr)_320px]">
-          <SystemMessageList
-            messages={filteredTemplates}
-            selectedEventKey={selectedEventKey}
-            search={search}
-            category={category}
-            categories={categories}
-            onSearchChange={setSearch}
-            onCategoryChange={setCategory}
-            onSelect={(eventKey) => requestNavigation({ kind: 'template', value: eventKey })}
-          />
-          <MessageEditor
-            message={selected}
-            content={content}
-            active={active}
-            validation={validation}
-            maxLength={WHATSAPP_TEMPLATE_MAX_LENGTH}
-            saving={saving}
-            dirty={dirty}
-            textareaRef={textareaRef}
-            onContentChange={(value) => { setContent(value); setDirty(true); setMessage(null); }}
-            onActiveChange={(value) => { setActive(value); setDirty(true); }}
-            onInsertVariable={insertVariable}
-            onRestore={() => void handleRestore()}
-            onSave={() => void handleSaveTemplate()}
-          />
-          <MessagePreview
-            preview={preview}
-            onCopy={() => void navigator.clipboard.writeText(preview)}
-            onTest={() => setTestOpen(true)}
-          />
+          <SystemMessageList messages={filteredTemplates} selectedEventKey={selectedEventKey} search={systemSearch} category={category} categories={categories} onSearchChange={setSystemSearch} onCategoryChange={setCategory} onSelect={(eventKey) => requestNavigation({ kind: 'template', value: eventKey })} />
+          <MessageEditor message={selected} content={content} active={active} validation={systemValidation} maxLength={WHATSAPP_TEMPLATE_MAX_LENGTH} saving={saving} dirty={dirty} textareaRef={systemTextareaRef} onContentChange={(value) => { setContent(value); setDirty(true); setMessage(null); }} onActiveChange={(value) => { setActive(value); setDirty(true); }} onInsertVariable={(variable) => insertVariable(variable, 'system')} onRestore={() => void handleRestore()} onSave={() => void handleSaveTemplate()} />
+          <MessagePreview preview={systemPreview} onCopy={() => void copyPreview()} onTest={openTest} />
         </div>
-      ) : (
-        <SettingsPanel settings={settings} onChange={(next) => { setSettings(next); setDirty(true); setMessage(null); }} saving={saving} onSave={handleSaveSettings} />
       )}
 
-      {pendingNavigation && <ConfirmDialog title="Descartar alterações?" description="Existem alterações não salvas neste modelo." confirmLabel="Descartar e continuar" onCancel={() => setPendingNavigation(null)} onConfirm={() => applyNavigation(pendingNavigation)} />}
-      {testOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="test-whatsapp-title">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"><div className="flex items-center justify-between"><h2 id="test-whatsapp-title" className="text-sm font-black">Testar mensagem</h2><button type="button" onClick={() => setTestOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-xl hover:bg-secondary" aria-label="Fechar"><X className="h-4 w-4" /></button></div><p className="mt-1 text-[11px] text-muted-foreground">Nenhuma mensagem será enviada automaticamente.</p><label className="mt-4 block text-xs font-bold">Número de teste<input value={testPhone} onChange={(event) => setTestPhone(event.target.value)} placeholder="(51) 99999-9999" className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-xs outline-none focus:border-primary" /></label><div className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl bg-secondary/50 p-3 text-[11px] leading-5">{preview}</div><div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setTestOpen(false)} className="min-h-11 rounded-xl border border-border px-4 text-xs font-bold">Cancelar</button><a href={testUrl || undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!testUrl} onClick={(event) => { if (!testUrl) event.preventDefault(); else setTestOpen(false); }} className={`inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white ${!testUrl ? 'pointer-events-none opacity-40' : 'hover:bg-emerald-700'}`}><Send className="h-4 w-4" />Confirmar e abrir</a></div></div>
+      {tab === 'custom' && (
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[270px_minmax(0,1fr)_320px]">
+          <CustomMessageList messages={filteredCustomMessages} selectedId={selectedCustomId} search={customSearch} canMutate={canMutateCustomMessages} onSearchChange={setCustomSearch} onSelect={(id) => requestNavigation({ kind: 'custom', value: id })} onCreate={() => requestNavigation({ kind: 'new-custom' })} />
+          <CustomMessageEditor visible={customVisible} isNew={customCreating} name={customName} content={customContent} contextType={customContext} allowedVariables={getWhatsAppCustomVariables(customContext)} errors={customErrors} maxLength={WHATSAPP_TEMPLATE_MAX_LENGTH} saving={saving} dirty={dirty} canMutate={canMutateCustomMessages} textareaRef={customTextareaRef} onNameChange={(value) => { setCustomName(value); setDirty(true); setMessage(null); }} onContentChange={(value) => { setCustomContent(value); setDirty(true); setMessage(null); }} onContextChange={(value) => { setCustomContext(value); setDirty(true); setMessage(null); }} onInsertVariable={(variable) => insertVariable(variable, 'custom')} onSave={() => void handleSaveCustom()} onDelete={() => setDeleteConfirmOpen(true)} />
+          <MessagePreview preview={customVisible ? customPreview : 'A pré-visualização aparecerá aqui.'} onCopy={() => void copyPreview()} onTest={openTest} />
         </div>
       )}
+
+      {tab === 'settings' && <SettingsPanel settings={settings} onChange={(next) => { setSettings(next); setDirty(true); setMessage(null); }} saving={saving} onSave={handleSaveSettings} />}
+
+      {pendingNavigation && <ConfirmDialog title="Descartar alterações?" description="Existem alterações não salvas." confirmLabel="Descartar e continuar" onCancel={() => setPendingNavigation(null)} onConfirm={() => applyNavigation(pendingNavigation, true)} />}
+      {deleteConfirmOpen && selectedCustom && <ConfirmDialog title="Excluir mensagem personalizada?" description={`A mensagem “${selectedCustom.name}” será excluída permanentemente.`} confirmLabel="Excluir mensagem" onCancel={() => setDeleteConfirmOpen(false)} onConfirm={() => void handleDeleteCustom()} />}
+      {testOpen && <TestMessageDialog preview={testPreview} phone={effectiveTestPhone} url={testUrl} recipientError={customerRecipientError} customers={customers} customerId={testCustomerId} showCustomer={customerRecipientRequired} onPhoneChange={setTestPhone} onCustomerChange={setTestCustomerId} onClose={() => setTestOpen(false)} />}
     </div>
   );
 }
 
 function TabButton({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
-  return <button type="button" onClick={onClick} className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition sm:flex-none ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-secondary'}`}>{icon}{children}</button>;
+  return <button type="button" onClick={onClick} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-bold transition ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-secondary'}`}>{icon}{children}</button>;
 }
 
 function SettingsPanel({ settings, onChange, saving, onSave }: { settings: WhatsAppSettings; onChange: (settings: WhatsAppSettings) => void; saving: boolean; onSave: () => void }) {
   return <section className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-4 sm:p-5"><div className="grid gap-4 sm:grid-cols-2"><label className="text-xs font-bold">Código do país<input value={settings.country_code} onChange={(event) => onChange({ ...settings, country_code: event.target.value })} inputMode="numeric" className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-xs outline-none focus:border-primary" /><span className="mt-1 block text-[10px] font-normal text-muted-foreground">Exemplo: 55 para Brasil.</span></label><label className="text-xs font-bold">Número oficial da empresa<input value={settings.business_phone || ''} onChange={(event) => onChange({ ...settings, business_phone: event.target.value })} inputMode="tel" placeholder="(51) 99999-9999" className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-xs outline-none focus:border-primary" /><span className="mt-1 block text-[10px] font-normal text-muted-foreground">Opcional quando o fluxo usa o telefone do cliente.</span></label></div><label className="mt-4 block text-xs font-bold">Assinatura padrão<textarea value={settings.signature || ''} onChange={(event) => onChange({ ...settings, signature: event.target.value })} maxLength={500} className="mt-1 min-h-24 w-full rounded-xl border border-border bg-background p-3 text-xs outline-none focus:border-primary" /></label><label className="mt-4 block text-xs font-bold">Forma de abertura<select value={settings.open_mode} onChange={(event) => onChange({ ...settings, open_mode: event.target.value as WhatsAppSettings['open_mode'] })} className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-xs outline-none focus:border-primary"><option value="auto">Automática (wa.me)</option><option value="web">WhatsApp Web</option><option value="app">Aplicativo / wa.me</option></select></label><div className="mt-4 space-y-3"><label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={settings.confirm_before_open} onChange={(event) => onChange({ ...settings, confirm_before_open: event.target.checked })} className="h-4 w-4" />Confirmar antes de abrir o WhatsApp</label><label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={settings.include_company_name} onChange={(event) => onChange({ ...settings, include_company_name: event.target.checked })} className="h-4 w-4" />Incluir nome da empresa automaticamente</label></div><div className="mt-5 flex justify-end"><button type="button" onClick={onSave} disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 text-xs font-bold text-primary-foreground disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Salvando...' : 'Salvar configurações'}</button></div></section>;
 }
 
+function TestMessageDialog({ preview, phone, url, recipientError, customers, customerId, showCustomer, onPhoneChange, onCustomerChange, onClose }: { preview: string; phone: string; url: string; recipientError: string | null; customers: readonly Customer[]; customerId: string; showCustomer: boolean; onPhoneChange: (value: string) => void; onCustomerChange: (value: string) => void; onClose: () => void }) {
+  const canOpen = Boolean(url) && !recipientError;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="test-whatsapp-title"><div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"><div className="flex items-center justify-between"><h2 id="test-whatsapp-title" className="text-sm font-black">Testar mensagem</h2><button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-xl hover:bg-secondary" aria-label="Fechar"><X className="h-4 w-4" /></button></div><p className="mt-1 text-[11px] text-muted-foreground">Nenhuma mensagem será enviada automaticamente.</p>{showCustomer && <label className="mt-4 block text-xs font-bold">Cliente<select value={customerId} onChange={(event) => onCustomerChange(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-xs outline-none focus:border-primary"><option value="">Selecione um cliente</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>{customers.length === 0 && <span className="mt-1 block text-[10px] font-normal text-amber-700">Nenhum cliente está disponível no contexto já carregado.</span>}</label>}<label className="mt-4 block text-xs font-bold">Número de teste<input value={phone} onChange={(event) => onPhoneChange(event.target.value)} readOnly={showCustomer} placeholder="(51) 99999-9999" className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-xs outline-none focus:border-primary read-only:cursor-default read-only:opacity-70" /></label>{recipientError && <p role="alert" className="mt-2 text-[11px] font-medium text-rose-600">{recipientError}</p>}<div className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-secondary/50 p-3 text-[11px] leading-5">{preview}</div><div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-border px-4 text-xs font-bold">Cancelar</button><a href={canOpen ? url : undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!canOpen} onClick={(event) => { if (!canOpen) event.preventDefault(); else onClose(); }} className={`inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white ${!canOpen ? 'pointer-events-none opacity-40' : 'hover:bg-emerald-700'}`}><Send className="h-4 w-4" />Confirmar e abrir</a></div></div></div>;
+}
+
 function ConfirmDialog({ title, description, confirmLabel, onCancel, onConfirm }: { title: string; description: string; confirmLabel: string; onCancel: () => void; onConfirm: () => void }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl"><h2 id="confirm-title" className="text-sm font-black">{title}</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={onCancel} className="min-h-11 rounded-xl border border-border px-4 text-xs font-bold">Continuar editando</button><button type="button" onClick={onConfirm} className="min-h-11 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white">{confirmLabel}</button></div></div></div>;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="confirm-title"><div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl"><h2 id="confirm-title" className="text-sm font-black">{title}</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p><div className="mt-5 flex flex-wrap justify-end gap-2"><button type="button" onClick={onCancel} className="min-h-11 rounded-xl border border-border px-4 text-xs font-bold">Continuar editando</button><button type="button" onClick={onConfirm} className="min-h-11 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white">{confirmLabel}</button></div></div></div>;
 }

@@ -43,6 +43,7 @@ test('admin page includes permissions-safe route UI, tabs, editor, chips and pre
   assert.match(sidebar, /name: 'WhatsApp', path: '\/whatsapp'/);
   assert.match(context, /'\/whatsapp': \['admin', 'gerente'\]/);
   assert.match(page, /Mensagens do Sistema/);
+  assert.match(page, /Mensagens Personalizadas/);
   assert.match(page, /Configurações/);
   assert.match(page, /SystemMessageList/);
   assert.match(page, /MessageEditor/);
@@ -64,7 +65,7 @@ test('WhatsApp editor exposes 44px touch targets for variable chips and preview 
   assert.match(workspace, /onInsertVariable\(variable\)[\s\S]{0,180}className="[^"]*min-h-11[^"]*focus-visible:ring-2/);
   assert.match(workspace, /aria-label="Copiar pré-visualização"[\s\S]{0,180}className="[^"]*min-h-11/);
   assert.doesNotMatch(workspace, /onInsertVariable\(variable\)[\s\S]{0,180}min-h-9/);
-  assert.match(page, /navigator\.clipboard\.writeText\(preview\)/);
+  assert.match(page, /navigator\.clipboard\.writeText\(activePreview\)/);
   assert.match(workspace, /type="button" onClick=\{\(\) => onInsertVariable\(variable\)\}/);
   assert.match(workspace, /flex flex-wrap gap-2/);
 });
@@ -127,18 +128,19 @@ test('restore default deletes only the system override and never inserts a defau
   assert.doesNotMatch(restore, /insert|upsert/);
 });
 
-test('phase 4B contains no custom CRUD, custom persistence or payment confirmation', async () => {
+test('custom workspace uses the approved custom service and remains separate from payment confirmation', async () => {
   const sources = await Promise.all([
-    read('../src/lib/whatsapp/types.ts'),
-    read('../src/lib/whatsapp/message-model.ts'),
-    read('../src/lib/whatsapp/service.ts'),
-    read('../src/lib/whatsapp/template-registry.ts'),
     read('../src/app/(dashboard)/whatsapp/page.tsx'),
-    read('../src/components/whatsapp/system-message-workspace.tsx')
+    read('../src/components/whatsapp/custom-message-workspace.tsx'),
+    read('../src/lib/whatsapp/custom-message-service.ts')
   ]);
   const combined = sources.join('\n');
-  assert.doesNotMatch(combined, /whatsapp_custom_messages|saveWhatsAppCustom|deleteWhatsAppCustom|payment_confirmation/);
-  assert.doesNotMatch(combined, /Nova mensagem|Criar mensagem personalizada|Mensagens Personalizadas/);
+  assert.match(combined, /listWhatsAppCustomMessages/);
+  assert.match(combined, /createWhatsAppCustomMessage/);
+  assert.match(combined, /updateWhatsAppCustomMessage/);
+  assert.match(combined, /deleteWhatsAppCustomMessage/);
+  assert.match(combined, /Mensagens Personalizadas/);
+  assert.doesNotMatch(combined, /payment_confirmation|confirm_payment|financial_transactions/);
 });
 
 test('admin preview derives only the company name already loaded by the authenticated context', async () => {
