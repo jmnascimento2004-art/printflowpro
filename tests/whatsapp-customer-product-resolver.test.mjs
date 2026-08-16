@@ -64,6 +64,16 @@ test('customer loader resolves safe fields, WhatsApp and explicit legacy aliases
   assert.doesNotMatch(JSON.stringify(result), /must-not-leak|credit_limit|document|customer-a|company-a/);
 });
 
+test('payment and production events resolve the exact same safe customer projection', async () => {
+  for (const eventKey of ['order_payment_pending', 'production_status_changed']) {
+    const result = await resolver.resolveWhatsAppCustomerVariables(customerContext({ eventKey }), dataSource().source);
+    assert.equal(result.variables['cliente.nome'], 'Cliente A', eventKey);
+    assert.equal(result.variables.cliente_nome, 'Cliente A', eventKey);
+    assert.equal(result.variables['cliente.whatsapp'], '5511999998888', eventKey);
+    assert.equal(result.variables.cliente_telefone, '5511999998888', eventKey);
+  }
+});
+
 test('customer loader falls back to phone, reports missing and blocks cross-tenant data', async () => {
   const fallback = dataSource({ customer: { ...customerA, corporate_additional_info: {}, phone: '1133334444' } });
   const fallbackResult = await resolver.resolveWhatsAppCustomerVariables(customerContext(), fallback.source);

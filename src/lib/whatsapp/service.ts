@@ -7,6 +7,14 @@ import type { WhatsAppResolvedVariables } from './variable-contract';
 
 const MISSING_SCHEMA_CODES = new Set(['42P01', 'PGRST204', 'PGRST205']);
 
+export interface WhatsAppPaymentSettings {
+  company_id: string;
+  pix_key: string;
+  pix_key_type: string | null;
+  pix_beneficiary_name: string | null;
+  bank_name: string | null;
+}
+
 export function getDefaultWhatsAppSettings(companyId: string): WhatsAppSettings {
   return {
     company_id: companyId,
@@ -40,6 +48,24 @@ export async function loadWhatsAppCenter(companyId: string) {
   } catch {
     return { templates: [] as WhatsAppMessageTemplate[], settings: defaults, usedFallback: true };
   }
+}
+
+export async function loadWhatsAppPaymentSettings(companyId: string): Promise<WhatsAppPaymentSettings | null> {
+  if (!companyId) return null;
+  const { data, error } = await supabase
+    .from('settings')
+    .select('company_id,pix_key,pix_key_type,pix_beneficiary_name,bank_name')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.company_id !== companyId) return null;
+  return {
+    company_id: data.company_id,
+    pix_key: typeof data.pix_key === 'string' ? data.pix_key.trim() : '',
+    pix_key_type: typeof data.pix_key_type === 'string' ? data.pix_key_type.trim() : null,
+    pix_beneficiary_name: typeof data.pix_beneficiary_name === 'string' ? data.pix_beneficiary_name.trim() : null,
+    bank_name: typeof data.bank_name === 'string' ? data.bank_name.trim() : null
+  };
 }
 
 export async function saveWhatsAppTemplate(input: {

@@ -86,7 +86,6 @@ export function MessageEditor({
         <div>
           <h2 className="text-sm font-black text-foreground">{definition.name}</h2>
           <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{definition.description}</p>
-          <code className="mt-2 inline-block rounded bg-secondary px-2 py-1 text-[10px]">{definition.eventKey}</code>
         </div>
         <label className="flex items-center gap-2 text-xs font-bold">
           <input type="checkbox" checked={active} onChange={(event) => onActiveChange(event.target.checked)} className="h-4 w-4" />Ativo

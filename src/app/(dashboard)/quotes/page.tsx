@@ -30,6 +30,7 @@ import {
   getPublicImageUrl
 } from '@/lib/utils';
 import { openWhatsAppUrl } from '@/lib/whatsapp';
+import { findExactTenantCustomer } from '@/lib/whatsapp/context-identity';
 import { resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
@@ -174,12 +175,7 @@ export default function QuotesPage() {
   };
 
   const resolveQuoteCustomer = (quote: Quote) => {
-    const webName = quote.customer_name.replace(/\s+\(Web\)$/i, '').trim();
-    return customers.find(c =>
-      c.id === quote.customer_id ||
-      c.name === quote.customer_name ||
-      c.name === webName
-    );
+    return findExactTenantCustomer(customers, quote.customer_id, company.id);
   };
 
   const getQuoteCustomerName = (quote: Quote) => {
@@ -272,7 +268,11 @@ export default function QuotesPage() {
 
   const sendQuoteProposalWhatsApp = async (quote: Quote) => {
     const customer = resolveQuoteCustomer(quote);
-    const phone = customer?.phone || quote.customer_phone;
+    if (!customer) {
+      alert('O cliente vinculado a este orçamento não foi encontrado. Verifique o cadastro antes de enviar a proposta.');
+      return;
+    }
+    const phone = customer.phone;
     if (!phone) {
       alert('Telefone/WhatsApp do cliente não encontrado. Atualize o cadastro do cliente antes de enviar a proposta.');
       return;
@@ -293,7 +293,7 @@ export default function QuotesPage() {
     }
 
     const resolved = await resolveWhatsAppTemplate(company.id, 'quote_proposal', {
-      cliente_nome: customer?.name || getQuoteCustomerName(quote),
+      cliente_nome: customer.name,
       orcamento_codigo: quote.number,
       empresa_nome: company?.name || 'CibelePRINT',
       valor_total: formatCurrency(quote.total_amount),

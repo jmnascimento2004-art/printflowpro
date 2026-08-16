@@ -57,6 +57,18 @@ test('admin page includes permissions-safe route UI, tabs, editor, chips and pre
   assert.match(page, /xl:grid-cols-\[270px_minmax\(0,1fr\)_320px\]/);
 });
 
+test('system cards preserve user-facing content without rendering technical event-key badges', async () => {
+  const workspace = await read('../src/components/whatsapp/system-message-workspace.tsx');
+  assert.match(workspace, /message\.definition\.name/);
+  assert.match(workspace, /message\.definition\.category/);
+  assert.match(workspace, /definition\.description/);
+  assert.match(workspace, /Padrão do sistema/);
+  assert.match(workspace, /key=\{message\.definition\.eventKey\}/);
+  assert.match(workspace, /onSelect\(message\.definition\.eventKey\)/);
+  assert.doesNotMatch(workspace, />\{definition\.eventKey\}</);
+  assert.doesNotMatch(workspace, /<code[^>]*>[\s\S]*eventKey[\s\S]*<\/code>/);
+});
+
 test('WhatsApp editor exposes 44px touch targets for variable chips and preview copy', async () => {
   const [page, workspace] = await Promise.all([
     read('../src/app/(dashboard)/whatsapp/page.tsx'),
@@ -170,6 +182,25 @@ test('existing admin flows resolve templates and keep manual opening', async () 
     assert.match(source, /openWhatsAppUrl/);
     assert.doesNotMatch(source, /service_role|SUPABASE_SERVICE_ROLE/i);
   }
+});
+
+test('quote and payment containment require exact tenant customer IDs and trusted PIX settings', async () => {
+  const [quotes, orders, service, identity] = await Promise.all([
+    read('../src/app/(dashboard)/quotes/page.tsx'),
+    read('../src/app/(dashboard)/orders/page.tsx'),
+    read('../src/lib/whatsapp/service.ts'),
+    read('../src/lib/whatsapp/context-identity.ts')
+  ]);
+  assert.match(quotes, /findExactTenantCustomer\(customers, quote\.customer_id, company\.id\)/);
+  assert.match(orders, /findExactTenantCustomer\(customers, order\.customer_id, company\.id\)/);
+  assert.match(identity, /customer\.id === customerId && customer\.company_id === trustedCompanyId/);
+  assert.doesNotMatch(quotes, /c\.name === quote\.customer_name|c\.name === webName/);
+  assert.doesNotMatch(orders, /customers\.find\(c => c\.name === order\.customer_name\)/);
+  assert.match(orders, /loadWhatsAppPaymentSettings\(company\.id\)/);
+  assert.match(orders, /calculateOrderBalance\(order, financial\)/);
+  assert.doesNotMatch(orders, /financeiro@printflowpro\.com\.br|financeiro@empresa\.com\.br/);
+  assert.match(service, /from\('settings'\)[\s\S]{0,220}\.eq\('company_id', companyId\)/);
+  assert.match(service, /select\('company_id,pix_key,pix_key_type,pix_beneficiary_name,bank_name'\)/);
 });
 
 test('public store request resolves the effective template through a server-only boundary', async () => {
