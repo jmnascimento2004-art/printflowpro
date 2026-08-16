@@ -16,6 +16,7 @@ import { isCancelledOrder, normalizeStatus } from '@/lib/order-status';
 import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
 import { resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
+import { formatWhatsAppProductionStatus } from '@/lib/whatsapp/derived-values';
 import { getWhatsAppTimeGreeting } from '@/lib/utils';
 
 export default function ProductionPage() {
@@ -63,17 +64,7 @@ export default function ProductionPage() {
     }
 
       
-    const statusLabels: Record<ProductionItem['status'], string> = {
-      fila: 'Fila (Aguardando)',
-      producao: 'Preparação',
-      impressao: 'Impressão',
-      acabamento: 'Acabamento',
-      concluido: 'Concluído (Pronto para Retirada/Entrega)',
-      expedicao: 'Expedição',
-      entregue: 'Entregue',
-      finalizado: 'Finalizado'
-    };
-    const statusName = statusLabels[item.status] || item.status;
+    const statusName = formatWhatsAppProductionStatus(item.status);
     const companyName = company?.name || "Nossa Gráfica";
     const greeting = getWhatsAppTimeGreeting();
 

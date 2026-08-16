@@ -32,23 +32,44 @@ function summarizeOptions(value: unknown) {
   }).filter(Boolean).join(' | ').slice(0, 2000);
 }
 
+export function resolveStoreProductRequestVariables(
+  input: StoreProductRequestInput,
+  context: Pick<StoreProductRequestContext, 'companyName' | 'product' | 'productVariables'>
+) {
+  if (!context.product) throw new Error('STORE_PRODUCT_CONTEXT_MISSING');
+  const quantity = positiveInteger(input.quantity);
+  const days = Math.max(0, Math.min(365, Number(input.productionDays) || 0));
+  const productName = context.productVariables?.produto_nome || context.product.name;
+  const productSaleType = context.productVariables?.tipo_venda || boundedText(context.product.pricing_type, 80) || 'Unidade';
+  return {
+    ...context.productVariables,
+    empresa_nome: context.companyName,
+    produto_nome: productName,
+    tipo_venda: productSaleType,
+    quantidade: quantity,
+    medidas: summarizeDimensions(input.dimensions),
+    metragem: '',
+    opcoes: summarizeOptions(input.selectedOptions),
+    prazo: boundedText(input.estimatedDeadline, 120) || (days ? `${days} dia(s)` : ''),
+    valor_total: context.productVariables?.['produto.preco'] || '',
+    cliente_nome: boundedText(input.customerName, 120),
+    cliente_telefone: boundedText(input.customerPhone, 30),
+    observacoes: boundedText(input.notes, 500)
+  };
+}
+
 export function resolveStoreProductRequest(input: StoreProductRequestInput, context: StoreProductRequestContext) {
   const definition = getWhatsAppTemplateDefinition('store_product_request');
   if (!definition) throw new Error('STORE_TEMPLATE_NOT_FOUND');
   if (!context.product || !context.product.active || !context.product.catalog_active) return { ok: false as const, status: 404, reason: 'PRODUCT_UNAVAILABLE' as const };
   const settings: WhatsAppSettings = { company_id: '', country_code: context.settings?.country_code || '55', business_phone: context.effectiveBusinessPhone || context.settings?.business_phone || context.publicPhone || null, signature: context.settings?.signature || null, open_mode: context.settings?.open_mode || 'auto', confirm_before_open: context.settings?.confirm_before_open ?? true, include_company_name: context.settings?.include_company_name ?? true };
   if (context.template?.active === false) return { ok: true as const, enabled: false as const, reason: 'MESSAGE_TEMPLATE_DISABLED' as const };
-  const quantity = positiveInteger(input.quantity);
-  const days = Math.max(0, Math.min(365, Number(input.productionDays) || 0));
-  const productName = context.productVariables?.produto_nome || context.product.name;
-  const productSaleType = context.productVariables?.tipo_venda || boundedText(context.product.pricing_type, 80) || 'Unidade';
-  const message = renderConfiguredWhatsAppTemplate(context.template?.content || definition.defaultContent, definition, {
-    ...context.productVariables,
-    empresa_nome: context.companyName, produto_nome: productName, tipo_venda: productSaleType, quantidade: quantity,
-    medidas: summarizeDimensions(input.dimensions), metragem: '', opcoes: summarizeOptions(input.selectedOptions),
-    prazo: boundedText(input.estimatedDeadline, 120) || (days ? `${days} dia(s)` : ''), valor_total: context.productVariables?.['produto.preco'] || '',
-    cliente_nome: boundedText(input.customerName, 120), cliente_telefone: boundedText(input.customerPhone, 30), observacoes: boundedText(input.notes, 500)
-  }, settings);
+  const message = renderConfiguredWhatsAppTemplate(
+    context.template?.content || definition.defaultContent,
+    definition,
+    resolveStoreProductRequestVariables(input, context),
+    settings
+  );
   const href = buildWhatsAppUrl(settings.business_phone || context.publicPhone, message, settings);
   if (!href) return { ok: false as const, status: 422, reason: 'STORE_PHONE_UNAVAILABLE' as const };
   return { ok: true as const, enabled: true as const, href, message, confirmBeforeOpen: settings.confirm_before_open, openMode: settings.open_mode };

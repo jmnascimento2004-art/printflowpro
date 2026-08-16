@@ -38,10 +38,12 @@ import { formatUnitCurrency } from '@/lib/pricing';
 import { isActiveOrder, isCancelledOrder, isProductionActiveOrder, normalizeOrderOperationalStatus } from '@/lib/order-status';
 import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
-import { resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
+import { findExactTenantCustomer } from '@/lib/whatsapp/context-identity';
+import { loadWhatsAppPaymentSettings, resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
 import {
+  calculateOrderBalance,
   calculateOrderPaidAmount,
   getActivePaymentTransactions
 } from '@/lib/finance-rules';
@@ -955,10 +957,14 @@ export default function OrdersPage() {
   };
 
   const sendPixWhatsApp = async (order: Order) => {
-    const customer = customers.find(c => c.name === order.customer_name);
-    const phone = customer?.phone;
+    const customer = findExactTenantCustomer(customers, order.customer_id, company.id);
+    if (!customer) {
+      alert('O cliente vinculado a este pedido não foi encontrado. Verifique o cadastro antes de enviar a cobrança.');
+      return;
+    }
+    const phone = customer.phone;
     if (!phone) {
-      alert("Telefone do cliente não encontrado!");
+      alert('Telefone do cliente não encontrado!');
       return;
     }
 
@@ -967,26 +973,36 @@ export default function OrdersPage() {
       return;
     }
 
-    const balance = order.total_amount - order.paid_amount;
+    const balance = calculateOrderBalance(order, financial);
     if (balance <= 0) {
       alert("Este pedido já está totalmente quitado!");
       return;
     }
 
-    const pixKey = settings.pix_key || "financeiro@printflowpro.com.br";
+    let paymentSettings;
+    try {
+      paymentSettings = await loadWhatsAppPaymentSettings(company.id);
+    } catch {
+      alert('Não foi possível consultar a configuração PIX agora. Tente novamente.');
+      return;
+    }
+    if (!paymentSettings?.pix_key) {
+      alert('Configure a chave PIX em Configurações → Finanças & Chave PIX antes de enviar esta cobrança.');
+      return;
+    }
     const pixInfo = getPixWhatsAppPaymentInfo({
-      key: pixKey,
-      keyType: settings.pix_key_type,
+      key: paymentSettings.pix_key,
+      keyType: paymentSettings.pix_key_type || undefined,
       amount: balance,
       merchantName: company?.name || "PrintFlowPRO",
-      beneficiaryName: settings.pix_beneficiary_name || company?.name,
-      bankName: settings.bank_name
+      beneficiaryName: paymentSettings.pix_beneficiary_name || company?.name,
+      bankName: paymentSettings.bank_name || undefined
     });
 
     const greeting = getWhatsAppTimeGreeting();
     const resolved = await resolveWhatsAppTemplate(company.id, 'order_payment_pending', {
       saudacao: greeting,
-      cliente_nome: order.customer_name,
+      cliente_nome: customer.name,
       pedido_codigo: formatOrderDisplayNumber(order.number),
       saldo_pendente: formatCurrency(balance),
       chave_pix_rotulo: pixInfo.label,

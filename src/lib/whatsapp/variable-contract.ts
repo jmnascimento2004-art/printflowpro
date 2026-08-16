@@ -9,6 +9,24 @@ export type WhatsAppEventKey = (typeof WHATSAPP_EVENT_KEYS)[number];
 export type WhatsAppVariableValue = string | number | boolean | null;
 export type WhatsAppResolvedVariables = Readonly<Record<string, WhatsAppVariableValue | undefined>>;
 
+export interface WhatsAppStoreRequestContextInput {
+  quantity?: unknown;
+  dimensions?: unknown;
+  selectedOptions?: unknown;
+  configurationSnapshot?: unknown;
+  productionDays?: unknown;
+  estimatedDeadline?: unknown;
+  customerName?: unknown;
+  customerPhone?: unknown;
+  notes?: unknown;
+}
+
+export type WhatsAppSystemMessageContext =
+  | { eventKey: 'quote_proposal'; quoteId: string }
+  | { eventKey: 'order_payment_pending'; orderId: string }
+  | { eventKey: 'production_status_changed'; productionItemId: string }
+  | { eventKey: 'store_product_request'; productId: string; request: WhatsAppStoreRequestContextInput };
+
 export const LEGACY_WHATSAPP_TOKENS = [
   'chave_pix', 'chave_pix_rotulo', 'cliente_nome', 'cliente_telefone', 'empresa_nome',
   'medidas', 'metragem', 'observacoes', 'opcoes', 'orcamento_codigo', 'pedido_codigo',
@@ -73,8 +91,8 @@ export const COMPANY_TOKENS_BY_EVENT = {
 
 export const CUSTOMER_TOKENS_BY_EVENT = {
   quote_proposal: CUSTOMER_CANONICAL_TOKENS,
-  order_payment_pending: [],
-  production_status_changed: [],
+  order_payment_pending: CUSTOMER_CANONICAL_TOKENS,
+  production_status_changed: CUSTOMER_CANONICAL_TOKENS,
   store_product_request: []
 } as const satisfies Record<WhatsAppEventKey, readonly WhatsAppCustomerCanonicalToken[]>;
 
@@ -86,9 +104,9 @@ export const PRODUCT_TOKENS_BY_EVENT = {
 } as const satisfies Record<WhatsAppEventKey, readonly WhatsAppProductCanonicalToken[]>;
 
 export const EVENT_DOMAIN_LOADING_MAP = {
-  quote_proposal: ['company'],
-  order_payment_pending: ['company'],
-  production_status_changed: ['company'],
+  quote_proposal: ['company', 'customer'],
+  order_payment_pending: ['company', 'customer'],
+  production_status_changed: ['company', 'customer'],
   store_product_request: ['company', 'product']
 } as const;
 
