@@ -342,9 +342,10 @@ test('confirmation is shown only when requested and cancellation never opens Wha
   assert.match(page, /Confirmar e abrir/);
 });
 
-test('other three administrative events remain wired to the central resolver', async () => {
+test('other three administrative events use the operational canonical server boundary', async () => {
   for (const [path, event] of [['../src/app/(dashboard)/quotes/page.tsx', 'quote_proposal'], ['../src/app/(dashboard)/orders/page.tsx', 'order_payment_pending'], ['../src/app/(dashboard)/production/page.tsx', 'production_status_changed']]) {
     const source = await readFile(new URL(path, import.meta.url), 'utf8');
-    assert.match(source, new RegExp(`resolveWhatsAppTemplate\\(company\\.id, '${event}'`));
+    assert.match(source, new RegExp(`resolveOperationalWhatsAppMessage\\([\\s\\S]{0,100}'${event}'`));
+    assert.doesNotMatch(source, /resolveWhatsAppTemplate/);
   }
 });

@@ -479,6 +479,19 @@ export async function resolveWhatsAppProductVariables(
   const officialPrice = dimensionsComplete && selectedOptionsTrusted && resolution.canPurchase && resolution.totalPrice > 0
     ? formatCurrency(resolution.totalPrice)
     : '';
+  const measurementKind: 'm2' | 'linear' | 'not_applicable' = pricingType === 'm2'
+    ? 'm2'
+    : pricingType === 'linear'
+      ? 'linear'
+      : 'not_applicable';
+  const measurementValue = measurementKind !== 'not_applicable' &&
+    dimensionsComplete &&
+    selectedOptionsTrusted &&
+    resolution.isComplete
+      ? measurementKind === 'm2'
+        ? resolution.breakdown.area
+        : resolution.breakdown.length
+      : 0;
   const canonicalValues: Record<WhatsAppProductCanonicalToken, string> = {
     'produto.nome': clean(product.name, 240),
     'produto.descricao': clean(richTextToPlainText(clean(product.description, 10000)), 2000),
@@ -501,7 +514,12 @@ export async function resolveWhatsAppProductVariables(
       eventKey: context.eventKey,
       queryCounts: { product: productQueries, category: categoryQueries },
       priceSource: officialPrice ? 'src/lib/pricing.ts' as const : 'missing' as const,
-      pricingMode: resolution.pricingMode
+      pricingMode: resolution.pricingMode,
+      measurement: {
+        kind: measurementKind,
+        value: Number.isFinite(measurementValue) && measurementValue > 0 ? measurementValue : 0,
+        source: 'src/lib/pricing.ts#resolveProductPrice.breakdown' as const
+      }
     }
   };
 }

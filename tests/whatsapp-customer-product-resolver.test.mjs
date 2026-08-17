@@ -146,6 +146,11 @@ test('product loader resolves public fields, category and official simple price'
   assert.equal(result.variables['produto.tipo_venda'], 'unidade');
   assert.equal(result.variables['produto.preco'], 'R$ 20,00');
   assert.equal(result.metadataSanitized.priceSource, 'src/lib/pricing.ts');
+  assert.deepEqual(result.metadataSanitized.measurement, {
+    kind: 'not_applicable',
+    value: 0,
+    source: 'src/lib/pricing.ts#resolveProductPrice.breakdown'
+  });
   assert.deepEqual(result.metadataSanitized.queryCounts, { product: 1, category: 1 });
   assert.doesNotMatch(JSON.stringify(result), /must-not-leak|base_cost|margin|product-a|company-a|category-a/);
 });
@@ -158,6 +163,11 @@ test('official pricing covers volume, area and linear products and fails closed 
   const area = { ...productA, pricing_type: 'm2', sales_price: 5 };
   const areaResult = await resolver.resolveWhatsAppProductVariables(productContext({ existingProduct: area, existingCategory: categoryA, pricingConfig: { quantity: 2, width: 2, height: 3 } }), dataSource().source);
   assert.equal(areaResult.variables['produto.preco'], 'R$ 60,00');
+  assert.deepEqual(areaResult.metadataSanitized.measurement, {
+    kind: 'm2',
+    value: 6,
+    source: 'src/lib/pricing.ts#resolveProductPrice.breakdown'
+  });
   const areaMissing = await resolver.resolveWhatsAppProductVariables(productContext({ existingProduct: area, existingCategory: categoryA, pricingConfig: { quantity: 2 } }), dataSource().source);
   assert.equal('produto.preco' in areaMissing.variables, false);
   assert.equal(areaMissing.metadataSanitized.priceSource, 'missing');
@@ -165,6 +175,11 @@ test('official pricing covers volume, area and linear products and fails closed 
   const linear = { ...productA, pricing_type: 'linear', sales_price: 5 };
   const linearResult = await resolver.resolveWhatsAppProductVariables(productContext({ existingProduct: linear, existingCategory: categoryA, pricingConfig: { quantity: 2, length: 4 } }), dataSource().source);
   assert.equal(linearResult.variables['produto.preco'], 'R$ 40,00');
+  assert.deepEqual(linearResult.metadataSanitized.measurement, {
+    kind: 'linear',
+    value: 4,
+    source: 'src/lib/pricing.ts#resolveProductPrice.breakdown'
+  });
 });
 
 test('untrusted option prices are never used and invalid public products fail closed', async () => {

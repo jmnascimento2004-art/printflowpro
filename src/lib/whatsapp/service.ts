@@ -1,18 +1,19 @@
 import { supabase } from '@/lib/supabaseClient';
 import { getWhatsAppTemplateDefinition, WHATSAPP_TEMPLATE_REGISTRY } from './template-registry';
-import { normalizeWhatsAppPhone, renderConfiguredWhatsAppTemplate, validateWhatsAppTemplate } from './template-engine';
+import { normalizeWhatsAppPhone, validateWhatsAppTemplate } from './template-engine';
 import { getWhatsAppSystemMessages } from './message-model';
-import type { WhatsAppMessageTemplate, WhatsAppResolvedTemplate, WhatsAppSettings } from './types';
-import type { WhatsAppResolvedVariables } from './variable-contract';
+import type { WhatsAppMessageTemplate, WhatsAppSettings } from './types';
+import type { WhatsAppEventKey } from './variable-contract';
 
 const MISSING_SCHEMA_CODES = new Set(['42P01', 'PGRST204', 'PGRST205']);
 
-export interface WhatsAppPaymentSettings {
-  company_id: string;
-  pix_key: string;
-  pix_key_type: string | null;
-  pix_beneficiary_name: string | null;
-  bank_name: string | null;
+type OperationalWhatsAppEventKey = Exclude<WhatsAppEventKey, 'store_product_request'>;
+
+export interface ResolvedOperationalWhatsAppMessage {
+  eventKey: OperationalWhatsAppEventKey;
+  active: boolean;
+  confirmBeforeOpen: boolean;
+  href: string;
 }
 
 export function getDefaultWhatsAppSettings(companyId: string): WhatsAppSettings {
@@ -48,24 +49,6 @@ export async function loadWhatsAppCenter(companyId: string) {
   } catch {
     return { templates: [] as WhatsAppMessageTemplate[], settings: defaults, usedFallback: true };
   }
-}
-
-export async function loadWhatsAppPaymentSettings(companyId: string): Promise<WhatsAppPaymentSettings | null> {
-  if (!companyId) return null;
-  const { data, error } = await supabase
-    .from('settings')
-    .select('company_id,pix_key,pix_key_type,pix_beneficiary_name,bank_name')
-    .eq('company_id', companyId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data || data.company_id !== companyId) return null;
-  return {
-    company_id: data.company_id,
-    pix_key: typeof data.pix_key === 'string' ? data.pix_key.trim() : '',
-    pix_key_type: typeof data.pix_key_type === 'string' ? data.pix_key_type.trim() : null,
-    pix_beneficiary_name: typeof data.pix_beneficiary_name === 'string' ? data.pix_beneficiary_name.trim() : null,
-    bank_name: typeof data.bank_name === 'string' ? data.bank_name.trim() : null
-  };
 }
 
 export async function saveWhatsAppTemplate(input: {
@@ -120,39 +103,40 @@ export async function saveWhatsAppSettings(settings: WhatsAppSettings, userId?: 
   return data as WhatsAppSettings;
 }
 
-export async function resolveWhatsAppTemplate(
-  companyId: string,
-  eventKey: string,
-  values: WhatsAppResolvedVariables
-): Promise<WhatsAppResolvedTemplate> {
-  const definition = getWhatsAppTemplateDefinition(eventKey);
-  if (!definition) throw new Error('Evento de WhatsApp desconhecido.');
-  const fallbackSettings = getDefaultWhatsAppSettings(companyId);
-  let custom: WhatsAppMessageTemplate | null = null;
-  let settings = fallbackSettings;
-  let usedFallback = false;
-  try {
-    const [templateResult, settingsResult] = await Promise.all([
-      supabase.from('whatsapp_message_templates').select('*').eq('company_id', companyId).eq('event_key', eventKey).maybeSingle(),
-      supabase.from('whatsapp_settings').select('*').eq('company_id', companyId).maybeSingle()
-    ]);
-    if (templateResult.error) throw templateResult.error;
-    if (settingsResult.error) throw settingsResult.error;
-    custom = templateResult.data as WhatsAppMessageTemplate | null;
-    settings = (settingsResult.data as WhatsAppSettings | null) || fallbackSettings;
-  } catch {
-    usedFallback = true;
+export async function resolveOperationalWhatsAppMessage(
+  accessToken: string | undefined,
+  eventKey: OperationalWhatsAppEventKey,
+  contextId: string
+): Promise<ResolvedOperationalWhatsAppMessage> {
+  if (!accessToken) throw new Error('Sua sessão expirou. Entre novamente para continuar.');
+  const response = await fetch('/api/whatsapp/system-message/runtime', {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({ eventKey, contextId })
+  });
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === 'string' ? payload.error : 'Não foi possível preparar a mensagem agora.');
   }
-  const content = custom?.content || definition.defaultContent;
-  const renderedContent = renderConfiguredWhatsAppTemplate(content, definition, values, settings);
+  if (
+    !payload ||
+    payload.eventKey !== eventKey ||
+    typeof payload.active !== 'boolean' ||
+    typeof payload.confirmBeforeOpen !== 'boolean' ||
+    typeof payload.href !== 'string' ||
+    (payload.active && !payload.href)
+  ) {
+    throw new Error('A resposta do WhatsApp foi inválida. Tente novamente.');
+  }
   return {
-    definition,
-    content,
-    renderedContent,
-    active: custom ? custom.active : definition.enabledByDefault,
-    customized: Boolean(custom),
-    settings,
-    usedFallback
+    eventKey,
+    active: payload.active,
+    confirmBeforeOpen: payload.confirmBeforeOpen,
+    href: payload.href
   };
 }
 
