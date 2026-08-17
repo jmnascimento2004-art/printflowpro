@@ -400,7 +400,7 @@ test('invalid contextual draft fails closed before producing a Test URL', async 
   );
 });
 
-test('store context remains supported without changing the current Store runtime', async () => {
+test('store context resolves the sixth event canonically with a single encoded href', async () => {
   const result = await resolver.resolveSystemWhatsAppMessage({
     trustedCompanyId: 'tenant-a',
     context: { eventKey: 'store_product_request', productId: 'product-a', request: { quantity: 2, customerName: 'Cliente Store' } }
@@ -408,6 +408,10 @@ test('store context remains supported without changing the current Store runtime
   assert.equal(result.variables.produto_nome, 'Produto A');
   assert.equal(result.variables.quantidade, '2');
   assert.equal(result.recipient, '5544444444444');
+  assert.equal(result.eventKey, 'store_product_request');
+  assert.equal(result.active, true);
+  assert.equal(new URL(result.testHref).searchParams.get('text'), result.renderedContent);
+  assert.doesNotMatch(result.testHref, /%25(?:C3|20|0A)/i);
 });
 
 test('store metragem consumes only canonical pricing breakdown metadata', async () => {

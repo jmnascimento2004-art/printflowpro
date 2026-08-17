@@ -66,13 +66,22 @@ interface CartItem {
 }
 
 type StoreWhatsAppRequestResult = {
-  enabled: boolean;
+  eventKey?: 'store_product_request';
+  active?: boolean;
   href?: string;
-  message?: string;
   confirmBeforeOpen?: boolean;
-  openMode?: 'auto' | 'web' | 'app';
   error?: string;
 };
+
+function getWhatsAppMessageFromHref(href: string) {
+  try {
+    const url = new URL(href);
+    if (url.protocol !== 'https:' || !['wa.me', 'web.whatsapp.com'].includes(url.hostname)) return '';
+    return url.searchParams.get('text') || '';
+  } catch {
+    return '';
+  }
+}
 
 function getStoreInitials(name: string) {
   const words = name.split(/\s+/).map((word) => word.replace(/[^a-z0-9]/gi, '')).filter(Boolean);
@@ -674,8 +683,17 @@ export default function StorefrontPage() {
             productId: payload.product_id,
             quantity: payload.quantity,
             dimensions: payload.dimensions,
-            selectedOptions: payload.selected_options,
-            configurationSnapshot: payload.configuration_snapshot,
+            selectedOptions: payload.selected_options.map(({ name, option_name, group_id, group_name }) => ({
+              name: name || option_name,
+              group_id,
+              group_name
+            })),
+            configurationSnapshot: payload.configuration_snapshot ? {
+              material: payload.configuration_snapshot.material,
+              size: payload.configuration_snapshot.size,
+              colors: payload.configuration_snapshot.colors,
+              finishing: payload.configuration_snapshot.finishing
+            } : undefined,
             productionDays: payload.production_days,
             estimatedDeadline: payload.production_time || payload.product.delivery_time || payload.product.pricing_details?.delivery_time,
             customerName: clientName,
@@ -685,12 +703,13 @@ export default function StorefrontPage() {
         });
         const result = await response.json() as StoreWhatsAppRequestResult;
         if (!response.ok) throw new Error(result.error || 'Não foi possível preparar a mensagem.');
-        if (!result.enabled) {
+        if (result.eventKey !== 'store_product_request' || !result.active) {
           alert('As solicitações por WhatsApp estão temporariamente indisponíveis.');
           return;
         }
-        if (!result.href || !result.message) throw new Error('Não foi possível preparar a mensagem.');
-        if (result.confirmBeforeOpen) setPendingWhatsAppOpen({ href: result.href, message: result.message });
+        const message = result.href ? getWhatsAppMessageFromHref(result.href) : '';
+        if (!result.href || !message) throw new Error('Não foi possível preparar a mensagem.');
+        if (result.confirmBeforeOpen) setPendingWhatsAppOpen({ href: result.href, message });
         else window.open(result.href, '_blank', 'noopener,noreferrer');
       } catch (error) {
         alert(error instanceof Error ? error.message : 'Não foi possível preparar a mensagem agora.');
