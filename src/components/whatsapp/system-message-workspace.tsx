@@ -1,6 +1,14 @@
 import type { RefObject } from 'react';
-import { Clipboard, RotateCcw, Save, Search, Send, Variable } from 'lucide-react';
+import { Clipboard, Loader2, RotateCcw, Save, Search, Send, Variable } from 'lucide-react';
 import type { WhatsAppSystemMessage } from '@/lib/whatsapp/types';
+
+export interface WhatsAppContextOption {
+  id: string;
+  label: string;
+  searchable: string;
+}
+
+export type WhatsAppContextResolutionStatus = 'idle' | 'loading' | 'resolved' | 'error';
 
 interface SystemMessageListProps {
   messages: readonly WhatsAppSystemMessage[];
@@ -11,6 +19,71 @@ interface SystemMessageListProps {
   onSearchChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onSelect: (eventKey: string) => void;
+}
+
+interface SystemMessageContextSelectorProps {
+  sampleOnly: boolean;
+  label: string;
+  help: string;
+  options: readonly WhatsAppContextOption[];
+  selectedId: string;
+  search: string;
+  status: WhatsAppContextResolutionStatus;
+  statusMessage?: string;
+  onSearchChange: (value: string) => void;
+  onSelect: (id: string) => void;
+}
+
+export function SystemMessageContextSelector({
+  sampleOnly,
+  label,
+  help,
+  options,
+  selectedId,
+  search,
+  status,
+  statusMessage,
+  onSearchChange,
+  onSelect
+}: SystemMessageContextSelectorProps) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4" aria-labelledby="whatsapp-context-title">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 id="whatsapp-context-title" className="text-xs font-black text-foreground">Contexto da mensagem</h2>
+          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{help}</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : status === 'error' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>
+          {status === 'resolved' ? 'Dados reais' : status === 'loading' ? 'Resolvendo' : status === 'error' ? 'Falha no contexto' : 'Amostra'}
+        </span>
+      </div>
+      {sampleOnly ? (
+        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-4 text-amber-800">
+          Esta mensagem depende do produto configurado na Loja e permanece como demonstração nesta Central. O teste deve ser iniciado pelo fluxo real da Loja.
+        </p>
+      ) : (
+        <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+          <label className="text-[11px] font-bold text-foreground">
+            Buscar {label.toLocaleLowerCase('pt-BR')}
+            <div className="relative mt-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder={`Filtrar ${label.toLocaleLowerCase('pt-BR')}`} className="h-11 w-full rounded-xl border border-border bg-background pl-9 pr-3 text-xs outline-none focus:border-primary" />
+            </div>
+          </label>
+          <label className="text-[11px] font-bold text-foreground">
+            {label}
+            <select value={selectedId} onChange={(event) => onSelect(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-xs outline-none focus:border-primary">
+              <option value="">Selecione explicitamente</option>
+              {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+      {!sampleOnly && options.length === 0 && <p className="mt-2 text-[10px] text-amber-700">Nenhum registro do contexto já carregado corresponde à busca.</p>}
+      {status === 'loading' && <p role="status" className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Validando o contexto no servidor...</p>}
+      {statusMessage && status !== 'loading' && <p role={status === 'error' ? 'alert' : 'status'} className={`mt-2 text-[11px] ${status === 'error' ? 'font-medium text-rose-600' : 'text-muted-foreground'}`}>{statusMessage}</p>}
+    </section>
+  );
 }
 
 export function SystemMessageList({
@@ -114,17 +187,37 @@ interface MessagePreviewProps {
   preview: string;
   onCopy: () => void;
   onTest: () => void;
+  mode?: 'sample' | 'real' | 'loading' | 'error';
+  contextSummary?: string;
+  help?: string;
+  testDisabled?: boolean;
+  testDisabledReason?: string;
 }
 
-export function MessagePreview({ preview, onCopy, onTest }: MessagePreviewProps) {
+export function MessagePreview({
+  preview,
+  onCopy,
+  onTest,
+  mode = 'sample',
+  contextSummary,
+  help,
+  testDisabled = false,
+  testDisabledReason
+}: MessagePreviewProps) {
   return (
     <aside className="min-w-0 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xs font-black text-foreground">Pré-visualização</h2>
-        <button type="button" aria-label="Copiar pré-visualização" onClick={onCopy} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-border px-2 text-[10px] font-bold transition hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><Clipboard className="h-3.5 w-3.5" />Copiar</button>
+        <div>
+          <h2 className="text-xs font-black text-foreground">Pré-visualização</h2>
+          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${mode === 'real' ? 'bg-emerald-100 text-emerald-700' : mode === 'error' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>{mode === 'real' ? 'Dados reais' : mode === 'loading' ? 'Carregando' : mode === 'error' ? 'Erro' : 'Amostra'}</span>
+        </div>
+        <button type="button" aria-label="Copiar pré-visualização" onClick={onCopy} disabled={mode === 'loading' || mode === 'error'} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-border px-2 text-[10px] font-bold transition hover:bg-secondary disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><Clipboard className="h-3.5 w-3.5" />Copiar</button>
       </div>
+      {contextSummary && <p className="mt-2 text-[10px] font-medium leading-4 text-muted-foreground">{contextSummary}</p>}
+      {help && <p className="mt-2 text-[10px] leading-4 text-muted-foreground">{help}</p>}
       <div className="mt-3 rounded-2xl bg-[#efeae2] p-3"><div className="ml-auto max-w-[95%] whitespace-pre-wrap break-words rounded-xl rounded-tr-sm bg-[#d9fdd3] p-3 text-[11px] leading-5 text-slate-800 shadow-sm">{preview}</div></div>
-      <button type="button" onClick={onTest} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700"><Send className="h-4 w-4" />Testar mensagem</button>
+      <button type="button" onClick={onTest} disabled={testDisabled} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"><Send className="h-4 w-4" />Testar mensagem</button>
+      {testDisabled && testDisabledReason && <p className="mt-2 text-[10px] leading-4 text-muted-foreground">{testDisabledReason}</p>}
     </aside>
   );
 }

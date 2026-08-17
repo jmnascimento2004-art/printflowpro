@@ -118,7 +118,7 @@ test('context allowlists, chips, cursor insertion and local safe preview are wir
 
 test('customer test reuses the already loaded customer context and generic testing needs no customer', async () => {
   const page = await read('../src/app/(dashboard)/whatsapp/page.tsx');
-  assert.match(page, /const \{ company, customers, rolePermissions \} = useDatabase\(\)/);
+  assert.match(page, /const \{ company, customers, quotes, orders, production, rolePermissions \} = useDatabase\(\)/);
   assert.match(page, /const customerRecipientRequired = tab === 'custom' && customContext === 'customer'/);
   assert.match(page, /showCustomer=\{customerRecipientRequired\}/);
   assert.match(page, /customerPreviewValues\(selectedTestCustomer\)/);
@@ -132,7 +132,7 @@ test('customer testing requires a current selected customer with a valid recipie
   assert.match(page, /buildWhatsAppUrl\(customerRecipientPhone, testPreview, settings \|\| undefined\)/);
   assert.match(page, /!selectedTestCustomer[\s\S]{0,100}Selecione um cliente para testar esta mensagem/);
   assert.match(page, /!customerRecipientUrl[\s\S]{0,120}não possui um telefone ou WhatsApp válido/);
-  assert.match(page, /customerRecipientRequired[\s\S]{0,100}customerRecipientError \? '' : customerRecipientUrl[\s\S]{0,100}buildWhatsAppUrl\(testPhone/);
+  assert.match(page, /customerRecipientRequired[\s\S]{0,180}customerRecipientError \? '' : customerRecipientUrl[\s\S]{0,140}buildWhatsAppUrl\(testPhone/);
   assert.match(page, /const canOpen = Boolean\(url\) && !recipientError/);
   assert.match(page, /href=\{canOpen \? url : undefined\}/);
   assert.match(page, /if \(!canOpen\) event\.preventDefault\(\)/);
@@ -322,7 +322,9 @@ test('custom desktop workspace has three panels and mobile guards horizontal ove
     read('../src/app/(dashboard)/layout.tsx'),
     read('../src/components/whatsapp/custom-message-workspace.tsx')
   ]);
-  assert.ok((page.match(/xl:grid-cols-\[270px_minmax\(0,1fr\)_320px\]/g) || []).length >= 2);
+  assert.equal((page.match(/xl:grid-cols-\[270px_minmax\(0,1fr\)_320px\]/g) || []).length, 1);
+  assert.match(page, /xl:grid-cols-\[270px_minmax\(0,1fr\)\]/);
+  assert.match(page, /lg:grid-cols-\[minmax\(0,1fr\)_320px\]/);
   assert.match(page, /min-w-0 space-y-5/);
   assert.match(layout, /overflow-x-hidden/);
   assert.match(workspace, /min-w-0/);

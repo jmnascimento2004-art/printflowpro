@@ -54,7 +54,8 @@ test('admin page includes permissions-safe route UI, tabs, editor, chips and pre
   assert.match(workspace, /Pré-visualização/);
   assert.match(workspace, /Testar mensagem/);
   assert.match(page, /WHATSAPP_TEMPLATE_MAX_LENGTH/);
-  assert.match(page, /xl:grid-cols-\[270px_minmax\(0,1fr\)_320px\]/);
+  assert.match(page, /xl:grid-cols-\[270px_minmax\(0,1fr\)\]/);
+  assert.match(page, /lg:grid-cols-\[minmax\(0,1fr\)_320px\]/);
 });
 
 test('system cards preserve user-facing content without rendering technical event-key badges', async () => {
