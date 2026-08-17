@@ -1,8 +1,12 @@
 import 'server-only';
 
 import type { FinancialTransaction, Order, ProductionItem } from '@/lib/dummy-data';
-import { calculateOrderBalance } from '@/lib/finance-rules';
-import { formatOrderDisplayNumber } from '@/lib/order-number';
+import { calculateOrderBalance, dedupeTransactionsById } from '@/lib/finance-rules';
+import {
+  areOrderNumbersEquivalent,
+  formatLegacyOrderNumber,
+  formatOrderDisplayNumber
+} from '@/lib/order-number';
 import { formatCurrency } from '@/lib/pricing';
 import { resolveStoreProductRequestVariables, type StoreProductRequestInput } from '@/lib/store/whatsapp-product-request';
 import { getSupabaseAdminClient } from '@/lib/supabase/server-admin';
@@ -105,6 +109,7 @@ export interface ResolvedSystemWhatsAppMessage {
   testHref: string;
   contextSummary: string;
   active: boolean;
+  confirmBeforeOpen: boolean;
   missing: string[];
   metadata: {
     tenantValidated: true;
@@ -194,6 +199,25 @@ function normalizeRenderSettings(companyId: string, row: WhatsAppSettingsRow | n
     confirm_before_open: row?.confirm_before_open ?? true,
     include_company_name: row?.include_company_name ?? true
   };
+}
+
+function formatStoreMeasurement(measurement: {
+  kind: 'm2' | 'linear' | 'not_applicable';
+  value: number;
+} | undefined): string {
+  if (
+    !measurement ||
+    measurement.kind === 'not_applicable' ||
+    !Number.isFinite(measurement.value) ||
+    measurement.value <= 0
+  ) {
+    return '';
+  }
+  const formatted = new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3
+  }).format(measurement.value);
+  return measurement.kind === 'm2' ? `${formatted} m²` : `${formatted} m linear`;
 }
 
 interface ResolvedEventContext {
@@ -367,12 +391,23 @@ export function createSupabaseWhatsAppSystemMessageDataSource(
       return result.data as WhatsAppProductionContextRow | null;
     },
     async getFinancialTransactions(companyId, orderId, orderNumber) {
-      const [byId, byNumber] = await Promise.all([
+      const equivalentNumbers = Array.from(new Set([
+        orderNumber,
+        formatOrderDisplayNumber(orderNumber),
+        formatLegacyOrderNumber(orderNumber)
+      ].filter(Boolean)));
+      const results = await Promise.all([
         supabase.from('financial_transactions').select(financialProjection).eq('company_id', companyId).eq('order_id', orderId),
-        supabase.from('financial_transactions').select(financialProjection).eq('company_id', companyId).eq('order_number', orderNumber)
+        ...equivalentNumbers.map((candidate) => (
+          supabase.from('financial_transactions').select(financialProjection).eq('company_id', companyId).ilike('order_number', candidate)
+        ))
       ]);
-      if (byId.error || byNumber.error) throw controlledError('FINANCE_QUERY_FAILED');
-      return [...(byId.data || []), ...(byNumber.data || [])] as FinancialTransaction[];
+      if (results.some((result) => result.error)) throw controlledError('FINANCE_QUERY_FAILED');
+      const transactions = results.flatMap((result) => result.data || []) as FinancialTransaction[];
+      return dedupeTransactionsById(transactions).filter((transaction) => (
+        transaction.company_id === companyId &&
+        (transaction.order_id === orderId || areOrderNumbersEquivalent(transaction.order_number, orderNumber))
+      ));
     },
     async getTemplate(companyId, eventKey) {
       const result = await supabase.from('whatsapp_message_templates')
@@ -480,6 +515,10 @@ export async function resolveSystemWhatsAppMessage(
       },
       productVariables
     });
+    values = {
+      ...values,
+      metragem: formatStoreMeasurement(product.metadataSanitized.measurement)
+    };
   }
 
   const definition = getWhatsAppTemplateDefinition(eventKey);
@@ -506,6 +545,7 @@ export async function resolveSystemWhatsAppMessage(
     testHref,
     contextSummary,
     active: template?.active ?? definition.enabledByDefault,
+    confirmBeforeOpen: renderSettings.confirm_before_open,
     missing: selected.missing,
     metadata: {
       tenantValidated: true,

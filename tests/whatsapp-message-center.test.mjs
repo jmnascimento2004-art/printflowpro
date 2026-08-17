@@ -30,7 +30,7 @@ test('service falls back to code defaults and supports inactive tenant overrides
   ]);
   assert.match(model, /override\?\.content \|\| definition\.defaultContent/);
   assert.match(model, /active: override \? override\.active : definition\.enabledByDefault/);
-  assert.match(service, /usedFallback = true/);
+  assert.match(service, /usedFallback: true/);
 });
 
 test('admin page includes permissions-safe route UI, tabs, editor, chips and preview', async () => {
@@ -171,37 +171,42 @@ test('admin preview derives only the company name already loaded by the authenti
   assert.doesNotMatch(page, /useState[^;]*company.*name/i);
 });
 
-test('existing admin flows resolve templates and keep manual opening', async () => {
+test('existing admin flows resolve through the canonical server boundary and keep manual opening', async () => {
   const files = await Promise.all([
     read('../src/app/(dashboard)/quotes/page.tsx'),
     read('../src/app/(dashboard)/orders/page.tsx'),
     read('../src/app/(dashboard)/production/page.tsx')
   ]);
   for (const source of files) {
-    assert.match(source, /resolveWhatsAppTemplate/);
-    assert.match(source, /confirm_before_open/);
-    assert.match(source, /openWhatsAppUrl/);
+    assert.match(source, /resolveOperationalWhatsAppMessage/);
+    assert.match(source, /confirmBeforeOpen/);
+    assert.match(source, /window\.open\(resolved\.href/);
+    assert.doesNotMatch(source, /resolveWhatsAppTemplate|renderedContent|resolved\.settings/);
     assert.doesNotMatch(source, /service_role|SUPABASE_SERVICE_ROLE/i);
   }
 });
 
-test('quote and payment containment require exact tenant customer IDs and trusted PIX settings', async () => {
-  const [quotes, orders, service, identity] = await Promise.all([
+test('quote and payment containment move recipient, balance and PIX authority to the server', async () => {
+  const [quotes, orders, service, identity, route, resolver] = await Promise.all([
     read('../src/app/(dashboard)/quotes/page.tsx'),
     read('../src/app/(dashboard)/orders/page.tsx'),
     read('../src/lib/whatsapp/service.ts'),
-    read('../src/lib/whatsapp/context-identity.ts')
+    read('../src/lib/whatsapp/context-identity.ts'),
+    read('../src/app/api/whatsapp/system-message/runtime/route.ts'),
+    read('../src/lib/whatsapp/system-message-resolver.server.ts')
   ]);
   assert.match(quotes, /findExactTenantCustomer\(customers, quote\.customer_id, company\.id\)/);
-  assert.match(orders, /findExactTenantCustomer\(customers, order\.customer_id, company\.id\)/);
   assert.match(identity, /customer\.id === customerId && customer\.company_id === trustedCompanyId/);
   assert.doesNotMatch(quotes, /c\.name === quote\.customer_name|c\.name === webName/);
   assert.doesNotMatch(orders, /customers\.find\(c => c\.name === order\.customer_name\)/);
-  assert.match(orders, /loadWhatsAppPaymentSettings\(company\.id\)/);
-  assert.match(orders, /calculateOrderBalance\(order, financial\)/);
+  const paymentHandler = orders.match(/const sendPixWhatsApp[\s\S]+?(?=\n  \/\/ Stats Calculations)/)?.[0] || '';
+  assert.doesNotMatch(paymentHandler, /findExactTenantCustomer|calculateOrderBalance|pix_key|cliente_nome|saldo_pendente/);
   assert.doesNotMatch(orders, /financeiro@printflowpro\.com\.br|financeiro@empresa\.com\.br/);
-  assert.match(service, /from\('settings'\)[\s\S]{0,220}\.eq\('company_id', companyId\)/);
-  assert.match(service, /select\('company_id,pix_key,pix_key_type,pix_beneficiary_name,bank_name'\)/);
+  assert.match(service, /fetch\('\/api\/whatsapp\/system-message\/runtime'/);
+  assert.doesNotMatch(service, /export async function resolveWhatsAppTemplate|export async function loadWhatsAppPaymentSettings/);
+  assert.match(route, /resolveSystemWhatsAppMessage/);
+  assert.match(resolver, /calculateOrderBalance\(normalizedOrder, transactions\)/);
+  assert.match(resolver, /getPixWhatsAppPaymentInfo/);
 });
 
 test('public store request resolves the effective template through a server-only boundary', async () => {

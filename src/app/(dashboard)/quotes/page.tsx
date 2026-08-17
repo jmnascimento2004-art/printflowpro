@@ -20,6 +20,7 @@ import {
   List
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
+import { useAuth } from '@/context/auth-context';
 import { Quote, QuoteItem } from '@/lib/dummy-data';
 import type { AdditionalService } from '@/lib/dummy-data';
 import { AdditionalServicesSection, getAdditionalServicesTotal } from '@/components/commercial/AdditionalServicesSection';
@@ -29,9 +30,8 @@ import {
   formatCEP,
   getPublicImageUrl
 } from '@/lib/utils';
-import { openWhatsAppUrl } from '@/lib/whatsapp';
 import { findExactTenantCustomer } from '@/lib/whatsapp/context-identity';
-import { resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
+import { resolveOperationalWhatsAppMessage } from '@/lib/whatsapp/service';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
@@ -142,6 +142,7 @@ const getItemConfigurationSummaryLines = (item: Pick<QuoteItem, 'details' | 'qua
 };
 
 export default function QuotesPage() {
+  const { session } = useAuth();
   const { 
     quotes, 
     addQuote, 
@@ -267,21 +268,21 @@ export default function QuotesPage() {
   };
 
   const sendQuoteProposalWhatsApp = async (quote: Quote) => {
-    const customer = resolveQuoteCustomer(quote);
-    if (!customer) {
-      alert('O cliente vinculado a este orçamento não foi encontrado. Verifique o cadastro antes de enviar a proposta.');
-      return;
-    }
-    const phone = customer.phone;
-    if (!phone) {
-      alert('Telefone/WhatsApp do cliente não encontrado. Atualize o cadastro do cliente antes de enviar a proposta.');
-      return;
-    }
-
     const quoteForSending: Quote = {
       ...quote,
       status: quote.status === 'rascunho' ? 'pendente' : quote.status
     };
+    let resolved;
+    try {
+      resolved = await resolveOperationalWhatsAppMessage(
+        session?.access_token,
+        'quote_proposal',
+        quoteForSending.id
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível preparar a proposta no WhatsApp.');
+      return;
+    }
     if (quote.status === 'rascunho') {
       updateQuote(quoteForSending);
     }
@@ -292,22 +293,15 @@ export default function QuotesPage() {
       });
     }
 
-    const resolved = await resolveWhatsAppTemplate(company.id, 'quote_proposal', {
-      cliente_nome: customer.name,
-      orcamento_codigo: quote.number,
-      empresa_nome: company?.name || 'CibelePRINT',
-      valor_total: formatCurrency(quote.total_amount),
-      validade_orcamento: new Date(quote.valid_until).toLocaleDateString('pt-BR')
-    });
     if (!resolved.active) {
       alert('Este modelo está inativo na Central de WhatsApp.');
       return;
     }
-    if (resolved.settings.confirm_before_open && !window.confirm('Abrir o WhatsApp com a proposta preparada?')) return;
+    if (resolved.confirmBeforeOpen && !window.confirm('Abrir o WhatsApp com a proposta preparada?')) return;
 
     if (typeof window === 'undefined') return;
     window.setTimeout(() => {
-      const opened = openWhatsAppUrl(phone, resolved.renderedContent, resolved.settings);
+      const opened = window.open(resolved.href, '_blank', 'noopener,noreferrer');
       if (!opened) {
         alert('Não foi possível abrir o WhatsApp. Verifique o telefone do cliente.');
         return;

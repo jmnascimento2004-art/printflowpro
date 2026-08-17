@@ -21,15 +21,12 @@ const registry = await compile('../src/lib/whatsapp/template-registry.ts');
 const engine = await compile('../src/lib/whatsapp/template-engine.ts', { './variable-contract': contract });
 const derived = await compile('../src/lib/whatsapp/derived-values.ts');
 const identity = await compile('../src/lib/whatsapp/context-identity.ts');
-
-const finance = {
-  calculateOrderBalance(order, transactions) {
-    const confirmed = transactions
-      .filter((item) => item.type === 'receita' && item.status === 'pago')
-      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    return Math.max(0, Number(order.total_amount) - Math.max(Number(order.paid_amount || 0), confirmed));
-  }
-};
+const orderNumber = await compile('../src/lib/order-number.ts');
+const orderStatus = await compile('../src/lib/order-status.ts');
+const finance = await compile('../src/lib/finance-rules.ts', {
+  '@/lib/order-number': orderNumber,
+  '@/lib/order-status': orderStatus
+});
 
 const entityResolver = {
   createSupabaseWhatsAppEntityDataSource() { throw new Error('not used'); },
@@ -58,7 +55,9 @@ const entityResolver = {
       'produto.preco': 'R$ 20,00',
       produto_nome: product.name,
       tipo_venda: product.pricing_type
-    }, missing: [], metadataSanitized: {} };
+    }, missing: [], metadataSanitized: {
+      measurement: product.measurement || { kind: 'not_applicable', value: 0 }
+    } };
   }
 };
 
@@ -93,7 +92,7 @@ const storeResolver = {
 
 const resolver = await compile('../src/lib/whatsapp/system-message-resolver.server.ts', {
   '@/lib/finance-rules': finance,
-  '@/lib/order-number': { formatOrderDisplayNumber: (value) => `PED-${value}` },
+  '@/lib/order-number': orderNumber,
   '@/lib/pricing': { formatCurrency: (value) => `R$ ${Number(value).toFixed(2).replace('.', ',')}` },
   '@/lib/store/whatsapp-product-request': storeResolver,
   '@/lib/supabase/server-admin': { getSupabaseAdminClient() { throw new Error('not used'); } },
@@ -165,6 +164,36 @@ function dependencies(overrides = {}) {
   };
 }
 
+function createFinancialSupabaseMock(rows, queryLog = []) {
+  return {
+    from(table) {
+      assert.equal(table, 'financial_transactions');
+      const filters = [];
+      const builder = {
+        select(projection) {
+          assert.match(projection, /id,company_id,order_id,order_number/);
+          return builder;
+        },
+        eq(column, value) {
+          filters.push((row) => row[column] === value);
+          queryLog.push({ operator: 'eq', column, value });
+          return builder;
+        },
+        ilike(column, value) {
+          filters.push((row) => String(row[column] || '').toLocaleLowerCase('pt-BR') === String(value).toLocaleLowerCase('pt-BR'));
+          queryLog.push({ operator: 'ilike', column, value });
+          return builder;
+        },
+        then(resolve, reject) {
+          return Promise.resolve({ data: rows.filter((row) => filters.every((filter) => filter(row))), error: null })
+            .then(resolve, reject);
+        }
+      };
+      return builder;
+    }
+  };
+}
+
 test('context contract contains exactly four discriminated system events', () => {
   assert.deepEqual(contract.WHATSAPP_EVENT_KEYS, ['quote_proposal', 'order_payment_pending', 'production_status_changed', 'store_product_request']);
   assert.equal(contract.WHATSAPP_EVENT_KEYS.length, 4);
@@ -223,6 +252,70 @@ test('order resolver uses confirmed partial payments and synthetic real PIX sett
   assert.doesNotMatch(JSON.stringify(result.metadata), /pix\.synthetic|552222|Cliente Mesmo Nome/);
 });
 
+test('financial datasource recovers legacy ORD payment for PED order and keeps the canonical partial balance', async () => {
+  const queryLog = [];
+  const legacyPayment = {
+    id: 'pay-legacy', company_id: 'tenant-a', order_id: null, order_number: 'ORD-0001',
+    type: 'receita', status: 'pago', amount: 40
+  };
+  const dataSource = resolver.createSupabaseWhatsAppSystemMessageDataSource(
+    createFinancialSupabaseMock([legacyPayment], queryLog)
+  );
+  const transactions = await dataSource.getFinancialTransactions('tenant-a', 'order-a', 'PED-0001');
+  assert.deepEqual(transactions.map((transaction) => transaction.id), ['pay-legacy']);
+  assert.ok(queryLog.filter((entry) => entry.column === 'company_id').every((entry) => entry.value === 'tenant-a'));
+
+  const result = await resolver.resolveSystemWhatsAppMessage({
+    trustedCompanyId: 'tenant-a',
+    context: { eventKey: 'order_payment_pending', orderId: 'order-a' }
+  }, dependencies({
+    rows: { order: { ...baseRows.order, number: 'PED-0001', total_amount: 100, paid_amount: 0 } },
+    transactions
+  }));
+  assert.equal(result.variables.saldo_pendente, 'R$ 60,00');
+  assert.match(new URL(result.testHref).searchParams.get('text'), /R\$ 60,00/);
+});
+
+test('financial datasource preserves canonical PED and ORD equivalence in both directions', async () => {
+  for (const [orderNumberValue, paymentNumber] of [
+    ['PED-0001', 'PED-0001'],
+    ['PED-0001', 'ORD-0001'],
+    ['ORD-0001', 'PED-0001']
+  ]) {
+    const payment = {
+      id: `pay-${orderNumberValue}-${paymentNumber}`,
+      company_id: 'tenant-a', order_id: null, order_number: paymentNumber,
+      type: 'receita', status: 'pago', amount: 25
+    };
+    const dataSource = resolver.createSupabaseWhatsAppSystemMessageDataSource(
+      createFinancialSupabaseMock([payment])
+    );
+    const transactions = await dataSource.getFinancialTransactions('tenant-a', 'order-a', orderNumberValue);
+    assert.deepEqual(transactions.map((transaction) => transaction.id), [payment.id]);
+  }
+});
+
+test('financial datasource deduplicates overlap and never crosses tenant for equivalent order numbers', async () => {
+  const overlappingPayment = {
+    id: 'pay-overlap', company_id: 'tenant-a', order_id: 'order-a', order_number: 'ORD-0001',
+    type: 'receita', status: 'pago', amount: 20
+  };
+  const foreignPayment = {
+    id: 'pay-foreign', company_id: 'tenant-b', order_id: null, order_number: 'ORD-0001',
+    type: 'receita', status: 'pago', amount: 80
+  };
+  const dataSource = resolver.createSupabaseWhatsAppSystemMessageDataSource(
+    createFinancialSupabaseMock([overlappingPayment, foreignPayment])
+  );
+
+  const transactions = await dataSource.getFinancialTransactions('tenant-a', 'order-a', 'PED-0001');
+  assert.deepEqual(transactions.map((transaction) => transaction.id), ['pay-overlap']);
+  assert.equal(finance.calculateOrderBalance(
+    { ...baseRows.order, number: 'PED-0001', total_amount: 100, paid_amount: 0 },
+    transactions
+  ), 80);
+});
+
 test('missing real PIX blocks payment and never uses registry or demo samples', async () => {
   const noPix = { values: { ...baseCompanySource.values, variables: { 'empresa.nome': 'Empresa A', empresa_nome: 'Empresa A' } } };
   await assert.rejects(
@@ -230,14 +323,20 @@ test('missing real PIX blocks payment and never uses registry or demo samples', 
     /PIX_NOT_CONFIGURED/
   );
   const source = await readFile(new URL('../src/app/(dashboard)/orders/page.tsx', import.meta.url), 'utf8');
+  const handler = source.slice(
+    source.indexOf('  const sendPixWhatsApp = async'),
+    source.indexOf('  // Stats Calculations')
+  );
   assert.doesNotMatch(source, /financeiro@printflowpro\.com\.br|financeiro@empresa\.com\.br/);
-  assert.match(source, /loadWhatsAppPaymentSettings\(company\.id\)/);
+  assert.match(source, /resolveOperationalWhatsAppMessage/);
+  assert.doesNotMatch(source, /loadWhatsAppPaymentSettings/);
+  assert.doesNotMatch(handler, /\.(?:phone|telefone)\b|pix_key|saldo_pendente\s*:|cliente_nome\s*:|recipient\s*:/i);
 });
 
 test('production resolver derives status from production_queue and resolves order/customer by ID', async () => {
   const result = await resolver.resolveSystemWhatsAppMessage({ trustedCompanyId: 'tenant-a', context: { eventKey: 'production_status_changed', productionItemId: 'production-a' } }, dependencies());
   assert.equal(result.variables.status_pedido, 'Concluído (Pronto para Retirada/Entrega)');
-  assert.equal(result.variables.pedido_codigo, 'PED-17');
+  assert.equal(result.variables.pedido_codigo, 'PED-0017');
   assert.equal(result.recipient, '5522222222222');
 });
 
@@ -261,12 +360,12 @@ test('contextual draft is validated and Preview and Test share one canonical ren
   const result = await resolver.resolveSystemWhatsAppMessage({
     trustedCompanyId: 'tenant-a',
     context: { eventKey: 'quote_proposal', quoteId: 'quote-a' },
-    draftContent: 'Contexto {{orcamento_codigo}} para {{cliente_nome}}',
+    draftContent: 'Olá, {{cliente_nome}}!\nOrçamento {{orcamento_codigo}}.',
     allowMissingRecipient: true
   }, dependencies());
 
   assert.equal(result.metadata.templateSource, 'draft');
-  assert.equal(result.renderedContent, 'Contexto 18 para Cliente Mesmo Nome');
+  assert.equal(result.renderedContent, 'Olá, Cliente Mesmo Nome!\nOrçamento 18.');
   assert.equal(result.recipientAvailable, true);
   assert.match(result.testHref, /^https:\/\/wa\.me\/5522222222222\?text=/);
   assert.equal(new URL(result.testHref).searchParams.get('text'), result.renderedContent);
@@ -309,6 +408,26 @@ test('store context remains supported without changing the current Store runtime
   assert.equal(result.variables.produto_nome, 'Produto A');
   assert.equal(result.variables.quantidade, '2');
   assert.equal(result.recipient, '5544444444444');
+});
+
+test('store metragem consumes only canonical pricing breakdown metadata', async () => {
+  const area = await resolver.resolveSystemWhatsAppMessage({
+    trustedCompanyId: 'tenant-a',
+    context: { eventKey: 'store_product_request', productId: 'product-a', request: { quantity: 1 } }
+  }, dependencies({ rows: { product: { ...baseRows.product, pricing_type: 'm2', measurement: { kind: 'm2', value: 6 } } } }));
+  assert.equal(area.variables.metragem, '6 m²');
+
+  const linear = await resolver.resolveSystemWhatsAppMessage({
+    trustedCompanyId: 'tenant-a',
+    context: { eventKey: 'store_product_request', productId: 'product-a', request: { quantity: 1 } }
+  }, dependencies({ rows: { product: { ...baseRows.product, pricing_type: 'linear', measurement: { kind: 'linear', value: 4.25 } } } }));
+  assert.equal(linear.variables.metragem, '4,25 m linear');
+
+  const nonMetric = await resolver.resolveSystemWhatsAppMessage({
+    trustedCompanyId: 'tenant-a',
+    context: { eventKey: 'store_product_request', productId: 'product-a', request: { quantity: 1 } }
+  }, dependencies());
+  assert.equal('metragem' in nonMetric.variables, false);
 });
 
 test('runtime context validation rejects mixed or extra entity identifiers', async () => {

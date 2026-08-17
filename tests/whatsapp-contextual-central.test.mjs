@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
-async function loadPermissionHelper() {
+async function loadPermissionHelpers() {
   const source = (await read('../src/lib/whatsapp/system-message-auth.server.ts')).replace("import 'server-only';", '');
   const code = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
@@ -16,7 +16,111 @@ async function loadPermissionHelper() {
     if (name === '@/lib/supabase/server-admin') return { getSupabaseAdminClient() { throw new Error('not used'); } };
     throw new Error(`Unexpected import: ${name}`);
   }, module.exports, module);
-  return module.exports.hasSystemMessageContextPermissions;
+  return module.exports;
+}
+
+async function loadOperationalRouteHarness() {
+  const state = {
+    access: { companyId: 'tenant-a', role: 'vendas' },
+    authError: null,
+    permissionError: null,
+    permissions: [],
+    permissionQueries: [],
+    resolverCalls: [],
+    resolve: async (input) => {
+      const message = 'Olá, Cliente!\nPedido pronto para você.';
+      return {
+        eventKey: input.context.eventKey,
+        active: true,
+        confirmBeforeOpen: false,
+        testHref: `https://wa.me/5511999999999?text=${encodeURIComponent(message)}`,
+        recipient: '5511999999999',
+        variables: { saldo_pendente: 'R$ 60,00' },
+        renderedContent: message
+      };
+    }
+  };
+
+  const authSource = (await read('../src/lib/whatsapp/system-message-auth.server.ts')).replace("import 'server-only';", '');
+  const authCode = ts.transpileModule(authSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText;
+  const authModule = { exports: {} };
+  new Function('require', 'exports', 'module', authCode)((name) => {
+    if (name === '@/lib/pdf/pdf-server-auth') {
+      return {
+        async authenticatePdfRequest() {
+          if (state.authError) throw state.authError;
+          return state.access;
+        }
+      };
+    }
+    if (name === '@/lib/supabase/server-admin') {
+      return {
+        getSupabaseAdminClient() {
+          return {
+            from(table) {
+              assert.equal(table, 'role_permissions');
+              const query = { companyId: '', paths: [] };
+              const builder = {
+                select(projection) {
+                  assert.equal(projection, 'path,roles');
+                  return builder;
+                },
+                eq(column, value) {
+                  assert.equal(column, 'company_id');
+                  query.companyId = value;
+                  return builder;
+                },
+                in(column, paths) {
+                  assert.equal(column, 'path');
+                  query.paths = [...paths];
+                  state.permissionQueries.push(query);
+                  return Promise.resolve({
+                    data: state.permissions.filter((row) => paths.includes(row.path)),
+                    error: state.permissionError
+                  });
+                }
+              };
+              return builder;
+            }
+          };
+        }
+      };
+    }
+    throw new Error(`Unexpected auth import: ${name}`);
+  }, authModule.exports, authModule);
+
+  const routeSource = await read('../src/app/api/whatsapp/system-message/runtime/route.ts');
+  const routeCode = ts.transpileModule(routeSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText;
+  const routeModule = { exports: {} };
+  new Function('require', 'exports', 'module', routeCode)((name) => {
+    if (name === 'next/server') {
+      return { NextResponse: { json: (body, init) => Response.json(body, init) } };
+    }
+    if (name === '@/lib/whatsapp/system-message-auth.server') return authModule.exports;
+    if (name === '@/lib/whatsapp/system-message-resolver.server') {
+      return {
+        async resolveSystemWhatsAppMessage(input) {
+          state.resolverCalls.push(input);
+          return state.resolve(input);
+        }
+      };
+    }
+    throw new Error(`Unexpected route import: ${name}`);
+  }, routeModule.exports, routeModule);
+
+  return { POST: routeModule.exports.POST, state };
+}
+
+function operationalRequest(body, { malformed = false } = {}) {
+  return new Request('http://localhost/api/whatsapp/system-message/runtime', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer synthetic-token' },
+    body: malformed ? '{' : JSON.stringify(body)
+  });
 }
 
 function deferred() {
@@ -192,7 +296,7 @@ test('the route binds every event to exactly one explicit contextual identifier 
 });
 
 test('source-module permissions fail closed for each contextual event', async () => {
-  const allowed = await loadPermissionHelper();
+  const { hasSystemMessageContextPermissions: allowed } = await loadPermissionHelpers();
   const permissions = (entries) => new Map(entries);
   const whatsapp = ['/whatsapp', ['admin', 'gerente']];
 
@@ -201,6 +305,156 @@ test('source-module permissions fail closed for each contextual event', async ()
   assert.equal(allowed('order_payment_pending', 'gerente', permissions([whatsapp, ['/orders', ['admin', 'gerente']], ['/financial', ['admin']]])), false);
   assert.equal(allowed('production_status_changed', 'gerente', permissions([whatsapp, ['/production', ['admin']]])), false);
   assert.equal(allowed('order_payment_pending', 'gerente', permissions([whatsapp, ['/orders', ['admin', 'gerente']], ['/financial', ['admin', 'gerente']]])), true);
+});
+
+test('operational permissions exclude WhatsApp administration and preserve financial containment', async () => {
+  const { hasOperationalSystemMessageContextPermissions: allowed } = await loadPermissionHelpers();
+  const permissions = (entries) => new Map(entries);
+
+  assert.equal(allowed('quote_proposal', 'vendas', permissions([['/quotes', ['vendas']], ['/whatsapp', []]])), true);
+  assert.equal(allowed('production_status_changed', 'producao', permissions([['/production', ['producao']], ['/whatsapp', []]])), true);
+  assert.equal(allowed('order_payment_pending', 'financeiro', permissions([['/orders', ['financeiro']], ['/financial', ['financeiro']], ['/whatsapp', []]])), true);
+  assert.equal(allowed('order_payment_pending', 'vendas', permissions([['/orders', ['vendas']], ['/financial', []], ['/whatsapp', ['vendas']]])), false);
+  assert.equal(allowed('order_payment_pending', 'financeiro', permissions([['/orders', []], ['/financial', ['financeiro']]])), false);
+});
+
+test('operational runtime route accepts only event and context id and never accepts authority fields', async () => {
+  const [route, auth] = await Promise.all([
+    read('../src/app/api/whatsapp/system-message/runtime/route.ts'),
+    read('../src/lib/whatsapp/system-message-auth.server.ts')
+  ]);
+  assert.match(route, /\['eventKey', 'contextId'\]/);
+  assert.match(route, /authorizeOperationalSystemMessageContext\(request, body\.eventKey\)/);
+  assert.match(route, /resolveSystemWhatsAppMessage/);
+  assert.doesNotMatch(route.match(/function parseRequestBody[\s\S]+?(?=function buildContext)/)?.[0] || '', /companyId|customerId|recipient|variables|pix|saldo/i);
+  assert.doesNotMatch(route.match(/return noStoreJson\(\{[\s\S]+?href:[\s\S]+?\}\);/)?.[0] || '', /recipient:|variables:|renderedContent:/);
+  assert.match(auth, /quote_proposal: \['\/quotes'\]/);
+  assert.match(auth, /order_payment_pending: \['\/orders', '\/financial'\]/);
+  assert.match(auth, /production_status_changed: \['\/production'\]/);
+});
+
+test('operational Route Handler resolves quote, order and production with minimized encoded responses', async () => {
+  const { POST, state } = await loadOperationalRouteHarness();
+  const cases = [
+    {
+      eventKey: 'quote_proposal', contextId: 'quote-a', role: 'vendas',
+      permissions: [{ path: '/quotes', roles: ['vendas'] }],
+      requiredPaths: ['/quotes'], expectedContext: { eventKey: 'quote_proposal', quoteId: 'quote-a' }
+    },
+    {
+      eventKey: 'order_payment_pending', contextId: 'order-a', role: 'financeiro',
+      permissions: [{ path: '/orders', roles: ['financeiro'] }, { path: '/financial', roles: ['financeiro'] }],
+      requiredPaths: ['/orders', '/financial'], expectedContext: { eventKey: 'order_payment_pending', orderId: 'order-a' }
+    },
+    {
+      eventKey: 'production_status_changed', contextId: 'production-a', role: 'producao',
+      permissions: [{ path: '/production', roles: ['producao'] }],
+      requiredPaths: ['/production'], expectedContext: { eventKey: 'production_status_changed', productionItemId: 'production-a' }
+    }
+  ];
+
+  for (const scenario of cases) {
+    state.access = { companyId: 'tenant-a', role: scenario.role };
+    state.permissions = scenario.permissions;
+    state.permissionQueries.length = 0;
+    state.resolverCalls.length = 0;
+    const response = await POST(operationalRequest({ eventKey: scenario.eventKey, contextId: scenario.contextId }));
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'private, no-store, max-age=0');
+    const body = await response.json();
+    assert.deepEqual(Object.keys(body).sort(), ['active', 'confirmBeforeOpen', 'eventKey', 'href']);
+    assert.deepEqual(state.resolverCalls, [{ trustedCompanyId: 'tenant-a', context: scenario.expectedContext }]);
+    assert.deepEqual(state.permissionQueries, [{ companyId: 'tenant-a', paths: scenario.requiredPaths }]);
+    assert.equal(state.permissionQueries[0].paths.includes('/whatsapp'), false);
+    assert.equal(new URL(body.href).pathname, '/5511999999999');
+    assert.equal(new URL(body.href).searchParams.get('text'), 'Olá, Cliente!\nPedido pronto para você.');
+    assert.doesNotMatch(JSON.stringify(body), /recipient|variables|saldo_pendente|renderedContent/);
+  }
+});
+
+test('operational Route Handler enforces authentication and both financial permissions without WhatsApp permission', async () => {
+  const { POST, state } = await loadOperationalRouteHarness();
+  for (const reason of ['missing', 'invalid']) {
+    state.authError = Object.assign(new Error(reason), { status: 401 });
+    const response = await POST(operationalRequest({ eventKey: 'quote_proposal', contextId: 'quote-a' }));
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: 'Não autenticado.' });
+  }
+
+  state.authError = null;
+  state.access = { companyId: 'tenant-a', role: 'financeiro' };
+  for (const permissions of [
+    [{ path: '/orders', roles: ['financeiro'] }, { path: '/financial', roles: [] }],
+    [{ path: '/orders', roles: [] }, { path: '/financial', roles: ['financeiro'] }]
+  ]) {
+    state.permissions = permissions;
+    const response = await POST(operationalRequest({ eventKey: 'order_payment_pending', contextId: 'order-a' }));
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { error: 'Acesso negado.' });
+  }
+
+  state.permissions = [
+    { path: '/orders', roles: ['financeiro'] },
+    { path: '/financial', roles: ['financeiro'] },
+    { path: '/whatsapp', roles: [] }
+  ];
+  state.permissionQueries.length = 0;
+  const allowed = await POST(operationalRequest({ eventKey: 'order_payment_pending', contextId: 'order-a' }));
+  assert.equal(allowed.status, 200);
+  assert.deepEqual(state.permissionQueries.at(-1).paths, ['/orders', '/financial']);
+});
+
+test('operational Route Handler rejects malformed authority payloads and maps missing or foreign entities safely', async () => {
+  const { POST, state } = await loadOperationalRouteHarness();
+  const invalidRequests = [
+    operationalRequest({}, { malformed: true }),
+    operationalRequest({ eventKey: 'unknown', contextId: 'quote-a' }),
+    operationalRequest({ eventKey: 'quote_proposal' }),
+    operationalRequest({ eventKey: 'quote_proposal', quoteId: 'quote-a' }),
+    operationalRequest({ eventKey: 'quote_proposal', contextId: 'quote-a', companyId: 'tenant-b' }),
+    operationalRequest({ eventKey: 'order_payment_pending', contextId: '', recipient: '5511999999999' })
+  ];
+  for (const request of invalidRequests) {
+    const response = await POST(request);
+    assert.equal(response.status, 400);
+    assert.equal(response.headers.get('cache-control'), 'private, no-store, max-age=0');
+  }
+  assert.equal(state.resolverCalls.length, 0);
+
+  state.access = { companyId: 'tenant-a', role: 'admin' };
+  state.permissions = [
+    { path: '/quotes', roles: ['admin'] },
+    { path: '/orders', roles: ['admin'] },
+    { path: '/financial', roles: ['admin'] },
+    { path: '/production', roles: ['admin'] }
+  ];
+  state.resolve = async ({ context }) => {
+    if ('quoteId' in context) throw new Error('WHATSAPP_CONTEXT_QUOTE_NOT_FOUND');
+    if ('orderId' in context) throw new Error('WHATSAPP_CONTEXT_ORDER_NOT_FOUND');
+    if (context.productionItemId === 'foreign-production') throw new Error('WHATSAPP_CONTEXT_TENANT_MISMATCH');
+    throw new Error('WHATSAPP_CONTEXT_PRODUCTION_ITEM_NOT_FOUND');
+  };
+
+  const missingCases = [
+    [{ eventKey: 'quote_proposal', contextId: 'missing-quote' }, 'quoteId'],
+    [{ eventKey: 'quote_proposal', contextId: 'order-a' }, 'quoteId'],
+    [{ eventKey: 'order_payment_pending', contextId: 'missing-order' }, 'orderId'],
+    [{ eventKey: 'production_status_changed', contextId: 'missing-production' }, 'productionItemId'],
+    [{ eventKey: 'production_status_changed', contextId: 'foreign-production' }, 'productionItemId']
+  ];
+  for (const [body, expectedIdentifier] of missingCases) {
+    const response = await POST(operationalRequest(body));
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), {
+      error: body.contextId === 'foreign-production'
+        ? 'O contexto selecionado não está disponível para esta empresa.'
+        : 'O contexto selecionado não está mais disponível.'
+    });
+    const call = state.resolverCalls.at(-1);
+    assert.equal(call.trustedCompanyId, 'tenant-a');
+    assert.equal(call.context[expectedIdentifier], body.contextId);
+    assert.equal('companyId' in call.context, false);
+  }
 });
 
 test('Central selectors use already loaded arrays only for UX and never send client authority fields', async () => {

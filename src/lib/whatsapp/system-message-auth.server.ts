@@ -14,20 +14,42 @@ const FALLBACK_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
   '/production': ['admin', 'gerente', 'producao', 'arte_finalista']
 };
 
-const REQUIRED_PATHS: Readonly<Record<ContextualWhatsAppEventKey, readonly string[]>> = {
+const CENTRAL_REQUIRED_PATHS: Readonly<Record<ContextualWhatsAppEventKey, readonly string[]>> = {
   quote_proposal: ['/whatsapp', '/quotes'],
   order_payment_pending: ['/whatsapp', '/orders', '/financial'],
   production_status_changed: ['/whatsapp', '/production']
 };
+
+const OPERATIONAL_REQUIRED_PATHS: Readonly<Record<ContextualWhatsAppEventKey, readonly string[]>> = {
+  quote_proposal: ['/quotes'],
+  order_payment_pending: ['/orders', '/financial'],
+  production_status_changed: ['/production']
+};
+
+function hasRequiredPermissions(
+  requiredPaths: readonly string[],
+  role: string,
+  configured: ReadonlyMap<string, readonly string[]>
+) {
+  return requiredPaths.every((path) => (
+    (configured.get(path) || FALLBACK_PERMISSIONS[path] || []).includes(role)
+  ));
+}
 
 export function hasSystemMessageContextPermissions(
   eventKey: ContextualWhatsAppEventKey,
   role: string,
   configured: ReadonlyMap<string, readonly string[]>
 ) {
-  return REQUIRED_PATHS[eventKey].every((path) => (
-    (configured.get(path) || FALLBACK_PERMISSIONS[path] || []).includes(role)
-  ));
+  return hasRequiredPermissions(CENTRAL_REQUIRED_PATHS[eventKey], role, configured);
+}
+
+export function hasOperationalSystemMessageContextPermissions(
+  eventKey: ContextualWhatsAppEventKey,
+  role: string,
+  configured: ReadonlyMap<string, readonly string[]>
+) {
+  return hasRequiredPermissions(OPERATIONAL_REQUIRED_PATHS[eventKey], role, configured);
 }
 
 export class WhatsAppSystemMessageAccessError extends Error {
@@ -37,9 +59,9 @@ export class WhatsAppSystemMessageAccessError extends Error {
   }
 }
 
-export async function authorizeSystemMessageContext(
+async function authorizeWithRequiredPaths(
   request: Request,
-  eventKey: ContextualWhatsAppEventKey
+  requiredPaths: readonly string[]
 ): Promise<{ trustedCompanyId: string }> {
   let access;
   try {
@@ -52,7 +74,6 @@ export async function authorizeSystemMessageContext(
     throw error;
   }
 
-  const requiredPaths = REQUIRED_PATHS[eventKey];
   const { data, error } = await getSupabaseAdminClient()
     .from('role_permissions')
     .select('path,roles')
@@ -63,8 +84,22 @@ export async function authorizeSystemMessageContext(
   const configured = new Map(
     (data || []).map((row) => [String(row.path), Array.isArray(row.roles) ? row.roles.map(String) : []])
   );
-  const allowed = hasSystemMessageContextPermissions(eventKey, access.role, configured);
+  const allowed = hasRequiredPermissions(requiredPaths, access.role, configured);
   if (!allowed) throw new WhatsAppSystemMessageAccessError(403);
 
   return { trustedCompanyId: access.companyId };
+}
+
+export function authorizeSystemMessageContext(
+  request: Request,
+  eventKey: ContextualWhatsAppEventKey
+) {
+  return authorizeWithRequiredPaths(request, CENTRAL_REQUIRED_PATHS[eventKey]);
+}
+
+export function authorizeOperationalSystemMessageContext(
+  request: Request,
+  eventKey: ContextualWhatsAppEventKey
+) {
+  return authorizeWithRequiredPaths(request, OPERATIONAL_REQUIRED_PATHS[eventKey]);
 }

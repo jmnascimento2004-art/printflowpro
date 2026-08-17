@@ -11,22 +11,19 @@ import {
   Truck
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
+import { useAuth } from '@/context/auth-context';
 import { ProductionItem } from '@/lib/dummy-data';
 import { isCancelledOrder, normalizeStatus } from '@/lib/order-status';
 import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
-import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
-import { resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
-import { formatWhatsAppProductionStatus } from '@/lib/whatsapp/derived-values';
-import { getWhatsAppTimeGreeting } from '@/lib/utils';
+import { resolveOperationalWhatsAppMessage } from '@/lib/whatsapp/service';
 
 export default function ProductionPage() {
+  const { session } = useAuth();
   const { 
     production, 
     updateProductionStatus, 
     assignProductionResponsible,
     orders,
-    customers,
-    company,
     profiles
   } = useDatabase();
 
@@ -49,42 +46,26 @@ export default function ProductionPage() {
     orders.find(o => o.id === item.order_id || areOrderNumbersEquivalent(o.number, item.order_number));
 
   const sendWhatsAppStatus = async (item: ProductionItem) => {
-    const order = getOrderForProductionItem(item);
-    const customer = order ? customers.find(c => c.id === order.customer_id) : null;
-    
-    if (!customer || !customer.phone) {
-      alert("Cliente ou telefone não encontrado para este pedido!");
+    let resolved;
+    try {
+      resolved = await resolveOperationalWhatsAppMessage(
+        session?.access_token,
+        'production_status_changed',
+        item.id
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível preparar a atualização no WhatsApp.');
       return;
     }
-    
-    const isValidWhatsAppPhone = validateWhatsAppPhone(customer.phone);
-    if (!isValidWhatsAppPhone) {
-      alert("Telefone inválido para este cliente!");
-      return;
-    }
-
-      
-    const statusName = formatWhatsAppProductionStatus(item.status);
-    const companyName = company?.name || "Nossa Gráfica";
-    const greeting = getWhatsAppTimeGreeting();
-
-    const resolved = await resolveWhatsAppTemplate(company.id, 'production_status_changed', {
-      saudacao: greeting,
-      cliente_nome: customer.name,
-      pedido_codigo: formatOrderDisplayNumber(item.order_number),
-      produto_nome: item.product_name,
-      status_pedido: statusName,
-      empresa_nome: companyName
-    });
     if (!resolved.active) {
       alert('Este modelo está inativo na Central de WhatsApp.');
       return;
     }
-    if (resolved.settings.confirm_before_open && !window.confirm('Abrir o WhatsApp com a atualização de produção preparada?')) return;
+    if (resolved.confirmBeforeOpen && !window.confirm('Abrir o WhatsApp com a atualização de produção preparada?')) return;
 
-    const opened = openWhatsAppUrl(customer.phone, resolved.renderedContent, resolved.settings);
+    const opened = window.open(resolved.href, '_blank', 'noopener,noreferrer');
     if (!opened) {
-      alert("Cliente sem telefone vÃ¡lido para WhatsApp.");
+      alert("Cliente sem telefone válido para WhatsApp.");
     }
   };
 

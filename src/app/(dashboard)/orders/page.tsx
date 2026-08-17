@@ -21,6 +21,7 @@ import {
   List
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
+import { useAuth } from '@/context/auth-context';
 import { Order } from '@/lib/dummy-data';
 import type { AdditionalService } from '@/lib/dummy-data';
 import { AdditionalServicesSection, getAdditionalServicesTotal } from '@/components/commercial/AdditionalServicesSection';
@@ -28,22 +29,17 @@ import {
   formatCurrencyInput,
   parseCurrencyInputToNumber,
   generatePixPayload,
-  formatCEP,
-  getPixWhatsAppPaymentInfo,
-  getWhatsAppTimeGreeting
+  formatCEP
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
 import { formatUnitCurrency } from '@/lib/pricing';
 import { isActiveOrder, isCancelledOrder, isProductionActiveOrder, normalizeOrderOperationalStatus } from '@/lib/order-status';
 import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
-import { openWhatsAppUrl, validateWhatsAppPhone } from '@/lib/whatsapp';
-import { findExactTenantCustomer } from '@/lib/whatsapp/context-identity';
-import { loadWhatsAppPaymentSettings, resolveWhatsAppTemplate } from '@/lib/whatsapp/service';
+import { resolveOperationalWhatsAppMessage } from '@/lib/whatsapp/service';
 import { PdfPreviewDialog } from '@/components/pdf/pdf-preview-dialog';
 import { downloadFileFromUrl } from '@/lib/download';
 import {
-  calculateOrderBalance,
   calculateOrderPaidAmount,
   getActivePaymentTransactions
 } from '@/lib/finance-rules';
@@ -75,6 +71,7 @@ const buildOrderNotesWithDiscount = (notes: string, discount: number, reason: st
 };
 
 export default function OrdersPage() {
+  const { session } = useAuth();
   const { 
     orders, 
     updateOrderStatus, 
@@ -957,66 +954,24 @@ export default function OrdersPage() {
   };
 
   const sendPixWhatsApp = async (order: Order) => {
-    const customer = findExactTenantCustomer(customers, order.customer_id, company.id);
-    if (!customer) {
-      alert('O cliente vinculado a este pedido não foi encontrado. Verifique o cadastro antes de enviar a cobrança.');
-      return;
-    }
-    const phone = customer.phone;
-    if (!phone) {
-      alert('Telefone do cliente não encontrado!');
-      return;
-    }
-
-    if (!validateWhatsAppPhone(phone)) {
-      alert("Cliente sem telefone vÃ¡lido para WhatsApp.");
-      return;
-    }
-
-    const balance = calculateOrderBalance(order, financial);
-    if (balance <= 0) {
-      alert("Este pedido já está totalmente quitado!");
-      return;
-    }
-
-    let paymentSettings;
+    let resolved;
     try {
-      paymentSettings = await loadWhatsAppPaymentSettings(company.id);
-    } catch {
-      alert('Não foi possível consultar a configuração PIX agora. Tente novamente.');
+      resolved = await resolveOperationalWhatsAppMessage(
+        session?.access_token,
+        'order_payment_pending',
+        order.id
+      );
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível preparar a cobrança no WhatsApp.');
       return;
     }
-    if (!paymentSettings?.pix_key) {
-      alert('Configure a chave PIX em Configurações → Finanças & Chave PIX antes de enviar esta cobrança.');
-      return;
-    }
-    const pixInfo = getPixWhatsAppPaymentInfo({
-      key: paymentSettings.pix_key,
-      keyType: paymentSettings.pix_key_type || undefined,
-      amount: balance,
-      merchantName: company?.name || "PrintFlowPRO",
-      beneficiaryName: paymentSettings.pix_beneficiary_name || company?.name,
-      bankName: paymentSettings.bank_name || undefined
-    });
-
-    const greeting = getWhatsAppTimeGreeting();
-    const resolved = await resolveWhatsAppTemplate(company.id, 'order_payment_pending', {
-      saudacao: greeting,
-      cliente_nome: customer.name,
-      pedido_codigo: formatOrderDisplayNumber(order.number),
-      saldo_pendente: formatCurrency(balance),
-      chave_pix_rotulo: pixInfo.label,
-      chave_pix: pixInfo.value,
-      seguranca_pix: pixInfo.securityText,
-      empresa_nome: company?.name || 'PrintFlowPRO'
-    });
     if (!resolved.active) {
       alert('Este modelo está inativo na Central de WhatsApp.');
       return;
     }
-    if (resolved.settings.confirm_before_open && !window.confirm('Abrir o WhatsApp com a cobrança preparada?')) return;
+    if (resolved.confirmBeforeOpen && !window.confirm('Abrir o WhatsApp com a cobrança preparada?')) return;
 
-    const opened = openWhatsAppUrl(phone, resolved.renderedContent, resolved.settings);
+    const opened = window.open(resolved.href, '_blank', 'noopener,noreferrer');
     if (!opened) {
       alert("Cliente sem telefone válido para WhatsApp.");
     }
