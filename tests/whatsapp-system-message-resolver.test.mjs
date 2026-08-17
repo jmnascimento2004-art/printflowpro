@@ -141,11 +141,12 @@ const baseRows = {
 function dependencies(overrides = {}) {
   const rows = { ...baseRows, ...(overrides.rows || {}) };
   const template = overrides.template === undefined ? null : overrides.template;
+  const scopedCustomers = overrides.customers || customers;
   return {
     companyDataSource: overrides.companyDataSource || baseCompanySource,
     entityDataSource: {
       async getCustomer(companyId, customerId) {
-        return customers.find((item) => item.company_id === companyId && item.id === customerId) || null;
+        return scopedCustomers.find((item) => item.company_id === companyId && item.id === customerId) || null;
       },
       async getProduct(companyId, productId) {
         return rows.product?.company_id === companyId && rows.product.id === productId ? rows.product : null;
@@ -204,6 +205,14 @@ test('cross-tenant contextual rows fail closed without returning tenant B data',
     resolver.resolveSystemWhatsAppMessage({ trustedCompanyId: 'tenant-a', context: { eventKey: 'quote_proposal', quoteId: 'quote-a' } }, dependencies({ rows: { quote: { ...baseRows.quote, company_id: 'tenant-b' } } })),
     /TENANT_MISMATCH/
   );
+  await assert.rejects(
+    resolver.resolveSystemWhatsAppMessage({ trustedCompanyId: 'tenant-a', context: { eventKey: 'order_payment_pending', orderId: 'order-a' } }, dependencies({ rows: { order: { ...baseRows.order, company_id: 'tenant-b' } } })),
+    /TENANT_MISMATCH/
+  );
+  await assert.rejects(
+    resolver.resolveSystemWhatsAppMessage({ trustedCompanyId: 'tenant-a', context: { eventKey: 'production_status_changed', productionItemId: 'production-a' } }, dependencies({ rows: { production: { ...baseRows.production, company_id: 'tenant-b' } } })),
+    /TENANT_MISMATCH/
+  );
 });
 
 test('order resolver uses confirmed partial payments and synthetic real PIX settings', async () => {
@@ -246,6 +255,50 @@ test('tenant template override and default registry fallback are both preserved'
     dependencies()
   );
   assert.match(fallback.renderedContent, /Segue a proposta\/orçamento/);
+});
+
+test('contextual draft is validated and Preview and Test share one canonical rendering', async () => {
+  const result = await resolver.resolveSystemWhatsAppMessage({
+    trustedCompanyId: 'tenant-a',
+    context: { eventKey: 'quote_proposal', quoteId: 'quote-a' },
+    draftContent: 'Contexto {{orcamento_codigo}} para {{cliente_nome}}',
+    allowMissingRecipient: true
+  }, dependencies());
+
+  assert.equal(result.metadata.templateSource, 'draft');
+  assert.equal(result.renderedContent, 'Contexto 18 para Cliente Mesmo Nome');
+  assert.equal(result.recipientAvailable, true);
+  assert.match(result.testHref, /^https:\/\/wa\.me\/5522222222222\?text=/);
+  assert.equal(new URL(result.testHref).searchParams.get('text'), result.renderedContent);
+  assert.match(result.contextSummary, /Orçamento #18/);
+  assert.doesNotMatch(result.contextSummary, /quote-a|customer-2/);
+});
+
+test('missing recipient still permits a real preview but disables the canonical Test action', async () => {
+  const withoutPhone = customers.map((customer) => customer.id === 'customer-2' ? { ...customer, phone: '' } : customer);
+  const result = await resolver.resolveSystemWhatsAppMessage({
+    trustedCompanyId: 'tenant-a',
+    context: { eventKey: 'quote_proposal', quoteId: 'quote-a' },
+    draftContent: 'Orçamento {{orcamento_codigo}}',
+    allowMissingRecipient: true
+  }, dependencies({ customers: withoutPhone }));
+
+  assert.equal(result.renderedContent, 'Orçamento 18');
+  assert.equal(result.recipientAvailable, false);
+  assert.equal(result.testHref, '');
+  assert.equal(result.recipient, '');
+});
+
+test('invalid contextual draft fails closed before producing a Test URL', async () => {
+  await assert.rejects(
+    resolver.resolveSystemWhatsAppMessage({
+      trustedCompanyId: 'tenant-a',
+      context: { eventKey: 'quote_proposal', quoteId: 'quote-a' },
+      draftContent: '{{segredo.nao_permitido}}',
+      allowMissingRecipient: true
+    }, dependencies()),
+    /TEMPLATE_INVALID/
+  );
 });
 
 test('store context remains supported without changing the current Store runtime', async () => {

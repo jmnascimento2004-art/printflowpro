@@ -15,7 +15,11 @@ import {
   type WhatsAppEntityVariableDataSource
 } from './customer-product-variable-resolver.server';
 import { formatWhatsAppProductionStatus } from './derived-values';
-import { renderConfiguredWhatsAppTemplate } from './template-engine';
+import {
+  buildWhatsAppUrl,
+  renderConfiguredWhatsAppTemplate,
+  validateWhatsAppTemplate
+} from './template-engine';
 import { getWhatsAppTemplateDefinition } from './template-registry';
 import type { WhatsAppSettings } from './types';
 import {
@@ -88,6 +92,8 @@ export interface ResolveSystemWhatsAppMessageDependencies {
 export interface ResolveSystemWhatsAppMessageInput {
   trustedCompanyId: string;
   context: WhatsAppSystemMessageContext;
+  draftContent?: string;
+  allowMissingRecipient?: boolean;
 }
 
 export interface ResolvedSystemWhatsAppMessage {
@@ -95,11 +101,14 @@ export interface ResolvedSystemWhatsAppMessage {
   variables: Record<string, string>;
   renderedContent: string;
   recipient: string;
+  recipientAvailable: boolean;
+  testHref: string;
+  contextSummary: string;
   active: boolean;
   missing: string[];
   metadata: {
     tenantValidated: true;
-    templateSource: 'override' | 'registry';
+    templateSource: 'draft' | 'override' | 'registry';
     resolverDomains: string[];
     missingCount: number;
   };
@@ -190,6 +199,7 @@ function normalizeRenderSettings(companyId: string, row: WhatsAppSettingsRow | n
 interface ResolvedEventContext {
   variables: WhatsAppResolvedVariables;
   recipient: string;
+  contextSummary: string;
   resolverDomains: string[];
 }
 
@@ -213,6 +223,7 @@ export async function resolveWhatsAppQuoteContext(
   }, entityDataSource);
   return {
     recipient: customer.variables['cliente.whatsapp'] || '',
+    contextSummary: `Orçamento #${quote.number} — ${customer.variables['cliente.nome'] || 'Cliente vinculado'}`,
     resolverDomains: ['quote', 'customer'],
     variables: {
       ...customer.variables,
@@ -270,6 +281,7 @@ export async function resolveWhatsAppOrderContext(
   });
   return {
     recipient: customer.variables['cliente.whatsapp'] || '',
+    contextSummary: `Pedido ${formatOrderDisplayNumber(order.number)} — ${customer.variables['cliente.nome'] || 'Cliente vinculado'}`,
     resolverDomains: ['order', 'customer', 'finance', 'derived'],
     variables: {
       ...customer.variables,
@@ -310,6 +322,7 @@ export async function resolveWhatsAppProductionContext(
   }, entityDataSource);
   return {
     recipient: customer.variables['cliente.whatsapp'] || '',
+    contextSummary: `${formatOrderDisplayNumber(production.order_number)} — ${production.product_name} — ${formatWhatsAppProductionStatus(production.status)}`,
     resolverDomains: ['production', 'order', 'customer', 'derived'],
     variables: {
       ...customer.variables,
@@ -404,6 +417,7 @@ export async function resolveSystemWhatsAppMessage(
   ]);
 
   let recipient = '';
+  let contextSummary = '';
   let resolverDomains: string[] = ['company'];
   let values: WhatsAppResolvedVariables = { ...companyResolution.variables };
 
@@ -412,6 +426,7 @@ export async function resolveSystemWhatsAppMessage(
       input.trustedCompanyId, input.context.quoteId, dataSource, entityDataSource
     );
     recipient = resolved.recipient;
+    contextSummary = resolved.contextSummary;
     resolverDomains = [...resolverDomains, ...resolved.resolverDomains];
     values = { ...values, ...resolved.variables };
   } else if (input.context.eventKey === 'order_payment_pending') {
@@ -424,6 +439,7 @@ export async function resolveSystemWhatsAppMessage(
       dependencies.now
     );
     recipient = resolved.recipient;
+    contextSummary = resolved.contextSummary;
     resolverDomains = [...resolverDomains, ...resolved.resolverDomains];
     values = { ...values, ...resolved.variables };
   } else if (input.context.eventKey === 'production_status_changed') {
@@ -435,6 +451,7 @@ export async function resolveSystemWhatsAppMessage(
       dependencies.now
     );
     recipient = resolved.recipient;
+    contextSummary = resolved.contextSummary;
     resolverDomains = [...resolverDomains, ...resolved.resolverDomains];
     values = { ...values, ...resolved.variables };
   } else {
@@ -449,6 +466,7 @@ export async function resolveSystemWhatsAppMessage(
     }, entityDataSource);
     const productVariables = product.variables as Record<string, string>;
     recipient = companyResolution.metadataSanitized.effectiveBusinessPhone;
+    contextSummary = `Solicitação da loja — ${productVariables['produto.nome'] || 'Produto selecionado'}`;
     resolverDomains = [...resolverDomains, 'product', 'store_request', 'derived'];
     values = resolveStoreProductRequestVariables(input.context.request as StoreProductRequestInput, {
       companyName: companyResolution.variables['empresa.nome'] || '',
@@ -466,20 +484,32 @@ export async function resolveSystemWhatsAppMessage(
 
   const definition = getWhatsAppTemplateDefinition(eventKey);
   if (!definition) throw controlledError('UNKNOWN_EVENT');
-  if (!recipient) throw controlledError('RECIPIENT_MISSING');
+  if (!recipient && !input.allowMissingRecipient) throw controlledError('RECIPIENT_MISSING');
   const selected = selectAllowedVariables(eventKey, values);
   const renderSettings = normalizeRenderSettings(input.trustedCompanyId, whatsappSettings);
-  const content = template?.content || definition.defaultContent;
+  let content = template?.content || definition.defaultContent;
+  let templateSource: ResolvedSystemWhatsAppMessage['metadata']['templateSource'] = template ? 'override' : 'registry';
+  if (input.draftContent !== undefined) {
+    const validation = validateWhatsAppTemplate(input.draftContent, definition);
+    if (!validation.valid) throw controlledError('TEMPLATE_INVALID');
+    content = validation.normalized;
+    templateSource = 'draft';
+  }
+  const renderedContent = renderConfiguredWhatsAppTemplate(content, definition, selected.variables, renderSettings);
+  const testHref = recipient ? buildWhatsAppUrl(recipient, renderedContent, renderSettings) : '';
   return {
     eventKey,
     variables: selected.variables,
-    renderedContent: renderConfiguredWhatsAppTemplate(content, definition, selected.variables, renderSettings),
+    renderedContent,
     recipient,
+    recipientAvailable: Boolean(recipient && testHref),
+    testHref,
+    contextSummary,
     active: template?.active ?? definition.enabledByDefault,
     missing: selected.missing,
     metadata: {
       tenantValidated: true,
-      templateSource: template ? 'override' : 'registry',
+      templateSource,
       resolverDomains,
       missingCount: selected.missing.length
     }
