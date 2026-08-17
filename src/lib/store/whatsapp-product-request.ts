@@ -1,19 +1,54 @@
 import 'server-only';
-import { buildWhatsAppUrl, renderConfiguredWhatsAppTemplate } from '@/lib/whatsapp/template-engine';
-import { getWhatsAppTemplateDefinition } from '@/lib/whatsapp/template-registry';
-import type { WhatsAppSettings } from '@/lib/whatsapp/types';
 
 export type StoreProductRequestInput = { productId?: unknown; quantity?: unknown; dimensions?: unknown; selectedOptions?: unknown; configurationSnapshot?: unknown; productionDays?: unknown; estimatedDeadline?: unknown; customerName?: unknown; customerPhone?: unknown; notes?: unknown };
 export type StoreProductRequestContext = {
-  companyName: string; publicPhone: string; effectiveBusinessPhone?: string;
+  companyName: string;
   product: { id: string; name: string; active: boolean; catalog_active: boolean; sales_price: number; pricing_type?: string | null } | null;
   productVariables?: Readonly<Record<string, string>>;
-  template: { content: string; active: boolean } | null;
-  settings: Partial<WhatsAppSettings> | null;
 };
 
+const REQUEST_KEYS = new Set([
+  'productId', 'quantity', 'dimensions', 'selectedOptions', 'configurationSnapshot',
+  'productionDays', 'estimatedDeadline', 'customerName', 'customerPhone', 'notes'
+]);
+const DIMENSION_KEYS = new Set(['width', 'height', 'length']);
+const OPTION_KEYS = new Set(['name', 'option_name', 'group_id', 'group_name']);
+const SNAPSHOT_KEYS = new Set(['material', 'size', 'colors', 'finishing']);
 const boundedText = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const positiveInteger = (value: unknown) => { const number = Number(value); return Number.isInteger(number) && number > 0 && number <= 100000 ? number : 1; };
+const isPlainRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const hasOnlyKeys = (value: Record<string, unknown>, allowed: ReadonlySet<string>) => Object.keys(value).every((key) => allowed.has(key));
+const validOptionalText = (value: unknown, max: number) => value === undefined || (typeof value === 'string' && value.length <= max);
+const validOptionalPositiveNumber = (value: unknown) => value === undefined || (typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 100000);
+
+export function parseStoreProductRequestInput(value: unknown): StoreProductRequestInput | null {
+  if (!isPlainRecord(value) || !hasOnlyKeys(value, REQUEST_KEYS)) return null;
+  if (typeof value.productId !== 'string' || !value.productId.trim() || value.productId.length > 128) return null;
+  if (value.quantity !== undefined && (!Number.isInteger(value.quantity) || Number(value.quantity) <= 0 || Number(value.quantity) > 100000)) return null;
+  if (!validOptionalText(value.estimatedDeadline, 120) || !validOptionalText(value.customerName, 120) ||
+      !validOptionalText(value.customerPhone, 30) || !validOptionalText(value.notes, 500)) return null;
+  if (value.productionDays !== undefined && (!Number.isInteger(value.productionDays) || Number(value.productionDays) < 0 || Number(value.productionDays) > 365)) return null;
+
+  if (value.dimensions !== undefined) {
+    if (!isPlainRecord(value.dimensions) || !hasOnlyKeys(value.dimensions, DIMENSION_KEYS)) return null;
+    if (Object.values(value.dimensions).some((item) => !validOptionalPositiveNumber(item))) return null;
+  }
+  if (value.selectedOptions !== undefined) {
+    if (!Array.isArray(value.selectedOptions) || value.selectedOptions.length > 30) return null;
+    for (const option of value.selectedOptions) {
+      if (!isPlainRecord(option) || !hasOnlyKeys(option, OPTION_KEYS)) return null;
+      if (!validOptionalText(option.name, 120) || !validOptionalText(option.option_name, 120) ||
+          !validOptionalText(option.group_id, 120) || !validOptionalText(option.group_name, 120) ||
+          !(boundedText(option.name ?? option.option_name, 120))) return null;
+    }
+  }
+  if (value.configurationSnapshot !== undefined) {
+    if (!isPlainRecord(value.configurationSnapshot) || !hasOnlyKeys(value.configurationSnapshot, SNAPSHOT_KEYS)) return null;
+    if (Object.values(value.configurationSnapshot).some((item) => !validOptionalText(item, 120))) return null;
+  }
+  return value;
+}
+
 function summarizeDimensions(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
   const row = value as Record<string, unknown>;
@@ -56,21 +91,4 @@ export function resolveStoreProductRequestVariables(
     cliente_telefone: boundedText(input.customerPhone, 30),
     observacoes: boundedText(input.notes, 500)
   };
-}
-
-export function resolveStoreProductRequest(input: StoreProductRequestInput, context: StoreProductRequestContext) {
-  const definition = getWhatsAppTemplateDefinition('store_product_request');
-  if (!definition) throw new Error('STORE_TEMPLATE_NOT_FOUND');
-  if (!context.product || !context.product.active || !context.product.catalog_active) return { ok: false as const, status: 404, reason: 'PRODUCT_UNAVAILABLE' as const };
-  const settings: WhatsAppSettings = { company_id: '', country_code: context.settings?.country_code || '55', business_phone: context.effectiveBusinessPhone || context.settings?.business_phone || context.publicPhone || null, signature: context.settings?.signature || null, open_mode: context.settings?.open_mode || 'auto', confirm_before_open: context.settings?.confirm_before_open ?? true, include_company_name: context.settings?.include_company_name ?? true };
-  if (context.template?.active === false) return { ok: true as const, enabled: false as const, reason: 'MESSAGE_TEMPLATE_DISABLED' as const };
-  const message = renderConfiguredWhatsAppTemplate(
-    context.template?.content || definition.defaultContent,
-    definition,
-    resolveStoreProductRequestVariables(input, context),
-    settings
-  );
-  const href = buildWhatsAppUrl(settings.business_phone || context.publicPhone, message, settings);
-  if (!href) return { ok: false as const, status: 422, reason: 'STORE_PHONE_UNAVAILABLE' as const };
-  return { ok: true as const, enabled: true as const, href, message, confirmBeforeOpen: settings.confirm_before_open, openMode: settings.open_mode };
 }
