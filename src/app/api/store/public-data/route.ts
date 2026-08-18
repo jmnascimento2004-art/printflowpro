@@ -41,7 +41,13 @@ const SETTINGS_FIELDS = [
   'catalog_promotions_section_enabled', 'catalog_highlights_section_enabled', 'catalog_footer_text'
 ].join(',');
 
-const CATEGORY_FIELDS = 'id,parent_id,name,description,show_in_catalog';
+const CATEGORY_FIELDS = [
+  'id', 'parent_id', 'name', 'description', 'show_in_catalog', 'catalog_featured',
+  'catalog_featured_title', 'catalog_featured_sort_order', 'catalog_mega_menu_enabled',
+  'catalog_mega_menu_banner_enabled', 'catalog_mega_menu_banner_image_url',
+  'catalog_mega_menu_banner_link', 'catalog_mega_menu_banner_alt',
+  'catalog_mega_menu_banner_new_tab'
+].join(',');
 const PRODUCT_FIELDS = [
   'id', 'category_id', 'name', 'description', 'sku', 'pricing_type', 'sales_price', 'active',
   'catalog_active', 'pricing_details', 'image_url', 'volume_pricing',
@@ -51,7 +57,10 @@ const PICKUP_POINT_FIELDS = [
   'id', 'name', 'street', 'number', 'neighborhood', 'city', 'state', 'hours_week', 'hours_sat',
   'active', 'address', 'hours'
 ].join(',');
-const BANNER_FIELDS = 'id,image_url,title,subtitle,link';
+const BANNER_FIELDS = [
+  'id', 'image_url', 'title', 'subtitle', 'link', 'placement', 'mobile_image_url',
+  'alt_text', 'active', 'sort_order', 'open_in_new_tab'
+].join(',');
 
 type PublicProductRow = Record<string, unknown> & {
   pricing_details?: Record<string, unknown> | null;
@@ -160,7 +169,13 @@ export async function GET(request: NextRequest) {
           .select(PICKUP_POINT_FIELDS)
           .eq('company_id', companyId)
           .eq('active', true),
-        publicSupabase.from('store_banners').select(BANNER_FIELDS).eq('company_id', companyId)
+        publicSupabase
+          .from('store_banners')
+          .select(BANNER_FIELDS)
+          .eq('company_id', companyId)
+          .eq('active', true)
+          .order('sort_order', { ascending: true })
+          .order('created_at', { ascending: true })
       ]);
 
     const failedResult = [
@@ -180,7 +195,7 @@ export async function GET(request: NextRequest) {
       {
         company,
         settings: settingsResult.data || null,
-        categories: (categoriesResult.data || []).map((category) => ({
+        categories: ((categoriesResult.data || []) as unknown as Array<Record<string, unknown>>).map((category) => ({
           ...category,
           show_in_catalog: category.show_in_catalog ?? true
         })),

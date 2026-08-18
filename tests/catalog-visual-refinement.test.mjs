@@ -64,11 +64,14 @@ test('seven benefit cards preserve slots while sorting, serializing and choosing
 });
 
 test('Store uses a responsive vertical category rail and independently gated showcase tabs', async () => {
-  const page = await read('../src/app/store/page.tsx');
-  assert.doesNotMatch(page, /Category Menu Bar|megaMenuOpen|Todos os Produtos button styled as hamburger menu/);
-  assert.match(page, /aria-label="Categorias do catálogo"/);
-  assert.match(page, /catalog-mobile-categories/);
-  assert.match(page, /Todos os produtos/);
+  const [page, navigation] = await Promise.all([
+    read('../src/app/store/page.tsx'),
+    read('../src/components/store/catalog-category-navigation.tsx')
+  ]);
+  assert.doesNotMatch(page + navigation, /Category Menu Bar|megaMenuOpen|Todos os Produtos button styled as hamburger menu/);
+  assert.match(navigation, /aria-label="Categorias do catálogo"/);
+  assert.match(navigation, /catalog-mobile-categories/);
+  assert.match(navigation, /Todos os produtos/);
   assert.match(page, /getContrastingTextColor\(primary\)/);
   assert.match(page, /catalog_bestsellers_section_enabled/);
   assert.match(page, /catalog_promotions_section_enabled/);

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { 
   ShoppingBag, 
@@ -22,7 +23,6 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
-  Menu,
   Tag,
   Star,
   Sun,
@@ -53,6 +53,7 @@ import {
   getContrastingTextColor,
   type CatalogBenefitIcon
 } from '@/lib/store/catalog-visual-settings';
+import { CatalogCategoryNavigation } from '@/components/store/catalog-category-navigation';
 
 interface CartItem {
   product: Product;
@@ -270,23 +271,29 @@ export default function StorefrontPage() {
 
   // Banner Slider State
   const [currentSlide, setCurrentSlide] = useState(0);
+  const heroBanners = useMemo(() => (banners || [])
+    .filter((banner) => (banner.placement || 'hero') === 'hero' && banner.active !== false)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [banners]);
+  const commercialBanners = useMemo(() => (banners || [])
+    .filter((banner) => banner.placement === 'catalog' && banner.active !== false)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [banners]);
 
   useEffect(() => {
-    if (!banners || banners.length <= 1) return;
+    if (heroBanners.length <= 1) return;
     const interval = setInterval(() => {
-      setCurrentSlide(prev => (prev + 1) % banners.length);
+      setCurrentSlide(prev => (prev + 1) % heroBanners.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, [banners]);
+  }, [heroBanners]);
 
   const handlePrevSlide = () => {
-    if (!banners || banners.length === 0) return;
-    setCurrentSlide(prev => (prev - 1 + banners.length) % banners.length);
+    if (heroBanners.length === 0) return;
+    setCurrentSlide(prev => (prev - 1 + heroBanners.length) % heroBanners.length);
   };
 
   const handleNextSlide = () => {
-    if (!banners || banners.length === 0) return;
-    setCurrentSlide(prev => (prev + 1) % banners.length);
+    if (heroBanners.length === 0) return;
+    setCurrentSlide(prev => (prev + 1) % heroBanners.length);
   };
 
   const handleCategorySelect = (categoryId: string | null) => {
@@ -450,17 +457,6 @@ export default function StorefrontPage() {
     if (!product || product.catalog_active === false) return false;
     return true;
   });
-  const catalogCategoryChildren = catalogCategories.reduce<Record<string, typeof catalogCategories>>((acc, category) => {
-    if (category.parent_id) acc[category.parent_id] = [...(acc[category.parent_id] || []), category];
-    return acc;
-  }, {});
-  const categoryHasProducts = (categoryId: string) => {
-    const relatedIds = [categoryId, ...(catalogCategoryChildren[categoryId] || []).map((category) => category.id)];
-    return activeProducts.some((product) => relatedIds.includes(product.category_id));
-  };
-  const rootCatalogCategories = catalogCategories
-    .filter((category) => !category.parent_id || !catalogCategories.some((item) => item.id === category.parent_id))
-    .filter((category) => categoryHasProducts(category.id));
   const searchedProducts = searchQuery.trim() !== ''
     ? activeProducts.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -1009,12 +1005,12 @@ export default function StorefrontPage() {
 
       <div className="flex-1 flex flex-col gap-[15px] py-[15px]">
         {/* Banner Slider Section */}
-        {banners && banners.length > 0 && (
+        {heroBanners.length > 0 && (
           <section className="w-full px-4 md:px-8">
             <div className="relative h-[180px] sm:h-[240px] md:h-[300px] w-full max-w-[1220px] mx-auto overflow-hidden bg-slate-900 group rounded-xl">
               {/* Slides wrapper */}
               <div className="relative h-full w-full">
-                {banners.map((banner, index) => {
+                {heroBanners.map((banner, index) => {
                   const isActive = index === currentSlide;
                   return (
                     <div
@@ -1028,7 +1024,7 @@ export default function StorefrontPage() {
                       {/* Slide Image */}
                       <img
                         src={banner.image_url}
-                        alt={banner.title || 'Banner'}
+                        alt={banner.alt_text || banner.title || 'Banner'}
                         className="h-full w-full object-cover select-none"
                       />
                       
@@ -1061,7 +1057,7 @@ export default function StorefrontPage() {
               </div>
 
               {/* Navigation Arrows */}
-              {banners.length > 1 && (
+              {heroBanners.length > 1 && (
                 <>
                   <button
                     type="button"
@@ -1083,9 +1079,9 @@ export default function StorefrontPage() {
               )}
 
               {/* Pagination Indicators (Dots) */}
-              {banners.length > 1 && (
+              {heroBanners.length > 1 && (
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-                  {banners.map((_, idx) => (
+                  {heroBanners.map((_, idx) => (
                     <button
                       key={idx}
                       type="button"
@@ -1125,60 +1121,35 @@ export default function StorefrontPage() {
         )}
         {/* 5. Products Showcase */}
         <main id="products-showcase" className="mx-auto w-full max-w-7xl space-y-4 px-4 md:px-8">
-          <button
-            type="button"
-            onClick={() => setMobileCategoriesOpen((open) => !open)}
-            className="flex min-h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm lg:hidden"
-            aria-expanded={mobileCategoriesOpen}
-            aria-controls="catalog-mobile-categories"
-          >
-            <span className="flex items-center gap-2"><Menu className="h-4 w-4" /> Categorias</span>
-            <ChevronRight className={`h-4 w-4 transition-transform ${mobileCategoriesOpen ? 'rotate-90' : ''}`} />
-          </button>
-
-          <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <aside
-              id="catalog-mobile-categories"
-              className={`${mobileCategoriesOpen ? 'block' : 'hidden'} rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:sticky lg:top-24 lg:block`}
-              aria-label="Categorias do catálogo"
-            >
-              <h2 className="px-3 pb-3 pt-1 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Categorias</h2>
-              <nav className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => handleCategorySelect(null)}
-                  className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-black transition-colors"
-                  style={selectedCategory === null ? { backgroundColor: primary, color: primaryText } : undefined}
-                >
-                  Todos os produtos
-                </button>
-                {rootCatalogCategories.map((category) => (
-                  <React.Fragment key={category.id}>
-                    <button
-                      type="button"
-                      onClick={() => handleCategorySelect(category.id)}
-                      className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-bold transition-colors ${selectedCategory === category.id ? '' : 'text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800'}`}
-                      style={selectedCategory === category.id ? { backgroundColor: primary, color: primaryText } : undefined}
-                    >
-                      {category.name}
-                    </button>
-                    {(catalogCategoryChildren[category.id] || []).filter((child) => categoryHasProducts(child.id)).map((child) => (
-                      <button
-                        key={child.id}
-                        type="button"
-                        onClick={() => handleCategorySelect(child.id)}
-                        className={`flex min-h-11 w-full items-center rounded-xl py-2 pl-7 pr-3 text-left text-[11px] font-semibold transition-colors ${selectedCategory === child.id ? '' : 'text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
-                        style={selectedCategory === child.id ? { backgroundColor: primary, color: primaryText } : undefined}
-                      >
-                        {child.name}
-                      </button>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </nav>
-            </aside>
-
+          <div className="relative grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <CatalogCategoryNavigation
+              categories={catalogCategories}
+              products={activeProducts}
+              selectedCategory={selectedCategory}
+              primary={primary}
+              primaryText={primaryText}
+              mobileOpen={mobileCategoriesOpen}
+              onMobileOpenChange={setMobileCategoriesOpen}
+              onSelectCategory={handleCategorySelect}
+              onOpenProduct={handleOpenProductConfig}
+            />
             <section className="min-w-0" aria-label="Produtos do catálogo">
+          {commercialBanners.length > 0 && (
+            <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2" data-testid="catalog-commercial-banners">
+              {commercialBanners.map((banner) => (
+                <a
+                  key={banner.id}
+                  href={safeHref(banner.link || '#')}
+                  target={banner.open_in_new_tab ? '_blank' : undefined}
+                  rel={banner.open_in_new_tab ? 'noopener noreferrer' : undefined}
+                  className="group block min-h-11 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  <Image unoptimized width={900} height={300} src={banner.mobile_image_url || banner.image_url} alt={banner.alt_text || banner.title || 'Oferta do catálogo'} className="aspect-[3/1] w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] sm:hidden" />
+                  <Image unoptimized width={900} height={300} src={banner.image_url} alt={banner.alt_text || banner.title || 'Oferta do catálogo'} className="hidden aspect-[3/1] w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] sm:block" />
+                </a>
+              ))}
+            </div>
+          )}
           {/* Dynamic products list grid */}
           {taggedProducts.length > 0 ? (
             <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 lg:grid-cols-3 xl:grid-cols-4">

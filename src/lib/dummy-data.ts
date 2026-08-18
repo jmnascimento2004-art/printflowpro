@@ -197,6 +197,15 @@ export interface Category {
   description: string;
   parent_id?: string | null;
   show_in_catalog?: boolean;
+  catalog_featured?: boolean;
+  catalog_featured_title?: string | null;
+  catalog_featured_sort_order?: number;
+  catalog_mega_menu_enabled?: boolean;
+  catalog_mega_menu_banner_enabled?: boolean;
+  catalog_mega_menu_banner_image_url?: string | null;
+  catalog_mega_menu_banner_link?: string | null;
+  catalog_mega_menu_banner_alt?: string | null;
+  catalog_mega_menu_banner_new_tab?: boolean;
   created_at: string;
 }
 
