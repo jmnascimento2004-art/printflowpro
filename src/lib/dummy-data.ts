@@ -44,24 +44,38 @@ export interface Company {
   card_benefits_1_title?: string;
   card_benefits_1_subtitle?: string;
   card_benefits_1_active?: boolean;
+  card_benefits_1_icon?: string;
+  card_benefits_1_sort_order?: number;
   card_benefits_2_title?: string;
   card_benefits_2_subtitle?: string;
   card_benefits_2_active?: boolean;
+  card_benefits_2_icon?: string;
+  card_benefits_2_sort_order?: number;
   card_benefits_3_title?: string;
   card_benefits_3_subtitle?: string;
   card_benefits_3_active?: boolean;
+  card_benefits_3_icon?: string;
+  card_benefits_3_sort_order?: number;
   card_benefits_4_title?: string;
   card_benefits_4_subtitle?: string;
   card_benefits_4_active?: boolean;
+  card_benefits_4_icon?: string;
+  card_benefits_4_sort_order?: number;
   card_benefits_5_title?: string;
   card_benefits_5_subtitle?: string;
   card_benefits_5_active?: boolean;
+  card_benefits_5_icon?: string;
+  card_benefits_5_sort_order?: number;
   card_benefits_6_title?: string;
   card_benefits_6_subtitle?: string;
   card_benefits_6_active?: boolean;
+  card_benefits_6_icon?: string;
+  card_benefits_6_sort_order?: number;
   card_benefits_7_title?: string;
   card_benefits_7_subtitle?: string;
   card_benefits_7_active?: boolean;
+  card_benefits_7_icon?: string;
+  card_benefits_7_sort_order?: number;
   img_payments_visa?: string;
   img_payments_mastercard?: string;
   img_payments_elo?: string;
@@ -109,6 +123,8 @@ export interface Settings {
   catalog_whatsapp: string;
   free_pickup_alert: boolean;
   catalog_promotions_section_enabled: boolean;
+  catalog_bestsellers_section_enabled: boolean;
+  catalog_highlights_section_enabled: boolean;
   catalog_footer_text: string;
 }
 
@@ -584,24 +600,38 @@ export const DUMMY_COMPANY: Company = {
   card_benefits_1_title: 'Até 4x Sem Juros',
   card_benefits_1_subtitle: 'Parcela mínima de R$ 300,00 nos cartões Visa/Master.',
   card_benefits_1_active: true,
+  card_benefits_1_icon: 'credit-card',
+  card_benefits_1_sort_order: 1,
   card_benefits_2_title: 'Desconto no PIX',
   card_benefits_2_subtitle: 'Ganhe 5% de desconto automático em pagamentos à vista.',
   card_benefits_2_active: true,
+  card_benefits_2_icon: 'percent',
+  card_benefits_2_sort_order: 2,
   card_benefits_3_title: 'Frete Grátis Sul/SP',
   card_benefits_3_subtitle: 'Disponível em compras corporativas acima de R$ 500,00.',
   card_benefits_3_active: true,
+  card_benefits_3_icon: 'truck',
+  card_benefits_3_sort_order: 3,
   card_benefits_4_title: '100% Seguro',
   card_benefits_4_subtitle: 'Seus dados e gabarito protegidos por SSL corporativo.',
   card_benefits_4_active: true,
+  card_benefits_4_icon: 'map-pin',
+  card_benefits_4_sort_order: 4,
   card_benefits_5_title: 'Entrega Garantida',
   card_benefits_5_subtitle: 'Pedidos acompanhados até a entrega no endereço informado.',
   card_benefits_5_active: false,
+  card_benefits_5_icon: 'package-check',
+  card_benefits_5_sort_order: 5,
   card_benefits_6_title: 'Melhor Custo Benefício',
   card_benefits_6_subtitle: 'Preços competitivos com qualidade profissional em cada pedido.',
   card_benefits_6_active: false,
+  card_benefits_6_icon: 'badge-dollar-sign',
+  card_benefits_6_sort_order: 6,
   card_benefits_7_title: 'Qualidade Garantida',
   card_benefits_7_subtitle: 'Produção revisada para entregar acabamento e impressão de alto padrão.',
   card_benefits_7_active: false,
+  card_benefits_7_icon: 'shield-check',
+  card_benefits_7_sort_order: 7,
   img_payments_visa: "",
   img_payments_mastercard: "",
   img_payments_elo: "",
@@ -1585,5 +1615,7 @@ export const DUMMY_SETTINGS: Settings = {
   catalog_whatsapp: '(51) 98765-4321',
   free_pickup_alert: true,
   catalog_promotions_section_enabled: true,
+  catalog_bestsellers_section_enabled: true,
+  catalog_highlights_section_enabled: true,
   catalog_footer_text: 'PrintFlowPRO - solucoes graficas sob medida.'
 };

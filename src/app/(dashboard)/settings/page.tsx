@@ -30,13 +30,15 @@ import {
   Calculator,
   Wrench,
   Truck,
-  ExternalLink
+  ExternalLink,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
 import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber, normalizeRichTextHtml, onlyPhoneDigits, getBrazilianPhoneDisplay } from '@/lib/utils';
 import { lookupCNPJ } from '@/lib/cnpj-lookup';
-import { DUMMY_COMPANY, PickupPoint, UserProfile } from '@/lib/dummy-data';
+import { DUMMY_COMPANY, PickupPoint, UserProfile, type Company } from '@/lib/dummy-data';
 import { warnCaught } from '@/lib/safe-log';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { supabase } from '@/lib/supabaseClient';
@@ -46,6 +48,12 @@ import {
   uploadEmployeeAvatar,
   validateEmployeeAvatar,
 } from '@/lib/employee-avatars';
+import {
+  CATALOG_BENEFIT_ICON_OPTIONS,
+  catalogBenefitCardsToCompanyPatch,
+  getCatalogBenefitCards,
+  type CatalogBenefitCard
+} from '@/lib/store/catalog-visual-settings';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
 type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'sistema';
@@ -140,22 +148,7 @@ export default function SettingsPage() {
   const [compYoutube, setCompYoutube] = useState(company.youtube_url || '');
   const [compRefundPolicy, setCompRefundPolicy] = useState(normalizeRichTextHtml(company.refund_policy || ''));
 
-  // Benefit cards states
-  const [benefits1Title, setBenefits1Title] = useState(company.card_benefits_1_title || 'Até 4x Sem Juros');
-  const [benefits1Subtitle, setBenefits1Subtitle] = useState(company.card_benefits_1_subtitle || 'Parcela mínima de R$ 300,00 nos cartões Visa/Master.');
-  const [benefits1Active, setBenefits1Active] = useState(company.card_benefits_1_active !== false);
-
-  const [benefits2Title, setBenefits2Title] = useState(company.card_benefits_2_title || 'Desconto no PIX');
-  const [benefits2Subtitle, setBenefits2Subtitle] = useState(company.card_benefits_2_subtitle || 'Ganhe 5% de desconto automático em pagamentos à vista.');
-  const [benefits2Active, setBenefits2Active] = useState(company.card_benefits_2_active !== false);
-
-  const [benefits3Title, setBenefits3Title] = useState(company.card_benefits_3_title || 'Frete para todo Brasil');
-  const [benefits3Subtitle, setBenefits3Subtitle] = useState(company.card_benefits_3_subtitle || 'Despacho via Correios ou Transportadora com código de rastreamento.');
-  const [benefits3Active, setBenefits3Active] = useState(company.card_benefits_3_active !== false);
-
-  const [benefits4Title, setBenefits4Title] = useState(company.card_benefits_4_title || 'Pontos de Coleta');
-  const [benefits4Subtitle, setBenefits4Subtitle] = useState(company.card_benefits_4_subtitle || 'Retire sem custos em qualquer um de nossos balcões autorizados.');
-  const [benefits4Active, setBenefits4Active] = useState(company.card_benefits_4_active !== false);
+  const [benefitCards, setBenefitCards] = useState<CatalogBenefitCard[]>(() => getCatalogBenefitCards(company));
 
   // Payments / Delivery / Security toggles
   const [payVisa, setPayVisa] = useState(company.show_payments_visa !== false);
@@ -402,6 +395,10 @@ export default function SettingsPage() {
   const [catalogWhatsApp, setCatalogWhatsApp] = useState(getBrazilianPhoneDisplay(settings.catalog_whatsapp || ''));
   const [footerShowAddress, setFooterShowAddress] = useState(settings.footer_show_address !== false);
   const [catalogPromotionsSectionEnabled, setCatalogPromotionsSectionEnabled] = useState(settings.catalog_promotions_section_enabled !== false);
+  const [catalogBestsellersSectionEnabled, setCatalogBestsellersSectionEnabled] = useState(settings.catalog_bestsellers_section_enabled !== false);
+  const [catalogHighlightsSectionEnabled, setCatalogHighlightsSectionEnabled] = useState(
+    settings.catalog_highlights_section_enabled ?? settings.catalog_promotions_section_enabled ?? true
+  );
   const [footerHoursMessage, setFooterHoursMessage] = useState(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
   const [footerHoursWeek, setFooterHoursWeek] = useState(settings.footer_hours_week || '8h às 12h / 13h30 às 18h');
   const [footerHoursSat, setFooterHoursSat] = useState(settings.footer_hours_sat || 'Segunda à Sexta-feira');
@@ -427,6 +424,21 @@ export default function SettingsPage() {
     return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/^www\./, '');
   };
 
+  const updateBenefitCard = (slot: CatalogBenefitCard['slot'], patch: Partial<CatalogBenefitCard>) => {
+    setBenefitCards((current) => current.map((card) => card.slot === slot ? { ...card, ...patch } : card));
+  };
+
+  const moveBenefitCard = (slot: CatalogBenefitCard['slot'], direction: -1 | 1) => {
+    setBenefitCards((current) => {
+      const index = current.findIndex((card) => card.slot === slot);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
   useEffect(() => {
     setPixKey(settings.pix_key || 'financeiro@printflowpro.com.br');
     setPixKeyType(settings.pix_key_type || 'email');
@@ -442,6 +454,10 @@ export default function SettingsPage() {
     setCatalogWhatsApp(getBrazilianPhoneDisplay(settings.catalog_whatsapp || ''));
     setFooterShowAddress(settings.footer_show_address !== false);
     setCatalogPromotionsSectionEnabled(settings.catalog_promotions_section_enabled !== false);
+    setCatalogBestsellersSectionEnabled(settings.catalog_bestsellers_section_enabled !== false);
+    setCatalogHighlightsSectionEnabled(
+      settings.catalog_highlights_section_enabled ?? settings.catalog_promotions_section_enabled ?? true
+    );
     setFooterHoursMessage(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
     setFooterHoursWeek(settings.footer_hours_week || '8h as 12h / 13h30 as 18h');
     setFooterHoursSat(settings.footer_hours_sat || 'Segunda a Sexta-feira');
@@ -474,18 +490,7 @@ export default function SettingsPage() {
     setCompYoutube(company.youtube_url || '');
     setCompRefundPolicy(normalizeRichTextHtml(company.refund_policy || ''));
 
-    setBenefits1Title(company.card_benefits_1_title || 'Ate 4x Sem Juros');
-    setBenefits1Subtitle(company.card_benefits_1_subtitle || 'Parcela mínima de R$ 300,00 nos cartões Visa/Master.');
-    setBenefits1Active(company.card_benefits_1_active !== false);
-    setBenefits2Title(company.card_benefits_2_title || 'Desconto no PIX');
-    setBenefits2Subtitle(company.card_benefits_2_subtitle || 'Ganhe 5% de desconto automatico em pagamentos a vista.');
-    setBenefits2Active(company.card_benefits_2_active !== false);
-    setBenefits3Title(company.card_benefits_3_title || 'Frete para todo Brasil');
-    setBenefits3Subtitle(company.card_benefits_3_subtitle || 'Despacho via Correios ou Transportadora com codigo de rastreamento.');
-    setBenefits3Active(company.card_benefits_3_active !== false);
-    setBenefits4Title(company.card_benefits_4_title || 'Pontos de Coleta');
-    setBenefits4Subtitle(company.card_benefits_4_subtitle || 'Retire sem custos em qualquer um de nossos balcoes autorizados.');
-    setBenefits4Active(company.card_benefits_4_active !== false);
+    setBenefitCards(getCatalogBenefitCards(company));
 
     setPayVisa(company.show_payments_visa !== false);
     setPayMastercard(company.show_payments_mastercard !== false);
@@ -875,6 +880,8 @@ export default function SettingsPage() {
       catalog_whatsapp: onlyPhoneDigits(catalogWhatsApp),
       footer_show_address: footerShowAddress,
       catalog_promotions_section_enabled: catalogPromotionsSectionEnabled,
+      catalog_bestsellers_section_enabled: catalogBestsellersSectionEnabled,
+      catalog_highlights_section_enabled: catalogHighlightsSectionEnabled,
       footer_hours_message: footerHoursMessage,
       footer_hours_week: footerHoursWeek,
       footer_hours_sat: footerHoursSat,
@@ -947,19 +954,8 @@ export default function SettingsPage() {
       img_delivery_motoboy: imgMotoboy,
       img_security_letsencrypt: imgLetsencrypt,
       img_security_google: imgGoogle,
-      card_benefits_1_title: benefits1Title,
-      card_benefits_1_subtitle: benefits1Subtitle,
-      card_benefits_1_active: benefits1Active,
-      card_benefits_2_title: benefits2Title,
-      card_benefits_2_subtitle: benefits2Subtitle,
-      card_benefits_2_active: benefits2Active,
-      card_benefits_3_title: benefits3Title,
-      card_benefits_3_subtitle: benefits3Subtitle,
-      card_benefits_3_active: benefits3Active,
-      card_benefits_4_title: benefits4Title,
-      card_benefits_4_subtitle: benefits4Subtitle,
-      card_benefits_4_active: benefits4Active
-    });
+      ...catalogBenefitCardsToCompanyPatch(benefitCards)
+    } as Company);
 
     setNotification('Configurações atualizadas com sucesso!');
     setTimeout(() => setNotification(null), 3000);
@@ -1407,6 +1403,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
+
                 </div>
 
                 {/* Identidade Visual */}
@@ -1688,24 +1685,44 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between p-3.5 bg-secondary/20 border border-border rounded-xl">
-                      <div>
-                        <span className="font-bold text-xs text-foreground block">Seção de Promoções e Destaques</span>
-                        <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                          Exibir produtos marcados como promoção ou destaque no corpo do catálogo.
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setCatalogPromotionsSectionEnabled(!catalogPromotionsSectionEnabled)}
-                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${
-                          catalogPromotionsSectionEnabled ? 'bg-primary' : 'bg-secondary border border-border'
-                        }`}
-                      >
-                        <div className={`h-4.5 w-4.5 bg-white rounded-full transition-transform absolute ${
-                          catalogPromotionsSectionEnabled ? 'translate-x-5.5' : 'translate-x-1'
-                        }`} />
-                      </button>
+                    <div className="grid gap-3 md:grid-cols-3" data-testid="catalog-showcase-toggles">
+                      {[
+                        {
+                          label: 'Mostrar + Vendidos',
+                          help: 'Controla somente a visibilidade do ranking atual.',
+                          value: catalogBestsellersSectionEnabled,
+                          setValue: setCatalogBestsellersSectionEnabled
+                        },
+                        {
+                          label: 'Mostrar Promoções',
+                          help: 'Exibe produtos já marcados como promoção.',
+                          value: catalogPromotionsSectionEnabled,
+                          setValue: setCatalogPromotionsSectionEnabled
+                        },
+                        {
+                          label: 'Mostrar Destaques',
+                          help: 'Exibe produtos já marcados como destaque.',
+                          value: catalogHighlightsSectionEnabled,
+                          setValue: setCatalogHighlightsSectionEnabled
+                        }
+                      ].map((section) => (
+                        <div key={section.label} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/20 p-3.5">
+                          <div>
+                            <span className="block text-xs font-bold text-foreground">{section.label}</span>
+                            <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{section.help}</span>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={section.value}
+                            aria-label={section.label}
+                            onClick={() => section.setValue(!section.value)}
+                            className={`relative flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${section.value ? 'bg-primary' : 'border border-border bg-secondary'}`}
+                          >
+                            <span className={`absolute h-4 w-4 rounded-full bg-white transition-transform ${section.value ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
 
                     <div className="flex items-center justify-between p-3.5 bg-secondary/20 border border-border rounded-xl">
@@ -1876,166 +1893,41 @@ export default function SettingsPage() {
                     <Building2 className="h-4.5 w-4.5 text-primary" />
                     <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Cards de Benefícios do Catálogo</h3>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Benefício 1 */}
-                    <div className="p-4 bg-secondary/10 border border-border rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-primary uppercase">Card 1 (Ex: 3x Sem Juros)</span>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold select-none text-foreground">
-                          <input 
-                            type="checkbox" 
-                            checked={benefits1Active} 
-                            onChange={(e) => setBenefits1Active(e.target.checked)} 
-                            className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 bg-secondary" 
-                          />
-                          <span>Ativo</span>
-                        </label>
-                      </div>
-                      {benefits1Active && (
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Título</label>
-                            <input
-                              type="text"
-                              value={benefits1Title}
-                              onChange={(e) => setBenefits1Title(e.target.value)}
-                              placeholder="Ex: Até 4x Sem Juros"
-                              className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                            />
+                  <div className="grid gap-4 md:grid-cols-2" data-testid="catalog-benefit-card-settings">
+                    {benefitCards.map((card, index) => (
+                      <article key={card.slot} className="space-y-3 rounded-xl border border-border bg-secondary/10 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <span className="block text-[10px] font-extrabold uppercase text-primary">Card {index + 1}</span>
+                            <span className="text-[10px] text-muted-foreground">Ordem salva: {index + 1}</span>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Descrição</label>
-                            <input
-                              type="text"
-                              value={benefits1Subtitle}
-                              onChange={(e) => setBenefits1Subtitle(e.target.value)}
-                              placeholder="Ex: Parcela mínima de R$ 300,00 nos cartões Visa/Master."
-                              className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                            />
+                          <div className="flex items-center gap-1">
+                            <button type="button" onClick={() => moveBenefitCard(card.slot, -1)} disabled={index === 0} aria-label={`Mover ${card.title} para cima`} className="flex h-11 w-11 items-center justify-center rounded-lg border border-border disabled:opacity-30"><ArrowUp className="h-4 w-4" /></button>
+                            <button type="button" onClick={() => moveBenefitCard(card.slot, 1)} disabled={index === benefitCards.length - 1} aria-label={`Mover ${card.title} para baixo`} className="flex h-11 w-11 items-center justify-center rounded-lg border border-border disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button>
+                            <label className="ml-1 flex min-h-11 items-center gap-2 text-xs font-bold text-foreground">
+                              <input type="checkbox" checked={card.active} onChange={(event) => updateBenefitCard(card.slot, { active: event.target.checked })} className="h-4 w-4 rounded border-border text-primary" />
+                              Ativo
+                            </label>
                           </div>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Benefício 2 */}
-                    <div className="p-4 bg-secondary/10 border border-border rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-primary uppercase">Card 2 (Ex: Desconto no PIX)</span>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold select-none text-foreground">
-                          <input 
-                            type="checkbox" 
-                            checked={benefits2Active} 
-                            onChange={(e) => setBenefits2Active(e.target.checked)} 
-                            className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 bg-secondary" 
-                          />
-                          <span>Ativo</span>
-                        </label>
-                      </div>
-                      {benefits2Active && (
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Título</label>
-                            <input
-                              type="text"
-                              value={benefits2Title}
-                              onChange={(e) => setBenefits2Title(e.target.value)}
-                              placeholder="Ex: Desconto no PIX"
-                              className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Descrição</label>
-                            <input
-                              type="text"
-                              value={benefits2Subtitle}
-                              onChange={(e) => setBenefits2Subtitle(e.target.value)}
-                              placeholder="Ex: Ganhe 5% de desconto automático em pagamentos à vista."
-                              className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                            />
-                          </div>
+                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
+                          <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                            Título
+                            <input type="text" value={card.title} onChange={(event) => updateBenefitCard(card.slot, { title: event.target.value })} className="mt-1 w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-foreground" />
+                          </label>
+                          <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                            Ícone
+                            <select value={card.icon} onChange={(event) => updateBenefitCard(card.slot, { icon: event.target.value as CatalogBenefitCard['icon'] })} className="mt-1 w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-foreground">
+                              {CATALOG_BENEFIT_ICON_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                          </label>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Benefício 3 */}
-                    <div className="p-4 bg-secondary/10 border border-border rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-primary uppercase">Card 3 (Ex: Frete Grátis)</span>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold select-none text-foreground">
-                          <input 
-                            type="checkbox" 
-                            checked={benefits3Active} 
-                            onChange={(e) => setBenefits3Active(e.target.checked)} 
-                            className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 bg-secondary" 
-                          />
-                          <span>Ativo</span>
+                        <label className="block text-[10px] font-bold uppercase text-muted-foreground">
+                          Texto auxiliar
+                          <input type="text" value={card.subtitle} onChange={(event) => updateBenefitCard(card.slot, { subtitle: event.target.value })} className="mt-1 w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-foreground" />
                         </label>
-                      </div>
-                      {benefits3Active && (
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Título</label>
-                            <input
-                              type="text"
-                              value={benefits3Title}
-                              onChange={(e) => setBenefits3Title(e.target.value)}
-                              placeholder="Ex: Frete para todo Brasil"
-                              className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Descrição</label>
-                            <input
-                              type="text"
-                              value={benefits3Subtitle}
-                              onChange={(e) => setBenefits3Subtitle(e.target.value)}
-                              placeholder="Ex: Despacho via Correios ou Transportadora com código de rastreamento."
-                              className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Benefício 4 */}
-                    <div className="p-4 bg-secondary/10 border border-border rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-primary uppercase">Card 4 (Ex: Pontos de Coleta)</span>
-                        <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold select-none text-foreground">
-                          <input 
-                            type="checkbox" 
-                            checked={benefits4Active} 
-                            onChange={(e) => setBenefits4Active(e.target.checked)} 
-                            className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 bg-secondary" 
-                          />
-                          <span>Ativo</span>
-                        </label>
-                      </div>
-                      {benefits4Active && (
-                        <div className="space-y-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Título</label>
-                            <input
-                              type="text"
-                              value={benefits4Title}
-                              onChange={(e) => setBenefits4Title(e.target.value)}
-                              placeholder="Ex: Pontos de Coleta"
-                              className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-muted-foreground uppercase">Descrição</label>
-                            <input
-                              type="text"
-                              value={benefits4Subtitle}
-                              onChange={(e) => setBenefits4Subtitle(e.target.value)}
-                              placeholder="Ex: Retire sem custos em qualquer um de nossos balcões autorizados."
-                              className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      </article>
+                    ))}
                   </div>
                 </div>
               </div>

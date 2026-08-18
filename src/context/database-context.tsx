@@ -300,6 +300,8 @@ const SETTINGS_LOCAL_FALLBACK_KEYS = [
   'catalog_whatsapp',
   'free_pickup_alert',
   'catalog_promotions_section_enabled',
+  'catalog_bestsellers_section_enabled',
+  'catalog_highlights_section_enabled',
   'catalog_footer_text'
 ] as const;
 const isBrowser = () => typeof window !== 'undefined';
@@ -1237,6 +1239,10 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         catalog_whatsapp: settings.catalog_whatsapp || null,
         free_pickup_alert: settings.free_pickup_alert ?? true,
         catalog_promotions_section_enabled: settings.catalog_promotions_section_enabled ?? true,
+        catalog_bestsellers_section_enabled: settings.catalog_bestsellers_section_enabled ?? true,
+        catalog_highlights_section_enabled: settings.catalog_highlights_section_enabled
+          ?? settings.catalog_promotions_section_enabled
+          ?? true,
         catalog_footer_text: settings.catalog_footer_text || null,
         updated_at: new Date().toISOString(),
       })
@@ -1334,15 +1340,38 @@ useEffect(() => {
         card_benefits_1_title: company.card_benefits_1_title,
         card_benefits_1_subtitle: company.card_benefits_1_subtitle,
         card_benefits_1_active: company.card_benefits_1_active,
+        card_benefits_1_icon: company.card_benefits_1_icon,
+        card_benefits_1_sort_order: company.card_benefits_1_sort_order,
         card_benefits_2_title: company.card_benefits_2_title,
         card_benefits_2_subtitle: company.card_benefits_2_subtitle,
         card_benefits_2_active: company.card_benefits_2_active,
+        card_benefits_2_icon: company.card_benefits_2_icon,
+        card_benefits_2_sort_order: company.card_benefits_2_sort_order,
         card_benefits_3_title: company.card_benefits_3_title,
         card_benefits_3_subtitle: company.card_benefits_3_subtitle,
         card_benefits_3_active: company.card_benefits_3_active,
+        card_benefits_3_icon: company.card_benefits_3_icon,
+        card_benefits_3_sort_order: company.card_benefits_3_sort_order,
         card_benefits_4_title: company.card_benefits_4_title,
         card_benefits_4_subtitle: company.card_benefits_4_subtitle,
         card_benefits_4_active: company.card_benefits_4_active,
+        card_benefits_4_icon: company.card_benefits_4_icon,
+        card_benefits_4_sort_order: company.card_benefits_4_sort_order,
+        card_benefits_5_title: company.card_benefits_5_title,
+        card_benefits_5_subtitle: company.card_benefits_5_subtitle,
+        card_benefits_5_active: company.card_benefits_5_active,
+        card_benefits_5_icon: company.card_benefits_5_icon,
+        card_benefits_5_sort_order: company.card_benefits_5_sort_order,
+        card_benefits_6_title: company.card_benefits_6_title,
+        card_benefits_6_subtitle: company.card_benefits_6_subtitle,
+        card_benefits_6_active: company.card_benefits_6_active,
+        card_benefits_6_icon: company.card_benefits_6_icon,
+        card_benefits_6_sort_order: company.card_benefits_6_sort_order,
+        card_benefits_7_title: company.card_benefits_7_title,
+        card_benefits_7_subtitle: company.card_benefits_7_subtitle,
+        card_benefits_7_active: company.card_benefits_7_active,
+        card_benefits_7_icon: company.card_benefits_7_icon,
+        card_benefits_7_sort_order: company.card_benefits_7_sort_order,
       })
       .eq('id', company.id)
       .then(({ error }) => {
