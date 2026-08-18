@@ -30,6 +30,16 @@ test('catalog visual migration is additive, deterministic and contains no policy
   assert.doesNotMatch(migration, /drop\s+(?:table|column|policy)|truncate|delete\s+from|create\s+policy|alter\s+policy/i);
 });
 
+test('catalog benefit-card completion migration restores only missing legacy presentation fields', async () => {
+  const migration = await read('../supabase/migrations/20260818013100_complete_catalog_benefit_card_slots.sql');
+  for (let slot = 5; slot <= 7; slot += 1) {
+    assert.match(migration, new RegExp(`card_benefits_${slot}_title\\s+text`, 'i'));
+    assert.match(migration, new RegExp(`card_benefits_${slot}_subtitle\\s+text`, 'i'));
+    assert.match(migration, new RegExp(`card_benefits_${slot}_active\\s+boolean`, 'i'));
+  }
+  assert.doesNotMatch(migration, /drop\s+(?:table|column|policy)|truncate|delete\s+from|create\s+policy|alter\s+policy|grant\s|revoke\s/i);
+});
+
 test('seven benefit cards preserve slots while sorting, serializing and choosing readable contrast', async () => {
   const helper = await loadCatalogVisualSettings();
   const company = {
