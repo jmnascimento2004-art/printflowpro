@@ -80,7 +80,7 @@ test('WhatsApp editor exposes 44px touch targets for variable chips and preview 
   assert.doesNotMatch(workspace, /onInsertVariable\(variable\)[\s\S]{0,180}min-h-9/);
   assert.match(page, /navigator\.clipboard\.writeText\(activePreview\)/);
   assert.match(workspace, /type="button" onClick=\{\(\) => onInsertVariable\(variable\)\}/);
-  assert.match(workspace, /flex flex-wrap gap-2/);
+  assert.match(workspace, /data-testid="whatsapp-system-variable-values"/);
 });
 
 test('system and custom message contracts are structurally separated', async () => {
@@ -156,17 +156,19 @@ test('custom workspace uses the approved custom service and remains separate fro
   assert.doesNotMatch(combined, /payment_confirmation|confirm_payment|financial_transactions/);
 });
 
-test('admin preview derives only the company name already loaded by the authenticated context', async () => {
-  const [page, registry, engine] = await Promise.all([
+test('admin preview resolves company and PIX values only through the authenticated server boundary', async () => {
+  const [page, registry, route] = await Promise.all([
     read('../src/app/(dashboard)/whatsapp/page.tsx'),
     read('../src/lib/whatsapp/template-registry.ts'),
-    read('../src/lib/whatsapp/template-engine.ts')
+    read('../src/app/api/whatsapp/system-message/resolve/route.ts')
   ]);
   assert.doesNotMatch(registry, /empresa_nome:\s*'CibelePRINT'/);
   assert.match(registry, /empresa_nome:\s*'Sua Empresa'/);
-  assert.match(page, /resolveWhatsAppPreviewVariables\(selected\.definition, company\.name\)/);
-  assert.match(page, /\[company\.name, selected\.definition\]/);
-  assert.match(engine, /currentCompanyName\?\.trim\(\)/);
+  assert.doesNotMatch(page, /resolveWhatsAppPreviewVariables|sampleSystemPreview/);
+  assert.match(route, /resolveWhatsAppCompanyVariables/);
+  assert.match(route, /resolvePixPreviewVariables/);
+  assert.match(route, /'Sem contexto selecionado'/);
+  assert.match(page, /resolvedSystemContext\?\.variables/);
   assert.doesNotMatch(page, /from\(['"]companies['"]\)|select\([^)]*company_name/);
   assert.doesNotMatch(page, /useState[^;]*company.*name/i);
 });

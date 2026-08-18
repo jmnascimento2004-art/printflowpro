@@ -54,12 +54,12 @@ export function SystemMessageContextSelector({
           <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{help}</p>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : status === 'error' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>
-          {status === 'resolved' ? 'Dados reais' : status === 'loading' ? 'Resolvendo' : status === 'error' ? 'Falha no contexto' : 'Amostra'}
+          {status === 'resolved' && selectedId ? 'Dados reais' : status === 'loading' ? 'Resolvendo' : status === 'error' ? 'Falha no contexto' : 'Sem contexto'}
         </span>
       </div>
       {sampleOnly ? (
         <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-4 text-amber-800">
-          Esta mensagem depende do produto configurado na Loja e permanece como demonstração nesta Central. O teste deve ser iniciado pelo fluxo real da Loja.
+          Esta mensagem depende do produto configurado na Loja. Os valores da empresa são resolvidos no servidor; os demais campos indicam que nenhum contexto foi selecionado. O teste deve ser iniciado pelo fluxo real da Loja.
         </p>
       ) : (
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
@@ -129,6 +129,8 @@ interface MessageEditorProps {
   maxLength: number;
   saving: boolean;
   dirty: boolean;
+  resolvedVariables?: Readonly<Record<string, string>>;
+  resolutionStatus?: WhatsAppContextResolutionStatus;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   onContentChange: (value: string) => void;
   onActiveChange: (active: boolean) => void;
@@ -145,6 +147,8 @@ export function MessageEditor({
   maxLength,
   saving,
   dirty,
+  resolvedVariables,
+  resolutionStatus = 'idle',
   textareaRef,
   onContentChange,
   onActiveChange,
@@ -171,8 +175,19 @@ export function MessageEditor({
       </div>
       <div className="mt-4">
         <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-foreground"><Variable className="h-4 w-4" />Variáveis disponíveis</div>
-        <div className="flex flex-wrap gap-2">
-          {definition.allowedVariables.map((variable) => <button key={variable} type="button" onClick={() => onInsertVariable(variable)} className="min-h-11 rounded-lg border border-primary/20 bg-primary/5 px-2.5 font-mono text-[10px] text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">{`{{${variable}}}`}</button>)}
+        <div className="grid gap-2 sm:grid-cols-2" data-testid="whatsapp-system-variable-values">
+          {definition.allowedVariables.map((variable) => (
+            <button key={variable} type="button" onClick={() => onInsertVariable(variable)} className="min-h-11 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-left transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+              <span className="block font-mono text-[10px] font-bold text-primary">{`{{${variable}}}`}</span>
+              <span className="mt-1 block break-words text-[10px] leading-4 text-muted-foreground">
+                {resolutionStatus === 'loading'
+                  ? 'Resolvendo no servidor...'
+                  : resolutionStatus === 'error'
+                    ? 'Valor indisponível'
+                    : resolvedVariables?.[variable] || 'Sem contexto selecionado'}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
       <div className="mt-5 flex flex-wrap justify-end gap-2">
@@ -209,7 +224,7 @@ export function MessagePreview({
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-xs font-black text-foreground">Pré-visualização</h2>
-          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${mode === 'real' ? 'bg-emerald-100 text-emerald-700' : mode === 'error' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>{mode === 'real' ? 'Dados reais' : mode === 'loading' ? 'Carregando' : mode === 'error' ? 'Erro' : 'Amostra'}</span>
+          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${mode === 'real' ? 'bg-emerald-100 text-emerald-700' : mode === 'error' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>{mode === 'real' ? 'Dados reais' : mode === 'loading' ? 'Carregando' : mode === 'error' ? 'Erro' : 'Sem contexto'}</span>
         </div>
         <button type="button" aria-label="Copiar pré-visualização" onClick={onCopy} disabled={mode === 'loading' || mode === 'error'} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-border px-2 text-[10px] font-bold transition hover:bg-secondary disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"><Clipboard className="h-3.5 w-3.5" />Copiar</button>
       </div>

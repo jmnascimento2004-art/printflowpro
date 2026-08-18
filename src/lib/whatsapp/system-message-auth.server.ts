@@ -20,6 +20,11 @@ const CENTRAL_REQUIRED_PATHS: Readonly<Record<ContextualWhatsAppEventKey, readon
   production_status_changed: ['/whatsapp', '/production']
 };
 
+const CENTER_PREVIEW_REQUIRED_PATHS: Readonly<Record<WhatsAppEventKey, readonly string[]>> = {
+  ...CENTRAL_REQUIRED_PATHS,
+  store_product_request: ['/whatsapp']
+};
+
 const OPERATIONAL_REQUIRED_PATHS: Readonly<Record<ContextualWhatsAppEventKey, readonly string[]>> = {
   quote_proposal: ['/quotes'],
   order_payment_pending: ['/orders', '/financial'],
@@ -95,6 +100,13 @@ export function authorizeSystemMessageContext(
   eventKey: ContextualWhatsAppEventKey
 ) {
   return authorizeWithRequiredPaths(request, CENTRAL_REQUIRED_PATHS[eventKey]);
+}
+
+export function authorizeWhatsAppCenterPreview(
+  request: Request,
+  eventKey: WhatsAppEventKey
+) {
+  return authorizeWithRequiredPaths(request, CENTER_PREVIEW_REQUIRED_PATHS[eventKey]);
 }
 
 export function authorizeOperationalSystemMessageContext(

@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server';
 import {
   authorizeSystemMessageContext,
+  authorizeWhatsAppCenterPreview,
   WhatsAppSystemMessageAccessError
 } from '@/lib/whatsapp/system-message-auth.server';
 import { resolveSystemWhatsAppMessage } from '@/lib/whatsapp/system-message-resolver.server';
-import type { WhatsAppSystemMessageContext } from '@/lib/whatsapp/variable-contract';
+import { getWhatsAppTimeGreeting } from '@/lib/utils';
+import { getWhatsAppTemplateDefinition } from '@/lib/whatsapp/template-registry';
+import { validateWhatsAppTemplate } from '@/lib/whatsapp/template-engine';
+import { resolveWhatsAppCompanyVariables } from '@/lib/whatsapp/variable-resolver.server';
+import { resolveWhatsAppProductVariables } from '@/lib/whatsapp/customer-product-variable-resolver.server';
+import { isWhatsAppEventKey, type WhatsAppEventKey, type WhatsAppSystemMessageContext } from '@/lib/whatsapp/variable-contract';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const CONTEXTUAL_EVENTS = new Set([
+const CONTEXTUAL_EVENTS = new Set<WhatsAppEventKey>([
   'quote_proposal',
   'order_payment_pending',
   'production_status_changed'
@@ -25,21 +31,95 @@ function noStoreJson(body: unknown, status = 200) {
 }
 
 function parseRequestBody(value: unknown): {
-  eventKey: ContextualEventKey;
-  contextId: string;
+  eventKey: WhatsAppEventKey;
+  contextId?: string;
   draftContent?: string;
 } | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const body = value as Record<string, unknown>;
   const keys = Object.keys(body);
   if (keys.some((key) => !['eventKey', 'contextId', 'draftContent'].includes(key))) return null;
-  if (typeof body.eventKey !== 'string' || !CONTEXTUAL_EVENTS.has(body.eventKey)) return null;
-  if (typeof body.contextId !== 'string' || !body.contextId.trim() || body.contextId.length > 128) return null;
+  if (typeof body.eventKey !== 'string' || !isWhatsAppEventKey(body.eventKey)) return null;
+  if (body.contextId !== undefined && (
+    typeof body.contextId !== 'string' || !body.contextId.trim() || body.contextId.length > 128
+  )) return null;
   if (body.draftContent !== undefined && typeof body.draftContent !== 'string') return null;
   return {
-    eventKey: body.eventKey as ContextualEventKey,
-    contextId: body.contextId.trim(),
+    eventKey: body.eventKey,
+    ...(body.contextId === undefined ? {} : { contextId: body.contextId.trim() }),
     ...(body.draftContent === undefined ? {} : { draftContent: body.draftContent })
+  };
+}
+
+function resolvePixPreviewVariables(variables: Record<string, string>) {
+  const key = variables['empresa.pix_chave'] || '';
+  const keyType = variables['empresa.pix_tipo'] || '';
+  const beneficiary = variables['empresa.pix_titular'] || '';
+  const bank = variables['empresa.banco'] || '';
+  const typeLabels: Record<string, string> = {
+    cnpj: 'CNPJ', cpf: 'CPF', celular: 'telefone', email: 'e-mail', aleatoria: 'aleatória'
+  };
+  const security = [
+    beneficiary ? `Favorecido: ${beneficiary}` : '',
+    bank ? `Banco: ${bank}` : ''
+  ].filter(Boolean).join(' · ');
+  return {
+    chave_pix: key,
+    chave_pix_rotulo: key ? `Chave PIX (${typeLabels[keyType] || 'configurada'})` : '',
+    seguranca_pix: security
+  };
+}
+
+async function resolveWithoutContext(
+  trustedCompanyId: string,
+  eventKey: WhatsAppEventKey,
+  draftContent?: string,
+  productId?: string
+) {
+  const definition = getWhatsAppTemplateDefinition(eventKey);
+  if (!definition) throw new Error('WHATSAPP_SYSTEM_MESSAGE_RESOLUTION_UNKNOWN_EVENT');
+  const validation = draftContent === undefined ? null : validateWhatsAppTemplate(draftContent, definition);
+  const content = validation?.normalized || definition.defaultContent;
+  if (validation && !validation.valid) {
+    throw new Error('WHATSAPP_SYSTEM_MESSAGE_RESOLUTION_TEMPLATE_INVALID');
+  }
+  const company = await resolveWhatsAppCompanyVariables({
+    companyId: trustedCompanyId,
+    trustedCompanyId,
+    eventKey
+  });
+  const product = eventKey === 'store_product_request' && productId
+    ? await resolveWhatsAppProductVariables({
+        trustedCompanyId,
+        productId,
+        eventKey,
+        requireCatalogAvailability: true,
+        selectedOptionsPresent: false
+      })
+    : null;
+  const productVariables: Record<string, string> = product?.variables || {};
+  const values: Record<string, string> = {
+    ...company.variables,
+    ...productVariables,
+    ...resolvePixPreviewVariables(company.variables),
+    saudacao: getWhatsAppTimeGreeting()
+  };
+  const variables = Object.fromEntries(definition.allowedVariables.map((variable) => [
+    variable,
+    values[variable] || 'Sem contexto selecionado'
+  ]));
+  const missing = definition.allowedVariables.filter((variable) => !values[variable]);
+  return {
+    eventKey,
+    renderedContent: content,
+    variables,
+    recipientAvailable: false,
+    testHref: '',
+    missing,
+    contextSummary: product
+      ? `Produto — ${productVariables['produto.nome'] || 'Produto selecionado'}`
+      : 'Sem contexto selecionado',
+    variablesState: missing.length === 0 ? 'complete' : 'partial'
   };
 }
 
@@ -56,6 +136,9 @@ function friendlyResolutionError(error: unknown) {
   if (message.endsWith('_ORDER_NOT_PAYABLE')) return ['Este pedido não possui saldo pendente para cobrança.', 422] as const;
   if (message.endsWith('_QUOTE_NOT_FOUND') || message.endsWith('_ORDER_NOT_FOUND') || message.endsWith('_PRODUCTION_ITEM_NOT_FOUND')) {
     return ['O contexto selecionado não está mais disponível.', 404] as const;
+  }
+  if (message.endsWith('_PRODUCT_NOT_FOUND') || message.endsWith('_PRODUCT_NOT_PUBLIC')) {
+    return ['O produto selecionado não está mais disponível no catálogo.', 404] as const;
   }
   if (message.endsWith('_TENANT_MISMATCH')) return ['O contexto selecionado não está disponível para esta empresa.', 404] as const;
   if (message.endsWith('_CUSTOMER_ID_MISSING') || message.endsWith('_CUSTOMER_NOT_FOUND')) {
@@ -75,16 +158,28 @@ export async function POST(request: Request) {
     const body = parseRequestBody(json);
     if (!body) return noStoreJson({ error: 'Requisição inválida.' }, 400);
 
-    const { trustedCompanyId } = await authorizeSystemMessageContext(request, body.eventKey);
+    const contextualRequest = Boolean(body.contextId && CONTEXTUAL_EVENTS.has(body.eventKey));
+    const { trustedCompanyId } = contextualRequest
+      ? await authorizeSystemMessageContext(request, body.eventKey as ContextualEventKey)
+      : await authorizeWhatsAppCenterPreview(request, body.eventKey);
+    if (!contextualRequest) {
+      return noStoreJson(await resolveWithoutContext(
+        trustedCompanyId,
+        body.eventKey,
+        body.draftContent,
+        body.eventKey === 'store_product_request' ? body.contextId : undefined
+      ));
+    }
     const resolved = await resolveSystemWhatsAppMessage({
       trustedCompanyId,
-      context: buildContext(body.eventKey, body.contextId),
+      context: buildContext(body.eventKey as ContextualEventKey, body.contextId!),
       draftContent: body.draftContent,
       allowMissingRecipient: true
     });
 
     return noStoreJson({
       eventKey: resolved.eventKey,
+      variables: resolved.variables,
       renderedContent: resolved.renderedContent,
       recipientAvailable: resolved.recipientAvailable,
       testHref: resolved.testHref,

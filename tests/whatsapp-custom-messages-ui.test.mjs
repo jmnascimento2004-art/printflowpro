@@ -25,7 +25,7 @@ const loadRecipientFlow = async () => {
 
   const recipientOutput = ts.transpileModule(`
     function resolveRecipientFlow(args) {
-      const { customers, testCustomerId, tab, customContext, customContent, customPreview, systemPreview, settings, testPhone } = args;
+      const { customers, testCustomerId, tab, customContext, customContent, customPreview, customPreviewValues, systemPreview, settings, testPhone } = args;
       ${recipientSource}
       return { selectedTestCustomer, customerRecipientPhone, customerRecipientError, testUrl };
     }
@@ -111,17 +111,18 @@ test('context allowlists, chips, cursor insertion and local safe preview are wir
   assert.match(page, /selectionStart/);
   assert.match(page, /selectionEnd/);
   assert.match(page, /setSelectionRange/);
-  assert.match(page, /renderWhatsAppCustomMessage\(customContent, customContext, CUSTOM_PREVIEW_VALUES\)/);
+  assert.match(page, /renderWhatsAppCustomMessage\(customContent, customContext, customPreviewValues\)/);
+  assert.doesNotMatch(page, /Maria da Silva|Cliente Exemplo|maria@exemplo\.com\.br/);
   assert.match(workspace, /allowedVariables\.map/);
   assert.match(workspace, /min-h-11[^"]*focus-visible:ring-2/);
 });
 
 test('customer test reuses the already loaded customer context and generic testing needs no customer', async () => {
   const page = await read('../src/app/(dashboard)/whatsapp/page.tsx');
-  assert.match(page, /const \{ company, customers, quotes, orders, production, rolePermissions \} = useDatabase\(\)/);
+  assert.match(page, /const \{ company, customers, products, quotes, orders, production, rolePermissions \} = useDatabase\(\)/);
   assert.match(page, /const customerRecipientRequired = tab === 'custom' && customContext === 'customer'/);
   assert.match(page, /showCustomer=\{customerRecipientRequired\}/);
-  assert.match(page, /customerPreviewValues\(selectedTestCustomer\)/);
+  assert.match(page, /customerPreviewValues\(selectedTestCustomer, customPreviewValues\)/);
   assert.doesNotMatch(page, /from\(['"]customers['"]\)|select\([^)]*customers/);
 });
 
@@ -163,6 +164,7 @@ test('real customer test flow requires explicit selection and never falls back t
     customPreview: '',
     systemPreview: '',
     settings: {},
+    customPreviewValues: { 'cliente.nome': 'Sem contexto selecionado' },
     testPhone: '5533999993333'
   };
 
