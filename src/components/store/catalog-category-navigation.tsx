@@ -168,7 +168,7 @@ export function CatalogCategoryNavigation({
                   type="button"
                   onClick={() => toggleFeaturedCategory(category)}
                   className="flex min-h-11 w-full items-center justify-between rounded-xl bg-amber-50 px-3 text-left text-xs font-black text-amber-950 transition-colors hover:bg-amber-100 dark:bg-amber-400/10 dark:text-amber-200 dark:hover:bg-amber-400/20"
-                  aria-haspopup={category.catalog_mega_menu_enabled ? 'menu' : undefined}
+                  aria-haspopup={category.catalog_mega_menu_enabled ? true : undefined}
                   aria-expanded={category.catalog_mega_menu_enabled ? open : undefined}
                   aria-controls={category.catalog_mega_menu_enabled ? `catalog-mega-menu-${category.id}` : undefined}
                 >
@@ -213,7 +213,7 @@ export function CatalogCategoryNavigation({
       </aside>
 
       {megaCategory?.catalog_mega_menu_enabled && (
-        <section id={`catalog-mega-menu-${megaCategory.id}`} role="menu" aria-label={`Mega Menu ${megaCategory.name}`} className="absolute left-[260px] right-0 top-0 z-30 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-950 lg:block">
+        <section id={`catalog-mega-menu-${megaCategory.id}`} role="region" aria-label={`Mega Menu ${megaCategory.name}`} className="absolute left-[260px] right-0 top-0 z-30 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-950 lg:block">
           <div className="flex min-h-12 items-center justify-between border-b border-slate-200 px-5 dark:border-zinc-800">
             <h3 className="text-sm font-black text-slate-900 dark:text-white">{megaCategory.catalog_featured_title || megaCategory.name}</h3>
             <button type="button" onClick={() => setMegaMenuCategoryId(null)} aria-label="Fechar Mega Menu" className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-4 w-4" /></button>
