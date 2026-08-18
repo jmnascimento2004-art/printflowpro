@@ -7,7 +7,7 @@ import {
 import { resolveSystemWhatsAppMessage } from '@/lib/whatsapp/system-message-resolver.server';
 import { getWhatsAppTimeGreeting } from '@/lib/utils';
 import { getWhatsAppTemplateDefinition } from '@/lib/whatsapp/template-registry';
-import { validateWhatsAppTemplate } from '@/lib/whatsapp/template-engine';
+import { renderWhatsAppTemplate, validateWhatsAppTemplate } from '@/lib/whatsapp/template-engine';
 import { resolveWhatsAppCompanyVariables } from '@/lib/whatsapp/variable-resolver.server';
 import { resolveWhatsAppProductVariables } from '@/lib/whatsapp/customer-product-variable-resolver.server';
 import { isWhatsAppEventKey, type WhatsAppEventKey, type WhatsAppSystemMessageContext } from '@/lib/whatsapp/variable-contract';
@@ -111,7 +111,7 @@ async function resolveWithoutContext(
   const missing = definition.allowedVariables.filter((variable) => !values[variable]);
   return {
     eventKey,
-    renderedContent: content,
+    renderedContent: renderWhatsAppTemplate(content, definition, variables),
     variables,
     recipientAvailable: false,
     testHref: '',

@@ -92,6 +92,7 @@ test('system variable UI has no fake system sample and consumes authenticated se
   assert.match(workspace, /Sem contexto selecionado/);
   assert.match(route, /resolveWhatsAppCompanyVariables/);
   assert.match(route, /resolvePixPreviewVariables/);
+  assert.match(route, /renderedContent:\s*renderWhatsAppTemplate\(content, definition, variables\)/);
   assert.match(route, /variables: resolved\.variables/);
   assert.match(auth, /store_product_request: \['\/whatsapp'\]/);
   assert.doesNotMatch(page, /SUPABASE_SERVICE_ROLE|service_role/i);
