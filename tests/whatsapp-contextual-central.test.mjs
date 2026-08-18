@@ -137,7 +137,7 @@ function compileContextResolutionEffect(pageSource, { removeStaleSuccessGuard = 
   const normalized = pageSource.replace(/\r\n/g, '\n');
   const startMarker = `  useEffect(() => {
     const sequence = ++contextRequestSequenceRef.current;`;
-  const endMarker = `  }, [content, contextualEvent, selectedContextId, selectedEventKey, session?.access_token, systemValidation.valid, tab]);`;
+  const endMarker = `  }, [content, selectedContextId, selectedEventKey, session?.access_token, systemValidation.valid, tab]);`;
   const start = normalized.indexOf(startMarker);
   const end = normalized.indexOf(endMarker, start);
   assert.notEqual(start, -1, 'context resolution effect start must remain discoverable');
@@ -185,6 +185,7 @@ function contextualResponse(contextId) {
       return {
         eventKey: 'order_payment_pending',
         renderedContent: label,
+        variables: { pedido_codigo: label },
         recipientAvailable: true,
         testHref: `https://wa.me/5500000000000?text=${encodeURIComponent(label)}`,
         missing: [],
@@ -271,11 +272,13 @@ test('context route accepts only event, context id and optional draft while deri
 
   assert.match(route, /\['eventKey', 'contextId', 'draftContent'\]/);
   assert.match(route, /keys\.some\(\(key\) => !\['eventKey', 'contextId', 'draftContent'\]\.includes\(key\)\)/);
-  assert.doesNotMatch(route.match(/type ContextualEventKey[\s\S]+?(?=function friendlyResolutionError)/)?.[0] || '', /companyId|customerId|recipient|pix|saldo/i);
-  assert.match(route, /authorizeSystemMessageContext\(request, body\.eventKey\)/);
+  assert.doesNotMatch(route.match(/function parseRequestBody[\s\S]+?(?=function resolvePixPreviewVariables)/)?.[0] || '', /companyId|customerId|recipient|pix|saldo/i);
+  assert.match(route, /authorizeSystemMessageContext\(request, body\.eventKey as ContextualEventKey\)/);
+  assert.match(route, /authorizeWhatsAppCenterPreview\(request, body\.eventKey\)/);
   assert.match(route, /trustedCompanyId,/);
   assert.match(route, /allowMissingRecipient: true/);
-  assert.doesNotMatch(route.match(/return noStoreJson\(\{[\s\S]+?variablesState:[\s\S]+?\}\);/)?.[0] || '', /recipient:|variables:/);
+  assert.match(route.match(/return noStoreJson\(\{[\s\S]+?variablesState:[\s\S]+?\}\);/)?.[0] || '', /variables: resolved\.variables/);
+  assert.doesNotMatch(route.match(/return noStoreJson\(\{[\s\S]+?variablesState:[\s\S]+?\}\);/)?.[0] || '', /recipient:/);
   assert.match(route, /Cache-Control': 'private, no-store, max-age=0'/);
 
   assert.match(auth, /^import 'server-only';/);
@@ -459,12 +462,12 @@ test('operational Route Handler rejects malformed authority payloads and maps mi
 
 test('Central selectors use already loaded arrays only for UX and never send client authority fields', async () => {
   const page = await read('../src/app/(dashboard)/whatsapp/page.tsx');
-  assert.match(page, /const \{ company, customers, quotes, orders, production, rolePermissions \} = useDatabase\(\)/);
+  assert.match(page, /const \{ company, customers, products, quotes, orders, production, rolePermissions \} = useDatabase\(\)/);
   assert.match(page, /quotes\.map/);
   assert.match(page, /orders\.map/);
   assert.match(page, /production\.map/);
   assert.match(page, /matches\.slice\(0, 50\)/);
-  assert.match(page, /body: JSON\.stringify\(\{ eventKey: selectedEventKey, contextId: selectedContextId, draftContent: content \}\)/);
+  assert.match(page, /body: JSON\.stringify\(\{[\s\S]+?eventKey: selectedEventKey,[\s\S]+?contextId: selectedContextId[\s\S]+?draftContent: content[\s\S]+?\}\)/);
   assert.doesNotMatch(page.match(/body: JSON\.stringify\([\s\S]+?\),/)?.[0] || '', /company|customer|recipient|pix|saldo/i);
   assert.doesNotMatch(page, /from\(['"](?:quotes|orders|production_queue)['"]\)/);
 });
@@ -512,20 +515,24 @@ test('Preview and Test consume one resolved server response and demo modes canno
   assert.match(page, /showPhone=\{tab === 'custom'\}/);
   assert.match(workspace, /disabled=\{testDisabled\}/);
   assert.match(workspace, /Dados reais/);
-  assert.match(workspace, /Amostra/);
+  assert.match(workspace, /Sem contexto/);
+  assert.match(page, /resolvedSystemContext\?\.variables/);
 });
 
 test('real context failures never fall back to demo text and context selection does not dirty the draft', async () => {
   const page = await read('../src/app/(dashboard)/whatsapp/page.tsx');
-  assert.match(page, /selectedContextId[\s\S]{0,100}currentContextResolution\.status === 'error'[\s\S]{0,100}currentContextResolution\.message/);
+  assert.match(page, /currentContextResolution\.status === 'error'[\s\S]{0,100}currentContextResolution\.message/);
   assert.match(page, /onSelect=\{setSelectedContextId\}/);
   assert.doesNotMatch(page, /onSelect=\{\(id\) => \{ setSelectedContextId\(id\); setDirty\(true\)/);
   assert.match(page, /setContent\(value\); setDirty\(true\)/);
+  assert.doesNotMatch(page, /resolveWhatsAppPreviewVariables|sampleSystemPreview/);
 });
 
-test('Store stays sample-only in Central and no operational runtime files were repurposed', async () => {
+test('Store offers a real product context while testing stays delegated to the canonical Store flow', async () => {
   const page = await read('../src/app/(dashboard)/whatsapp/page.tsx');
   assert.match(page, /selectedEventKey === 'store_product_request'/);
+  assert.match(page, /products[\s\S]+?catalog_active/);
+  assert.match(page, /label: product\.name/);
   assert.match(page, /O teste desta mensagem é feito somente no fluxo real da Loja/);
   assert.doesNotMatch(page, /api\/store\/whatsapp\/product-request/);
 });

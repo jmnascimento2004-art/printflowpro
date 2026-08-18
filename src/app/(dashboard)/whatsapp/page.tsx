@@ -19,9 +19,7 @@ import { formatOrderDisplayNumber } from '@/lib/order-number';
 import {
   buildWhatsAppUrl,
   getWhatsAppCustomVariables,
-  renderConfiguredWhatsAppTemplate,
   renderWhatsAppCustomMessage,
-  resolveWhatsAppPreviewVariables,
   validateWhatsAppCustomMessage,
   validateWhatsAppTemplate,
   WHATSAPP_TEMPLATE_MAX_LENGTH
@@ -53,8 +51,9 @@ import type { WhatsAppEventKey } from '@/lib/whatsapp/variable-contract';
 type TabKey = 'templates' | 'custom' | 'settings';
 type ContextualEventKey = Exclude<WhatsAppEventKey, 'store_product_request'>;
 type ContextResolutionData = {
-  eventKey: ContextualEventKey;
+  eventKey: WhatsAppEventKey;
   renderedContent: string;
+  variables: Record<string, string>;
   recipientAvailable: boolean;
   testHref: string;
   missing: string[];
@@ -129,24 +128,24 @@ function resolveDiscardedWhatsAppDraft({
 }
 
 const CUSTOM_PREVIEW_VALUES = {
-  'empresa.nome': 'Sua Empresa',
-  'empresa.whatsapp': '(51) 99999-0000',
-  'empresa.telefone': '(51) 3333-0000',
-  'empresa.email': 'contato@suaempresa.com.br',
-  'cliente.nome': 'Maria da Silva',
-  'cliente.nome_fantasia': 'Cliente Exemplo',
-  'cliente.whatsapp': '(51) 98888-0000',
-  'cliente.email': 'maria@exemplo.com.br'
+  'empresa.nome': 'Sem valor configurado',
+  'empresa.whatsapp': 'Sem valor configurado',
+  'empresa.telefone': 'Sem valor configurado',
+  'empresa.email': 'Sem valor configurado',
+  'cliente.nome': 'Sem contexto selecionado',
+  'cliente.nome_fantasia': 'Sem contexto selecionado',
+  'cliente.whatsapp': 'Sem contexto selecionado',
+  'cliente.email': 'Sem contexto selecionado'
 } as const;
 
-function customerPreviewValues(customer: Customer | undefined) {
-  if (!customer) return CUSTOM_PREVIEW_VALUES;
+function customerPreviewValues(customer: Customer | undefined, base: Record<string, string>) {
+  if (!customer) return base;
   return {
-    ...CUSTOM_PREVIEW_VALUES,
-    'cliente.nome': customer.name || CUSTOM_PREVIEW_VALUES['cliente.nome'],
-    'cliente.nome_fantasia': customer.corporate_additional_info?.nome_fantasia || customer.name || CUSTOM_PREVIEW_VALUES['cliente.nome_fantasia'],
-    'cliente.whatsapp': customer.corporate_additional_info?.whatsapp || customer.phone || CUSTOM_PREVIEW_VALUES['cliente.whatsapp'],
-    'cliente.email': customer.email || CUSTOM_PREVIEW_VALUES['cliente.email']
+    ...base,
+    'cliente.nome': customer.name || base['cliente.nome'],
+    'cliente.nome_fantasia': customer.corporate_additional_info?.nome_fantasia || customer.name || base['cliente.nome_fantasia'],
+    'cliente.whatsapp': customer.corporate_additional_info?.whatsapp || customer.phone || base['cliente.whatsapp'],
+    'cliente.email': customer.email || base['cliente.email']
   };
 }
 
@@ -159,7 +158,7 @@ function sortCustomMessages(messages: readonly WhatsAppCustomMessage[]) {
 
 export default function WhatsAppCenterPage() {
   const router = useRouter();
-  const { company, customers, quotes, orders, production, rolePermissions } = useDatabase();
+  const { company, customers, products, quotes, orders, production, rolePermissions } = useDatabase();
   const { activeProfile, session } = useAuth();
   const [tab, setTab] = useState<TabKey>('templates');
   const [templates, setTemplates] = useState<WhatsAppMessageTemplate[]>([]);
@@ -203,21 +202,15 @@ export default function WhatsAppCenterPage() {
   const resolvedTemplates = useMemo(() => getResolvedWhatsAppTemplates(templates), [templates]);
   const selected = resolvedTemplates.find((item) => item.definition.eventKey === selectedEventKey) || resolvedTemplates[0];
   const systemValidation = useMemo(() => validateWhatsAppTemplate(content, selected.definition), [content, selected.definition]);
-  const systemPreviewVariables = useMemo(
-    () => resolveWhatsAppPreviewVariables(selected.definition, company.name),
-    [company.name, selected.definition]
-  );
-  const sampleSystemPreview = useMemo(
-    () => renderConfiguredWhatsAppTemplate(content, selected.definition, systemPreviewVariables, settings || undefined),
-    [content, selected.definition, settings, systemPreviewVariables]
-  );
   const contextualEvent = isContextualEventKey(selectedEventKey);
   const storeSampleOnly = selectedEventKey === 'store_product_request';
   const contextLabel = selectedEventKey === 'quote_proposal'
     ? 'Orçamento'
     : selectedEventKey === 'order_payment_pending'
       ? 'Pedido'
-      : 'Item de produção';
+      : selectedEventKey === 'production_status_changed'
+        ? 'Item de produção'
+        : 'Produto';
   const allContextOptions = useMemo<WhatsAppContextOption[]>(() => {
     if (selectedEventKey === 'quote_proposal') {
       return quotes.map((quote) => ({
@@ -240,8 +233,17 @@ export default function WhatsAppCenterPage() {
         searchable: `${item.order_number} ${formatOrderDisplayNumber(item.order_number)} ${item.product_name} ${formatWhatsAppProductionStatus(item.status)}`
       }));
     }
+    if (selectedEventKey === 'store_product_request') {
+      return products
+        .filter((product) => product.active !== false && product.catalog_active !== false)
+        .map((product) => ({
+          id: product.id,
+          label: product.name,
+          searchable: `${product.name} ${product.description || ''}`
+        }));
+    }
     return [];
-  }, [orders, production, quotes, selectedEventKey]);
+  }, [orders, production, products, quotes, selectedEventKey]);
   const contextOptions = useMemo(() => {
     const query = normalizeSearch(contextSearch);
     const matches = query
@@ -253,29 +255,27 @@ export default function WhatsAppCenterPage() {
       ? [selectedOption, ...visible.slice(0, 49)]
       : visible;
   }, [allContextOptions, contextSearch, selectedContextId]);
-  const currentContextRequestKey = contextualEvent && selectedContextId
-    ? `${selectedEventKey}:${selectedContextId}:${content}`
+  const currentContextRequestKey = tab === 'templates'
+    ? `${selectedEventKey}:${selectedContextId || 'no-context'}:${content}`
     : '';
   const currentContextResolution = contextResolution.requestKey === currentContextRequestKey
     ? contextResolution
     : { status: 'idle', requestKey: '' } as ContextResolution;
-  const effectiveContextStatus: WhatsAppContextResolutionStatus = selectedContextId && currentContextResolution.status === 'idle'
+  const effectiveContextStatus: WhatsAppContextResolutionStatus = currentContextRequestKey && currentContextResolution.status === 'idle'
     ? 'loading'
     : currentContextResolution.status;
   const resolvedSystemContext = currentContextResolution.status === 'resolved'
     ? currentContextResolution.data
     : null;
   const systemPreview = resolvedSystemContext?.renderedContent
-    || (selectedContextId
-      ? currentContextResolution.status === 'error'
-        ? currentContextResolution.message
-        : 'Validando o contexto e resolvendo os dados reais...'
-      : sampleSystemPreview);
+    || (currentContextResolution.status === 'error'
+      ? currentContextResolution.message
+      : 'Validando no servidor os valores disponíveis para este modelo...');
   const systemPreviewMode: 'sample' | 'real' | 'loading' | 'error' = resolvedSystemContext
-    ? 'real'
-    : selectedContextId && effectiveContextStatus === 'loading'
+    ? selectedContextId ? 'real' : 'sample'
+    : effectiveContextStatus === 'loading'
       ? 'loading'
-      : selectedContextId && currentContextResolution.status === 'error'
+      : currentContextResolution.status === 'error'
         ? 'error'
         : 'sample';
   const systemCanTest = Boolean(
@@ -314,9 +314,16 @@ export default function WhatsAppCenterPage() {
   const customErrors = duplicateCustomName
     ? [...customValidation.errors, 'Já existe uma mensagem com esse nome.']
     : customValidation.errors;
+  const customPreviewValues = useMemo<Record<string, string>>(() => ({
+    ...CUSTOM_PREVIEW_VALUES,
+    'empresa.nome': company.name || CUSTOM_PREVIEW_VALUES['empresa.nome'],
+    'empresa.whatsapp': settings?.business_phone || company.phone || CUSTOM_PREVIEW_VALUES['empresa.whatsapp'],
+    'empresa.telefone': company.phone || CUSTOM_PREVIEW_VALUES['empresa.telefone'],
+    'empresa.email': company.email || CUSTOM_PREVIEW_VALUES['empresa.email']
+  }), [company.email, company.name, company.phone, settings?.business_phone]);
   const customPreview = useMemo(
-    () => renderWhatsAppCustomMessage(customContent, customContext, CUSTOM_PREVIEW_VALUES),
-    [customContent, customContext]
+    () => renderWhatsAppCustomMessage(customContent, customContext, customPreviewValues),
+    [customContent, customContext, customPreviewValues]
   );
   const filteredCustomMessages = customMessages.filter((item) => (
     `${item.name} ${item.contextType}`.toLocaleLowerCase('pt-BR').includes(customSearch.trim().toLocaleLowerCase('pt-BR'))
@@ -327,7 +334,7 @@ export default function WhatsAppCenterPage() {
     ? selectedTestCustomer.corporate_additional_info?.whatsapp || selectedTestCustomer.phone || ''
     : '';
   const testPreview = tab === 'custom'
-    ? renderWhatsAppCustomMessage(customContent, customContext, customerPreviewValues(selectedTestCustomer))
+    ? renderWhatsAppCustomMessage(customContent, customContext, customerPreviewValues(selectedTestCustomer, customPreviewValues))
     : resolvedSystemContext?.renderedContent || systemPreview;
   const activePreview = tab === 'custom' ? customPreview : systemPreview;
   const customerRecipientUrl = customerRecipientRequired
@@ -410,12 +417,12 @@ export default function WhatsAppCenterPage() {
     contextAbortRef.current?.abort();
     contextAbortRef.current = null;
 
-    if (tab !== 'templates' || !contextualEvent || !selectedContextId) {
+    if (tab !== 'templates') {
       setContextResolution({ status: 'idle', requestKey: '' });
       return;
     }
 
-    const requestKey = `${selectedEventKey}:${selectedContextId}:${content}`;
+    const requestKey = `${selectedEventKey}:${selectedContextId || 'no-context'}:${content}`;
     if (!systemValidation.valid) {
       setContextResolution({
         status: 'error',
@@ -444,7 +451,11 @@ export default function WhatsAppCenterPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({ eventKey: selectedEventKey, contextId: selectedContextId, draftContent: content }),
+        body: JSON.stringify({
+          eventKey: selectedEventKey,
+          ...(selectedContextId ? { contextId: selectedContextId } : {}),
+          draftContent: content
+        }),
         signal: controller.signal
       })
         .then(async (response) => {
@@ -456,6 +467,9 @@ export default function WhatsAppCenterPage() {
             || typeof payload.recipientAvailable !== 'boolean'
             || typeof payload.testHref !== 'string'
             || typeof payload.contextSummary !== 'string'
+            || !payload.variables
+            || typeof payload.variables !== 'object'
+            || Array.isArray(payload.variables)
             || !Array.isArray(payload.missing)
             || (payload.variablesState !== 'complete' && payload.variablesState !== 'partial')
           ) {
@@ -484,7 +498,7 @@ export default function WhatsAppCenterPage() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [content, contextualEvent, selectedContextId, selectedEventKey, session?.access_token, systemValidation.valid, tab]);
+  }, [content, selectedContextId, selectedEventKey, session?.access_token, systemValidation.valid, tab]);
 
   useEffect(() => {
     if (customCreating || !selectedCustomId) return;
@@ -741,35 +755,37 @@ export default function WhatsAppCenterPage() {
           <SystemMessageList messages={filteredTemplates} selectedEventKey={selectedEventKey} search={systemSearch} category={category} categories={categories} onSearchChange={setSystemSearch} onCategoryChange={setCategory} onSelect={(eventKey) => requestNavigation({ kind: 'template', value: eventKey })} />
           <div className="min-w-0 space-y-4">
             <SystemMessageContextSelector
-              sampleOnly={storeSampleOnly}
+              sampleOnly={false}
               label={contextLabel}
               help={storeSampleOnly
-                ? 'A solicitação depende de produto, quantidade e configuração escolhidos na Loja.'
+                ? 'Escolha um produto real para inspecionar os dados disponíveis. Quantidade, medidas, opções e total dependem da configuração concluída no fluxo real da Loja.'
                 : `Escolha um ${contextLabel.toLocaleLowerCase('pt-BR')} para gerar a mensagem com dados reais. A lista local serve somente para seleção; o servidor revalida empresa, acesso e registro.`}
               options={contextOptions}
               selectedId={selectedContextId}
               search={contextSearch}
-              status={storeSampleOnly ? 'idle' : effectiveContextStatus}
+              status={effectiveContextStatus}
               statusMessage={currentContextResolution.status === 'resolved'
-                ? 'Contexto validado no servidor. Prévia e teste usam a mesma resolução.'
+                ? selectedContextId
+                  ? 'Contexto validado no servidor. Prévia e teste usam a mesma resolução.'
+                  : 'Valores da empresa validados no servidor. Variáveis contextuais aguardam uma seleção explícita.'
                 : currentContextResolution.status === 'error'
                   ? currentContextResolution.message
                   : contextualEvent && !selectedContextId
-                    ? 'Nenhum registro é selecionado automaticamente.'
+                    ? 'Nenhum registro é selecionado automaticamente; somente valores reais da empresa são exibidos.'
                     : undefined}
               onSearchChange={setContextSearch}
               onSelect={setSelectedContextId}
             />
             <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <MessageEditor message={selected} content={content} active={active} validation={systemValidation} maxLength={WHATSAPP_TEMPLATE_MAX_LENGTH} saving={saving} dirty={dirty} textareaRef={systemTextareaRef} onContentChange={(value) => { setContent(value); setDirty(true); setMessage(null); }} onActiveChange={(value) => { setActive(value); setDirty(true); }} onInsertVariable={(variable) => insertVariable(variable, 'system')} onRestore={() => void handleRestore()} onSave={() => void handleSaveTemplate()} />
+              <MessageEditor message={selected} content={content} active={active} validation={systemValidation} maxLength={WHATSAPP_TEMPLATE_MAX_LENGTH} saving={saving} dirty={dirty} resolvedVariables={resolvedSystemContext?.variables} resolutionStatus={effectiveContextStatus} textareaRef={systemTextareaRef} onContentChange={(value) => { setContent(value); setDirty(true); setMessage(null); }} onActiveChange={(value) => { setActive(value); setDirty(true); }} onInsertVariable={(variable) => insertVariable(variable, 'system')} onRestore={() => void handleRestore()} onSave={() => void handleSaveTemplate()} />
               <MessagePreview
                 preview={systemPreview}
                 mode={systemPreviewMode}
                 contextSummary={resolvedSystemContext?.contextSummary}
                 help={systemPreviewMode === 'sample'
                   ? storeSampleOnly
-                    ? 'Demonstração estática. Nenhum produto real foi escolhido nesta tela.'
-                    : 'Demonstração estática. Selecione um contexto para usar dados reais.'
+                    ? 'Valores da empresa resolvidos no servidor; variáveis de produto aguardam o fluxo real da Loja.'
+                    : 'Valores da empresa resolvidos no servidor. Selecione um contexto para completar os demais campos.'
                   : resolvedSystemContext?.variablesState === 'partial'
                     ? 'Dados reais validados. Campos opcionais ausentes permanecem vazios.'
                     : 'Dados reais validados pelo servidor.'}

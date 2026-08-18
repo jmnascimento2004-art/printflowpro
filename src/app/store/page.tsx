@@ -11,12 +11,14 @@ import {
   CheckCircle2, 
   X,
   ArrowRight,
-  TrendingUp,
   Search,
   Clock,
   CreditCard,
   Truck,
   ShieldCheck,
+  Percent,
+  PackageCheck,
+  BadgeDollarSign,
   ChevronLeft,
   ChevronRight,
   HelpCircle,
@@ -46,6 +48,11 @@ import {
   type ProductConfiguratorCartPayload
 } from '@/components/store/ProductConfiguratorModal';
 import { StoreFavoriteButton } from '@/components/store/StoreFavoriteButton';
+import {
+  getCatalogBenefitCards,
+  getContrastingTextColor,
+  type CatalogBenefitIcon
+} from '@/lib/store/catalog-visual-settings';
 
 interface CartItem {
   product: Product;
@@ -96,25 +103,6 @@ const isStoreDebugEnabled = () => {
   );
 };
 
-const getProductBadge = (name: string): 'favorito' | 'novo' | null => {
-  const lowerName = name.toLowerCase();
-  if (
-    (lowerName.includes('flyer') && !lowerName.includes('premium')) ||
-    lowerName.includes('cartão') ||
-    lowerName.includes('pasta') ||
-    lowerName.includes('folder') ||
-    lowerName.includes('cartaz') ||
-    lowerName.includes('bloco') ||
-    lowerName.includes('adesivo')
-  ) {
-    return 'favorito';
-  }
-  if (lowerName.includes('premium') || lowerName.includes('novo') || lowerName.includes('caneca')) {
-    return 'novo';
-  }
-  return null;
-};
-
 // Helper to parse HEX to RGB and adjust brightness or opacity for custom themes
 function getThemeColorShade(hex: string, percent: number, opacity?: number) {
   let num = hex.replace('#', '');
@@ -146,6 +134,17 @@ function getThemeColorShade(hex: string, percent: number, opacity?: number) {
   return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
 }
 
+const CATALOG_BENEFIT_ICONS: Record<CatalogBenefitIcon, React.ComponentType<{ className?: string }>> = {
+  'credit-card': CreditCard,
+  percent: Percent,
+  truck: Truck,
+  'map-pin': MapPin,
+  'package-check': PackageCheck,
+  'badge-dollar-sign': BadgeDollarSign,
+  'shield-check': ShieldCheck,
+  clock: Clock
+};
+
 export default function StorefrontPage() {
   const searchParams = useSearchParams();
   const { products, categories, orders, addQuote, addCustomer, pickupPoints, banners, company, settings, refreshStoreCatalog } = useDatabase();
@@ -161,7 +160,7 @@ export default function StorefrontPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<'all' | 'promo' | 'highlight'>('all');
   const [showcaseTab, setShowcaseTab] = useState<'bestsellers' | 'promo' | 'highlight'>('bestsellers');
-  const [megaMenuOpen, setMegaMenuOpen] = useState(false);
+  const [mobileCategoriesOpen, setMobileCategoriesOpen] = useState(false);
   const [favoriteNotice, setFavoriteNotice] = useState<string | null>(null);
 
   // Local store theme state (catalog defaults to light mode!)
@@ -265,118 +264,6 @@ export default function StorefrontPage() {
     }
   };
 
-  const [megaMenuCategory, setMegaMenuCategory] = useState<string | null>(null);
-  const [openedFromAllProducts, setOpenedFromAllProducts] = useState(false);
-
-  const menuBarRef = useRef<HTMLDivElement>(null);
-  const [activeButton, setActiveButton] = useState<HTMLElement | null>(null);
-  const [megamenuStyle, setMegamenuStyle] = useState<React.CSSProperties>({});
-
-  const updateMenuPosition = (buttonEl: HTMLElement, hasSidebar: boolean) => {
-    void buttonEl;
-    void hasSidebar;
-    if (!menuBarRef.current) return;
-
-    const parentRect = menuBarRef.current.getBoundingClientRect();
-    const parentWidth = parentRect.width;
-    const megamenuWidth = Math.min(parentWidth, 960);
-    const left = Math.max(0, (parentWidth - megamenuWidth) / 2);
-
-    setMegamenuStyle({
-      left: `${left}px`,
-      width: `${megamenuWidth}px`,
-    });
-  };
-
-  const handleTopCategoryClick = (categoryId: string | null, event?: React.MouseEvent<HTMLButtonElement>) => {
-    event?.preventDefault();
-    const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
-    if (isMobile) {
-      setMegaMenuOpen(false);
-      handleCategorySelect(categoryId);
-    } else {
-      const buttonEl = event?.currentTarget || null;
-      if (buttonEl) {
-        setActiveButton(buttonEl);
-      }
-      
-      if (megaMenuOpen && megaMenuCategory === categoryId) {
-        setMegaMenuOpen(false);
-      } else {
-        setMegaMenuCategory(categoryId);
-        setOpenedFromAllProducts(categoryId === null);
-        setMegaMenuOpen(true);
-      }
-    }
-  };
-
-  const runWithoutScrollJump = (action: () => void) => {
-    if (typeof window === 'undefined') {
-      action();
-      return;
-    }
-
-    const previousScrollY = window.scrollY;
-    action();
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: previousScrollY, behavior: 'auto' });
-    });
-  };
-
-  const handleMenuCategoryClick = (categoryId: string | null, event?: React.MouseEvent<HTMLButtonElement>) => {
-    event?.preventDefault();
-    runWithoutScrollJump(() => {
-      setMegaMenuCategory(categoryId);
-    });
-  };
-
-  const handleMegaMenuProductClick = (product: Product, event?: React.MouseEvent<HTMLButtonElement>) => {
-    event?.preventDefault();
-    runWithoutScrollJump(() => {
-      setSelectedCategory(megaMenuCategory || product.category_id || null);
-      setSelectedTagFilter('all');
-      setSearchQuery(product.name);
-      setMegaMenuOpen(false);
-    });
-  };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!megaMenuOpen || !activeButton) return;
-
-    const handleResize = () => {
-      updateMenuPosition(activeButton, openedFromAllProducts);
-    };
-
-    handleResize();
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [megaMenuOpen, activeButton, openedFromAllProducts]);
-
-  useEffect(() => {
-    if (!megaMenuOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (menuBarRef.current?.contains(event.target as Node)) return;
-      setMegaMenuOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setMegaMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [megaMenuOpen]);
-
   // Pickup Points Modal State
   const [pickupModalOpen, setPickupModalOpen] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
@@ -404,12 +291,14 @@ export default function StorefrontPage() {
 
   const handleCategorySelect = (categoryId: string | null) => {
     setSelectedCategory(categoryId);
+    setSelectedTagFilter('all');
+    setMobileCategoriesOpen(false);
     setTimeout(() => {
       if (typeof window === 'undefined') return;
 
       const element = window.document.getElementById('products-showcase');
       if (element) {
-        const yOffset = -135; // offset for sticky header (80px) and category bar (48px)
+        const yOffset = -96;
         const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
         window.scrollTo({ top: y, behavior: 'smooth' });
       }
@@ -420,7 +309,7 @@ export default function StorefrontPage() {
     setSelectedCategory(null);
     setSelectedTagFilter('all');
     setSearchQuery('');
-    setMegaMenuOpen(false);
+    setMobileCategoriesOpen(false);
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -561,6 +450,17 @@ export default function StorefrontPage() {
     if (!product || product.catalog_active === false) return false;
     return true;
   });
+  const catalogCategoryChildren = catalogCategories.reduce<Record<string, typeof catalogCategories>>((acc, category) => {
+    if (category.parent_id) acc[category.parent_id] = [...(acc[category.parent_id] || []), category];
+    return acc;
+  }, {});
+  const categoryHasProducts = (categoryId: string) => {
+    const relatedIds = [categoryId, ...(catalogCategoryChildren[categoryId] || []).map((category) => category.id)];
+    return activeProducts.some((product) => relatedIds.includes(product.category_id));
+  };
+  const rootCatalogCategories = catalogCategories
+    .filter((category) => !category.parent_id || !catalogCategories.some((item) => item.id === category.parent_id))
+    .filter((category) => categoryHasProducts(category.id));
   const searchedProducts = searchQuery.trim() !== ''
     ? activeProducts.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -636,15 +536,34 @@ export default function StorefrontPage() {
     .slice(0, 8);
   const promoProducts = activeProducts.filter((product) => product.is_promo).slice(0, 8);
   const highlightProducts = activeProducts.filter((product) => product.is_highlight).slice(0, 8);
-  const showcaseProductsByTab = {
+  const showcaseProductsByTab: Record<typeof showcaseTab, Product[]> = {
     bestsellers: bestsellingProducts,
     promo: promoProducts,
     highlight: highlightProducts
   };
   const showcaseProducts = showcaseProductsByTab[showcaseTab];
-  const showPromotionsSection = settings.catalog_promotions_section_enabled !== false && (
-    bestsellingProducts.length > 0 || promoProducts.length > 0 || highlightProducts.length > 0
-  );
+  const showBestsellersSection = settings.catalog_bestsellers_section_enabled !== false && bestsellingProducts.length > 0;
+  const showPromoSection = settings.catalog_promotions_section_enabled !== false && promoProducts.length > 0;
+  const showHighlightSection = (settings.catalog_highlights_section_enabled ?? settings.catalog_promotions_section_enabled) !== false && highlightProducts.length > 0;
+  const showPromotionsSection = showBestsellersSection || showPromoSection || showHighlightSection;
+  const catalogBenefitCards = getCatalogBenefitCards(company).filter((card) => card.active);
+  const showcaseTabs = [
+    { id: 'bestsellers' as const, label: '+ Vendidos', visible: showBestsellersSection },
+    { id: 'promo' as const, label: 'Promoções', visible: showPromoSection },
+    { id: 'highlight' as const, label: 'Destaques', visible: showHighlightSection }
+  ].filter((tab) => tab.visible);
+
+  useEffect(() => {
+    const currentTabVisible = (
+      (showcaseTab === 'bestsellers' && showBestsellersSection) ||
+      (showcaseTab === 'promo' && showPromoSection) ||
+      (showcaseTab === 'highlight' && showHighlightSection)
+    );
+    if (currentTabVisible) return;
+    if (showBestsellersSection) setShowcaseTab('bestsellers');
+    else if (showPromoSection) setShowcaseTab('promo');
+    else if (showHighlightSection) setShowcaseTab('highlight');
+  }, [showcaseTab, showBestsellersSection, showPromoSection, showHighlightSection]);
 
   const handleOpenProductConfig = (product: Product) => {
     setActiveAdvancedConfigProduct(product);
@@ -858,6 +777,7 @@ export default function StorefrontPage() {
   }
 
   const primary = primaryColor;
+  const primaryText = getContrastingTextColor(primary);
   const dark = getThemeColorShade(primary, -30);
   const darker = getThemeColorShade(primary, -50);
   const light = getThemeColorShade(primary, 30);
@@ -1087,312 +1007,6 @@ export default function StorefrontPage() {
         </div>
       </div>
 
-      {/* Category Menu Bar */}
-      <div className="hidden md:block bg-white dark:bg-zinc-900 sticky top-20 z-20 shadow-sm border-b border-slate-200 dark:border-zinc-800 w-full select-none">
-        <div ref={menuBarRef} className="max-w-7xl mx-auto w-full px-4 md:px-8 relative">
-          <div className="w-full flex items-center overflow-x-auto no-scrollbar">
-            <div className="flex items-center w-full min-w-max h-12">
-              {/* Todos os Serviços button styled as hamburger menu */}
-              <button
-                type="button"
-                onClick={(e) => handleTopCategoryClick(null, e)}
-                className={`flex items-center gap-2 h-full pl-0 pr-6 text-xs font-bold uppercase tracking-wider transition-colors shrink-0 border-r border-slate-200 dark:border-zinc-800 mr-4 relative ${
-                  (megaMenuOpen ? megaMenuCategory === null : selectedCategory === null)
-                    ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' 
-                    : 'text-slate-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400'
-                }`}
-              >
-                <Menu className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Todos os Produtos</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Mega Menu Dropdown */}
-          {megaMenuOpen && (
-            <div
-              style={megamenuStyle}
-              className="absolute top-full hidden md:block z-20 animate-in fade-in slide-in-from-top-2 duration-200 text-slate-800 dark:text-zinc-200"
-            >
-                {(() => {
-                  const categoryChildren = catalogCategories.reduce<Record<string, typeof catalogCategories>>((acc, category) => {
-                    if (!category.parent_id) return acc;
-                    acc[category.parent_id] = [...(acc[category.parent_id] || []), category];
-                    return acc;
-                  }, {});
-
-                  const hasProductsInCategory = (categoryId: string) => {
-                    const relatedIds = [categoryId, ...(categoryChildren[categoryId] || []).map((category) => category.id)];
-                    return activeProducts.some((product) => relatedIds.includes(product.category_id));
-                  };
-
-                  const rootCategories = catalogCategories
-                    .filter((category) => !category.parent_id || !catalogCategories.some((item) => item.id === category.parent_id))
-                    .filter((category) => hasProductsInCategory(category.id));
-
-                  const activeCategory = rootCategories.find((category) => category.id === megaMenuCategory) || rootCategories[0] || null;
-                  const activeCategoryId = activeCategory?.id || null;
-                  const activeChildCategories = activeCategoryId
-                    ? (categoryChildren[activeCategoryId] || []).filter((category) => hasProductsInCategory(category.id))
-                    : [];
-                  const activeCategoryIds = activeCategoryId
-                    ? [activeCategoryId, ...activeChildCategories.map((category) => category.id)]
-                    : [];
-                  const categoryProducts = activeCategoryId
-                    ? activeProducts.filter((product) => activeCategoryIds.includes(product.category_id))
-                    : [];
-                  const uniqueCategoryProducts = Array.from(
-                    new Map(categoryProducts.map((product) => [product.name.trim().toLowerCase(), product])).values()
-                  );
-
-                  const handleChildCategoryClick = (categoryId: string, event: React.MouseEvent<HTMLButtonElement>) => {
-                    event.preventDefault();
-                    runWithoutScrollJump(() => {
-                      setSelectedCategory(categoryId);
-                      setSelectedTagFilter('all');
-                      setSearchQuery('');
-                      setMegaMenuOpen(false);
-                    });
-                  };
-
-                  if (rootCategories.length === 0) {
-                    return (
-                      <div className="rounded-b-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl px-6 py-5">
-                        <p className="text-sm font-semibold text-slate-600 dark:text-zinc-300">
-                          Nenhuma categoria cadastrada.
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="grid max-h-[430px] grid-cols-[270px_minmax(0,1fr)] overflow-hidden rounded-b-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl">
-                      <aside className="overflow-y-auto border-r border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 py-3">
-                        {rootCategories.map((category) => {
-                          const isActive = category.id === activeCategoryId;
-                          return (
-                            <button
-                              key={category.id}
-                              type="button"
-                              onMouseEnter={() => setMegaMenuCategory(category.id)}
-                              onClick={(event) => handleMenuCategoryClick(category.id, event)}
-                              className={`flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-semibold transition-colors ${
-                                isActive
-                                  ? 'bg-white text-slate-950 shadow-sm dark:bg-zinc-900 dark:text-white'
-                                  : 'text-slate-600 hover:bg-white/80 hover:text-slate-950 dark:text-zinc-400 dark:hover:bg-zinc-900/80 dark:hover:text-white'
-                              }`}
-                            >
-                              <span className="line-clamp-2">{category.name}</span>
-                              <ChevronRight className={`h-4 w-4 shrink-0 ${isActive ? 'text-slate-700 dark:text-zinc-200' : 'text-slate-400'}`} />
-                            </button>
-                          );
-                        })}
-                      </aside>
-
-                      <section className="overflow-y-auto px-7 py-6">
-                        <div className="mb-4 flex items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-zinc-800">
-                          <div>
-                            <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
-                              Categoria
-                            </p>
-                            <h3 className="mt-1 text-xl font-extrabold text-slate-950 dark:text-white">
-                              {activeCategory?.name}
-                            </h3>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(event) => activeCategoryId && handleChildCategoryClick(activeCategoryId, event)}
-                            disabled={!activeCategoryId}
-                            className="rounded-full border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-emerald-950/30"
-                          >
-                            Ver categoria
-                          </button>
-                        </div>
-
-                        {activeChildCategories.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-3">
-                            {activeChildCategories.map((category) => (
-                              <button
-                                key={category.id}
-                                type="button"
-                                onClick={(event) => handleChildCategoryClick(category.id, event)}
-                                className="flex min-h-[54px] items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-emerald-950/30"
-                              >
-                                <span className="line-clamp-2">{category.name}</span>
-                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                              </button>
-                            ))}
-                          </div>
-                        ) : uniqueCategoryProducts.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-x-8 gap-y-2">
-                            {uniqueCategoryProducts.map((product) => {
-                              const badge = getProductBadge(product.name);
-                              return (
-                                <button
-                                  key={product.id}
-                                  type="button"
-                                  onClick={(event) => handleMegaMenuProductClick(product, event)}
-                                  className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-left text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-950 dark:text-zinc-300 dark:hover:bg-zinc-800/70 dark:hover:text-white"
-                                >
-                                  <span className="line-clamp-2">{product.name}</span>
-                                  {badge && (
-                                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                                      {badge === 'favorito' ? 'Favorito' : 'Novo'}
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm font-semibold text-slate-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
-                            Nenhum item cadastrado nesta categoria.
-                          </div>
-                        )}
-                      </section>
-                    </div>
-                  );
-                })()}
-
-                {false && (<>
-                {/* Right Area: Product Sublists */}
-                {!openedFromAllProducts && (() => {
-                  const selectedCategoryIds = megaMenuCategory
-                    ? [megaMenuCategory, ...catalogCategories.filter(c => c.parent_id === megaMenuCategory).map(c => c.id)]
-                    : [];
-                  const menuProducts = megaMenuCategory
-                    ? activeProducts.filter(p => selectedCategoryIds.includes(p.category_id))
-                    : activeProducts;
-
-                  const column1 = menuProducts.filter((_, index) => index % 3 === 0);
-                  const column2 = menuProducts.filter((_, index) => index % 3 === 1);
-                  const column3 = menuProducts.filter((_, index) => index % 3 === 2);
-                  const visibleMenuColumnCount = [column1, column2, column3].filter(column => column.length > 0).length;
-                  const menuGridColumns =
-                    visibleMenuColumnCount <= 1 ? 'grid-cols-1' :
-                    visibleMenuColumnCount === 2 ? 'grid-cols-2' :
-                    'grid-cols-3';
-
-                  return (
-                    <div className={`grid ${menuGridColumns} p-6 gap-6 overflow-y-auto ${
-                      openedFromAllProducts ? 'h-[380px] col-span-3' : 'h-auto max-h-[380px] col-span-3 w-full'
-                    }`}>
-                      {/* Column 1 */}
-                      {column1.length > 0 && (
-                      <div className="space-y-4">
-                        <div>
-                          <span className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider border-b border-slate-100 dark:border-zinc-850 pb-2 mb-3 block">
-                            Produtos
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          {column1.map((p) => {
-                              const badge = getProductBadge(p.name);
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={(event) => handleMegaMenuProductClick(p, event)}
-                                  className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
-                                >
-                                  <span className="truncate">{p.name}</span>
-                                  {badge === 'favorito' && (
-                                    <span className="text-[9px] font-bold bg-[#e2f82c] text-black px-1.5 py-0.5 rounded shrink-0 ml-2 tracking-wide uppercase">
-                                      Favorito
-                                    </span>
-                                  )}
-                                  {badge === 'novo' && (
-                                    <span className="text-[9px] font-bold bg-[#bef264] text-black px-1.5 py-0.5 rounded shrink-0 ml-2 tracking-wide uppercase">
-                                      Novo
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                        </div>
-                      </div>
-                      )}
-
-                      {/* Column 2 */}
-                      {column2.length > 0 && (
-                      <div className="space-y-4">
-                        <div>
-                          <span className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider border-b border-slate-100 dark:border-zinc-850 pb-2 mb-3 block">
-                            Mais procurados
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          {column2.map((p) => {
-                              const badge = getProductBadge(p.name);
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={(event) => handleMegaMenuProductClick(p, event)}
-                                  className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
-                                >
-                                  <span className="truncate">{p.name}</span>
-                                  {badge === 'favorito' && (
-                                    <span className="text-[9px] font-bold bg-[#e2f82c] text-black px-1.5 py-0.5 rounded shrink-0 ml-2 tracking-wide uppercase">
-                                      Favorito
-                                    </span>
-                                  )}
-                                  {badge === 'novo' && (
-                                    <span className="text-[9px] font-bold bg-[#bef264] text-black px-1.5 py-0.5 rounded shrink-0 ml-2 tracking-wide uppercase">
-                                      Novo
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                        </div>
-                      </div>
-                      )}
-
-                      {/* Column 3 */}
-                      {column3.length > 0 && (
-                      <div className="space-y-4">
-                        <div>
-                          <span className="font-extrabold text-xs text-slate-900 dark:text-white uppercase tracking-wider border-b border-slate-100 dark:border-zinc-850 pb-2 mb-3 block">
-                            Veja também
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          {column3.map((p) => {
-                              const badge = getProductBadge(p.name);
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={(event) => handleMegaMenuProductClick(p, event)}
-                                  className="w-full text-left flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-zinc-800/40 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-medium"
-                                >
-                                  <span className="truncate">{p.name}</span>
-                                  {badge === 'favorito' && (
-                                    <span className="text-[9px] font-bold bg-[#e2f82c] text-black px-1.5 py-0.5 rounded shrink-0 ml-2 tracking-wide uppercase">
-                                      Favorito
-                                    </span>
-                                  )}
-                                  {badge === 'novo' && (
-                                    <span className="text-[9px] font-bold bg-[#bef264] text-black px-1.5 py-0.5 rounded shrink-0 ml-2 tracking-wide uppercase">
-                                      Novo
-                                    </span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                        </div>
-                      </div>
-                      )}
-                    </div>
-                  );
-                })()}
-                </>)}
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="flex-1 flex flex-col gap-[15px] py-[15px]">
         {/* Banner Slider Section */}
         {banners && banners.length > 0 && (
@@ -1488,78 +1102,86 @@ export default function StorefrontPage() {
           </section>
         )}
         {/* 4. Trust signals grid (Benefit cards) */}
-        <section className="max-w-7xl w-full mx-auto px-4 md:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {company.card_benefits_1_active !== false && (
-            <div className="p-4 bg-white dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-700 rounded-xl flex items-start gap-3 shadow-sm dark:shadow-none hover:shadow-md dark:hover:border-emerald-500/40 transition-shadow">
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 shrink-0">
-                <CreditCard className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  {company.card_benefits_1_title || 'Até 4x Sem Juros'}
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-300 mt-0.5">
-                  {company.card_benefits_1_subtitle || 'Parcela mínima de R$ 300,00 nos cartões Visa/Master.'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {company.card_benefits_2_active !== false && (
-            <div className="p-4 bg-white dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-700 rounded-xl flex items-start gap-3 shadow-sm dark:shadow-none hover:shadow-md dark:hover:border-emerald-500/40 transition-shadow">
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 shrink-0">
-                <TrendingUp className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  {company.card_benefits_2_title || 'Desconto no PIX'}
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-300 mt-0.5">
-                  {company.card_benefits_2_subtitle || 'Ganhe 5% de desconto automático em pagamentos à vista.'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {company.card_benefits_3_active !== false && (
-            <div className="p-4 bg-white dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-700 rounded-xl flex items-start gap-3 shadow-sm dark:shadow-none hover:shadow-md dark:hover:border-emerald-500/40 transition-shadow">
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 shrink-0">
-                <Truck className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  {company.card_benefits_3_title || 'Frete para todo Brasil'}
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-300 mt-0.5">
-                  {company.card_benefits_3_subtitle || 'Despacho via Correios ou Transportadora com código de rastreamento.'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {company.card_benefits_4_active !== false && (
-            <div className="p-4 bg-white dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-700 rounded-xl flex items-start gap-3 shadow-sm dark:shadow-none hover:shadow-md dark:hover:border-emerald-500/40 transition-shadow">
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 shrink-0">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider">
-                  {company.card_benefits_4_title || 'Pontos de Coleta'}
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-300 mt-0.5">
-                  {company.card_benefits_4_subtitle || 'Retire sem custos em qualquer um de nossos balcões autorizados.'}
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-
-
+        {catalogBenefitCards.length > 0 && (
+          <section
+            className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-4 px-4 sm:grid-cols-2 md:px-8 lg:grid-cols-4"
+            data-testid="catalog-benefit-cards"
+          >
+            {catalogBenefitCards.map((card) => {
+              const BenefitIcon = CATALOG_BENEFIT_ICONS[card.icon];
+              return (
+                <article key={card.slot} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900/95 dark:shadow-none dark:hover:border-emerald-500/40">
+                  <div className="shrink-0 rounded-lg bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+                    <BenefitIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">{card.title}</h4>
+                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-300">{card.subtitle}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
         {/* 5. Products Showcase */}
-        <main id="products-showcase" className="max-w-7xl w-full mx-auto px-4 md:px-8 space-y-6">
+        <main id="products-showcase" className="mx-auto w-full max-w-7xl space-y-4 px-4 md:px-8">
+          <button
+            type="button"
+            onClick={() => setMobileCategoriesOpen((open) => !open)}
+            className="flex min-h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm lg:hidden"
+            aria-expanded={mobileCategoriesOpen}
+            aria-controls="catalog-mobile-categories"
+          >
+            <span className="flex items-center gap-2"><Menu className="h-4 w-4" /> Categorias</span>
+            <ChevronRight className={`h-4 w-4 transition-transform ${mobileCategoriesOpen ? 'rotate-90' : ''}`} />
+          </button>
+
+          <div className="grid items-start gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <aside
+              id="catalog-mobile-categories"
+              className={`${mobileCategoriesOpen ? 'block' : 'hidden'} rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:sticky lg:top-24 lg:block`}
+              aria-label="Categorias do catálogo"
+            >
+              <h2 className="px-3 pb-3 pt-1 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Categorias</h2>
+              <nav className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => handleCategorySelect(null)}
+                  className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-black transition-colors"
+                  style={selectedCategory === null ? { backgroundColor: primary, color: primaryText } : undefined}
+                >
+                  Todos os produtos
+                </button>
+                {rootCatalogCategories.map((category) => (
+                  <React.Fragment key={category.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleCategorySelect(category.id)}
+                      className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-bold transition-colors ${selectedCategory === category.id ? '' : 'text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800'}`}
+                      style={selectedCategory === category.id ? { backgroundColor: primary, color: primaryText } : undefined}
+                    >
+                      {category.name}
+                    </button>
+                    {(catalogCategoryChildren[category.id] || []).filter((child) => categoryHasProducts(child.id)).map((child) => (
+                      <button
+                        key={child.id}
+                        type="button"
+                        onClick={() => handleCategorySelect(child.id)}
+                        className={`flex min-h-11 w-full items-center rounded-xl py-2 pl-7 pr-3 text-left text-[11px] font-semibold transition-colors ${selectedCategory === child.id ? '' : 'text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800'}`}
+                        style={selectedCategory === child.id ? { backgroundColor: primary, color: primaryText } : undefined}
+                      >
+                        {child.name}
+                      </button>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </nav>
+            </aside>
+
+            <section className="min-w-0" aria-label="Produtos do catálogo">
           {/* Dynamic products list grid */}
           {taggedProducts.length > 0 ? (
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {taggedProducts.map(p => {
                 const deliveryTime = p.delivery_time || p.pricing_details?.delivery_time;
                 const pricePresentation = getCatalogPricePresentation(p);
@@ -1731,6 +1353,8 @@ export default function StorefrontPage() {
               </button>
             </div>
           )}
+            </section>
+          </div>
         </main>
       </div>
 
@@ -2135,11 +1759,7 @@ export default function StorefrontPage() {
             <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5">
               <div className="hidden sm:block h-px flex-1 bg-slate-900/80 dark:bg-zinc-700" />
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:gap-x-4 md:gap-x-7 text-xs sm:text-sm md:text-base font-black uppercase tracking-wide text-slate-950 dark:text-zinc-100">
-                {[
-                  { id: 'bestsellers' as const, label: '+ Vendidos' },
-                  { id: 'promo' as const, label: 'Promoções' },
-                  { id: 'highlight' as const, label: 'Destaque' }
-                ].map((tab, index) => (
+                {showcaseTabs.map((tab, index) => (
                   <React.Fragment key={tab.id}>
                     <button
                       type="button"
@@ -2152,7 +1772,7 @@ export default function StorefrontPage() {
                     >
                       {tab.label}
                     </button>
-                    {index < 2 && <span className="text-slate-950 dark:text-zinc-500">|</span>}
+                    {index < showcaseTabs.length - 1 && <span className="text-slate-950 dark:text-zinc-500">|</span>}
                   </React.Fragment>
                 ))}
               </div>
