@@ -136,6 +136,7 @@ interface DatabaseContextType {
   addSupplier: (sup: Omit<Supplier, 'id' | 'company_id' | 'created_at'>) => Supplier;
   addCategory: (name: string, description: string, parent_id?: string | null, show_in_catalog?: boolean) => Category;
   updateCategory: (id: string, name: string, description: string, parent_id?: string | null, show_in_catalog?: boolean) => void;
+  updateCategoryCatalogPresentation: (id: string, patch: CategoryCatalogPresentationPatch) => Promise<void>;
   deleteCategory: (id: string) => void;
 
   // Products
@@ -188,6 +189,7 @@ interface DatabaseContextType {
   // Store banners
   banners: StoreBanner[];
   addBanner: (banner: Omit<StoreBanner, 'id'>) => StoreBanner;
+  updateBanner: (id: string, patch: Partial<Omit<StoreBanner, 'id'>>) => void;
   deleteBanner: (id: string) => void;
 
   // Employees CRUD
@@ -212,7 +214,25 @@ export interface StoreBanner {
   title?: string;
   subtitle?: string;
   link?: string;
+  placement?: 'hero' | 'catalog';
+  mobile_image_url?: string | null;
+  alt_text?: string | null;
+  active?: boolean;
+  sort_order?: number;
+  open_in_new_tab?: boolean;
 }
+
+export type CategoryCatalogPresentationPatch = Pick<Category,
+  | 'catalog_featured'
+  | 'catalog_featured_title'
+  | 'catalog_featured_sort_order'
+  | 'catalog_mega_menu_enabled'
+  | 'catalog_mega_menu_banner_enabled'
+  | 'catalog_mega_menu_banner_image_url'
+  | 'catalog_mega_menu_banner_link'
+  | 'catalog_mega_menu_banner_alt'
+  | 'catalog_mega_menu_banner_new_tab'
+>;
 
 type StoreBannerRow = StoreBanner & { company_id?: string };
 type SavedQuotePayload = {
@@ -1639,6 +1659,27 @@ useEffect(() => {
       });
   };
 
+  const updateCategoryCatalogPresentation = async (id: string, patch: CategoryCatalogPresentationPatch) => {
+    const normalizedPatch: CategoryCatalogPresentationPatch = {
+      ...patch,
+      catalog_featured_title: patch.catalog_featured_title?.trim() || null,
+      catalog_featured_sort_order: Math.max(0, Number(patch.catalog_featured_sort_order) || 0),
+      catalog_mega_menu_banner_image_url: patch.catalog_mega_menu_banner_image_url?.trim() || null,
+      catalog_mega_menu_banner_link: patch.catalog_mega_menu_banner_link?.trim() || null,
+      catalog_mega_menu_banner_alt: patch.catalog_mega_menu_banner_alt?.trim() || null
+    };
+
+    const { error } = await supabase
+      .from('categories')
+      .update(normalizedPatch)
+      .eq('id', id);
+
+    if (error) throw new Error(`Não foi possível salvar a apresentação da categoria: ${error.message}`);
+    setCategories((current) => current.map((category) => category.id === id
+      ? { ...category, ...normalizedPatch }
+      : category));
+  };
+
   const deleteCategory = (id: string) => {
     setCategories(prev => prev.filter(c => c.id !== id));
     supabase.from('categories').delete().eq('id', id).then(({ error }) => {
@@ -2750,6 +2791,10 @@ useEffect(() => {
     return newBanner;
   };
 
+  const updateBanner = (id: string, patch: Partial<Omit<StoreBanner, 'id'>>) => {
+    setBanners((current) => current.map((banner) => banner.id === id ? { ...banner, ...patch } : banner));
+  };
+
   const deleteBanner = (id: string) => {
     setBanners(prev => prev.filter(b => b.id !== id));
     supabase.from('store_banners').delete().eq('id', id).then(({ error }) => {
@@ -2858,6 +2903,7 @@ useEffect(() => {
         addSupplier,
         addCategory,
         updateCategory,
+        updateCategoryCatalogPresentation,
         deleteCategory,
         addProduct,
         updateProduct,
@@ -2890,6 +2936,7 @@ useEffect(() => {
         addOrderFromPOS,
         banners,
         addBanner,
+        updateBanner,
         deleteBanner,
         profiles,
         addProfile,

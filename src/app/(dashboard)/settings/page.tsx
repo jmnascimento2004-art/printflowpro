@@ -54,6 +54,7 @@ import {
   getCatalogBenefitCards,
   type CatalogBenefitCard
 } from '@/lib/store/catalog-visual-settings';
+import { CatalogNavigationSettings } from '@/components/settings/catalog-navigation-settings';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
 type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'sistema';
@@ -108,7 +109,10 @@ export default function SettingsPage() {
     deletePickupPoint,
     banners,
     addBanner,
+    updateBanner,
     deleteBanner,
+    categories,
+    updateCategoryCatalogPresentation,
     profiles,
     addProfile,
     updateProfile,
@@ -732,7 +736,10 @@ export default function SettingsPage() {
       image_url: bannerImage,
       title: bannerTitle || undefined,
       subtitle: bannerSubtitle || undefined,
-      link: bannerLink || undefined
+      link: bannerLink || undefined,
+      placement: 'hero',
+      active: true,
+      sort_order: banners.filter((banner) => (banner.placement || 'hero') === 'hero').length
     });
 
     setBannerTitle('');
@@ -1141,8 +1148,8 @@ export default function SettingsPage() {
 
               {/* Banners List */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {banners && banners.length > 0 ? (
-                  banners.map((banner) => (
+                {banners && banners.some((banner) => (banner.placement || 'hero') === 'hero') ? (
+                  banners.filter((banner) => (banner.placement || 'hero') === 'hero').map((banner) => (
                     <div key={banner.id} className="border border-border rounded-xl overflow-hidden bg-card hover:shadow-md transition-shadow flex flex-col justify-between">
                       <div className="relative h-32 bg-slate-100 flex items-center justify-center">
                         <img src={banner.image_url} alt={banner.title || 'Banner'} className="w-full h-full object-cover" />
@@ -1179,6 +1186,22 @@ export default function SettingsPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === 'catalogo' && (
+            <CatalogNavigationSettings
+              companyId={company.id}
+              categories={categories}
+              banners={banners}
+              addBanner={addBanner}
+              updateBanner={updateBanner}
+              deleteBanner={deleteBanner}
+              updateCategory={updateCategoryCatalogPresentation}
+              notify={(message) => {
+                setNotification(message);
+                setTimeout(() => setNotification(null), 3000);
+              }}
+            />
           )}
 
           {['empresa', 'catalogo', 'financas', 'sistema'].includes(activeTab) && (
