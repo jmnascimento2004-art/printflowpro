@@ -495,6 +495,7 @@ export interface ProductionItem {
   started_at?: string;
   finished_at?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface FinancialTransaction {

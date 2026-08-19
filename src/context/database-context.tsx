@@ -64,8 +64,15 @@ import {
   UserProfile,
   DUMMY_PROFILES
 } from '@/lib/dummy-data';
-import { isProductionActiveOrder, normalizeStatus } from '@/lib/order-status';
+import { normalizeStatus } from '@/lib/order-status';
 import { useAuth } from '@/context/auth-context';
+import {
+  assignProductionResponsiblePersisted,
+  ensureProductionQueueForOrder,
+  ProductionMutationError,
+  replaceProductionItem,
+  transitionProductionStage
+} from '@/lib/production/production-service';
 
 export interface CashRegisterSession {
   id: string;
@@ -168,8 +175,8 @@ interface DatabaseContextType {
   ) => void;
 
   // Production
-  updateProductionStatus: (id: string, status: ProductionItem['status']) => void;
-  assignProductionResponsible: (id: string, responsibleName: string) => void;
+  updateProductionStatus: (id: string, status: ProductionItem['status']) => Promise<void>;
+  assignProductionResponsible: (id: string, responsibleName: string) => Promise<void>;
 
   // Financial
   addTransaction: (trans: Omit<FinancialTransaction, 'id' | 'company_id' | 'created_at'>) => FinancialTransaction;
@@ -358,40 +365,6 @@ const normalizeProductionQueueStatus = (status: unknown): ProductionItem['status
     return normalized as ProductionItem['status'];
   }
   return 'fila';
-};
-
-const productionStatusForOrder = (status: Order['status']): ProductionItem['status'] => {
-  if (status === 'impressao' || status === 'acabamento') return normalizeProductionQueueStatus(status);
-  return 'fila';
-};
-
-const createProductionItemId = (orderId: string, orderItemId: string) =>
-  `prod-q-${orderId}-${orderItemId}`.replace(/[^a-zA-Z0-9-_]/g, '-');
-
-const createProductionQueueItemsForOrder = (
-  order: Order,
-  companyId: string,
-  existingProduction: ProductionItem[]
-): ProductionItem[] => {
-  const existingKeys = new Set(
-    existingProduction.map((item) => `${item.order_id}:${item.order_item_id}`)
-  );
-
-  return (order.items || [])
-    .filter((item) => !existingKeys.has(`${order.id}:${item.id}`))
-    .map((item) => ({
-      id: createProductionItemId(order.id, item.id),
-      company_id: order.company_id || companyId,
-      order_id: order.id,
-      order_number: order.number,
-      order_item_id: item.id,
-      product_name: item.product_name,
-      quantity: item.quantity,
-      status: productionStatusForOrder(order.status),
-      priority: 'media',
-      deadline: order.deadline,
-      created_at: new Date().toISOString()
-    }));
 };
 
 const getCurrentHostname = () => {
@@ -1153,39 +1126,36 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [orders, initialized, canShowToast]);
 
   useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
+    if (!initialized || !company.id || !session?.user || isPublicStoreRoute()) return;
 
-    const activeProductionOrders = orders.filter(isProductionActiveOrder);
-    if (activeProductionOrders.length === 0) return;
+    const channel = supabase
+      .channel(`production-queue-${company.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'production_queue',
+          filter: `company_id=eq.${company.id}`
+        },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const removedId = String((payload.old as { id?: unknown }).id || '');
+            if (removedId) setProduction((current) => current.filter((item) => item.id !== removedId));
+            return;
+          }
 
-    setProduction(prev => {
-      let nextProduction = prev;
-      let hasNewItems = false;
+          const incoming = payload.new as unknown as ProductionItem;
+          if (!incoming?.id || incoming.company_id !== company.id) return;
+          setProduction((current) => replaceProductionItem(current, incoming));
+        }
+      )
+      .subscribe();
 
-      activeProductionOrders.forEach(order => {
-        const missingQueueItems = createProductionQueueItemsForOrder(order, currentCompanyId, nextProduction);
-        if (missingQueueItems.length === 0) return;
-
-        nextProduction = [...nextProduction, ...missingQueueItems];
-        hasNewItems = true;
-      });
-
-      return hasNewItems ? nextProduction : prev;
-    });
-  }, [orders, initialized, currentCompanyId]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('production', production);
-      supabase.from('production_queue').upsert(production).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar fila de produção no Supabase:', error);
-      });
-      if (canShowToast) showToast('Fila de produção atualizada!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao atualizar produção!', 'error');
-    }
-  }, [production, initialized, canShowToast]);
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [initialized, company.id, session?.user]);
 
   useEffect(() => {
     if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
@@ -2065,7 +2035,7 @@ useEffect(() => {
     if (!savedOrder) return null;
 
     if (savedOrder.status === 'producao' || savedOrder.status === 'impressao' || savedOrder.status === 'acabamento') {
-      injectProductionQueue(savedOrder);
+      void injectProductionQueue(savedOrder);
     }
 
     return savedOrder;
@@ -2079,29 +2049,31 @@ useEffect(() => {
     void saveOrderWithItems(nextOrder, 'atualizado');
   };
 
-  const injectProductionQueue = (order: Order) => {
-    const newQueueItems = createProductionQueueItemsForOrder(order, currentCompanyId, production);
-    if (newQueueItems.length === 0) return;
+  const injectProductionQueue = async (order: Order) => {
+    try {
+      const newQueueItems = await ensureProductionQueueForOrder(order.id);
+      if (newQueueItems.length === 0) return;
 
-    setProduction(prev => {
-      const missingQueueItems = createProductionQueueItemsForOrder(order, currentCompanyId, prev);
-      return missingQueueItems.length > 0 ? [...prev, ...missingQueueItems] : prev;
-    });
+      setProduction((current) => newQueueItems.reduce(replaceProductionItem, current));
 
-    // Deduct stock for materials if controlled
-    newQueueItems.forEach(queueItem => {
-      const item = order.items.find(orderItem => orderItem.id === queueItem.order_item_id);
-      if (!item) return;
-      const match = products.find(p => p.id === item.product_id);
-      if (match && match.stock_controlled) {
-        adjustStock(
-          item.product_id,
-          item.quantity,
-          `Pedido ${formatOrderDisplayNumber(order.number)}`,
-          'saida'
-        );
-      }
-    });
+      // Stock is deducted only for rows created by the idempotent server operation.
+      newQueueItems.forEach(queueItem => {
+        const item = order.items.find(orderItem => orderItem.id === queueItem.order_item_id);
+        if (!item) return;
+        const match = products.find(p => p.id === item.product_id);
+        if (match && match.stock_controlled) {
+          adjustStock(
+            item.product_id,
+            item.quantity,
+            `Pedido ${formatOrderDisplayNumber(order.number)}`,
+            'saida'
+          );
+        }
+      });
+    } catch (error) {
+      warnCaught('Erro ao criar itens da fila de produção:', error);
+      showToast('Não foi possível criar a fila de produção do pedido.', 'error');
+    }
   };
 
   const updateOrderStatus = (id: string, status: Order['status']) => {
@@ -2127,7 +2099,7 @@ useEffect(() => {
     if (status === 'producao') {
       const exists = production.some(p => p.order_id === id);
       if (!exists && orderMatch) {
-        injectProductionQueue(orderMatch);
+        void injectProductionQueue(orderMatch);
       }
     }
 
@@ -2160,10 +2132,6 @@ useEffect(() => {
 
     // Inject Financial income transactions if moving to 'finalizado' and paid
     if (status === 'finalizado') {
-      // Complete production items
-      setProduction(prev =>
-        prev.map(p => (p.order_id === id ? { ...p, status: 'finalizado', finished_at: new Date().toISOString() } : p))
-      );
       // Mark shipment as delivered
       setShipments(prev =>
         prev.map(s => (s.order_id === id ? { ...s, status: 'entregue', delivered_at: new Date().toISOString() } : s))
@@ -2320,8 +2288,26 @@ useEffect(() => {
   // ----------------------------------------------------
   // PRODUCTION API
   // ----------------------------------------------------
-  const updateProductionStatus = (id: string, status: ProductionItem['status']) => {
+  const updateProductionStatus = async (id: string, status: ProductionItem['status']) => {
     const nextStatus = normalizeProductionQueueStatus(status);
+    const currentItem = production.find((item) => item.id === id);
+    if (!currentItem?.updated_at) {
+      showToast('A versão deste item está desatualizada. Recarregue a fila.', 'error');
+      throw new ProductionMutationError('CONFLICT', 'Versão da fila ausente.');
+    }
+
+    if (currentItem.status === nextStatus) return;
+
+    const optimisticItem: ProductionItem = {
+      ...currentItem,
+      status: nextStatus,
+      started_at: nextStatus !== 'fila' ? (currentItem.started_at || new Date().toISOString()) : currentItem.started_at,
+      finished_at: ['concluido', 'finalizado'].includes(nextStatus)
+        ? (currentItem.finished_at || new Date().toISOString())
+        : undefined
+    };
+    setProduction((items) => replaceProductionItem(items, optimisticItem));
+
     const orderStatusByProductionStatus: Partial<Record<ProductionItem['status'], Order['status']>> = {
       producao: 'producao',
       impressao: 'impressao',
@@ -2330,58 +2316,67 @@ useEffect(() => {
       finalizado: 'finalizado'
     };
 
-    setProduction(prev =>
-      prev.map(p => {
-        if (p.id === id) {
-          const started_at = nextStatus === 'producao' ? new Date().toISOString() : p.started_at;
-          const finished_at = ['concluido', 'finalizado'].includes(nextStatus) ? new Date().toISOString() : p.finished_at;
-          
-          const nextOrderStatus = orderStatusByProductionStatus[nextStatus];
-          if (nextOrderStatus) {
-            setTimeout(() => {
-              updateOrderStatus(p.order_id, nextOrderStatus);
-            }, 10);
-          }
+    try {
+      const savedItem = await transitionProductionStage(id, nextStatus, currentItem.updated_at);
+      setProduction((items) => replaceProductionItem(items, savedItem));
 
-          // If completed, check if all items in this order are completed
-          if (nextStatus === 'concluido') {
-            setTimeout(() => {
-              checkAndAdvanceOrderProduction(p.order_id);
-            }, 10);
-          }
+      const nextOrderStatus = orderStatusByProductionStatus[nextStatus];
+      if (nextOrderStatus) updateOrderStatus(savedItem.order_id, nextOrderStatus);
 
-          return { ...p, status: nextStatus, started_at, finished_at };
+      if (nextStatus === 'concluido') {
+        const { data, error } = await supabase
+          .from('production_queue')
+          .select('status')
+          .eq('company_id', savedItem.company_id)
+          .eq('order_id', savedItem.order_id);
+        if (!error && data && data.length > 0 && data.every((item) => item.status === 'concluido')) {
+          const order = orders.find((candidate) => candidate.id === savedItem.order_id);
+          if (order && ['producao', 'impressao', 'acabamento'].includes(order.status)) {
+            updateOrderStatus(savedItem.order_id, 'expedicao');
+          }
         }
-        return p;
-      })
-    );
-  };
-
-  const checkAndAdvanceOrderProduction = (orderId: string) => {
-    setProduction(currentProdQueue => {
-      const orderItems = currentProdQueue.filter(p => p.order_id === orderId);
-      const allDone = orderItems.every(p => p.status === 'concluido');
-      
-      if (allDone && orderItems.length > 0) {
-        setOrders(currentOrders => {
-          const order = currentOrders.find(o => o.id === orderId);
-          // If in production stage, advance to acabamento or expedicao
-          if (order && (order.status === 'producao' || order.status === 'impressao' || order.status === 'acabamento')) {
-            setTimeout(() => {
-              updateOrderStatus(orderId, 'expedicao');
-            }, 10);
-          }
-          return currentOrders;
-        });
       }
-      return currentProdQueue;
-    });
+      showToast('Fase de produção atualizada.', 'success');
+    } catch (error) {
+      const mutationError = error instanceof ProductionMutationError ? error : null;
+      setProduction((items) => {
+        if (mutationError?.latestItem) return replaceProductionItem(items, mutationError.latestItem);
+        return items.map((item) => (
+          item.id === currentItem.id
+          && item.updated_at === currentItem.updated_at
+          && item.status === nextStatus
+            ? currentItem
+            : item
+        ));
+      });
+      showToast(mutationError?.message || 'Não foi possível atualizar a fase de produção.', 'error');
+      throw error;
+    }
   };
 
-  const assignProductionResponsible = (id: string, name: string) => {
-    setProduction(prev =>
-      prev.map(p => (p.id === id ? { ...p, responsible_name: name, status: p.status === 'fila' ? 'producao' : p.status } : p))
-    );
+  const assignProductionResponsible = async (id: string, name: string) => {
+    const currentItem = production.find((item) => item.id === id);
+    if (!currentItem) throw new ProductionMutationError('NOT_FOUND', 'Item da fila não encontrado.');
+    const optimistic = { ...currentItem, responsible_name: name || undefined };
+    setProduction((items) => replaceProductionItem(items, optimistic));
+    try {
+      const savedItem = await assignProductionResponsiblePersisted(currentCompanyId, currentItem, name);
+      setProduction((items) => replaceProductionItem(items, savedItem));
+    } catch (error) {
+      const mutationError = error instanceof ProductionMutationError ? error : null;
+      setProduction((items) => {
+        if (mutationError?.latestItem) return replaceProductionItem(items, mutationError.latestItem);
+        return items.map((item) => (
+          item.id === currentItem.id
+          && item.updated_at === currentItem.updated_at
+          && item.responsible_name === optimistic.responsible_name
+            ? currentItem
+            : item
+        ));
+      });
+      showToast(error instanceof Error ? error.message : 'Não foi possível atribuir o responsável.', 'error');
+      throw error;
+    }
   };
 
   // ----------------------------------------------------
