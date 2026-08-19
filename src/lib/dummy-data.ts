@@ -92,6 +92,7 @@ export interface Company {
   img_delivery_motoboy?: string;
   img_security_letsencrypt?: string;
   img_security_google?: string;
+  updated_at?: string;
 }
 
 export interface Settings {
@@ -126,6 +127,7 @@ export interface Settings {
   catalog_bestsellers_section_enabled: boolean;
   catalog_highlights_section_enabled: boolean;
   catalog_footer_text: string;
+  updated_at?: string;
 }
 
 export interface UserProfile {
@@ -177,6 +179,7 @@ export interface Customer {
     responsavel_financeiro_email?: string;
   };
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Supplier {
@@ -188,6 +191,7 @@ export interface Supplier {
   email: string;
   notes: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Category {
@@ -207,6 +211,7 @@ export interface Category {
   catalog_mega_menu_banner_alt?: string | null;
   catalog_mega_menu_banner_new_tab?: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface PricingDetails {
@@ -323,6 +328,7 @@ export interface Product {
   color_options?: ProductColorOption[];
   is_promo?: boolean;
   is_highlight?: boolean;
+  updated_at?: string;
 }
 
 export interface QuoteItem {
@@ -403,6 +409,7 @@ export interface Quote {
   delivery_origin_address?: string;
   delivery_address?: string;
   delivery_distance_km?: number;
+  updated_at?: string;
   delivery_fee?: number;
 }
 
@@ -478,6 +485,7 @@ export interface Order {
   delivery_origin_address?: string;
   delivery_address?: string;
   delivery_distance_km?: number;
+  updated_at?: string;
 }
 
 export interface ProductionItem {
@@ -512,6 +520,7 @@ export interface FinancialTransaction {
   due_date: string;
   paid_at?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface StockMovement {
@@ -546,6 +555,7 @@ export interface Shipment {
   shipped_at?: string;
   delivered_at?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface PickupPoint {
@@ -562,6 +572,7 @@ export interface PickupPoint {
   active: boolean;
   address?: string;
   hours?: string;
+  updated_at?: string;
 }
 
 export const DUMMY_COMPANY: Company = {
