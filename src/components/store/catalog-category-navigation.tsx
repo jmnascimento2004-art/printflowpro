@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
-import { ChevronDown, ChevronRight, Menu, Sparkles, X } from 'lucide-react';
+import { Menu, Sparkles, X } from 'lucide-react';
 import type { Category, Product } from '@/lib/dummy-data';
 import { safeHref } from '@/lib/safe-url';
 
@@ -68,9 +68,9 @@ export function CatalogCategoryNavigation({
     };
   }, [megaMenuCategoryId]);
 
-  const select = (categoryId: string | null) => {
+  const select = (categoryId: string) => {
     setMegaMenuCategoryId(null);
-    onSelectCategory(categoryId);
+    onSelectCategory(selectedCategory === categoryId ? null : categoryId);
   };
 
   const openProduct = (product: Product) => {
@@ -81,6 +81,10 @@ export function CatalogCategoryNavigation({
 
   const toggleNormalCategory = (category: Category) => {
     const hasChildren = (childrenByParent[category.id] || []).some((child) => categoryHasProducts(child.id));
+    if (selectedCategory === category.id) {
+      select(category.id);
+      return;
+    }
     if (hasChildren) {
       setExpandedCategoryIds((current) => {
         const next = new Set(current);
@@ -94,6 +98,10 @@ export function CatalogCategoryNavigation({
   };
 
   const toggleFeaturedCategory = (category: Category) => {
+    if (selectedCategory === category.id) {
+      select(category.id);
+      return;
+    }
     if (category.catalog_mega_menu_enabled) {
       setMegaMenuCategoryId((current) => current === category.id ? null : category.id);
       return;
@@ -150,12 +158,11 @@ export function CatalogCategoryNavigation({
       <button
         type="button"
         onClick={() => onMobileOpenChange(!mobileOpen)}
-        className="flex min-h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-white lg:hidden"
+        className="flex min-h-11 w-full items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white lg:hidden"
         aria-expanded={mobileOpen}
         aria-controls="catalog-mobile-categories"
       >
         <span className="flex items-center gap-2"><Menu className="h-4 w-4" /> Categorias</span>
-        <ChevronRight className={`h-4 w-4 transition-transform ${mobileOpen ? 'rotate-90' : ''}`} />
       </button>
 
       <aside id="catalog-mobile-categories" className={`${mobileOpen ? 'block' : 'hidden'} rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:sticky lg:top-24 lg:block`} aria-label="Categorias do catálogo">
@@ -167,20 +174,17 @@ export function CatalogCategoryNavigation({
                 <button
                   type="button"
                   onClick={() => toggleFeaturedCategory(category)}
-                  className="flex min-h-11 w-full items-center justify-between rounded-xl bg-amber-50 px-3 text-left text-xs font-black text-amber-950 transition-colors hover:bg-amber-100 dark:bg-amber-400/10 dark:text-amber-200 dark:hover:bg-amber-400/20"
+                  className="flex min-h-11 w-full items-center rounded-xl bg-amber-50 px-3 text-left text-xs font-black text-amber-950 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:bg-amber-400/10 dark:text-amber-200 dark:hover:bg-amber-400/20"
                   aria-haspopup={category.catalog_mega_menu_enabled ? true : undefined}
                   aria-expanded={category.catalog_mega_menu_enabled ? open : undefined}
-                  aria-controls={category.catalog_mega_menu_enabled ? `catalog-mega-menu-${category.id}` : undefined}
+                  aria-controls={category.catalog_mega_menu_enabled ? `catalog-mega-menu-mobile-${category.id} catalog-mega-menu-${category.id}` : undefined}
                 >
                   <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" />{category.catalog_featured_title || category.name}</span>
-                  {category.catalog_mega_menu_enabled && <ChevronRight className={`h-4 w-4 transition-transform ${open ? 'rotate-90' : ''}`} />}
                 </button>
                 {open && <div id={`catalog-mega-menu-mobile-${category.id}`} className="lg:hidden">{renderMegaContent(category, true)}</div>}
               </div>
             );
           })}
-
-          <button type="button" onClick={() => select(null)} className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-black transition-colors" style={selectedCategory === null ? { backgroundColor: primary, color: primaryText } : undefined}>Todos os produtos</button>
 
           {normalCategories.map((category) => {
             const children = (childrenByParent[category.id] || []).filter((child) => categoryHasProducts(child.id));
@@ -190,13 +194,12 @@ export function CatalogCategoryNavigation({
                 <button
                   type="button"
                   onClick={() => toggleNormalCategory(category)}
-                  className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-xs font-bold transition-colors ${selectedCategory === category.id ? '' : 'text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800'}`}
+                  className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${selectedCategory === category.id || expanded ? 'font-black' : ''} ${selectedCategory === category.id ? '' : expanded ? 'bg-slate-50 text-slate-900 dark:bg-zinc-800/70 dark:text-white' : 'text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800'}`}
                   style={selectedCategory === category.id ? { backgroundColor: primary, color: primaryText } : undefined}
                   aria-expanded={children.length > 0 ? expanded : undefined}
                   aria-controls={children.length > 0 ? `catalog-category-children-${category.id}` : undefined}
                 >
                   <span>{category.name}</span>
-                  {children.length > 0 && <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />}
                 </button>
                 {children.length > 0 && expanded && (
                   <div id={`catalog-category-children-${category.id}`} className="space-y-1 py-1">

@@ -59,6 +59,7 @@ export default function StoreMobileBottomNavigation({
   onOpenRefundPolicy
 }: StoreMobileBottomNavigationProps) {
   const [sheet, setSheet] = useState<'categories' | 'search' | 'account' | null>(null);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(() => new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { session, customer, orders, signOut } = useStoreCustomer();
   const hasStoreSession = Boolean(session?.user);
@@ -78,8 +79,21 @@ export default function StoreMobileBottomNavigation({
   const closeSheet = () => setSheet(null);
 
   const handleCategoryClick = (categoryId: string | null) => {
-    onSelectCategory(categoryId);
+    onSelectCategory(categoryId && selectedCategory === categoryId ? null : categoryId);
     closeSheet();
+  };
+
+  const toggleCategoryGroup = (categoryId: string) => {
+    if (selectedCategory === categoryId) {
+      onSelectCategory(null);
+      return;
+    }
+    setExpandedCategoryIds((current) => {
+      const next = new Set(current);
+      if (next.has(categoryId)) next.delete(categoryId);
+      else next.add(categoryId);
+      return next;
+    });
   };
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -101,9 +115,11 @@ export default function StoreMobileBottomNavigation({
           <div className="fixed inset-x-3 bottom-[calc(5.9rem+env(safe-area-inset-bottom))] z-[60] max-h-[72dvh] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
-                  {sheet === 'categories' ? 'Categorias' : sheet === 'search' ? 'Buscar produtos' : 'Conta e atendimento'}
-                </p>
+                {sheet !== 'categories' && (
+                  <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                    {sheet === 'search' ? 'Buscar produtos' : 'Conta e atendimento'}
+                  </p>
+                )}
                 <p className="truncate text-sm font-black text-slate-950">{companyName || 'Loja online'}</p>
               </div>
               <button
@@ -118,47 +134,43 @@ export default function StoreMobileBottomNavigation({
 
             {sheet === 'categories' && (
               <div className="max-h-[58dvh] overflow-y-auto p-3">
-                <button
-                  type="button"
-                  onClick={() => handleCategoryClick(null)}
-                  className={`mb-2 flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left text-sm font-black ${
-                    selectedCategory === null
-                      ? 'border-transparent text-white shadow-sm'
-                      : 'border-slate-200 bg-slate-50 text-slate-700'
-                  }`}
-                  style={selectedCategory === null ? { backgroundColor: primaryColor } : undefined}
-                >
-                  Todos os produtos
-                  <PackageSearch className="h-4.5 w-4.5" />
-                </button>
-
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {rootCategories.map((category) => {
                     const children = childCategories.filter((child) => child.parent_id === category.id);
                     const isActive = selectedCategory === category.id || children.some((child) => child.id === selectedCategory);
+                    const expanded = expandedCategoryIds.has(category.id);
 
                     return (
-                      <div key={category.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-2">
+                      <div key={category.id}>
                         <button
                           type="button"
-                          onClick={() => handleCategoryClick(category.id)}
-                          className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2.5 text-left text-xs font-black uppercase tracking-wide ${
-                            isActive ? 'bg-white shadow-sm' : 'text-slate-700'
+                          onClick={() => children.length > 0 ? toggleCategoryGroup(category.id) : handleCategoryClick(category.id)}
+                          className={`flex min-h-11 w-full items-center rounded-xl px-3 text-left text-xs font-bold uppercase tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                            isActive ? 'bg-slate-50 font-black' : expanded ? 'bg-slate-50/70 font-black text-slate-900' : 'text-slate-700 hover:bg-slate-50'
                           }`}
                           style={isActive ? activeAccent : undefined}
+                          aria-expanded={children.length > 0 ? expanded : undefined}
+                          aria-controls={children.length > 0 ? `store-mobile-category-${category.id}` : undefined}
                         >
                           <span className="min-w-0 truncate">{category.name}</span>
-                          <LayoutGrid className="h-4 w-4 shrink-0" />
                         </button>
 
-                        {children.length > 0 && (
-                          <div className="mt-1 grid grid-cols-1 gap-1">
+                        {children.length > 0 && expanded && (
+                          <div id={`store-mobile-category-${category.id}`} className="grid grid-cols-1 gap-1 py-1">
+                            <button
+                              type="button"
+                              onClick={() => handleCategoryClick(category.id)}
+                              className={`min-h-11 rounded-lg py-2 pl-8 pr-3 text-left text-xs font-bold ${selectedCategory === category.id ? 'bg-slate-50' : 'text-slate-600 hover:bg-slate-50'}`}
+                              style={selectedCategory === category.id ? activeAccent : undefined}
+                            >
+                              Ver todos em {category.name}
+                            </button>
                             {children.map((child) => (
                               <button
                                 key={child.id}
                                 type="button"
                                 onClick={() => handleCategoryClick(child.id)}
-                                className={`rounded-lg px-3 py-2 text-left text-xs font-semibold ${
+                                className={`min-h-11 rounded-lg py-2 pl-8 pr-3 text-left text-xs font-semibold ${
                                   selectedCategory === child.id
                                     ? 'bg-white shadow-sm'
                                     : 'text-slate-500 hover:bg-white'

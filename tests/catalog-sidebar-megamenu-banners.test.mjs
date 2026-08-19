@@ -40,7 +40,7 @@ test('Store renders featured categories, collapsed accordions, mega menu and res
   assert.match(page, /banner\.mobile_image_url \|\| banner\.image_url/);
   assert.match(page, /\(banner\.placement \|\| 'hero'\) === 'hero'/);
   assert.match(navigation, /featuredCategories\.map/);
-  assert.match(navigation, /Todos os produtos/);
+  assert.doesNotMatch(navigation, /Todos os produtos/);
   assert.match(navigation, /expandedCategoryIds/);
   assert.match(navigation, /aria-expanded/);
   assert.match(navigation, /event\.key === 'Escape'/);
