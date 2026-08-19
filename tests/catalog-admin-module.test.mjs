@@ -38,6 +38,9 @@ test('catalog route has eight non-empty administration areas and the legacy rout
   assert.match(legacy, /redirect\('\/catalog'\)/);
   assert.match(nextConfig, /source: '\/settings\/catalog'[\s\S]+destination: '\/catalog'/);
   assert.doesNotMatch(settings, /id: 'catalogo', label: 'Catálogo & Banners'/);
+  assert.doesNotMatch(settings, /activeTab === 'catalogo'/);
+  assert.doesNotMatch(settings, /CatalogNavigationSettings|Banners do Catálogo|Cards de Benefícios do Catálogo/);
+  assert.doesNotMatch(settings, /catalogBenefitCardsToCompanyPatch|catalog_promotions_section_enabled|footer_show_address/);
 });
 
 test('banner administration exposes explicit CRUD, status, ordering, duplication and previews', async () => {
