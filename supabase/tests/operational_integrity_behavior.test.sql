@@ -143,7 +143,7 @@ select is((select count(*)::integer from public.audit_logs where entity_id = 'ph
 reset role;
 select set_config('request.jwt.claims', '{"sub":"41000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 set local role authenticated;
-select is((select count(*)::integer from public.audit_logs), 1, 'tenant A admin sees only tenant A audit events');
+select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4a-queue-a' and action = 'production.stage_changed'), 1, 'tenant A admin sees its own production stage event');
 select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4a-queue-b'), 0, 'tenant A cannot read tenant B audit events');
 
 reset role;

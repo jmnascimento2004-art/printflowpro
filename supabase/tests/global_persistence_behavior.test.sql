@@ -1,5 +1,5 @@
 begin;
-select plan(38);
+select plan(43);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -61,7 +61,60 @@ select is((select expected_cash from public.cash_register_sessions where status 
 select is((select count(*)::integer from public.cash_register_transactions where type = 'sangria'), 1, 'cash command appends one register movement');
 select ok(exists (select 1 from public.audit_logs where action = 'cash_register.balance_changed'), 'cash balance change is audited');
 
+select is(
+  public.save_quote_with_items_phase4b(
+    jsonb_build_object(
+      'id', 'phase4b-quote-save-a',
+      'company_id', (select company_id from public.profiles where auth_user_id = '42000000-0000-0000-0000-000000000001'),
+      'customer_id', 'phase4b-customer-a',
+      'customer_name', 'Cliente A',
+      'status', 'rascunho',
+      'total_amount', 25
+    ),
+    '[]'::jsonb,
+    null
+  )->>'result_status',
+  'UPDATED',
+  'quote aggregate save succeeds'
+);
+set constraints phase4b_audit_business_mutation immediate;
+set constraints phase4b_audit_business_mutation deferred;
+select is(
+  (select count(*)::integer from public.audit_logs where entity_id = 'phase4b-quote-save-a' and action = 'quote.created'),
+  1,
+  'quote aggregate save emits exactly one canonical event after deferred triggers run'
+);
+
+select is(
+  public.save_order_with_items_phase4b(
+    jsonb_build_object(
+      'id', 'phase4b-order-save-a',
+      'company_id', (select company_id from public.profiles where auth_user_id = '42000000-0000-0000-0000-000000000001'),
+      'customer_id', 'phase4b-customer-a',
+      'customer_name', 'Cliente A',
+      'status', 'aguardando_pagamento',
+      'total_amount', 25,
+      'paid_amount', 0,
+      'payment_status', 'pendente'
+    ),
+    '[]'::jsonb,
+    null
+  )->>'result_status',
+  'UPDATED',
+  'order aggregate save succeeds'
+);
+set constraints phase4b_audit_business_mutation immediate;
+set constraints phase4b_audit_business_mutation deferred;
+select is(
+  (select count(*)::integer from public.audit_logs where entity_id = 'phase4b-order-save-a' and action = 'order.created'),
+  1,
+  'order aggregate save emits exactly one canonical event after deferred triggers run'
+);
+
 select is(public.transition_order_status_phase4b('phase4b-order-a', 'expedicao', '2026-08-19 10:00:00+00')->>'status', 'UPDATED', 'order transition is explicit and atomic');
+set constraints phase4b_audit_business_mutation immediate;
+set constraints phase4b_audit_business_mutation deferred;
+select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4b-order-a' and action = 'order.status_changed'), 1, 'rich order transition suppresses its deferred generic duplicate');
 select is((select count(*)::integer from public.shipments where order_id = 'phase4b-order-a'), 1, 'expedition transition creates one shipment');
 select is(public.transition_order_status_phase4b('phase4b-order-a', 'finalizado', '2026-08-19 10:00:00+00')->>'status', 'CONFLICT', 'stale order transition is rejected');
 select is((select count(*)::integer from public.shipments where order_id = 'phase4b-order-a'), 1, 'stale transition cannot duplicate a shipment');

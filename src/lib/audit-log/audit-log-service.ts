@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 export type AuditLogEntry = {
   id: string;
   company_id: string;
-  actor_user_id: string;
+  actor_user_id: string | null;
   actor_profile_id: string | null;
   actor_name: string;
   actor_role: string;
@@ -21,9 +21,18 @@ export type AuditLogEntry = {
 export type AuditLogFilters = {
   from?: string;
   to?: string;
-  actorUserId?: string;
+  actorName?: string;
   module?: string;
   action?: string;
+  entityId?: string;
+};
+
+export type AuditLogPage = {
+  entries: AuditLogEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 };
 
 const AUDIT_COLUMNS = [
@@ -34,35 +43,42 @@ const AUDIT_COLUMNS = [
 export async function listAuditLogs(
   companyId: string,
   filters: AuditLogFilters = {},
+  page = 1,
+  pageSize = 25,
   client: SupabaseClient = supabase
-): Promise<AuditLogEntry[]> {
+): Promise<AuditLogPage> {
   const trustedCompanyId = String(companyId || '').trim();
-  if (!trustedCompanyId) return [];
+  const trustedPage = Math.max(1, Math.trunc(page));
+  const trustedPageSize = Math.min(100, Math.max(10, Math.trunc(pageSize)));
+  if (!trustedCompanyId) {
+    return { entries: [], total: 0, page: trustedPage, pageSize: trustedPageSize, hasMore: false };
+  }
+
+  const offset = (trustedPage - 1) * trustedPageSize;
 
   let query = client
     .from('audit_logs')
-    .select(AUDIT_COLUMNS)
+    .select(AUDIT_COLUMNS, { count: 'exact' })
     .eq('company_id', trustedCompanyId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
-    .limit(200);
+    .range(offset, offset + trustedPageSize - 1);
 
   if (filters.from) query = query.gte('created_at', filters.from);
   if (filters.to) query = query.lte('created_at', filters.to);
-  if (filters.actorUserId) query = query.eq('actor_user_id', filters.actorUserId);
+  if (filters.actorName) query = query.ilike('actor_name', `%${filters.actorName.slice(0, 120)}%`);
   if (filters.module) query = query.eq('module', filters.module);
   if (filters.action) query = query.eq('action', filters.action);
+  if (filters.entityId) query = query.ilike('entity_id', `%${filters.entityId.slice(0, 200)}%`);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) throw new Error('Não foi possível carregar os registros de auditoria.');
-  return (data || []) as unknown as AuditLogEntry[];
-}
-
-export function describeAuditChange(entry: AuditLogEntry) {
-  if (entry.action === 'production.stage_changed') {
-    const before = String(entry.old_values.status || 'não informado');
-    const after = String(entry.new_values.status || 'não informado');
-    return `Fase de produção alterada de ${before} para ${after}.`;
-  }
-  return `${entry.action} em ${entry.entity_type}.`;
+  const total = count || 0;
+  return {
+    entries: (data || []) as unknown as AuditLogEntry[],
+    total,
+    page: trustedPage,
+    pageSize: trustedPageSize,
+    hasMore: offset + trustedPageSize < total
+  };
 }
