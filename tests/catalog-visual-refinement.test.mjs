@@ -71,7 +71,7 @@ test('Store uses a responsive vertical category rail and independently gated sho
   assert.doesNotMatch(page + navigation, /Category Menu Bar|megaMenuOpen|Todos os Produtos button styled as hamburger menu/);
   assert.match(navigation, /aria-label="Categorias do catálogo"/);
   assert.match(navigation, /catalog-mobile-categories/);
-  assert.match(navigation, /Todos os produtos/);
+  assert.doesNotMatch(navigation, /Todos os produtos/);
   assert.match(page, /getContrastingTextColor\(primary\)/);
   assert.match(page, /catalog_bestsellers_section_enabled/);
   assert.match(page, /catalog_promotions_section_enabled/);

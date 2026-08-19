@@ -424,7 +424,7 @@ export default function StorefrontPage() {
     }
   }, [activePickupPoints, selectedPickupPoint]);
 
-  // 2. Keep hidden categories out of the menu, but not out of "Todos os produtos".
+  // 2. Keep hidden categories out of the menu, but not out of the complete catalog.
   const catalogCategories = (categories || []).filter((category) => {
     if (!category || category.show_in_catalog === false) return false;
     if (!category.parent_id) return true;
@@ -1039,29 +1039,15 @@ export default function StorefrontPage() {
                         className="hidden h-full w-full object-cover select-none sm:block"
                       />
                       
-                      {/* Gradient Overlay for Readability */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/30 to-transparent flex flex-col justify-center px-6 sm:px-12 md:px-20 text-white">
-                        <div className="max-w-xl md:max-w-2xl space-y-2.5 md:space-y-4">
-                          {banner.title && (
-                            <h2 className="text-lg sm:text-2xl md:text-4xl font-black uppercase tracking-tight leading-tight drop-shadow-sm">
-                              {banner.title}
-                            </h2>
-                          )}
-                          {banner.subtitle && (
-                            <p className="text-[10px] sm:text-xs md:text-base text-slate-200 font-medium leading-relaxed max-w-md md:max-w-lg drop-shadow-sm">
-                              {banner.subtitle}
-                            </p>
-                          )}
-                          {banner.link && (
-                            <a
-                              href={safeHref(banner.link)}
-                              className="inline-flex items-center gap-1.5 px-5 py-2.5 mt-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] sm:text-xs font-bold transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] w-fit"
-                            >
-                              Ver Mais <ArrowRight className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
+                      {banner.link && (
+                        <a
+                          href={safeHref(banner.link)}
+                          target={banner.open_in_new_tab ? '_blank' : undefined}
+                          rel={banner.open_in_new_tab ? 'noopener noreferrer' : undefined}
+                          className="absolute inset-0 z-10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-white"
+                          aria-label={banner.title ? `Abrir ${banner.title}` : 'Abrir banner do catálogo'}
+                        />
+                      )}
                     </div>
                   );
                 })}
@@ -1073,7 +1059,7 @@ export default function StorefrontPage() {
                   <button
                     type="button"
                     onClick={handlePrevSlide}
-                    className="absolute left-6 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-black/25 hover:bg-black/45 text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm shadow-md"
+                    className="absolute left-4 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white opacity-100 shadow-md backdrop-blur-sm transition-all hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:left-6 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:focus-visible:opacity-100 [@media(hover:hover)]:group-hover:opacity-100"
                     aria-label="Slide anterior"
                   >
                     <ChevronLeft className="h-6 w-6" />
@@ -1081,7 +1067,7 @@ export default function StorefrontPage() {
                   <button
                     type="button"
                     onClick={handleNextSlide}
-                    className="absolute right-6 top-1/2 -translate-y-1/2 z-20 h-10 w-10 rounded-full bg-black/25 hover:bg-black/45 text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm shadow-md"
+                    className="absolute right-4 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white opacity-100 shadow-md backdrop-blur-sm transition-all hover:bg-black/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-6 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:focus-visible:opacity-100 [@media(hover:hover)]:group-hover:opacity-100"
                     aria-label="Próximo slide"
                   >
                     <ChevronRight className="h-6 w-6" />
@@ -1091,17 +1077,20 @@ export default function StorefrontPage() {
 
               {/* Pagination Indicators (Dots) */}
               {heroBanners.length > 1 && (
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+                <div className="absolute bottom-1 left-1/2 z-20 flex -translate-x-1/2 sm:bottom-2">
                   {heroBanners.map((_, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setCurrentSlide(idx)}
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        idx === currentSlide ? 'bg-emerald-500 w-6' : 'bg-white/40 w-2 hover:bg-white/70'
-                      }`}
+                      className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                       aria-label={`Ir para slide ${idx + 1}`}
-                    />
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`h-2 rounded-full shadow-sm transition-all duration-300 ${idx === currentSlide ? 'w-6 bg-emerald-500' : 'w-2 bg-white/65'}`}
+                      />
+                    </button>
                   ))}
                 </div>
               )}
