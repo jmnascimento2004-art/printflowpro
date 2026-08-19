@@ -135,7 +135,8 @@ export default function Header({
     const titles: Record<string, string> = {
       dashboard: 'Dashboard Executivo',
       crm: 'Clientes',
-      products: 'Catálogo de Produtos',
+      products: 'Produtos',
+      catalog: 'Administração do Catálogo',
       quotes: 'Orçamentos & Propostas',
       pricing: 'Calculadora de Precificação',
       orders: 'Controle de Pedidos',

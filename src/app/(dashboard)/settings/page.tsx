@@ -65,7 +65,7 @@ const SYSTEM_MODULES = [
   { path: '/dashboard', label: 'Dashboard', desc: 'Resumo geral, estatísticas de vendas, status de produção e fluxo financeiro simplificado.' },
   { path: '/pos', label: 'PDV / Caixa', desc: 'Vendas rápidas presenciais, abertura e fechamento de caixa, sangrias e suprimentos.' },
   { path: '/crm', label: 'Clientes', desc: 'Cadastro de clientes, histórico de compras e contatos.' },
-  { path: '/products', label: 'Produtos e Serviços', desc: 'Catálogo de materiais, serviços de impressão, acabamentos e preços base.' },
+  { path: '/products', label: 'Produtos e Serviços', desc: 'Cadastro de materiais, serviços de impressão, acabamentos e preços base.' },
   { path: '/quotes', label: 'Orçamentos', desc: 'Geração de propostas comerciais e conversão em pedidos de venda.' },
   { path: '/pricing', label: 'Precificação / Calculadora', desc: 'Simulador avançado de custos de impressão, m² e margens.' },
   { path: '/orders', label: 'Pedidos / OS', desc: 'Controle de ordens de serviço, faturamento e fluxo de status.' },
@@ -74,7 +74,7 @@ const SYSTEM_MODULES = [
   { path: '/stock', label: 'Estoque / Insumos', desc: 'Controle de bobinas, chapas, tintas e alertas de estoque mínimo.' },
   { path: '/shipment', label: 'Expedição / Entregas', desc: 'Roteirização de entregas, motoboy, transportadoras e retiradas.' },
   { path: '/resale', label: 'Módulo Revenda', desc: 'Integração de pedidos e compras de parceiros terceirizados.' },
-  { path: '/settings', label: 'Configurações Gráfica', desc: 'Dados da empresa, formas de pagamento, banners e personalizações.' }
+  { path: '/settings', label: 'Configurações Gráfica', desc: 'Dados da empresa, finanças, equipe, integrações e segurança.' }
 ];
 
 const getModuleIcon = (path: string) => {
@@ -111,7 +111,6 @@ export default function SettingsPage() {
     deletePickupPoint,
     banners,
     addBanner,
-    updateBanner,
     deleteBanner,
     categories,
     updateCategoryCatalogPresentation,
@@ -983,7 +982,6 @@ export default function SettingsPage() {
         <div className="flex w-full min-w-0 shrink-0 flex-row gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-2 scrollbar-none xl:w-64 xl:flex-col xl:overflow-x-visible">
           {[
             { id: 'empresa', label: 'Empresa & Marca', icon: Building2 },
-            { id: 'catalogo', label: 'Catálogo & Banners', icon: Layers },
             { id: 'financas', label: 'Finanças & Chave Pix', icon: Coins },
             { id: 'coleta', label: 'Balcões de Retirada', icon: MapPin },
             ...(activeProfile?.role === 'admin' ? [{ id: 'funcionarios', label: 'Funcionários & Acessos', icon: Users }] : []),
@@ -1195,10 +1193,6 @@ export default function SettingsPage() {
             <CatalogNavigationSettings
               companyId={company.id}
               categories={categories}
-              banners={banners}
-              addBanner={addBanner}
-              updateBanner={updateBanner}
-              deleteBanner={deleteBanner}
               updateCategory={updateCategoryCatalogPresentation}
               notify={(message) => {
                 setNotification(message);
@@ -2057,8 +2051,8 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Configurações do Rodapé (Pagamentos, Entregas, Segurança) */}
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
+                {/* A exibição do rodapé agora é administrada exclusivamente em /catalog. */}
+                {false && <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
                   <div className="border-b border-border pb-3 flex items-center gap-2">
                     <Layers className="h-4.5 w-4.5 text-primary" />
                     <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Formas de Exibição do Rodapé</h3>
@@ -2097,7 +2091,7 @@ export default function SettingsPage() {
                       {renderBadgeConfigItem("Google Safe Browsing", secGoogle, setSecGoogle, imgGoogle, setImgGoogle, DUMMY_COMPANY.img_security_google || '')}
                     </div>
                   </div>
-                </div>
+                </div>}
               </div>
             )}
 

@@ -1,72 +1,48 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { ArrowDown, ArrowUp, Check, ImagePlus, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Check, ChevronRight, ImagePlus, Pencil, X } from 'lucide-react';
 import type { Category } from '@/lib/dummy-data';
-import type { CategoryCatalogPresentationPatch, StoreBanner } from '@/context/database-context';
+import type { CategoryCatalogPresentationPatch } from '@/context/database-context';
 import { uploadCatalogImage } from '@/lib/catalog-images';
 import { supabase } from '@/lib/supabaseClient';
+import { CATALOG_IMAGE_SPECS, formatCatalogImageMaxSize } from '@/lib/store/catalog-image-specs';
 
-type Props = {
+interface Props {
   companyId: string;
   categories: Category[];
-  banners: StoreBanner[];
-  addBanner: (banner: Omit<StoreBanner, 'id'>) => StoreBanner;
-  updateBanner: (id: string, patch: Partial<Omit<StoreBanner, 'id'>>) => void;
-  deleteBanner: (id: string) => void;
   updateCategory: (id: string, patch: CategoryCatalogPresentationPatch) => Promise<void>;
   notify: (message: string) => void;
-};
+}
+const fieldClass = 'mt-1 min-h-11 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground outline-none transition focus:border-primary';
+const checkboxClass = 'h-4 w-4 rounded border-border text-primary';
 
-const fieldClass = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-primary';
-const checkboxClass = 'h-4 w-4 rounded border-border accent-primary';
+const getDraft = (category: Category): CategoryCatalogPresentationPatch => ({
+  catalog_featured: category.catalog_featured === true,
+  catalog_featured_title: category.catalog_featured_title || '',
+  catalog_featured_sort_order: category.catalog_featured_sort_order || 0,
+  catalog_mega_menu_enabled: category.catalog_mega_menu_enabled === true,
+  catalog_mega_menu_banner_enabled: category.catalog_mega_menu_banner_enabled === true,
+  catalog_mega_menu_banner_image_url: category.catalog_mega_menu_banner_image_url || '',
+  catalog_mega_menu_banner_link: category.catalog_mega_menu_banner_link || '',
+  catalog_mega_menu_banner_alt: category.catalog_mega_menu_banner_alt || '',
+  catalog_mega_menu_banner_new_tab: category.catalog_mega_menu_banner_new_tab === true
+});
 
-function CategoryPresentationEditor({
-  category,
-  companyId,
-  updateCategory,
-  notify
-}: Pick<Props, 'companyId' | 'updateCategory' | 'notify'> & { category: Category }) {
-  const [draft, setDraft] = useState<CategoryCatalogPresentationPatch>({
-    catalog_featured: category.catalog_featured === true,
-    catalog_featured_title: category.catalog_featured_title || '',
-    catalog_featured_sort_order: category.catalog_featured_sort_order || 0,
-    catalog_mega_menu_enabled: category.catalog_mega_menu_enabled === true,
-    catalog_mega_menu_banner_enabled: category.catalog_mega_menu_banner_enabled === true,
-    catalog_mega_menu_banner_image_url: category.catalog_mega_menu_banner_image_url || '',
-    catalog_mega_menu_banner_link: category.catalog_mega_menu_banner_link || '',
-    catalog_mega_menu_banner_alt: category.catalog_mega_menu_banner_alt || '',
-    catalog_mega_menu_banner_new_tab: category.catalog_mega_menu_banner_new_tab === true
-  });
+function CategoryEditor({ category, companyId, updateCategory, notify, onClose }: Props & { category: Category; onClose: () => void }) {
+  const [draft, setDraft] = useState(() => getDraft(category));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-
-  useEffect(() => {
-    setDraft({
-      catalog_featured: category.catalog_featured === true,
-      catalog_featured_title: category.catalog_featured_title || '',
-      catalog_featured_sort_order: category.catalog_featured_sort_order || 0,
-      catalog_mega_menu_enabled: category.catalog_mega_menu_enabled === true,
-      catalog_mega_menu_banner_enabled: category.catalog_mega_menu_banner_enabled === true,
-      catalog_mega_menu_banner_image_url: category.catalog_mega_menu_banner_image_url || '',
-      catalog_mega_menu_banner_link: category.catalog_mega_menu_banner_link || '',
-      catalog_mega_menu_banner_alt: category.catalog_mega_menu_banner_alt || '',
-      catalog_mega_menu_banner_new_tab: category.catalog_mega_menu_banner_new_tab === true
-    });
-  }, [category]);
-
+  const spec = CATALOG_IMAGE_SPECS.megaMenu;
   const patch = (value: Partial<CategoryCatalogPresentationPatch>) => setDraft((current) => ({ ...current, ...value }));
 
   const upload = async (file: File) => {
     setUploading(true);
     try {
-      const publicUrl = await uploadCatalogImage(supabase, file, {
-        companyId,
-        purpose: 'mega-menu',
-        label: category.name
-      });
+      const publicUrl = await uploadCatalogImage(supabase, file, { companyId, purpose: 'mega-menu', label: category.name });
       patch({ catalog_mega_menu_banner_image_url: publicUrl });
+      notify('Imagem enviada. Salve a categoria para confirmar a alteração.');
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível enviar a imagem do Mega Menu.');
     } finally {
@@ -79,6 +55,7 @@ function CategoryPresentationEditor({
     try {
       await updateCategory(category.id, draft);
       notify(`Apresentação de ${category.name} salva.`);
+      onClose();
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Não foi possível salvar a categoria.');
     } finally {
@@ -87,193 +64,77 @@ function CategoryPresentationEditor({
   };
 
   return (
-    <article className="space-y-3 rounded-xl border border-border bg-secondary/10 p-4" data-testid={`catalog-category-presentation-${category.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h4 className="text-sm font-bold text-foreground">{category.name}</h4>
-          <p className="text-[10px] text-muted-foreground">Categoria principal do catálogo</p>
+    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/55" role="dialog" aria-modal="true" aria-labelledby="catalog-category-editor-title">
+      <button type="button" aria-label="Fechar edição da categoria" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <section className="relative z-10 h-full w-full max-w-xl overflow-y-auto border-l border-border bg-card p-4 shadow-2xl sm:p-6" data-testid="catalog-category-editor">
+        <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
+          <div><p className="text-[10px] font-black uppercase tracking-wider text-primary">Apresentação no catálogo</p><h3 id="catalog-category-editor-title" className="mt-1 text-lg font-black text-foreground">{category.name}</h3><p className="mt-1 text-xs text-muted-foreground">A taxonomia estrutural continua no módulo Produtos.</p></div>
+          <button type="button" onClick={onClose} aria-label="Fechar painel" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border"><X className="h-4 w-4" /></button>
         </div>
-        <label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-foreground">
-          <input className={checkboxClass} type="checkbox" checked={draft.catalog_featured === true} onChange={(event) => patch({ catalog_featured: event.target.checked })} />
-          Categoria em destaque
-        </label>
-      </div>
 
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_110px]">
-        <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground">
-          Título exibido
-          <input className={fieldClass} value={draft.catalog_featured_title || ''} onChange={(event) => patch({ catalog_featured_title: event.target.value })} placeholder={category.name} />
-        </label>
-        <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground">
-          Ordem
-          <input className={fieldClass} type="number" min="0" value={draft.catalog_featured_sort_order || 0} onChange={(event) => patch({ catalog_featured_sort_order: Number(event.target.value) })} />
-        </label>
-      </div>
+        <div className="space-y-5 py-5">
+          <section className="space-y-3 rounded-xl border border-border bg-secondary/10 p-4">
+            <label className="flex min-h-11 items-center justify-between gap-3 text-xs font-bold text-foreground"><span><span className="block">Categoria em destaque</span><span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">Inclui a categoria na navegação destacada da loja.</span></span><input className={checkboxClass} type="checkbox" checked={draft.catalog_featured === true} onChange={(event) => patch({ catalog_featured: event.target.checked })} /></label>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px]">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">Título exibido<input className={fieldClass} value={draft.catalog_featured_title || ''} onChange={(event) => patch({ catalog_featured_title: event.target.value })} placeholder={category.name} /></label>
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">Ordem<input className={fieldClass} type="number" min="0" value={draft.catalog_featured_sort_order || 0} onChange={(event) => patch({ catalog_featured_sort_order: Number(event.target.value) })} /></label>
+            </div>
+          </section>
 
-      <label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-foreground">
-        <input className={checkboxClass} type="checkbox" checked={draft.catalog_mega_menu_enabled === true} onChange={(event) => patch({ catalog_mega_menu_enabled: event.target.checked })} />
-        Abrir Mega Menu com subcategorias e produtos
-      </label>
-
-      {draft.catalog_mega_menu_enabled && (
-        <div className="space-y-3 rounded-xl border border-dashed border-border p-3">
-          <label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-foreground">
-            <input className={checkboxClass} type="checkbox" checked={draft.catalog_mega_menu_banner_enabled === true} onChange={(event) => patch({ catalog_mega_menu_banner_enabled: event.target.checked })} />
-            Exibir banner promocional no Mega Menu
-          </label>
-          {draft.catalog_mega_menu_banner_enabled && (
-            <>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground">
-                  Imagem
-                  <span className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-3 text-xs normal-case text-foreground hover:border-primary">
-                    <ImagePlus className="h-4 w-4" /> {uploading ? 'Enviando…' : 'Enviar imagem'}
-                    <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ''; }} />
-                  </span>
-                </label>
-                <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground">
-                  Texto alternativo
-                  <input className={fieldClass} value={draft.catalog_mega_menu_banner_alt || ''} onChange={(event) => patch({ catalog_mega_menu_banner_alt: event.target.value })} />
-                </label>
+          <section className="space-y-3 rounded-xl border border-border bg-secondary/10 p-4">
+            <label className="flex min-h-11 items-center justify-between gap-3 text-xs font-bold text-foreground"><span><span className="block">Mega Menu ativo</span><span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">Expande subcategorias e produtos reais desta categoria.</span></span><input className={checkboxClass} type="checkbox" checked={draft.catalog_mega_menu_enabled === true} onChange={(event) => patch({ catalog_mega_menu_enabled: event.target.checked })} /></label>
+            {draft.catalog_mega_menu_enabled && (
+              <div className="space-y-3 border-t border-border pt-3">
+                <label className="flex min-h-11 items-center justify-between gap-3 text-xs font-semibold text-foreground">Exibir banner promocional<input className={checkboxClass} type="checkbox" checked={draft.catalog_mega_menu_banner_enabled === true} onChange={(event) => patch({ catalog_mega_menu_banner_enabled: event.target.checked })} /></label>
+                {draft.catalog_mega_menu_banner_enabled && (
+                  <>
+                    <div className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-[10px] leading-4 text-muted-foreground" data-testid="catalog-image-spec-megaMenu">
+                      <p className="font-black uppercase text-primary">Tamanho recomendado: {spec.recommendedWidth} × {spec.recommendedHeight} px</p>
+                      <p>Proporção: {spec.aspectRatio} · Formatos: {spec.acceptedFormats} · Máximo: {formatCatalogImageMaxSize(spec.maxFileSizeBytes)}</p>
+                      <p>Recomendamos WebP. Outros tamanhos são aceitos, mas o slot usa corte proporcional.</p>
+                    </div>
+                    <label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-3 text-xs font-bold text-foreground hover:border-primary"><ImagePlus className="h-4 w-4" />{uploading ? 'Enviando…' : 'Selecionar banner do Mega Menu'}<input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ''; }} /></label>
+                    <label className="block text-[10px] font-bold uppercase text-muted-foreground">Texto alternativo<input className={fieldClass} value={draft.catalog_mega_menu_banner_alt || ''} onChange={(event) => patch({ catalog_mega_menu_banner_alt: event.target.value })} /></label>
+                    <label className="block text-[10px] font-bold uppercase text-muted-foreground">Link/destino<input className={fieldClass} value={draft.catalog_mega_menu_banner_link || ''} onChange={(event) => patch({ catalog_mega_menu_banner_link: event.target.value })} placeholder="/store?categoria=... ou https://..." /></label>
+                    <label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-foreground"><input className={checkboxClass} type="checkbox" checked={draft.catalog_mega_menu_banner_new_tab === true} onChange={(event) => patch({ catalog_mega_menu_banner_new_tab: event.target.checked })} />Abrir destino em nova aba</label>
+                    {draft.catalog_mega_menu_banner_image_url && <div><p className="mb-1 text-[10px] font-black uppercase text-muted-foreground">Preview do slot</p><div className="relative mx-auto aspect-[15/16] w-full max-w-60 overflow-hidden rounded-xl border border-border bg-slate-900"><Image unoptimized fill sizes="240px" src={draft.catalog_mega_menu_banner_image_url} alt={draft.catalog_mega_menu_banner_alt || `Banner ${category.name}`} className="object-cover" /></div></div>}
+                  </>
+                )}
               </div>
-              <label className="block space-y-1 text-[10px] font-bold uppercase text-muted-foreground">
-                Destino
-                <input className={fieldClass} value={draft.catalog_mega_menu_banner_link || ''} onChange={(event) => patch({ catalog_mega_menu_banner_link: event.target.value })} placeholder="/store?categoria=... ou https://..." />
-              </label>
-              <label className="flex min-h-11 items-center gap-2 text-xs text-foreground">
-                <input className={checkboxClass} type="checkbox" checked={draft.catalog_mega_menu_banner_new_tab === true} onChange={(event) => patch({ catalog_mega_menu_banner_new_tab: event.target.checked })} />
-                Abrir destino em nova aba
-              </label>
-              {draft.catalog_mega_menu_banner_image_url && <Image unoptimized width={900} height={300} src={draft.catalog_mega_menu_banner_image_url} alt={draft.catalog_mega_menu_banner_alt || `Banner ${category.name}`} className="max-h-36 w-full rounded-lg object-cover" />}
-            </>
-          )}
+            )}
+          </section>
         </div>
-      )}
 
-      <div className="flex justify-end">
-        <button type="button" onClick={() => void save()} disabled={saving || uploading} className="flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold text-primary-foreground disabled:opacity-50">
-          <Check className="h-4 w-4" /> {saving ? 'Salvando…' : 'Salvar categoria'}
-        </button>
-      </div>
-    </article>
+        <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-border bg-card py-4 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-border px-4 text-xs font-bold text-foreground">Cancelar</button>
+          <button type="button" onClick={() => void save()} disabled={saving || uploading} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold text-primary-foreground disabled:opacity-50"><Check className="h-4 w-4" />{saving ? 'Salvando…' : 'Salvar apresentação'}</button>
+        </div>
+      </section>
+    </div>
   );
 }
 
-export function CatalogNavigationSettings({ companyId, categories, banners, addBanner, updateBanner, deleteBanner, updateCategory, notify }: Props) {
-  const rootCategories = useMemo(() => categories
+export function CatalogNavigationSettings(props: Props) {
+  const rootCategories = useMemo(() => props.categories
     .filter((category) => category.show_in_catalog !== false)
-    .filter((category) => !category.parent_id || !categories.some((item) => item.id === category.parent_id))
-    .sort((a, b) => a.name.localeCompare(b.name)), [categories]);
-  const commercialBanners = useMemo(() => banners
-    .filter((banner) => banner.placement === 'catalog')
-    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [banners]);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [mobileImageFile, setMobileImageFile] = useState<File | null>(null);
-  const [title, setTitle] = useState('');
-  const [link, setLink] = useState('');
-  const [alt, setAlt] = useState('');
-  const [newTab, setNewTab] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const addCommercialBanner = async () => {
-    if (!imageFile || !alt.trim()) {
-      notify('Informe a imagem desktop e o texto alternativo do banner comercial.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const imageUrl = await uploadCatalogImage(supabase, imageFile, { companyId, purpose: 'commercial-banner', label: title || alt });
-      const mobileImageUrl = mobileImageFile
-        ? await uploadCatalogImage(supabase, mobileImageFile, { companyId, purpose: 'commercial-banner', label: `${title || alt}-mobile` })
-        : null;
-      addBanner({
-        image_url: imageUrl,
-        mobile_image_url: mobileImageUrl,
-        title: title.trim() || undefined,
-        link: link.trim() || undefined,
-        alt_text: alt.trim(),
-        placement: 'catalog',
-        active: true,
-        sort_order: commercialBanners.length,
-        open_in_new_tab: newTab
-      });
-      setImageFile(null);
-      setMobileImageFile(null);
-      setTitle('');
-      setLink('');
-      setAlt('');
-      setNewTab(false);
-      notify('Banner comercial adicionado.');
-    } catch (error) {
-      notify(error instanceof Error ? error.message : 'Não foi possível adicionar o banner comercial.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const moveBanner = (banner: StoreBanner, direction: -1 | 1) => {
-    const index = commercialBanners.findIndex((item) => item.id === banner.id);
-    const target = commercialBanners[index + direction];
-    if (!target) return;
-    updateBanner(banner.id, { sort_order: target.sort_order ?? index + direction });
-    updateBanner(target.id, { sort_order: banner.sort_order ?? index });
-  };
+    .filter((category) => !category.parent_id || !props.categories.some((item) => item.id === category.parent_id))
+    .sort((left, right) => {
+      const leftOrder = left.catalog_featured_sort_order || Number.MAX_SAFE_INTEGER;
+      const rightOrder = right.catalog_featured_sort_order || Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder || left.name.localeCompare(right.name);
+    }), [props.categories]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingCategory = rootCategories.find((category) => category.id === editingId) || null;
 
   return (
-    <div className="space-y-6" data-testid="catalog-navigation-settings">
-      <section className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <div>
-          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">Banners comerciais</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Aparecem acima da grade de produtos, em duas colunas no desktop e empilhados no celular.</p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground">Título interno<input className={fieldClass} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-          <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground">Texto alternativo *<input className={fieldClass} value={alt} onChange={(event) => setAlt(event.target.value)} /></label>
-          <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground">Imagem desktop *<input className={`${fieldClass} min-h-11`} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] || null)} /></label>
-          <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground">Imagem mobile (opcional)<input className={`${fieldClass} min-h-11`} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setMobileImageFile(event.target.files?.[0] || null)} /></label>
-          <label className="space-y-1 text-[10px] font-bold uppercase text-muted-foreground md:col-span-2">Destino<input className={fieldClass} value={link} onChange={(event) => setLink(event.target.value)} /></label>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex min-h-11 items-center gap-2 text-xs text-foreground"><input className={checkboxClass} type="checkbox" checked={newTab} onChange={(event) => setNewTab(event.target.checked)} />Abrir em nova aba</label>
-          <button type="button" onClick={() => void addCommercialBanner()} disabled={saving} className="flex min-h-11 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />{saving ? 'Enviando…' : 'Adicionar banner'}</button>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {commercialBanners.map((banner, index) => (
-            <article key={banner.id} className="overflow-hidden rounded-xl border border-border bg-background">
-              <Image unoptimized width={900} height={300} src={banner.image_url} alt={banner.alt_text || banner.title || 'Banner comercial'} className="aspect-[3/1] w-full object-cover" />
-              <div className="space-y-3 p-3">
-                <div className="grid gap-2 sm:grid-cols-[1fr_90px]">
-                  <input className={fieldClass} value={banner.alt_text || ''} aria-label={`Texto alternativo de ${banner.title || 'banner'}`} onChange={(event) => updateBanner(banner.id, { alt_text: event.target.value })} />
-                  <input className={fieldClass} type="number" min="0" value={banner.sort_order || 0} aria-label={`Ordem de ${banner.title || 'banner'}`} onChange={(event) => updateBanner(banner.id, { sort_order: Number(event.target.value) })} />
-                </div>
-                <input className={fieldClass} value={banner.link || ''} aria-label={`Destino de ${banner.title || 'banner'}`} placeholder="Destino do banner" onChange={(event) => updateBanner(banner.id, { link: event.target.value })} />
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-3">
-                    <label className="flex min-h-11 items-center gap-2 text-xs text-foreground"><input className={checkboxClass} type="checkbox" checked={banner.active !== false} onChange={(event) => updateBanner(banner.id, { active: event.target.checked })} />Ativo</label>
-                    <label className="flex min-h-11 items-center gap-2 text-xs text-foreground"><input className={checkboxClass} type="checkbox" checked={banner.open_in_new_tab === true} onChange={(event) => updateBanner(banner.id, { open_in_new_tab: event.target.checked })} />Nova aba</label>
-                  </div>
-                  <div className="flex gap-1">
-                    <button type="button" aria-label="Mover banner para cima" disabled={index === 0} onClick={() => moveBanner(banner, -1)} className="flex h-11 w-11 items-center justify-center rounded-lg border border-border disabled:opacity-30"><ArrowUp className="h-4 w-4" /></button>
-                    <button type="button" aria-label="Mover banner para baixo" disabled={index === commercialBanners.length - 1} onClick={() => moveBanner(banner, 1)} className="flex h-11 w-11 items-center justify-center rounded-lg border border-border disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button>
-                    <button type="button" aria-label="Excluir banner comercial" onClick={() => deleteBanner(banner.id)} className="flex h-11 w-11 items-center justify-center rounded-lg border border-rose-500/30 text-rose-500"><Trash2 className="h-4 w-4" /></button>
-                  </div>
-                </div>
-              </div>
-            </article>
-          ))}
-          {commercialBanners.length === 0 && <p className="md:col-span-2 rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">Nenhum banner comercial configurado.</p>}
-        </div>
-      </section>
-
-      <section className="space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <div>
-          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">Categorias em destaque e Mega Menu</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Categorias destacadas aparecem antes de “Todos os produtos”. O Mega Menu usa subcategorias e produtos reais do catálogo.</p>
-        </div>
-        {rootCategories.map((category) => <CategoryPresentationEditor key={category.id} category={category} companyId={companyId} updateCategory={updateCategory} notify={notify} />)}
-        {rootCategories.length === 0 && <p className="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">Cadastre categorias principais visíveis no catálogo para configurá-las aqui.</p>}
-      </section>
-    </div>
+    <section className="space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5" data-testid="catalog-navigation-settings">
+      <div className="border-b border-border pb-3"><h3 className="text-sm font-black uppercase tracking-wide text-foreground">Categorias em destaque e Mega Menu</h3><p className="mt-1 text-xs text-muted-foreground">Edite somente apresentação, ordem e merchandising. Nome, hierarquia e associação de produtos permanecem em Produtos.</p></div>
+      <div className="hidden overflow-hidden rounded-xl border border-border md:block">
+        <table className="w-full text-left text-xs"><thead className="bg-secondary/40 text-[10px] uppercase text-muted-foreground"><tr><th className="px-4 py-3">Categoria</th><th className="px-3 py-3">Destaque</th><th className="px-3 py-3">Mega Menu</th><th className="px-3 py-3">Ordem</th><th className="px-3 py-3">Status</th><th className="px-4 py-3 text-right">Ações</th></tr></thead><tbody className="divide-y divide-border">{rootCategories.map((category) => <tr key={category.id} className="bg-background"><td className="px-4 py-3 font-bold text-foreground">{category.name}</td><td className="px-3 py-3">{category.catalog_featured ? 'Sim' : 'Não'}</td><td className="px-3 py-3">{category.catalog_mega_menu_enabled ? 'Sim' : 'Não'}</td><td className="px-3 py-3">{category.catalog_featured ? category.catalog_featured_sort_order || 0 : '—'}</td><td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase ${category.show_in_catalog !== false ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-500/10 text-slate-500'}`}>{category.show_in_catalog !== false ? 'Ativo' : 'Oculto'}</span></td><td className="px-4 py-3 text-right"><button type="button" onClick={() => setEditingId(category.id)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 font-bold text-primary"><Pencil className="h-4 w-4" />Editar</button></td></tr>)}</tbody></table>
+      </div>
+      <div className="grid gap-3 md:hidden">{rootCategories.map((category) => <button key={category.id} type="button" onClick={() => setEditingId(category.id)} className="flex min-h-16 items-center justify-between gap-3 rounded-xl border border-border bg-background p-4 text-left"><span><span className="block text-xs font-black text-foreground">{category.name}</span><span className="mt-1 block text-[10px] text-muted-foreground">Destaque: {category.catalog_featured ? 'Sim' : 'Não'} · Mega Menu: {category.catalog_mega_menu_enabled ? 'Sim' : 'Não'}</span></span><ChevronRight className="h-4 w-4 shrink-0 text-primary" /></button>)}</div>
+      {rootCategories.length === 0 && <p className="rounded-xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">Cadastre categorias principais visíveis em Produtos para configurá-las aqui.</p>}
+      {editingCategory && <CategoryEditor {...props} category={editingCategory} onClose={() => setEditingId(null)} />}
+    </section>
   );
 }

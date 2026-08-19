@@ -16,6 +16,7 @@ import {
   ExternalLink, 
   Settings, 
   ShoppingBag,
+  GalleryHorizontalEnd,
   LogOut,
   Layers,
   MessageCircle
@@ -61,7 +62,8 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'PDV / Caixa', path: '/pos', icon: ShoppingBag },
     { name: 'Clientes', path: '/crm', icon: Users },
     { name: 'WhatsApp', path: '/whatsapp', icon: MessageCircle },
-    { name: 'Produtos (Catálogo)', path: '/products', icon: Package },
+    { name: 'Produtos', path: '/products', icon: Package },
+    { name: 'Catálogo', path: '/catalog', permissionPath: '/settings', icon: GalleryHorizontalEnd },
     { name: 'Orçamentos', path: '/quotes', icon: FileText },
     { name: 'Precificação', path: '/pricing', icon: Calculator },
     { name: 'Pedidos', path: '/orders', icon: LayoutGrid },
@@ -74,7 +76,8 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
   ];
 
   const filteredNavItems = navItems.filter(item => {
-    const roles = rolePermissions[item.path] || DEFAULT_ROLE_PERMISSIONS[item.path] || [];
+    const permissionPath = item.permissionPath || item.path;
+    const roles = rolePermissions[permissionPath] || DEFAULT_ROLE_PERMISSIONS[permissionPath] || [];
     return roles.includes(activeProfile.role);
   });
 

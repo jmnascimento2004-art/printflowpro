@@ -35,6 +35,7 @@ const ROLE_LABELS: Record<string, string> = {
 function resolvePermissionSegment(pathname: string) {
   if (pathname.startsWith('/pdf-preview/order/')) return '/orders';
   if (pathname.startsWith('/pdf-preview/quote/')) return '/quotes';
+  if (pathname.startsWith('/catalog')) return '/settings';
 
   return '/' + pathname.split('/').filter(Boolean)[0];
 }

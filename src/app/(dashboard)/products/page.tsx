@@ -1900,8 +1900,8 @@ export default function ProductsCRUDPage() {
           {/* Header tabs toggle */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 no-print border-b border-border/50 pb-4">
             <div>
-              <h2 className="text-xl font-bold tracking-tight text-foreground">Catálogo & Cadastro</h2>
-              <p className="text-xs text-muted-foreground">Gerencie seus produtos, serviços e categorias do ERP.</p>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">Produtos</h2>
+              <p className="text-xs text-muted-foreground">Cadastre produtos, serviços, preços e categorias estruturais do ERP.</p>
             </div>
             <div className="flex bg-secondary/35 p-1.5 rounded-xl border border-border/40 gap-1 self-start sm:self-center">
               <button
@@ -1936,7 +1936,7 @@ export default function ProductsCRUDPage() {
                 <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase">Produtos Cadastrados</span>
                   <h3 className="text-2xl font-black text-foreground mt-2 tracking-tight">{products.length}</h3>
-                  <p className="text-[10px] text-muted-foreground mt-1">Total no catálogo do ERP</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Total no cadastro do ERP</p>
                 </div>
 
                 <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
