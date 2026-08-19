@@ -81,15 +81,15 @@ test('Store uses a responsive vertical category rail and independently gated sho
 });
 
 test('catalog settings expose seven editable, sortable cards and three independent toggles', async () => {
-  const page = await read('../src/app/(dashboard)/settings/page.tsx');
-  assert.match(page, /data-testid="catalog-benefit-card-settings"/);
+  const page = await read('../src/components/catalog/catalog-admin.tsx');
+  assert.match(page, /testId="catalog-benefit-card-settings"/);
   assert.match(page, /benefitCards\.map/);
   assert.match(page, /moveBenefitCard/);
   assert.match(page, /CATALOG_BENEFIT_ICON_OPTIONS/);
-  assert.match(page, /data-testid="catalog-showcase-toggles"/);
-  assert.match(page, /setCatalogBestsellersSectionEnabled/);
-  assert.match(page, /setCatalogPromotionsSectionEnabled/);
-  assert.match(page, /setCatalogHighlightsSectionEnabled/);
+  assert.match(page, /testId="catalog-showcase-toggles"/);
+  assert.match(page, /catalog_bestsellers_section_enabled/);
+  assert.match(page, /catalog_promotions_section_enabled/);
+  assert.match(page, /catalog_highlights_section_enabled/);
 });
 
 test('system variable UI has no fake system sample and consumes authenticated server values', async () => {

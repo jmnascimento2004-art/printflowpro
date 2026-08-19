@@ -51,22 +51,23 @@ test('Store renders featured categories, collapsed accordions, mega menu and res
 });
 
 test('ADMIN exposes complete tenant presentation controls and reuses the product image bucket', async () => {
-  const [settings, component, uploader] = await Promise.all([
-    read('../src/app/(dashboard)/settings/page.tsx'),
+  const [page, banners, navigation, uploader] = await Promise.all([
+    read('../src/components/catalog/catalog-admin.tsx'),
+    read('../src/components/catalog/catalog-banner-manager.tsx'),
     read('../src/components/settings/catalog-navigation-settings.tsx'),
     read('../src/lib/catalog-images.ts')
   ]);
-  assert.match(settings, /CatalogNavigationSettings/);
-  assert.match(settings, /updateCategoryCatalogPresentation/);
-  assert.match(component, /data-testid="catalog-navigation-settings"/);
-  assert.match(component, /Imagem desktop/);
-  assert.match(component, /Imagem mobile \(opcional\)/);
-  assert.match(component, /Texto alternativo/);
-  assert.match(component, /Abrir em nova aba/);
-  assert.match(component, /Categoria em destaque/);
-  assert.match(component, /Abrir Mega Menu/);
-  assert.match(component, /Salvar categoria/);
+  assert.match(page, /CatalogNavigationSettings/);
+  assert.match(page, /updateCategoryCatalogPresentation/);
+  assert.match(navigation, /data-testid="catalog-navigation-settings"/);
+  assert.match(banners, /imagem desktop/i);
+  assert.match(banners, /Imagem mobile opcional/);
+  assert.match(banners + navigation, /Texto alternativo/);
+  assert.match(banners + navigation, /Abrir destino em nova aba/);
+  assert.match(navigation, /Categoria em destaque/);
+  assert.match(navigation, /Mega Menu ativo/);
+  assert.match(navigation, /Salvar apresentação/);
   assert.match(uploader, /PRODUCT_IMAGE_BUCKET/);
   assert.match(uploader, /upsert:\s*false/);
-  assert.doesNotMatch(component + uploader, /SUPABASE_SERVICE_ROLE|service_role/i);
+  assert.doesNotMatch(page + banners + navigation + uploader, /SUPABASE_SERVICE_ROLE|service_role/i);
 });

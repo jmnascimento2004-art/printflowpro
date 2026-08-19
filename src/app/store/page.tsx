@@ -1022,10 +1022,21 @@ export default function StorefrontPage() {
                       }`}
                     >
                       {/* Slide Image */}
-                      <img
+                      <Image
+                        unoptimized
+                        width={720}
+                        height={360}
+                        src={banner.mobile_image_url || banner.image_url}
+                        alt={banner.alt_text || banner.title || 'Banner'}
+                        className="h-full w-full object-cover select-none sm:hidden"
+                      />
+                      <Image
+                        unoptimized
+                        width={1220}
+                        height={300}
                         src={banner.image_url}
                         alt={banner.alt_text || banner.title || 'Banner'}
-                        className="h-full w-full object-cover select-none"
+                        className="hidden h-full w-full object-cover select-none sm:block"
                       />
                       
                       {/* Gradient Overlay for Readability */}

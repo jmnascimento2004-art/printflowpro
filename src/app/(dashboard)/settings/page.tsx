@@ -19,7 +19,6 @@ import {
   Edit2,
   X,
   Upload,
-  RotateCcw,
   Search,
   ShieldAlert,
   Shield,
@@ -31,17 +30,14 @@ import {
   Wrench,
   Truck,
   ExternalLink,
-  FileClock,
-  ArrowUp,
-  ArrowDown
+  FileClock
 } from 'lucide-react';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
-import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber, normalizeRichTextHtml, onlyPhoneDigits, getBrazilianPhoneDisplay } from '@/lib/utils';
+import { validateCNPJ, formatCNPJ, validateCEP, formatCEP, formatCurrencyInput, parseCurrencyInputToNumber, onlyPhoneDigits, getBrazilianPhoneDisplay } from '@/lib/utils';
 import { lookupCNPJ } from '@/lib/cnpj-lookup';
-import { DUMMY_COMPANY, PickupPoint, UserProfile, type Company } from '@/lib/dummy-data';
+import { PickupPoint, UserProfile, type Company } from '@/lib/dummy-data';
 import { warnCaught } from '@/lib/safe-log';
-import { RichTextEditor } from '@/components/rich-text-editor';
 import { supabase } from '@/lib/supabaseClient';
 import {
   getEmployeeAvatarStoragePath,
@@ -49,23 +45,16 @@ import {
   uploadEmployeeAvatar,
   validateEmployeeAvatar,
 } from '@/lib/employee-avatars';
-import {
-  CATALOG_BENEFIT_ICON_OPTIONS,
-  catalogBenefitCardsToCompanyPatch,
-  getCatalogBenefitCards,
-  type CatalogBenefitCard
-} from '@/lib/store/catalog-visual-settings';
-import { CatalogNavigationSettings } from '@/components/settings/catalog-navigation-settings';
 import { AuditLogPanel } from '@/components/settings/audit-log-panel';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
-type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema';
+type SettingsTab = 'empresa' | 'financas' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema';
 
 const SYSTEM_MODULES = [
   { path: '/dashboard', label: 'Dashboard', desc: 'Resumo geral, estatísticas de vendas, status de produção e fluxo financeiro simplificado.' },
   { path: '/pos', label: 'PDV / Caixa', desc: 'Vendas rápidas presenciais, abertura e fechamento de caixa, sangrias e suprimentos.' },
   { path: '/crm', label: 'Clientes', desc: 'Cadastro de clientes, histórico de compras e contatos.' },
-  { path: '/products', label: 'Produtos e Serviços', desc: 'Catálogo de materiais, serviços de impressão, acabamentos e preços base.' },
+  { path: '/products', label: 'Produtos e Serviços', desc: 'Cadastro de materiais, serviços de impressão, acabamentos e preços base.' },
   { path: '/quotes', label: 'Orçamentos', desc: 'Geração de propostas comerciais e conversão em pedidos de venda.' },
   { path: '/pricing', label: 'Precificação / Calculadora', desc: 'Simulador avançado de custos de impressão, m² e margens.' },
   { path: '/orders', label: 'Pedidos / OS', desc: 'Controle de ordens de serviço, faturamento e fluxo de status.' },
@@ -74,7 +63,7 @@ const SYSTEM_MODULES = [
   { path: '/stock', label: 'Estoque / Insumos', desc: 'Controle de bobinas, chapas, tintas e alertas de estoque mínimo.' },
   { path: '/shipment', label: 'Expedição / Entregas', desc: 'Roteirização de entregas, motoboy, transportadoras e retiradas.' },
   { path: '/resale', label: 'Módulo Revenda', desc: 'Integração de pedidos e compras de parceiros terceirizados.' },
-  { path: '/settings', label: 'Configurações Gráfica', desc: 'Dados da empresa, formas de pagamento, banners e personalizações.' }
+  { path: '/settings', label: 'Configurações Gráfica', desc: 'Dados da empresa, finanças, equipe, integrações e segurança.' }
 ];
 
 const getModuleIcon = (path: string) => {
@@ -109,12 +98,6 @@ export default function SettingsPage() {
     addPickupPoint, 
     updatePickupPoint, 
     deletePickupPoint,
-    banners,
-    addBanner,
-    updateBanner,
-    deleteBanner,
-    categories,
-    updateCategoryCatalogPresentation,
     profiles,
     addProfile,
     updateProfile,
@@ -148,53 +131,6 @@ export default function SettingsPage() {
   const [compCity, setCompCity] = useState(company.city || '');
   const [compState, setCompState] = useState(company.state || '');
 
-  // Social networks & policies states
-  const [compInstagram, setCompInstagram] = useState(company.instagram_url || '');
-  const [compFacebook, setCompFacebook] = useState(company.facebook_url || '');
-  const [compYoutube, setCompYoutube] = useState(company.youtube_url || '');
-  const [compRefundPolicy, setCompRefundPolicy] = useState(normalizeRichTextHtml(company.refund_policy || ''));
-
-  const [benefitCards, setBenefitCards] = useState<CatalogBenefitCard[]>(() => getCatalogBenefitCards(company));
-
-  // Payments / Delivery / Security toggles
-  const [payVisa, setPayVisa] = useState(company.show_payments_visa !== false);
-  const [payMastercard, setPayMastercard] = useState(company.show_payments_mastercard !== false);
-  const [payElo, setPayElo] = useState(company.show_payments_elo !== false);
-  const [payHipercard, setPayHipercard] = useState(company.show_payments_hipercard !== false);
-  const [payBoleto, setPayBoleto] = useState(company.show_payments_boleto === true);
-  const [payTransferencia, setPayTransferencia] = useState(company.show_payments_transferencia === true);
-  const [payPix, setPayPix] = useState(company.show_payments_pix !== false);
-
-  const [delSedex, setDelSedex] = useState(company.show_delivery_sedex !== false);
-  const [delCorreios, setDelCorreios] = useState(company.show_delivery_correios !== false);
-  const [delJadlog, setDelJadlog] = useState(company.show_delivery_jadlog !== false);
-  const [delMotoboy, setDelMotoboy] = useState(company.show_delivery_motoboy !== false);
-
-  const [secLetsencrypt, setSecLetsencrypt] = useState(company.show_security_letsencrypt !== false);
-  const [secGoogle, setSecGoogle] = useState(company.show_security_google !== false);
-
-  // Payment badge images state
-  const [imgVisa, setImgVisa] = useState(company.img_payments_visa || '');
-  const [imgMastercard, setImgMastercard] = useState(company.img_payments_mastercard || '');
-  const [imgElo, setImgElo] = useState(company.img_payments_elo || '');
-  const [imgHipercard, setImgHipercard] = useState(company.img_payments_hipercard || '');
-  const [imgDiners, setImgDiners] = useState(company.img_payments_diners || '');
-  const [imgAmex, setImgAmex] = useState(company.img_payments_amex || '');
-  const [imgBoleto, setImgBoleto] = useState(company.img_payments_boleto || '');
-  const [imgTransferencia, setImgTransferencia] = useState(company.img_payments_transferencia || '');
-  const [imgPix, setImgPix] = useState(company.img_payments_pix || '');
-
-  // Delivery badge images state
-  const [imgSedex, setImgSedex] = useState(company.img_delivery_sedex || '');
-  const [imgPac, setImgPac] = useState(company.img_delivery_pac || '');
-  const [imgCorreios, setImgCorreios] = useState(company.img_delivery_correios || '');
-  const [imgJadlog, setImgJadlog] = useState(company.img_delivery_jadlog || '');
-  const [imgMotoboy, setImgMotoboy] = useState(company.img_delivery_motoboy || '');
-
-  // Security badge images state
-  const [imgLetsencrypt, setImgLetsencrypt] = useState(company.img_security_letsencrypt || '');
-  const [imgGoogle, setImgGoogle] = useState(company.img_security_google || '');
-
   const [cnpjError, setCnpjError] = useState(false);
   const [cnpjLookupStatus, setCnpjLookupStatus] = useState('');
   const [cepError, setCepError] = useState(false);
@@ -217,84 +153,6 @@ export default function SettingsPage() {
       else if (type === 'favicon') setCompFavicon(base64String);
     };
     reader.readAsDataURL(file);
-  };
-
-  const handleBadgeUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setter(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const renderBadgeConfigItem = (
-    label: string,
-    isEnabled: boolean,
-    setEnabled: (val: boolean) => void,
-    imgVal: string,
-    setImgVal: (val: string) => void,
-    defaultSvg: string
-  ) => {
-    if (['Diners Club', 'Amex', 'Boleto Bancário', 'Transferência', 'PAC'].includes(label)) {
-      return null;
-    }
-
-    return (
-      <div className="flex flex-col p-3 bg-secondary/10 border border-border rounded-xl space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold select-none text-foreground">
-            <input 
-              type="checkbox" 
-              checked={isEnabled} 
-              onChange={(e) => setEnabled(e.target.checked)} 
-              className="h-4 w-4 rounded border-border text-emerald-600 focus:ring-emerald-500 bg-secondary" 
-            />
-            <span>{label}</span>
-          </label>
-        </div>
-        
-        {isEnabled && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-24 bg-white border border-border flex items-center justify-center overflow-hidden rounded-none p-1 shadow-sm shrink-0">
-                {imgVal ? (
-                  <img src={imgVal} className="h-full w-full object-contain select-none rounded-none" alt={label} />
-                ) : (
-                  <span className="text-[9px] text-muted-foreground italic font-semibold">Sem Imagem</span>
-                )}
-              </div>
-              
-              <div className="flex flex-col gap-1 w-full">
-                <label className="flex items-center justify-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-colors text-center shadow-md shadow-emerald-600/5">
-                  <Upload className="h-3 w-3" />
-                  <span>Upload JPG/PNG</span>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={(e) => handleBadgeUpload(e, setImgVal)} 
-                  />
-                </label>
-                
-                {imgVal !== defaultSvg && (
-                  <button
-                    type="button"
-                    onClick={() => setImgVal(defaultSvg)}
-                    className="flex items-center justify-center gap-1 px-2.5 py-1 bg-secondary hover:bg-secondary/80 text-muted-foreground border border-border rounded-lg text-[10px] font-bold transition-colors"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    <span>Redefinir</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
   };
 
   const handleCNPJChange = async (val: string) => {
@@ -329,11 +187,6 @@ export default function SettingsPage() {
     } else {
       setCnpjError(false);
     }
-  };
-
-  const handleCatalogWhatsAppChange = (value: string) => {
-    const digits = onlyPhoneDigits(value).slice(0, 13);
-    setCatalogWhatsApp(getBrazilianPhoneDisplay(digits) || digits);
   };
 
   const handleCompanyPhoneChange = (value: string) => {
@@ -394,33 +247,9 @@ export default function SettingsPage() {
     setCommissionRate(settings.commission_rate !== undefined && settings.commission_rate !== null ? settings.commission_rate : 5.0);
   }, [settings.profit_margin, settings.tax_rate, settings.commission_rate]);
 
-  // Storefront Header & Footer Customization State
-  const [topBarHours, setTopBarHours] = useState(settings.top_bar_hours || 'Segunda à Sexta: 8h às 12h / 13h30 às 18h');
-  const [topBarShowPickup, setTopBarShowPickup] = useState(settings.top_bar_show_pickup !== false);
-  const [topBarPhone, setTopBarPhone] = useState(settings.top_bar_phone || '');
-  const [catalogWhatsApp, setCatalogWhatsApp] = useState(getBrazilianPhoneDisplay(settings.catalog_whatsapp || ''));
-  const [footerShowAddress, setFooterShowAddress] = useState(settings.footer_show_address !== false);
-  const [catalogPromotionsSectionEnabled, setCatalogPromotionsSectionEnabled] = useState(settings.catalog_promotions_section_enabled !== false);
-  const [catalogBestsellersSectionEnabled, setCatalogBestsellersSectionEnabled] = useState(settings.catalog_bestsellers_section_enabled !== false);
-  const [catalogHighlightsSectionEnabled, setCatalogHighlightsSectionEnabled] = useState(
-    settings.catalog_highlights_section_enabled ?? settings.catalog_promotions_section_enabled ?? true
-  );
-  const [footerHoursMessage, setFooterHoursMessage] = useState(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
-  const [footerHoursWeek, setFooterHoursWeek] = useState(settings.footer_hours_week || '8h às 12h / 13h30 às 18h');
-  const [footerHoursSat, setFooterHoursSat] = useState(settings.footer_hours_sat || 'Segunda à Sexta-feira');
-  const [footerHoursSatTime, setFooterHoursSatTime] = useState(settings.footer_hours_sat_time || 'Fechado');
-  const [footerHoursSatDesc, setFooterHoursSatDesc] = useState(settings.footer_hours_sat_desc || 'Sábado');
-
   const [saasEnabled, setSaasEnabled] = useState(settings.saas_enabled !== undefined ? settings.saas_enabled : true);
   const [nfeEnabled, setNfeEnabled] = useState(settings.nfe_enabled || false);
   const [aiEnabled, setAiEnabled] = useState(settings.ai_enabled || false);
-
-  // Banner Form State
-  const [bannerTitle, setBannerTitle] = useState('');
-  const [bannerSubtitle, setBannerSubtitle] = useState('');
-  const [bannerLink, setBannerLink] = useState('');
-  const [bannerImage, setBannerImage] = useState('');
-  const [isAddingBanner, setIsAddingBanner] = useState(false);
 
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -428,21 +257,6 @@ export default function SettingsPage() {
     const trimmed = value.trim().toLowerCase();
     if (!trimmed) return '';
     return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/^www\./, '');
-  };
-
-  const updateBenefitCard = (slot: CatalogBenefitCard['slot'], patch: Partial<CatalogBenefitCard>) => {
-    setBenefitCards((current) => current.map((card) => card.slot === slot ? { ...card, ...patch } : card));
-  };
-
-  const moveBenefitCard = (slot: CatalogBenefitCard['slot'], direction: -1 | 1) => {
-    setBenefitCards((current) => {
-      const index = current.findIndex((card) => card.slot === slot);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
   };
 
   useEffect(() => {
@@ -454,21 +268,6 @@ export default function SettingsPage() {
     setDeliveryMotoboyPriceKm(settings.delivery_motoboy_price_km !== undefined && settings.delivery_motoboy_price_km !== null ? settings.delivery_motoboy_price_km : 2.50);
     setDeliveryCarPriceKm(settings.delivery_car_price_km !== undefined && settings.delivery_car_price_km !== null ? settings.delivery_car_price_km : 4.50);
     setDeliveryMinFee(settings.delivery_min_fee !== undefined && settings.delivery_min_fee !== null ? settings.delivery_min_fee : 10.00);
-    setTopBarHours(settings.top_bar_hours || 'Segunda a Sexta: 8h as 12h / 13h30 as 18h');
-    setTopBarShowPickup(settings.top_bar_show_pickup !== false);
-    setTopBarPhone(settings.top_bar_phone || '');
-    setCatalogWhatsApp(getBrazilianPhoneDisplay(settings.catalog_whatsapp || ''));
-    setFooterShowAddress(settings.footer_show_address !== false);
-    setCatalogPromotionsSectionEnabled(settings.catalog_promotions_section_enabled !== false);
-    setCatalogBestsellersSectionEnabled(settings.catalog_bestsellers_section_enabled !== false);
-    setCatalogHighlightsSectionEnabled(
-      settings.catalog_highlights_section_enabled ?? settings.catalog_promotions_section_enabled ?? true
-    );
-    setFooterHoursMessage(settings.footer_hours_message || '*Atendimento presencial com hora marcada*');
-    setFooterHoursWeek(settings.footer_hours_week || '8h as 12h / 13h30 as 18h');
-    setFooterHoursSat(settings.footer_hours_sat || 'Segunda a Sexta-feira');
-    setFooterHoursSatTime(settings.footer_hours_sat_time || 'Fechado');
-    setFooterHoursSatDesc(settings.footer_hours_sat_desc || 'Sabado');
     setSaasEnabled(settings.saas_enabled !== undefined ? settings.saas_enabled : true);
     setNfeEnabled(settings.nfe_enabled || false);
     setAiEnabled(settings.ai_enabled || false);
@@ -491,43 +290,6 @@ export default function SettingsPage() {
     setCompNeighborhood(company.neighborhood || '');
     setCompCity(company.city || '');
     setCompState(company.state || '');
-    setCompInstagram(company.instagram_url || '');
-    setCompFacebook(company.facebook_url || '');
-    setCompYoutube(company.youtube_url || '');
-    setCompRefundPolicy(normalizeRichTextHtml(company.refund_policy || ''));
-
-    setBenefitCards(getCatalogBenefitCards(company));
-
-    setPayVisa(company.show_payments_visa !== false);
-    setPayMastercard(company.show_payments_mastercard !== false);
-    setPayElo(company.show_payments_elo !== false);
-    setPayHipercard(company.show_payments_hipercard !== false);
-    setPayBoleto(company.show_payments_boleto === true);
-    setPayTransferencia(company.show_payments_transferencia === true);
-    setPayPix(company.show_payments_pix !== false);
-    setDelSedex(company.show_delivery_sedex !== false);
-    setDelCorreios(company.show_delivery_correios !== false);
-    setDelJadlog(company.show_delivery_jadlog !== false);
-    setDelMotoboy(company.show_delivery_motoboy !== false);
-    setSecLetsencrypt(company.show_security_letsencrypt !== false);
-    setSecGoogle(company.show_security_google !== false);
-
-    setImgVisa(company.img_payments_visa || '');
-    setImgMastercard(company.img_payments_mastercard || '');
-    setImgElo(company.img_payments_elo || '');
-    setImgHipercard(company.img_payments_hipercard || '');
-    setImgDiners(company.img_payments_diners || '');
-    setImgAmex(company.img_payments_amex || '');
-    setImgBoleto(company.img_payments_boleto || '');
-    setImgTransferencia(company.img_payments_transferencia || '');
-    setImgPix(company.img_payments_pix || '');
-    setImgSedex(company.img_delivery_sedex || '');
-    setImgPac(company.img_delivery_pac || '');
-    setImgCorreios(company.img_delivery_correios || '');
-    setImgJadlog(company.img_delivery_jadlog || '');
-    setImgMotoboy(company.img_delivery_motoboy || '');
-    setImgLetsencrypt(company.img_security_letsencrypt || '');
-    setImgGoogle(company.img_security_google || '');
   }, [company]);
 
   // Safeguard: redirect if not admin and on funcionarios tab
@@ -715,44 +477,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleBannerImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      setBannerImage(base64String);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleAddBannerSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bannerImage) {
-      alert('Selecione uma imagem para o banner!');
-      return;
-    }
-
-    addBanner({
-      image_url: bannerImage,
-      title: bannerTitle || undefined,
-      subtitle: bannerSubtitle || undefined,
-      link: bannerLink || undefined,
-      placement: 'hero',
-      active: true,
-      sort_order: banners.filter((banner) => (banner.placement || 'hero') === 'hero').length
-    });
-
-    setBannerTitle('');
-    setBannerSubtitle('');
-    setBannerLink('');
-    setBannerImage('');
-    setIsAddingBanner(false);
-    setNotification('Banner adicionado com sucesso!');
-    setTimeout(() => setNotification(null), 3000);
-  };
-
   // CRUD handlers for Pickup Points
   const handleAddPoint = (e: React.FormEvent) => {
     e.preventDefault();
@@ -845,19 +569,6 @@ export default function SettingsPage() {
     }
   };
 
-  const normalizeSocialHandle = (value: string) => {
-  const clean = value
-    .trim()
-    .replace(/^https?:\/\/(www\.)?/i, '')
-    .replace(/^instagram\.com\//i, '')
-    .replace(/^facebook\.com\//i, '')
-    .replace(/^youtube\.com\//i, '')
-    .replace(/^@/, '')
-    .replace(/^\/+/, '');
-
-  return clean ? `/${clean}` : '';
-};
-
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -883,19 +594,6 @@ export default function SettingsPage() {
       profit_margin: Number(profitMarginRate),
       tax_rate: Number(taxRate),
       commission_rate: Number(commissionRate),
-      top_bar_hours: topBarHours,
-      top_bar_show_pickup: topBarShowPickup,
-      top_bar_phone: topBarPhone,
-      catalog_whatsapp: onlyPhoneDigits(catalogWhatsApp),
-      footer_show_address: footerShowAddress,
-      catalog_promotions_section_enabled: catalogPromotionsSectionEnabled,
-      catalog_bestsellers_section_enabled: catalogBestsellersSectionEnabled,
-      catalog_highlights_section_enabled: catalogHighlightsSectionEnabled,
-      footer_hours_message: footerHoursMessage,
-      footer_hours_week: footerHoursWeek,
-      footer_hours_sat: footerHoursSat,
-      footer_hours_sat_time: footerHoursSatTime,
-      footer_hours_sat_desc: footerHoursSatDesc,
       saas_enabled: saasEnabled,
       nfe_enabled: nfeEnabled,
       ai_enabled: aiEnabled,
@@ -926,44 +624,7 @@ export default function SettingsPage() {
       number: compNumber,
       neighborhood: compNeighborhood,
       city: compCity,
-      state: compState,
-      instagram_url: normalizeSocialHandle(compInstagram),
-      facebook_url: normalizeSocialHandle(compFacebook),
-      youtube_url: normalizeSocialHandle(compYoutube),
-      refund_policy: normalizeRichTextHtml(compRefundPolicy),
-      show_payments_visa: payVisa,
-      show_payments_mastercard: payMastercard,
-      show_payments_elo: payElo,
-      show_payments_hipercard: payHipercard,
-      show_payments_diners: false,
-      show_payments_amex: false,
-      show_payments_boleto: false,
-      show_payments_transferencia: false,
-      show_payments_pix: payPix,
-      show_delivery_sedex: delSedex,
-      show_delivery_pac: false,
-      show_delivery_correios: delCorreios,
-      show_delivery_jadlog: delJadlog,
-      show_delivery_motoboy: delMotoboy,
-      show_security_letsencrypt: secLetsencrypt,
-      show_security_google: secGoogle,
-      img_payments_visa: imgVisa,
-      img_payments_mastercard: imgMastercard,
-      img_payments_elo: imgElo,
-      img_payments_hipercard: imgHipercard,
-      img_payments_diners: imgDiners,
-      img_payments_amex: imgAmex,
-      img_payments_boleto: imgBoleto,
-      img_payments_transferencia: imgTransferencia,
-      img_payments_pix: imgPix,
-      img_delivery_sedex: imgSedex,
-      img_delivery_pac: imgPac,
-      img_delivery_correios: imgCorreios,
-      img_delivery_jadlog: imgJadlog,
-      img_delivery_motoboy: imgMotoboy,
-      img_security_letsencrypt: imgLetsencrypt,
-      img_security_google: imgGoogle,
-      ...catalogBenefitCardsToCompanyPatch(benefitCards)
+      state: compState
     } as Company);
 
     setNotification('Configurações atualizadas com sucesso!');
@@ -983,7 +644,6 @@ export default function SettingsPage() {
         <div className="flex w-full min-w-0 shrink-0 flex-row gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-2 scrollbar-none xl:w-64 xl:flex-col xl:overflow-x-visible">
           {[
             { id: 'empresa', label: 'Empresa & Marca', icon: Building2 },
-            { id: 'catalogo', label: 'Catálogo & Banners', icon: Layers },
             { id: 'financas', label: 'Finanças & Chave Pix', icon: Coins },
             { id: 'coleta', label: 'Balcões de Retirada', icon: MapPin },
             ...(activeProfile?.role === 'admin' ? [{ id: 'funcionarios', label: 'Funcionários & Acessos', icon: Users }] : []),
@@ -1012,202 +672,8 @@ export default function SettingsPage() {
 
         {/* Conteúdo da Aba Ativa */}
         <div className="w-full min-w-0 flex-1 space-y-4 sm:space-y-6">
-          {/* Banners do Catálogo (outside form) */}
-          {activeTab === 'catalogo' && (
-            <div className="animate-in space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm fade-in duration-200 sm:p-6">
-              <div className="flex flex-col items-start justify-between gap-3 border-b border-border pb-3 sm:flex-row sm:items-center">
-                <div className="flex items-center gap-2">
-                  <Layers className="h-4.5 w-4.5 text-primary" />
-                  <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Banners do Catálogo Online (Slider)</h3>
-                </div>
-                {!isAddingBanner && (
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingBanner(true)}
-                    className="flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-bold text-white shadow-sm transition-all hover:bg-primary/95 sm:w-auto"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Novo Banner
-                  </button>
-                )}
-              </div>
 
-              {/* Add Banner Form */}
-              {isAddingBanner && (
-                <form onSubmit={handleAddBannerSubmit} className="p-4 bg-secondary/20 border border-border rounded-xl space-y-4 animate-in slide-in-from-top duration-200">
-                  <div className="flex justify-between items-center border-b border-border pb-2">
-                    <span className="font-bold text-xs text-foreground uppercase">Cadastrar Novo Banner</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddingBanner(false);
-                        setBannerTitle('');
-                        setBannerSubtitle('');
-                        setBannerLink('');
-                        setBannerImage('');
-                      }}
-                      className="p-1 rounded hover:bg-secondary text-muted-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Título do Banner</label>
-                      <input
-                        type="text"
-                        value={bannerTitle}
-                        onChange={(e) => setBannerTitle(e.target.value)}
-                        placeholder="Ex: CALCULE AS MEDIDAS & ENCOMENDE ONLINE"
-                        className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Subtítulo do Banner</label>
-                      <input
-                        type="text"
-                        value={bannerSubtitle}
-                        onChange={(e) => setBannerSubtitle(e.target.value)}
-                        placeholder="Ex: Banners e adesivos sob medida com preço calculado na hora."
-                        className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Link de Destino (Opcional)</label>
-                      <input
-                        type="text"
-                        value={bannerLink}
-                        onChange={(e) => setBannerLink(e.target.value)}
-                        placeholder="Ex: # ou link do produto"
-                        className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-baseline">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Imagem do Banner *</label>
-                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Ideal: 1220x300px</span>
-                      </div>
-                      <div className="flex gap-2 items-center">
-                        <div className="relative flex-1">
-                          <button type="button" className="w-full py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors border border-dashed border-primary/30">
-                            {bannerImage ? 'Alterar Imagem' : 'Selecionar Arquivo'}
-                          </button>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleBannerImageUpload}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
-                        </div>
-                        {bannerImage && (
-                          <button
-                            type="button"
-                            onClick={() => setBannerImage('')}
-                            className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-xs font-semibold"
-                          >
-                            Remover
-                          </button>
-                        )}
-                      </div>
-                      <span className="text-[9px] text-muted-foreground block leading-tight pt-0.5">
-                        * Dica: Centralize textos e elementos importantes para evitar cortes em smartphones (onde a imagem é reduzida nas laterais).
-                      </span>
-                    </div>
-                  </div>
-
-                  {bannerImage && (
-                    <div className="mt-2 p-2 bg-background border border-border rounded-lg max-w-md">
-                      <span className="text-[9px] font-bold text-muted-foreground uppercase block mb-1">Pré-visualização</span>
-                      <img src={bannerImage} alt="Preview Banner" className="w-full h-32 object-cover rounded-md" />
-                    </div>
-                  )}
-
-                  <div className="flex justify-end gap-2 border-t border-border/50 pt-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAddingBanner(false);
-                        setBannerTitle('');
-                        setBannerSubtitle('');
-                        setBannerLink('');
-                        setBannerImage('');
-                      }}
-                      className="px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-[11px] font-bold"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1"
-                    >
-                      <Check className="h-3.5 w-3.5" /> Adicionar Banner
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Banners List */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {banners && banners.some((banner) => (banner.placement || 'hero') === 'hero') ? (
-                  banners.filter((banner) => (banner.placement || 'hero') === 'hero').map((banner) => (
-                    <div key={banner.id} className="border border-border rounded-xl overflow-hidden bg-card hover:shadow-md transition-shadow flex flex-col justify-between">
-                      <div className="relative h-32 bg-slate-100 flex items-center justify-center">
-                        <img src={banner.image_url} alt={banner.title || 'Banner'} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 flex flex-col justify-end text-white">
-                          <span className="font-extrabold text-xs uppercase tracking-wide truncate">{banner.title || 'Sem título'}</span>
-                          <span className="text-[10px] text-zinc-300 line-clamp-2 mt-0.5 leading-normal">{banner.subtitle}</span>
-                        </div>
-                      </div>
-                      <div className="p-3 bg-secondary/10 flex items-center justify-between text-xs border-t border-border">
-                        <span className="text-[10px] text-muted-foreground truncate max-w-[200px]" title={banner.link}>
-                          Link: {banner.link || 'Nenhum'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm('Tem certeza que deseja excluir este banner?')) {
-                              deleteBanner(banner.id);
-                              setNotification('Banner excluído com sucesso!');
-                              setTimeout(() => setNotification(null), 3000);
-                            }
-                          }}
-                          className="p-1.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 transition-colors"
-                          title="Excluir Banner"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="col-span-2 p-8 text-center text-muted-foreground text-xs italic border border-dashed border-border rounded-xl">
-                    Nenhum banner cadastrado para o catálogo.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'catalogo' && (
-            <CatalogNavigationSettings
-              companyId={company.id}
-              categories={categories}
-              banners={banners}
-              addBanner={addBanner}
-              updateBanner={updateBanner}
-              deleteBanner={deleteBanner}
-              updateCategory={updateCategoryCatalogPresentation}
-              notify={(message) => {
-                setNotification(message);
-                setTimeout(() => setNotification(null), 3000);
-              }}
-            />
-          )}
-
-          {['empresa', 'catalogo', 'financas', 'sistema'].includes(activeTab) && (
+          {['empresa', 'financas', 'sistema'].includes(activeTab) && (
           <form id="general-settings-form" onSubmit={handleSaveSettings} className="space-y-6">
             
             {activeTab === 'empresa' && (
@@ -1263,19 +729,6 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">WhatsApp de Vendas</label>
-                      <input
-                        type="tel"
-                        value={catalogWhatsApp}
-                        onChange={(e) => handleCatalogWhatsAppChange(e.target.value)}
-                        placeholder="Ex: (81) 99274-9650"
-                        className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                      />
-                      <p className="text-[9px] text-muted-foreground font-semibold">
-                        Usado no rodapé, botão flutuante e atendimento do catálogo. Não substitui o telefone comercial.
-                      </p>
-                    </div>
 
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-muted-foreground uppercase">E-mail Comercial</label>
@@ -1676,288 +1129,6 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {activeTab === 'catalogo' && (
-              <div className="space-y-6 animate-in fade-in duration-200">
-                {/* Personalização do Catálogo (Cabeçalho e Rodapé) */}
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
-                  <div className="border-b border-border pb-3 flex items-center gap-2">
-                    <Settings className="h-4.5 w-4.5 text-primary" />
-                    <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Personalização do Catálogo (Cabeçalho e Rodapé)</h3>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="font-bold text-foreground text-xs uppercase tracking-wider">Barra Superior (Cabeçalho)</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Horário / Mensagem da Barra Superior</label>
-                        <input
-                          type="text"
-                          value={topBarHours}
-                          onChange={(e) => setTopBarHours(e.target.value)}
-                          placeholder="Ex: Segunda à Sexta: 8h às 12h / 13h30 às 18h"
-                          className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Telefone da Barra Superior</label>
-                        <input
-                          type="text"
-                          value={topBarPhone}
-                          onChange={(e) => setTopBarPhone(e.target.value)}
-                          placeholder="Ex: (51) 98765-4321"
-                          className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-3" data-testid="catalog-showcase-toggles">
-                      {[
-                        {
-                          label: 'Mostrar + Vendidos',
-                          help: 'Controla somente a visibilidade do ranking atual.',
-                          value: catalogBestsellersSectionEnabled,
-                          setValue: setCatalogBestsellersSectionEnabled
-                        },
-                        {
-                          label: 'Mostrar Promoções',
-                          help: 'Exibe produtos já marcados como promoção.',
-                          value: catalogPromotionsSectionEnabled,
-                          setValue: setCatalogPromotionsSectionEnabled
-                        },
-                        {
-                          label: 'Mostrar Destaques',
-                          help: 'Exibe produtos já marcados como destaque.',
-                          value: catalogHighlightsSectionEnabled,
-                          setValue: setCatalogHighlightsSectionEnabled
-                        }
-                      ].map((section) => (
-                        <div key={section.label} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/20 p-3.5">
-                          <div>
-                            <span className="block text-xs font-bold text-foreground">{section.label}</span>
-                            <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{section.help}</span>
-                          </div>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={section.value}
-                            aria-label={section.label}
-                            onClick={() => section.setValue(!section.value)}
-                            className={`relative flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${section.value ? 'bg-primary' : 'border border-border bg-secondary'}`}
-                          >
-                            <span className={`absolute h-4 w-4 rounded-full bg-white transition-transform ${section.value ? 'translate-x-6' : 'translate-x-1'}`} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center justify-between p-3.5 bg-secondary/20 border border-border rounded-xl">
-                      <div>
-                        <span className="font-bold text-xs text-foreground block">Alerta de Retirada Grátis</span>
-                        <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                          Exibir &quot;Retire grátis em nossos balcões autorizados&quot; na barra superior do catálogo.
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setTopBarShowPickup(!topBarShowPickup)}
-                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${
-                          topBarShowPickup ? 'bg-primary' : 'bg-secondary border border-border'
-                        }`}
-                      >
-                        <div className={`h-4.5 w-4.5 bg-white rounded-full transition-transform absolute ${
-                          topBarShowPickup ? 'translate-x-5.5' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 pt-2 border-t border-border/60">
-                    <h4 className="font-bold text-foreground text-xs uppercase tracking-wider">Rodapé do Catálogo</h4>
-                    
-                    <div className="flex items-center justify-between p-3.5 bg-secondary/20 border border-border rounded-xl">
-                      <div>
-                        <span className="font-bold text-xs text-foreground block">Exibir Endereço Físico</span>
-                        <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                          Desative esta opção caso sua empresa funcione apenas online.
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setFooterShowAddress(!footerShowAddress)}
-                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${
-                          footerShowAddress ? 'bg-primary' : 'bg-secondary border border-border'
-                        }`}
-                      >
-                        <div className={`h-4.5 w-4.5 bg-white rounded-full transition-transform absolute ${
-                          footerShowAddress ? 'translate-x-5.5' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Aviso / Nota de Atendimento</label>
-                        <input
-                          type="text"
-                          value={footerHoursMessage}
-                          onChange={(e) => setFooterHoursMessage(e.target.value)}
-                          placeholder="Ex: *Atendimento presencial com hora marcada*"
-                          className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Horário de Funcionamento (Semana)</label>
-                        <input
-                          type="text"
-                          value={footerHoursWeek}
-                          onChange={(e) => setFooterHoursWeek(e.target.value)}
-                          placeholder="Ex: 8h às 12h / 13h30 às 18h"
-                          className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Descrição de Dias (Semana)</label>
-                        <input
-                          type="text"
-                          value={footerHoursSat}
-                          onChange={(e) => setFooterHoursSat(e.target.value)}
-                          placeholder="Ex: Segunda à Sexta-feira"
-                          className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-border/40">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Horário de Funcionamento (Sábado)</label>
-                        <input
-                          type="text"
-                          value={footerHoursSatTime}
-                          onChange={(e) => setFooterHoursSatTime(e.target.value)}
-                          placeholder="Ex: 8h às 12h (ou Fechado)"
-                          className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-muted-foreground">Descrição de Dia (Sábado)</label>
-                        <input
-                          type="text"
-                          value={footerHoursSatDesc}
-                          onChange={(e) => setFooterHoursSatDesc(e.target.value)}
-                          placeholder="Ex: Sábado"
-                          className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Redes Sociais do Catálogo */}
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
-                  <div className="border-b border-border pb-3 flex items-center gap-2">
-                    <Users className="h-4.5 w-4.5 text-primary" />
-                    <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Redes Sociais do Catálogo</h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Página Instagram</label>
-                      <input
-                        type="text"
-                        value={compInstagram}
-                        onChange={(e) => setCompInstagram(e.target.value)}
-                        placeholder="/suapagina"
-                        className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Página Facebook</label>
-                      <input
-                        type="text"
-                        value={compFacebook}
-                        onChange={(e) => setCompFacebook(e.target.value)}
-                        placeholder="/suapagina"
-                        className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase">Canal YouTube</label>
-                      <input
-                        type="text"
-                        value={compYoutube}
-                        onChange={(e) => setCompYoutube(e.target.value)}
-                        placeholder="/seucanal"
-                        className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground font-semibold focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Política de Devolução e Reembolso */}
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">
-                  <div className="border-b border-border pb-3 flex items-center gap-2">
-                    <FileText className="h-4.5 w-4.5 text-primary" />
-                    <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Política de Devolução e Reembolso</h3>
-                  </div>
-                  <div className="space-y-1.5 text-xs">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Texto da Política (Será exibido em modal no catálogo)</label>
-                    <RichTextEditor
-                      value={compRefundPolicy}
-                      onChange={setCompRefundPolicy}
-                      placeholder="Escreva aqui a política de troca, reembolso e termos de devolução..."
-                      minHeightClass="min-h-[170px]"
-                    />
-                  </div>
-                </div>
-
-                {/* Cards de Benefícios do Catálogo */}
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
-                  <div className="border-b border-border pb-3 flex items-center gap-2">
-                    <Building2 className="h-4.5 w-4.5 text-primary" />
-                    <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Cards de Benefícios do Catálogo</h3>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2" data-testid="catalog-benefit-card-settings">
-                    {benefitCards.map((card, index) => (
-                      <article key={card.slot} className="space-y-3 rounded-xl border border-border bg-secondary/10 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <span className="block text-[10px] font-extrabold uppercase text-primary">Card {index + 1}</span>
-                            <span className="text-[10px] text-muted-foreground">Ordem salva: {index + 1}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button type="button" onClick={() => moveBenefitCard(card.slot, -1)} disabled={index === 0} aria-label={`Mover ${card.title} para cima`} className="flex h-11 w-11 items-center justify-center rounded-lg border border-border disabled:opacity-30"><ArrowUp className="h-4 w-4" /></button>
-                            <button type="button" onClick={() => moveBenefitCard(card.slot, 1)} disabled={index === benefitCards.length - 1} aria-label={`Mover ${card.title} para baixo`} className="flex h-11 w-11 items-center justify-center rounded-lg border border-border disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button>
-                            <label className="ml-1 flex min-h-11 items-center gap-2 text-xs font-bold text-foreground">
-                              <input type="checkbox" checked={card.active} onChange={(event) => updateBenefitCard(card.slot, { active: event.target.checked })} className="h-4 w-4 rounded border-border text-primary" />
-                              Ativo
-                            </label>
-                          </div>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px]">
-                          <label className="text-[10px] font-bold uppercase text-muted-foreground">
-                            Título
-                            <input type="text" value={card.title} onChange={(event) => updateBenefitCard(card.slot, { title: event.target.value })} className="mt-1 w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-foreground" />
-                          </label>
-                          <label className="text-[10px] font-bold uppercase text-muted-foreground">
-                            Ícone
-                            <select value={card.icon} onChange={(event) => updateBenefitCard(card.slot, { icon: event.target.value as CatalogBenefitCard['icon'] })} className="mt-1 w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-foreground">
-                              {CATALOG_BENEFIT_ICON_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                            </select>
-                          </label>
-                        </div>
-                        <label className="block text-[10px] font-bold uppercase text-muted-foreground">
-                          Texto auxiliar
-                          <input type="text" value={card.subtitle} onChange={(event) => updateBenefitCard(card.slot, { subtitle: event.target.value })} className="mt-1 w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-foreground" />
-                        </label>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {activeTab === 'financas' && (
               <div className="space-y-6 animate-in fade-in duration-200">
@@ -2057,47 +1228,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Configurações do Rodapé (Pagamentos, Entregas, Segurança) */}
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-5">
-                  <div className="border-b border-border pb-3 flex items-center gap-2">
-                    <Layers className="h-4.5 w-4.5 text-primary" />
-                    <h3 className="font-bold text-foreground text-sm uppercase tracking-wide">Formas de Exibição do Rodapé</h3>
-                  </div>
-                  
-                  {/* Formas de Pagamento */}
-                  <div className="space-y-3">
-                    <span className="text-[10px] font-extrabold text-primary uppercase block">Formas de Pagamento Aceitas</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {renderBadgeConfigItem("Visa", payVisa, setPayVisa, imgVisa, setImgVisa, DUMMY_COMPANY.img_payments_visa || '')}
-                      {renderBadgeConfigItem("Mastercard", payMastercard, setPayMastercard, imgMastercard, setImgMastercard, DUMMY_COMPANY.img_payments_mastercard || '')}
-                      {renderBadgeConfigItem("Elo", payElo, setPayElo, imgElo, setImgElo, DUMMY_COMPANY.img_payments_elo || '')}
-                      {renderBadgeConfigItem("Hipercard", payHipercard, setPayHipercard, imgHipercard, setImgHipercard, DUMMY_COMPANY.img_payments_hipercard || '')}
-                      {renderBadgeConfigItem("Boleto Bancário", payBoleto, setPayBoleto, imgBoleto, setImgBoleto, DUMMY_COMPANY.img_payments_boleto || '')}
-                      {renderBadgeConfigItem("Transferência", payTransferencia, setPayTransferencia, imgTransferencia, setImgTransferencia, DUMMY_COMPANY.img_payments_transferencia || '')}
-                      {renderBadgeConfigItem("PIX", payPix, setPayPix, imgPix, setImgPix, DUMMY_COMPANY.img_payments_pix || '')}
-                    </div>
-                  </div>
-
-                  {/* Formas de Entrega */}
-                  <div className="space-y-3 border-t border-border pt-4">
-                    <span className="text-[10px] font-extrabold text-primary uppercase block">Formas de Entrega Aceitas</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {renderBadgeConfigItem("SEDEX", delSedex, setDelSedex, imgSedex, setImgSedex, DUMMY_COMPANY.img_delivery_sedex || '')}
-                      {renderBadgeConfigItem("Correios Geral", delCorreios, setDelCorreios, imgCorreios, setImgCorreios, DUMMY_COMPANY.img_delivery_correios || '')}
-                      {renderBadgeConfigItem("Jadlog", delJadlog, setDelJadlog, imgJadlog, setImgJadlog, DUMMY_COMPANY.img_delivery_jadlog || '')}
-                      {renderBadgeConfigItem("Motoboy", delMotoboy, setDelMotoboy, imgMotoboy, setImgMotoboy, DUMMY_COMPANY.img_delivery_motoboy || '')}
-                    </div>
-                  </div>
-
-                  {/* Selos de Segurança */}
-                  <div className="space-y-3 border-t border-border pt-4">
-                    <span className="text-[10px] font-extrabold text-primary uppercase block">Selos de Segurança</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
-                      {renderBadgeConfigItem("Let's Encrypt SSL", secLetsencrypt, setSecLetsencrypt, imgLetsencrypt, setImgLetsencrypt, DUMMY_COMPANY.img_security_letsencrypt || '')}
-                      {renderBadgeConfigItem("Google Safe Browsing", secGoogle, setSecGoogle, imgGoogle, setImgGoogle, DUMMY_COMPANY.img_security_google || '')}
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 
@@ -2179,7 +1309,7 @@ export default function SettingsPage() {
             )}
 
             {/* Global save button */}
-            {['empresa', 'catalogo', 'financas', 'sistema'].includes(activeTab) && (
+            {['empresa', 'financas', 'sistema'].includes(activeTab) && (
               <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-semibold leading-5 text-blue-800">
                   A identidade visual do aplicativo foi atualizada. Caso o nome ou icone antigo permaneça no seu dispositivo, remova e instale o aplicativo novamente.

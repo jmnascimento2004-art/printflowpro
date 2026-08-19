@@ -19,7 +19,7 @@ const extensionFor = (file: File) => {
 export async function uploadCatalogImage(
   supabaseClient: SupabaseClient,
   file: File,
-  options: { companyId: string; purpose: 'commercial-banner' | 'mega-menu'; label?: string }
+  options: { companyId: string; purpose: 'hero-banner' | 'commercial-banner' | 'mega-menu'; label?: string }
 ) {
   const validation = validateProductImage(file);
   if (!validation.valid) throw new Error(validation.message);

@@ -8,6 +8,7 @@ import {
   DollarSign,
   ExternalLink,
   FileText,
+  GalleryHorizontalEnd,
   Home,
   LayoutGrid,
   Layers,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { name: 'PDV', path: '/pos', icon: ShoppingBag, primary: true },
   { name: 'Clientes', path: '/crm', icon: Users, primary: true },
   { name: 'Produtos', path: '/products', icon: Package, primary: true },
+  { name: 'Catálogo', path: '/catalog', permissionPath: '/settings', icon: GalleryHorizontalEnd },
   { name: 'Orçamentos', path: '/quotes', icon: FileText },
   { name: 'Precificação', path: '/pricing', icon: Calculator },
   { name: 'Pedidos', path: '/orders', icon: LayoutGrid },
@@ -46,7 +48,8 @@ export default function MobileBottomNav() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const allowedItems = NAV_ITEMS.filter((item) => {
-    const roles = rolePermissions[item.path] || DEFAULT_ROLE_PERMISSIONS[item.path] || [];
+    const permissionPath = item.permissionPath || item.path;
+    const roles = rolePermissions[permissionPath] || DEFAULT_ROLE_PERMISSIONS[permissionPath] || [];
     return roles.includes(activeProfile.role);
   });
 
