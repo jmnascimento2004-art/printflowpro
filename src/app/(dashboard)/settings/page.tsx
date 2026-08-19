@@ -31,6 +31,7 @@ import {
   Wrench,
   Truck,
   ExternalLink,
+  FileClock,
   ArrowUp,
   ArrowDown
 } from 'lucide-react';
@@ -55,9 +56,10 @@ import {
   type CatalogBenefitCard
 } from '@/lib/store/catalog-visual-settings';
 import { CatalogNavigationSettings } from '@/components/settings/catalog-navigation-settings';
+import { AuditLogPanel } from '@/components/settings/audit-log-panel';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
-type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'sistema';
+type SettingsTab = 'empresa' | 'catalogo' | 'financas' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema';
 
 const SYSTEM_MODULES = [
   { path: '/dashboard', label: 'Dashboard', desc: 'Resumo geral, estatísticas de vendas, status de produção e fluxo financeiro simplificado.' },
@@ -530,7 +532,7 @@ export default function SettingsPage() {
 
   // Safeguard: redirect if not admin and on funcionarios tab
   useEffect(() => {
-    if (activeTab === 'funcionarios' && activeProfile?.role !== 'admin') {
+    if (['funcionarios', 'auditoria'].includes(activeTab) && activeProfile?.role !== 'admin') {
       setActiveTab('empresa');
     }
   }, [activeTab, activeProfile]);
@@ -985,6 +987,7 @@ export default function SettingsPage() {
             { id: 'financas', label: 'Finanças & Chave Pix', icon: Coins },
             { id: 'coleta', label: 'Balcões de Retirada', icon: MapPin },
             ...(activeProfile?.role === 'admin' ? [{ id: 'funcionarios', label: 'Funcionários & Acessos', icon: Users }] : []),
+            ...(activeProfile?.role === 'admin' ? [{ id: 'auditoria', label: 'Logs de Auditoria', icon: FileClock }] : []),
             { id: 'sistema', label: 'Avançado & Sistema', icon: Settings }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -2964,6 +2967,10 @@ export default function SettingsPage() {
                 Limpar Todos os Dados
               </button>
             </div>
+          )}
+
+          {activeTab === 'auditoria' && activeProfile?.role === 'admin' && (
+            <AuditLogPanel companyId={company.id} />
           )}
 
         </div>

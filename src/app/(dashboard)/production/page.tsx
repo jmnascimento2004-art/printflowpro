@@ -31,6 +31,20 @@ export default function ProductionPage() {
   const boardRef = useRef<HTMLDivElement | null>(null);
   const dragScrollRef = useRef({ active: false, startX: 0, scrollLeft: 0 });
   const [isBoardDragging, setIsBoardDragging] = useState(false);
+  const pendingItemIdsRef = useRef<Set<string>>(new Set());
+  const [pendingItemIds, setPendingItemIds] = useState<Set<string>>(() => new Set());
+
+  const beginItemMutation = (id: string) => {
+    if (pendingItemIdsRef.current.has(id)) return false;
+    pendingItemIdsRef.current.add(id);
+    setPendingItemIds(new Set(pendingItemIdsRef.current));
+    return true;
+  };
+
+  const finishItemMutation = (id: string) => {
+    pendingItemIdsRef.current.delete(id);
+    setPendingItemIds(new Set(pendingItemIdsRef.current));
+  };
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -109,11 +123,27 @@ export default function ProductionPage() {
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, targetStatus: ProductionItem['status']) => {
+  const handleDrop = async (e: React.DragEvent, targetStatus: ProductionItem['status']) => {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
-    if (id) {
-      updateProductionStatus(id, targetStatus);
+    if (!id || !beginItemMutation(id)) return;
+    try {
+      await updateProductionStatus(id, targetStatus);
+    } catch {
+      // The context restores the persisted row and displays the actionable error.
+    } finally {
+      finishItemMutation(id);
+    }
+  };
+
+  const handleResponsibleChange = async (item: ProductionItem, name: string) => {
+    if (!beginItemMutation(item.id)) return;
+    try {
+      await assignProductionResponsible(item.id, name);
+    } catch {
+      // The context performs rollback and presents the failure.
+    } finally {
+      finishItemMutation(item.id);
     }
   };
 
@@ -214,6 +244,7 @@ export default function ProductionPage() {
               <div className="flex-1 overflow-y-auto p-3 space-y-3">
                 {colItems.length > 0 ? (
                   colItems.map((item) => {
+                    const isPending = pendingItemIds.has(item.id);
                     const overdue = isOverdue(item.deadline, item.status);
                     const order = getOrderForProductionItem(item);
                     const paymentStatus = order?.payment_status ? paymentStatusLabels[order.payment_status] || order.payment_status : 'Não informado';
@@ -221,11 +252,12 @@ export default function ProductionPage() {
                     return (
                       <div
                         key={item.id}
-                        draggable
+                        draggable={!isPending}
                         onDragStart={(e) => handleDragStart(e, item.id)}
+                        aria-busy={isPending}
                         className={`p-3 bg-secondary/40 border rounded-lg hover:border-primary transition-all duration-150 shadow-sm relative group space-y-2.5 cursor-grab active:cursor-grabbing ${
                           overdue ? 'border-rose-500/40 bg-rose-500/5' : 'border-border'
-                        }`}
+                        } ${isPending ? 'pointer-events-none opacity-60' : ''}`}
                       >
                         {/* Card Header: Order Number and Priority */}
                         <div className="flex justify-between items-center w-full">
@@ -268,7 +300,8 @@ export default function ProductionPage() {
                           </label>
                           <select
                             value={item.responsible_name || ''}
-                            onChange={(e) => assignProductionResponsible(item.id, e.target.value)}
+                            onChange={(e) => void handleResponsibleChange(item, e.target.value)}
+                            disabled={isPending}
                             className="w-full px-2 py-1 bg-card border border-border rounded text-[10px] font-medium text-foreground focus:outline-none"
                           >
                             <option value="">Sem Atribuição</option>
