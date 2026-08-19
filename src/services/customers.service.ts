@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabaseClient';
 import type { Customer } from '@/lib/dummy-data';
+import { deleteTenantRecord, insertTenantRecord, patchTenantRecord } from '@/lib/persistence/persistence-service';
 
-export type NewCustomerInput = Omit<Customer, 'id' | 'company_id' | 'created_at'>;
+export type NewCustomerInput = Omit<Customer, 'id' | 'company_id' | 'created_at' | 'updated_at'>;
 
 const makeCustomerId = (customer: NewCustomerInput) => {
   const customerIdPrefix = customer.tags?.includes('Catalogo Online') ? 'cust-web' : 'cust';
@@ -30,28 +31,24 @@ export const buildCustomerRecord = (customer: NewCustomerInput, companyId: strin
 });
 
 export const createCustomer = async (customer: Customer) => {
-  const { error } = await supabase.from('customers').insert(customer);
-
-  if (error) throw error;
-
-  return customer;
+  return insertTenantRecord<Customer>('customers', customer);
 };
 
-export const updateCustomerRecord = async (customer: Customer) => {
-  const { error } = await supabase
-    .from('customers')
-    .update(customer)
-    .eq('id', customer.id);
-
-  if (error) throw error;
-
-  return customer;
+export const updateCustomerRecord = async (customer: Customer, previous: Customer) => {
+  const patch = Object.fromEntries(Object.entries(customer).filter(([key, value]) => (
+    !['id', 'company_id', 'created_at', 'updated_at'].includes(key)
+    && JSON.stringify(value) !== JSON.stringify((previous as unknown as Record<string, unknown>)[key])
+  )));
+  if (Object.keys(patch).length === 0) return previous;
+  return patchTenantRecord<Customer>('customers', customer.id, previous.company_id, patch, {
+    expectedUpdatedAt: previous.updated_at
+  });
 };
 
-export const deleteCustomerRecord = async (id: string) => {
-  const { error } = await supabase.from('customers').delete().eq('id', id);
-
-  if (error) throw error;
+export const deleteCustomerRecord = async (customer: Customer) => {
+  await deleteTenantRecord('customers', customer.id, customer.company_id, {
+    expectedUpdatedAt: customer.updated_at
+  });
 };
 
 export const deleteAllCustomers = async () => {

@@ -73,6 +73,19 @@ import {
   replaceProductionItem,
   transitionProductionStage
 } from '@/lib/production/production-service';
+import {
+  adjustInventoryStock,
+  deleteTenantRecord,
+  insertTenantRecord,
+  operateCashRegister,
+  patchTenantRecord,
+  PersistenceMutationError,
+  recordOrderPayment,
+  saveRolePermissions,
+  settleFinancialTransaction,
+  transitionOrderStatus,
+  transitionShipment
+} from '@/lib/persistence/persistence-service';
 
 export interface CashRegisterSession {
   id: string;
@@ -86,6 +99,7 @@ export interface CashRegisterSession {
   difference?: number;
   status: 'aberto' | 'fechado';
   notes?: string;
+  updated_at?: string;
 }
 
 export interface CashRegisterTransaction {
@@ -227,6 +241,7 @@ export interface StoreBanner {
   active?: boolean;
   sort_order?: number;
   open_in_new_tab?: boolean;
+  updated_at?: string;
 }
 
 export type CategoryCatalogPresentationPatch = Pick<Category,
@@ -242,9 +257,16 @@ export type CategoryCatalogPresentationPatch = Pick<Category,
 >;
 
 type StoreBannerRow = StoreBanner & { company_id?: string };
+type RolePermissionRow = { id: string; company_id: string; path: string; roles: string[]; updated_at?: string };
 type SavedQuotePayload = {
   quote?: Omit<Quote, 'items'> | null;
   items?: Array<QuoteItem & { quote_id?: string }> | null;
+};
+type Phase4bAggregateSaveResult = {
+  result_status: 'UPDATED' | 'CONFLICT' | 'NOT_FOUND' | 'NOT_AUTHORIZED' | 'INVALID_INPUT';
+  payload?: SavedQuotePayload | SavedOrderPayload;
+  quote?: Record<string, unknown>;
+  order?: Record<string, unknown>;
 };
 type SavedOrderPayload = {
   order?: Omit<Order, 'items'> | null;
@@ -476,6 +498,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [banners, setBanners] = useState<StoreBanner[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>({});
+  const rolePermissionVersionsRef = useRef<Record<string, string>>({});
 
   // Caixa
   const [sessions, setSessions] = useState<CashRegisterSession[]>([]);
@@ -485,6 +508,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   const resetTenantState = useCallback(() => {
     tenantPersistenceArmedRef.current = false;
+    rolePermissionVersionsRef.current = {};
     if (isBrowser()) {
       try {
         window.localStorage.removeItem('printflow_company');
@@ -760,9 +784,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         
         if (rolePermsData) {
           const perms: Record<string, string[]> = {};
-          rolePermsData.forEach(rp => {
+          const versions: Record<string, string> = {};
+          (rolePermsData as RolePermissionRow[]).forEach(rp => {
             perms[rp.path] = rp.roles;
+            if (rp.updated_at) versions[rp.path] = rp.updated_at;
           });
+          rolePermissionVersionsRef.current = versions;
           setRolePermissions(perms);
         }
 
@@ -987,9 +1014,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         const scopedSessions = (sessionsData || []) as CashRegisterSession[];
         const sessionIds = new Set(scopedSessions.map((item) => item.id));
         const permissions: Record<string, string[]> = {};
-        (rolePermsData || []).forEach((permission) => {
+        const permissionVersions: Record<string, string> = {};
+        ((rolePermsData || []) as RolePermissionRow[]).forEach((permission) => {
           permissions[permission.path] = permission.roles;
+          if (permission.updated_at) permissionVersions[permission.path] = permission.updated_at;
         });
+        rolePermissionVersionsRef.current = permissionVersions;
 
         setCompany(activeCompany as Company);
         setSettings(settingsData?.[0]
@@ -1067,46 +1097,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('storage', handleQuoteStorageSync);
   }, []);
 
-  // Save triggers mapped to both localStorage and Supabase
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('suppliers', suppliers);
-      supabase.from('suppliers').upsert(suppliers).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar fornecedores no Supabase:', error);
-      });
-      if (canShowToast) showToast('Fornecedores atualizados com sucesso!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar fornecedores!', 'error');
-    }
-  }, [suppliers, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('categories', categories);
-      supabase.from('categories').upsert(categories).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar categorias no Supabase:', error);
-      });
-      if (canShowToast) showToast('Categorias atualizadas com sucesso!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar categorias!', 'error');
-    }
-  }, [categories, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('products', products);
-      supabase.from('products').upsert(products).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar produtos no Supabase:', error);
-      });
-      if (canShowToast) showToast('Produtos atualizados com sucesso!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar produtos!', 'error');
-    }
-  }, [products, initialized, canShowToast]);
-
   useEffect(() => {
     if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
     try {
@@ -1157,289 +1147,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     };
   }, [initialized, company.id, session?.user]);
 
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('financial', financial);
-      supabase.from('financial_transactions').upsert(financial).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar financeiro no Supabase:', error);
-      });
-      if (canShowToast) showToast('Transações financeiras atualizadas!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar finanças!', 'error');
-    }
-  }, [financial, initialized, canShowToast]);
+  // Business writes are performed only by the explicit commands below. State
+  // changes, hydration and Realtime never write collection snapshots back.
 
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('shipments', shipments);
-      supabase.from('shipments').upsert(shipments).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar expedição no Supabase:', error);
-      });
-      if (canShowToast) showToast('Envios e entregas atualizados!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar entregas!', 'error');
-    }
-  }, [shipments, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('stockMovements', stockMovements);
-      supabase.from('stock_movements').upsert(stockMovements).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar estoque no Supabase:', error);
-      });
-      if (canShowToast) showToast('Estoque movimentado com sucesso!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar estoque!', 'error');
-    }
-  }, [stockMovements, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute() || !company?.id) return;
-    try {
-      window.localStorage.setItem('printflow_settings', JSON.stringify(settings));
-      supabase.from('settings').upsert({
-        company_id: company.id,
-        pix_key: settings.pix_key || null,
-        pix_key_type: settings.pix_key_type || null,
-        pix_beneficiary_name: settings.pix_beneficiary_name || null,
-        bank_name: settings.bank_name || null,
-        profit_margin: settings.profit_margin || 0,
-        tax_rate: settings.tax_rate || 0,
-        commission_rate: settings.commission_rate || 0,
-        top_bar_hours: settings.top_bar_hours || null,
-        top_bar_show_pickup: settings.top_bar_show_pickup ?? true,
-        top_bar_phone: settings.top_bar_phone || null,
-        footer_show_address: settings.footer_show_address ?? true,
-        footer_hours_message: settings.footer_hours_message || null,
-        footer_hours_week: settings.footer_hours_week || null,
-        footer_hours_sat: settings.footer_hours_sat || null,
-        footer_hours_sat_time: settings.footer_hours_sat_time || null,
-        footer_hours_sat_desc: settings.footer_hours_sat_desc || null,
-        saas_enabled: settings.saas_enabled ?? true,
-        nfe_enabled: settings.nfe_enabled ?? false,
-        ai_enabled: settings.ai_enabled ?? false,
-        company_address: settings.company_address || null,
-        delivery_motoboy_price_km: settings.delivery_motoboy_price_km || 0,
-        delivery_car_price_km: settings.delivery_car_price_km || 0,
-        delivery_min_fee: settings.delivery_min_fee || 0,
-        catalog_header_message: settings.catalog_header_message || null,
-        catalog_whatsapp: settings.catalog_whatsapp || null,
-        free_pickup_alert: settings.free_pickup_alert ?? true,
-        catalog_promotions_section_enabled: settings.catalog_promotions_section_enabled ?? true,
-        catalog_bestsellers_section_enabled: settings.catalog_bestsellers_section_enabled ?? true,
-        catalog_highlights_section_enabled: settings.catalog_highlights_section_enabled
-          ?? settings.catalog_promotions_section_enabled
-          ?? true,
-        catalog_footer_text: settings.catalog_footer_text || null,
-        updated_at: new Date().toISOString(),
-      })
-      .then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar configurações no Supabase:', error);
-      });
-
-    if (canShowToast) showToast('Configurações salvas com sucesso!', 'success');
-  } catch (error) {
-    warnCaught('Erro capturado:', error);
-    if (canShowToast) showToast('Erro ao salvar configurações!', 'error');
-  }
-}, [settings, company?.id, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('pickupPoints', pickupPoints);
-      supabase.from('pickup_points').upsert(pickupPoints).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar pontos de coleta no Supabase:', error);
-      });
-      if (canShowToast) showToast('Pontos de retirada salvos!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar pontos de retirada!', 'error');
-    }
-  }, [pickupPoints, initialized, canShowToast]);
-
-useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-
-  try {
-    window.localStorage.setItem('printflow_company', JSON.stringify(company));
-
-    if (!company?.id) return;
-
-    supabase
-      .from('companies')
-      .update({
-        name: company.name,
-        document: company.document,
-        phone: company.phone,
-        email: company.email,
-        cep: company.cep,
-        street: company.street,
-        number: company.number,
-        neighborhood: company.neighborhood,
-        city: company.city,
-        state: company.state,
-        logo_url: company.logo_url,
-        logo_light: company.logo_light,
-        logo_dark: company.logo_dark,
-        favicon: company.favicon,
-        theme_color: company.theme_color,
-        admin_domain: company.admin_domain || null,
-        store_domain: company.store_domain || company.custom_domain || null,
-        custom_domain: company.custom_domain || null,
-        custom_domain_status: company.custom_domain_status || 'not_configured',
-        custom_domain_verified_at: company.custom_domain_verified_at || null,
-        instagram_url: company.instagram_url,
-        facebook_url: company.facebook_url,
-        youtube_url: company.youtube_url,
-        refund_policy: company.refund_policy,
-        show_payments_visa: company.show_payments_visa,
-        show_payments_mastercard: company.show_payments_mastercard,
-        show_payments_elo: company.show_payments_elo,
-        show_payments_hipercard: company.show_payments_hipercard,
-        show_payments_diners: company.show_payments_diners,
-        show_payments_amex: company.show_payments_amex,
-        show_payments_boleto: company.show_payments_boleto,
-        show_payments_transferencia: company.show_payments_transferencia,
-        show_payments_pix: company.show_payments_pix,
-        show_delivery_sedex: company.show_delivery_sedex,
-        show_delivery_pac: company.show_delivery_pac,
-        show_delivery_correios: company.show_delivery_correios,
-        show_delivery_jadlog: company.show_delivery_jadlog,
-        show_delivery_motoboy: company.show_delivery_motoboy,
-        show_security_letsencrypt: company.show_security_letsencrypt,
-        show_security_google: company.show_security_google,
-        img_payments_visa: company.img_payments_visa,
-        img_payments_mastercard: company.img_payments_mastercard,
-        img_payments_elo: company.img_payments_elo,
-        img_payments_hipercard: company.img_payments_hipercard,
-        img_payments_diners: company.img_payments_diners,
-        img_payments_amex: company.img_payments_amex,
-        img_payments_boleto: company.img_payments_boleto,
-        img_payments_transferencia: company.img_payments_transferencia,
-        img_payments_pix: company.img_payments_pix,
-        img_delivery_sedex: company.img_delivery_sedex,
-        img_delivery_pac: company.img_delivery_pac,
-        img_delivery_correios: company.img_delivery_correios,
-        img_delivery_jadlog: company.img_delivery_jadlog,
-        img_delivery_motoboy: company.img_delivery_motoboy,
-        img_security_letsencrypt: company.img_security_letsencrypt,
-        img_security_google: company.img_security_google,
-        card_benefits_1_title: company.card_benefits_1_title,
-        card_benefits_1_subtitle: company.card_benefits_1_subtitle,
-        card_benefits_1_active: company.card_benefits_1_active,
-        card_benefits_1_icon: company.card_benefits_1_icon,
-        card_benefits_1_sort_order: company.card_benefits_1_sort_order,
-        card_benefits_2_title: company.card_benefits_2_title,
-        card_benefits_2_subtitle: company.card_benefits_2_subtitle,
-        card_benefits_2_active: company.card_benefits_2_active,
-        card_benefits_2_icon: company.card_benefits_2_icon,
-        card_benefits_2_sort_order: company.card_benefits_2_sort_order,
-        card_benefits_3_title: company.card_benefits_3_title,
-        card_benefits_3_subtitle: company.card_benefits_3_subtitle,
-        card_benefits_3_active: company.card_benefits_3_active,
-        card_benefits_3_icon: company.card_benefits_3_icon,
-        card_benefits_3_sort_order: company.card_benefits_3_sort_order,
-        card_benefits_4_title: company.card_benefits_4_title,
-        card_benefits_4_subtitle: company.card_benefits_4_subtitle,
-        card_benefits_4_active: company.card_benefits_4_active,
-        card_benefits_4_icon: company.card_benefits_4_icon,
-        card_benefits_4_sort_order: company.card_benefits_4_sort_order,
-        card_benefits_5_title: company.card_benefits_5_title,
-        card_benefits_5_subtitle: company.card_benefits_5_subtitle,
-        card_benefits_5_active: company.card_benefits_5_active,
-        card_benefits_5_icon: company.card_benefits_5_icon,
-        card_benefits_5_sort_order: company.card_benefits_5_sort_order,
-        card_benefits_6_title: company.card_benefits_6_title,
-        card_benefits_6_subtitle: company.card_benefits_6_subtitle,
-        card_benefits_6_active: company.card_benefits_6_active,
-        card_benefits_6_icon: company.card_benefits_6_icon,
-        card_benefits_6_sort_order: company.card_benefits_6_sort_order,
-        card_benefits_7_title: company.card_benefits_7_title,
-        card_benefits_7_subtitle: company.card_benefits_7_subtitle,
-        card_benefits_7_active: company.card_benefits_7_active,
-        card_benefits_7_icon: company.card_benefits_7_icon,
-        card_benefits_7_sort_order: company.card_benefits_7_sort_order,
-      })
-      .eq('id', company.id)
-      .then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar empresa no Supabase:', error);
-      });
-
-    if (canShowToast) showToast('Configurações da empresa salvas com sucesso!', 'success');
-  } catch (error) {
-    warnCaught('Erro capturado:', error);
-    if (canShowToast) showToast('Erro ao salvar empresa!', 'error');
-  }
-}, [company, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('banners', banners);
-      const formatted = banners.map(b => ({ company_id: company.id, ...b }));
-      supabase.from('store_banners').upsert(formatted).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar banners no Supabase:', error);
-      });
-      if (canShowToast) showToast('Banners salvos com sucesso!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar banners!', 'error');
-    }
-  }, [banners, company.id, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('role_permissions', rolePermissions);
-      const formatted = Object.entries(rolePermissions).map(([path, roles]) => ({
-        company_id: company.id,
-        path,
-        roles
-      }));
-      if (formatted.length > 0) {
-      supabase
-        .from('role_permissions')
-        .upsert(formatted, { onConflict: 'company_id,path' })
-        .then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar permissões no Supabase:', error);
-      });
-      }
-      if (canShowToast) showToast('Permissões de acesso atualizadas!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar permissões de acesso!', 'error');
-    }
-  }, [rolePermissions, company.id, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('sessions', sessions);
-      supabase.from('cash_register_sessions').upsert(sessions).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar sessões de caixa no Supabase:', error);
-      });
-      if (canShowToast) showToast('Status de caixa atualizado!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar sessões de caixa!', 'error');
-    }
-  }, [sessions, initialized, canShowToast]);
-
-  useEffect(() => {
-    if (!initialized || !tenantPersistenceArmedRef.current || !isBrowser() || isPublicStoreRoute()) return;
-    try {
-      persistDemoSnapshot('registerTransactions', registerTransactions);
-      supabase.from('cash_register_transactions').upsert(registerTransactions).then(({ error }) => {
-        if (error) warnCaught('Erro ao sincronizar transações de caixa no Supabase:', error);
-      });
-      if (canShowToast) showToast('Transação do caixa salva!', 'success');
-    } catch {
-      if (canShowToast) showToast('Erro ao salvar transações!', 'error');
-    }
-  }, [registerTransactions, initialized, canShowToast]);
-
-  // Arm write-through effects only after the hydration commit. This prevents a
-  // read-only login/session switch from upserting the freshly loaded snapshots.
+  // Arm the demo-only quote/order fallback only after hydration. Production
+  // tenant collections are never persisted by effects.
   useEffect(() => {
     if (
       !isPublicStoreRoute() &&
@@ -1531,7 +1243,10 @@ useEffect(() => {
     const newCust = buildCustomerRecord(cust, currentCompanyId);
     setCustomers(prev => [newCust, ...prev]);
     persistDemoSnapshot('customers', [newCust, ...customers]);
-    createCustomer(newCust).catch((error) => {
+    createCustomer(newCust).then((saved) => {
+      setCustomers((items) => items.map((item) => item.id === saved.id ? saved : item));
+    }).catch((error) => {
+      setCustomers((items) => items.filter((item) => item.id !== newCust.id));
       warnCaught('Erro ao criar cliente no Supabase:', error);
       if (canShowToast) showToast('Erro ao salvar cliente no Supabase!', 'error');
     });
@@ -1539,22 +1254,31 @@ useEffect(() => {
   };
 
   const updateCustomer = (cust: Customer) => {
+    const previous = customers.find((customer) => customer.id === cust.id);
+    if (!previous) return;
     const nextCustomers = customers.map(c => (c.id === cust.id ? cust : c));
     setCustomers(nextCustomers);
     persistDemoSnapshot('customers', nextCustomers);
-    updateCustomerRecord(cust).catch((error) => {
+    updateCustomerRecord(cust, previous).then((saved) => {
+      setCustomers((items) => items.map((item) => item.id === saved.id ? saved : item));
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as Customer | undefined : undefined;
+      setCustomers((items) => items.map((item) => item.id === cust.id ? (latest || previous) : item));
       warnCaught('Erro ao atualizar cliente no Supabase:', error);
-      if (canShowToast) showToast('Erro ao atualizar cliente no Supabase!', 'error');
+      if (canShowToast) showToast(error instanceof Error ? error.message : 'Erro ao atualizar cliente no Supabase!', 'error');
     });
   };
 
   const deleteCustomer = (id: string) => {
+    const current = customers.find((customer) => customer.id === id);
+    if (!current) return;
     const nextCustomers = customers.filter(c => c.id !== id);
     setCustomers(nextCustomers);
     persistDemoSnapshot('customers', nextCustomers);
-    deleteCustomerRecord(id).catch((error) => {
+    deleteCustomerRecord(current).catch((error) => {
+      setCustomers((items) => items.some((item) => item.id === id) ? items : [...items, current]);
       warnCaught('Erro ao excluir cliente no Supabase:', error);
-      if (canShowToast) showToast('Erro ao excluir cliente no Supabase!', 'error');
+      if (canShowToast) showToast(error instanceof Error ? error.message : 'Erro ao excluir cliente no Supabase!', 'error');
     });
   };
 
@@ -1569,6 +1293,13 @@ useEffect(() => {
       created_at: new Date().toISOString()
     };
     setSuppliers(prev => [newSup, ...prev]);
+    void insertTenantRecord<Supplier>('suppliers', newSup).then((saved) => {
+      setSuppliers((current) => current.map((item) => item.id === saved.id ? saved : item));
+    }).catch((error) => {
+      setSuppliers((current) => current.filter((item) => item.id !== newSup.id));
+      warnCaught('Erro ao salvar fornecedor no Supabase:', error);
+      showToast('Não foi possível salvar o fornecedor.', 'error');
+    });
     return newSup;
   };
 
@@ -1584,49 +1315,38 @@ useEffect(() => {
     };
     setCategories(prev => [...prev, newCat]);
 
-    supabase
-      .from('categories')
-      .insert({
-        id: newCat.id,
-        company_id: newCat.company_id,
-        name: newCat.name,
-        description: newCat.description,
-        parent_id: newCat.parent_id,
-        show_in_catalog: newCat.show_in_catalog,
-        created_at: newCat.created_at
-      })
-      .then(({ error }) => {
-        if (error) {
-          warnCaught('Erro ao salvar categoria no Supabase:', error);
-          showToast('Erro ao salvar categoria no Supabase.', 'error');
-        } else {
-          showToast('Categoria salva com sucesso.', 'success');
-        }
-      });
+    void insertTenantRecord<Category>('categories', newCat).then((saved) => {
+      setCategories((items) => items.map((item) => item.id === saved.id ? saved : item));
+      showToast('Categoria salva com sucesso.', 'success');
+    }).catch((error) => {
+      setCategories((items) => items.filter((item) => item.id !== newCat.id));
+      warnCaught('Erro ao salvar categoria no Supabase:', error);
+      showToast('Não foi possível salvar a categoria.', 'error');
+    });
 
     return newCat;
   };
 
   const updateCategory = (id: string, name: string, description: string, parent_id?: string | null, show_in_catalog: boolean = true) => {
-    setCategories(prev => prev.map(c => c.id === id ? { ...c, name, description, parent_id: parent_id || null, show_in_catalog } : c));
-
-    supabase
-      .from('categories')
-      .update({
-        name,
-        description,
-        parent_id: parent_id || null,
-        show_in_catalog
-      })
-      .eq('id', id)
-      .then(({ error }) => {
-        if (error) {
-          warnCaught('Erro ao atualizar categoria no Supabase:', error);
-          showToast('Erro ao atualizar categoria no Supabase.', 'error');
-        } else {
-          showToast('Categoria atualizada com sucesso.', 'success');
-        }
-      });
+    const current = categories.find((category) => category.id === id);
+    if (!current) return;
+    const intended = { name, description, parent_id: parent_id || null, show_in_catalog };
+    const patch = Object.fromEntries(Object.entries(intended).filter(([key, value]) => (
+      JSON.stringify(value) !== JSON.stringify((current as unknown as Record<string, unknown>)[key])
+    )));
+    if (Object.keys(patch).length === 0) return;
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+    void patchTenantRecord<Category>(
+      'categories', id, currentCompanyId, patch, { expectedUpdatedAt: current.updated_at }
+    ).then((saved) => {
+      setCategories((items) => items.map((item) => item.id === saved.id ? saved : item));
+      showToast('Categoria atualizada com sucesso.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as Category | undefined : undefined;
+      setCategories((items) => items.map((item) => item.id === id ? (latest || current) : item));
+      warnCaught('Erro ao atualizar categoria no Supabase:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a categoria.', 'error');
+    });
   };
 
   const updateCategoryCatalogPresentation = async (id: string, patch: CategoryCatalogPresentationPatch) => {
@@ -1639,21 +1359,22 @@ useEffect(() => {
       catalog_mega_menu_banner_alt: patch.catalog_mega_menu_banner_alt?.trim() || null
     };
 
-    const { error } = await supabase
-      .from('categories')
-      .update(normalizedPatch)
-      .eq('id', id);
-
-    if (error) throw new Error(`Não foi possível salvar a apresentação da categoria: ${error.message}`);
-    setCategories((current) => current.map((category) => category.id === id
-      ? { ...category, ...normalizedPatch }
-      : category));
+    const current = categories.find((category) => category.id === id);
+    if (!current) throw new Error('Categoria não encontrada.');
+    const saved = await patchTenantRecord<Category>(
+      'categories', id, currentCompanyId, normalizedPatch, { expectedUpdatedAt: current.updated_at }
+    );
+    setCategories((items) => items.map((category) => category.id === id ? saved : category));
   };
 
   const deleteCategory = (id: string) => {
+    const current = categories.find((category) => category.id === id);
+    if (!current) return;
     setCategories(prev => prev.filter(c => c.id !== id));
-    supabase.from('categories').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir categoria no Supabase:', error);
+    void deleteTenantRecord('categories', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).catch((error) => {
+      setCategories((items) => items.some((item) => item.id === id) ? items : [...items, current]);
+      warnCaught('Erro ao excluir categoria no Supabase:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível excluir a categoria.', 'error');
     });
   };
 
@@ -1671,9 +1392,7 @@ useEffect(() => {
 
   setProducts(prev => [newProd, ...prev]);
 
-  supabase
-    .from('products')
-    .insert({
+  void insertTenantRecord<Product>('products', {
       id: newProd.id,
       company_id: newProd.company_id,
       category_id: newProd.category_id,
@@ -1696,88 +1415,79 @@ useEffect(() => {
       is_highlight: newProd.is_highlight || false,
       pricing_details: newProd.pricing_details || null,
       created_at: newProd.created_at
-    })
-    .then(({ error }) => {
-      if (error) {
-        warnCaught('Erro ao salvar produto no Supabase:', error);
-        showToast('Erro ao salvar produto no Supabase.', 'error');
-      } else {
-        showToast('Produto salvo com sucesso.', 'success');
-      }
+    } as Product).then((saved) => {
+      setProducts((items) => items.map((item) => item.id === saved.id ? saved : item));
+      showToast('Produto salvo com sucesso.', 'success');
+    }).catch((error) => {
+      setProducts((items) => items.filter((item) => item.id !== newProd.id));
+      warnCaught('Erro ao salvar produto no Supabase:', error);
+      showToast('Não foi possível salvar o produto.', 'error');
     });
 
   return newProd;
 };
 
   const updateProduct = (prod: Product) => {
-  setProducts(prev => prev.map(p => (p.id === prod.id ? prod : p)));
+    const current = products.find((item) => item.id === prod.id);
+    if (!current) return;
+    const writableKeys: Array<keyof Product> = [
+      'category_id', 'name', 'description', 'sku', 'pricing_type', 'base_cost',
+      'sales_price', 'stock_controlled', 'min_stock', 'active', 'catalog_active',
+      'image_url', 'volume_pricing', 'variant_options', 'color_options', 'is_promo',
+      'is_highlight', 'pricing_details'
+    ];
+    const patch = writableKeys.reduce<Record<string, unknown>>((result, key) => {
+      if (JSON.stringify(current[key]) !== JSON.stringify(prod[key])) result[key] = prod[key] ?? null;
+      return result;
+    }, {});
+    if (Object.keys(patch).length === 0) return;
 
-  supabase
-    .from('products')
-    .update({
-      category_id: prod.category_id,
-      name: prod.name,
-      description: prod.description,
-      sku: prod.sku,
-      pricing_type: prod.pricing_type,
-      base_cost: prod.base_cost,
-      sales_price: prod.sales_price,
-      stock_controlled: prod.stock_controlled,
-      min_stock: prod.min_stock,
-      current_stock: prod.current_stock,
-      active: prod.active,
-      catalog_active: prod.catalog_active !== false,
-      image_url: prod.image_url || null,
-      volume_pricing: prod.volume_pricing || null,
-      variant_options: prod.variant_options || null,
-      color_options: prod.color_options || null,
-      is_promo: prod.is_promo || false,
-      is_highlight: prod.is_highlight || false,
-      pricing_details: prod.pricing_details || null
-    })
-    .eq('id', prod.id)
-    .then(({ error }) => {
-      if (error) {
-        warnCaught('Erro ao atualizar produto no Supabase:', error);
-        showToast('Erro ao atualizar produto no Supabase.', 'error');
-      } else {
-        showToast('Produto atualizado com sucesso.', 'success');
-      }
+    const optimistic = { ...current, ...patch } as Product;
+    setProducts(prev => prev.map(p => (p.id === prod.id ? optimistic : p)));
+    void patchTenantRecord<Product>(
+      'products', prod.id, currentCompanyId, patch, { expectedUpdatedAt: current.updated_at }
+    ).then((saved) => {
+      setProducts((items) => items.map((item) => item.id === saved.id ? saved : item));
+      showToast('Produto atualizado com sucesso.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as Product | undefined : undefined;
+      setProducts((items) => items.map((item) => item.id === prod.id ? (latest || current) : item));
+      warnCaught('Erro ao atualizar produto no Supabase:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o produto.', 'error');
     });
 };
 
   const deleteProduct = (id: string) => {
+    const current = products.find((item) => item.id === id);
+    if (!current) return;
     setProducts(prev => prev.filter(p => p.id !== id));
-    supabase.from('products').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir produto no Supabase:', error);
+    void deleteTenantRecord('products', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).catch((error) => {
+      setProducts((items) => items.some((item) => item.id === id) ? items : [...items, current]);
+      warnCaught('Erro ao excluir produto no Supabase:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível excluir o produto.', 'error');
     });
   };
 
   const adjustStock = (productId: string, quantity: number, reason: string, type: 'entrada' | 'saida', cost?: number) => {
-    setProducts(prev =>
-      prev.map(p => {
-        if (p.id === productId) {
-          const delta = type === 'entrada' ? quantity : -quantity;
-          const newStock = Math.max(0, p.current_stock + delta);
-          return { ...p, current_stock: newStock };
-        }
-        return p;
-      })
-    );
-
     const match = products.find(p => p.id === productId);
-    const newMovement: StockMovement = {
-      id: `sm-${Date.now()}`,
-      company_id: currentCompanyId,
-      product_id: productId,
-      product_name: match ? match.name : 'Produto Desconhecido',
-      type,
+    if (!match) return;
+    void adjustInventoryStock<Product, StockMovement>({
+      productId,
       quantity,
+      type,
       reason,
-      unit_cost: cost || (match ? match.base_cost : 0),
-      created_at: new Date().toISOString()
-    };
-    setStockMovements(prev => [newMovement, ...prev]);
+      unitCost: cost,
+      expectedUpdatedAt: match.updated_at
+    }).then(({ product, movement }) => {
+      setProducts((items) => items.map((item) => item.id === product.id ? product : item));
+      setStockMovements((items) => items.some((item) => item.id === movement.id) ? items : [movement, ...items]);
+      showToast('Movimento de estoque registrado.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as Product | undefined : undefined;
+      if (latest) setProducts((items) => items.map((item) => item.id === latest.id ? latest : item));
+      warnCaught('Erro ao ajustar estoque:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível ajustar o estoque.', 'error');
+    });
   };
 
   // ----------------------------------------------------
@@ -1918,9 +1628,10 @@ useEffect(() => {
       console.log('[save_quote_with_items payload]', { p_quote, p_items });
     }
 
-    const { data, error } = await supabase.rpc('save_quote_with_items', {
+    const { data, error } = await supabase.rpc('save_quote_with_items_phase4b', {
       p_quote,
-      p_items
+      p_items,
+      p_expected_updated_at: quote.updated_at || null
     });
 
     if (error) {
@@ -1929,7 +1640,22 @@ useEffect(() => {
       return null;
     }
 
-    const savedQuote = normalizeQuotePayload(data as SavedQuotePayload);
+    const result = data as Phase4bAggregateSaveResult;
+    if (result.result_status === 'CONFLICT') {
+      const [{ data: latestQuote }, { data: latestItems }] = await Promise.all([
+        supabase.from('quotes').select('*').eq('id', quote.id).eq('company_id', currentCompanyId).maybeSingle(),
+        supabase.from('quote_items').select('*').eq('quote_id', quote.id)
+      ]);
+      const latest = latestQuote ? normalizeQuotePayload({ quote: latestQuote as Quote, items: (latestItems || []) as QuoteItemRow[] }) : null;
+      if (latest) upsertQuoteState(latest);
+      showToast('Este orçamento foi alterado em outra sessão. A versão mais recente foi carregada.', 'error');
+      return null;
+    }
+    if (result.result_status !== 'UPDATED' || !result.payload) {
+      showToast('Você não tem permissão ou os dados do orçamento são inválidos.', 'error');
+      return null;
+    }
+    const savedQuote = normalizeQuotePayload(result.payload as SavedQuotePayload);
     if (!savedQuote) {
       warnCaught(`Resposta inválida ao salvar orçamento ${errorContext} no Supabase:`, data);
       showToast('O orçamento foi enviado, mas a resposta do servidor veio incompleta.', 'error');
@@ -1942,9 +1668,10 @@ useEffect(() => {
 
   const saveOrderWithItems = async (order: Order, errorContext: string) => {
     const { items, ...parentOrder } = order;
-    const { data, error } = await supabase.rpc('save_order_with_items', {
+    const { data, error } = await supabase.rpc('save_order_with_items_phase4b', {
       p_order: parentOrder,
-      p_items: items
+      p_items: items,
+      p_expected_updated_at: order.updated_at || null
     });
 
     if (error) {
@@ -1953,7 +1680,22 @@ useEffect(() => {
       return null;
     }
 
-    const savedOrder = normalizeOrderPayload(data as SavedOrderPayload);
+    const result = data as Phase4bAggregateSaveResult;
+    if (result.result_status === 'CONFLICT') {
+      const [{ data: latestOrder }, { data: latestItems }] = await Promise.all([
+        supabase.from('orders').select('*').eq('id', order.id).eq('company_id', currentCompanyId).maybeSingle(),
+        supabase.from('order_items').select('*').eq('order_id', order.id)
+      ]);
+      const latest = latestOrder ? normalizeOrderPayload({ order: latestOrder as Order, items: (latestItems || []) as OrderItemRow[] }) : null;
+      if (latest) upsertOrderState(latest);
+      showToast('Este pedido foi alterado em outra sessão. A versão mais recente foi carregada.', 'error');
+      return null;
+    }
+    if (result.result_status !== 'UPDATED' || !result.payload) {
+      showToast('Você não tem permissão ou os dados do pedido são inválidos.', 'error');
+      return null;
+    }
+    const savedOrder = normalizeOrderPayload(result.payload as SavedOrderPayload);
     if (!savedOrder) {
       warnCaught(`Resposta inválida ao salvar pedido ${errorContext} no Supabase:`, data);
       showToast('O pedido foi enviado, mas a resposta do servidor veio incompleta.', 'error');
@@ -2077,66 +1819,30 @@ useEffect(() => {
   };
 
   const updateOrderStatus = (id: string, status: Order['status']) => {
-    let orderMatch: Order | undefined;
-    
-    setOrders(prev =>
-      prev.map(o => {
-        if (o.id === id) {
-          orderMatch = { ...o, status };
-          return orderMatch;
-        }
-        return o;
-      })
-    );
-
-    if (!orderMatch) return;
-
-    supabase.from('orders').update({ status }).eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao atualizar status do pedido no Supabase:', error);
+    const current = orders.find((order) => order.id === id);
+    if (!current || current.status === status) return;
+    const optimistic = { ...current, status };
+    setOrders((items) => items.map((item) => item.id === id ? optimistic : item));
+    void transitionOrderStatus<Order, Shipment>({
+      orderId: id,
+      status,
+      expectedUpdatedAt: current.updated_at
+    }).then(({ order: savedOrder, shipment }) => {
+      setOrders((items) => items.map((item) => item.id === savedOrder.id ? { ...savedOrder, items: item.items } : item));
+      if (shipment) {
+        setShipments((items) => items.some((item) => item.id === shipment.id)
+          ? items.map((item) => item.id === shipment.id ? shipment : item)
+          : [shipment, ...items]);
+      }
+      if (status === 'producao' && !production.some((item) => item.order_id === id)) {
+        void injectProductionQueue({ ...savedOrder, items: current.items });
+      }
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as Order | undefined : undefined;
+      setOrders((items) => items.map((item) => item.id === id ? { ...(latest || current), items: item.items } : item));
+      warnCaught('Erro ao atualizar status do pedido:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o pedido.', 'error');
     });
-
-    // Trigger Production Queue on moving to 'producao'
-    if (status === 'producao') {
-      const exists = production.some(p => p.order_id === id);
-      if (!exists && orderMatch) {
-        void injectProductionQueue(orderMatch);
-      }
-    }
-
-    // Trigger Shipment Creation on moving to 'expedicao'
-    if (status === 'expedicao') {
-      const exists = shipments.some(s => s.order_id === id);
-      if (!exists && orderMatch) {
-        const defaultCust = customers.find(c => c.name === orderMatch?.customer_name);
-        const newShip: Shipment = {
-          id: `ship-${Date.now()}`,
-          company_id: currentCompanyId,
-          order_id: id,
-          order_number: orderMatch.number,
-          customer_name: orderMatch.customer_name,
-          status: 'separacao',
-          carrier: 'Retirada Balcão',
-          address: defaultCust?.address || {
-            street: 'Rua de Entrega',
-            number: '123',
-            neighborhood: 'Centro',
-            city: 'São Paulo',
-            state: 'SP',
-            zip_code: '01000-000'
-          },
-          created_at: new Date().toISOString()
-        };
-        setShipments(prev => [newShip, ...prev]);
-      }
-    }
-
-    // Inject Financial income transactions if moving to 'finalizado' and paid
-    if (status === 'finalizado') {
-      // Mark shipment as delivered
-      setShipments(prev =>
-        prev.map(s => (s.order_id === id ? { ...s, status: 'entregue', delivered_at: new Date().toISOString() } : s))
-      );
-    }
   };
 
   const createOperationId = (prefix: string) => {
@@ -2157,132 +1863,40 @@ useEffect(() => {
       notes?: string;
     }
   ) => {
-    setOrders(prev =>
-      prev.map(o => {
-        if (o.id === id) {
-          const currentBalance = Math.max(0, o.total_amount - o.paid_amount);
-          const paymentAmount = Math.min(currentBalance, Math.max(0, amount));
-          if (paymentAmount <= 0) return o;
+    const current = orders.find((order) => order.id === id);
+    if (!current) return;
 
-          const newPaid = Math.min(o.total_amount, o.paid_amount + paymentAmount);
-          const payment_status: Order['payment_status'] = newPaid >= o.total_amount ? 'pago' : 'parcial';
-          const paidAt = options?.paid_at || new Date().toISOString();
-          const dueDate = paidAt.split('T')[0] || new Date().toISOString().split('T')[0];
-          const paymentTypeLabel: Record<'adiantamento' | 'parcial' | 'saldo' | 'total', string> = {
-            adiantamento: 'Adiantamento',
-            parcial: 'Pagamento parcial',
-            saldo: 'Pagamento do saldo',
-            total: 'Pagamento total'
-          };
-          const orderDisplayNumber = formatOrderDisplayNumber(o.number);
-          const descriptionBase = method === 'faturado'
-            ? `Faturamento B2B do Pedido ${orderDisplayNumber}`
-            : `${paymentTypeLabel[options?.payment_type || (payment_status === 'pago' ? 'saldo' : 'parcial')]} do Pedido ${orderDisplayNumber}`;
-          const description = options?.notes?.trim()
-            ? `${descriptionBase} - ${options.notes.trim()}`
-            : descriptionBase;
-          
-          // Look up B2B term days for the customer
-          const matchCust = customers.find(c => c.name === o.customer_name);
-          let dueDays = 30;
-          if (matchCust && matchCust.billing_type === 'faturado' && matchCust.payment_terms_days) {
-            dueDays = matchCust.payment_terms_days;
-          }
-          const dueDateObj = new Date();
-          dueDateObj.setDate(dueDateObj.getDate() + dueDays);
-
-          // Auto step from waiting payment to production if fully paid OR if faturado
-          let nextStatus = o.status;
-          if (o.status === 'aguardando_pagamento' && (payment_status === 'pago' || method === 'faturado')) {
-            nextStatus = 'producao';
-            // Trigger production queue injection right after state completes
-            setTimeout(() => {
-              updateOrderStatus(o.id, 'producao');
-            }, 10);
-          }
-
-          const nextOrder = {
-            ...o,
-            paid_amount: method === 'faturado' ? o.paid_amount : newPaid,
-            payment_status: method === 'faturado' ? 'pendente' as const : payment_status,
-            status: nextStatus
-          };
-
-          supabase.from('orders').update({
-            paid_amount: nextOrder.paid_amount,
-            payment_status: nextOrder.payment_status,
-            status: nextOrder.status
-          }).eq('id', o.id).then(({ error }) => {
-            if (error) warnCaught('Erro ao sincronizar pagamento do pedido no Supabase:', error);
-          });
-
-          // Log Financial income transaction
-          const trans: FinancialTransaction = {
-            id: createOperationId('fin'),
-            company_id: currentCompanyId,
-            order_id: o.id,
-            order_number: o.number,
-            type: 'receita',
-            category: 'Vendas',
-            amount: paymentAmount,
-            description: method === 'faturado' ? `${description} (${dueDays} dias)` : description,
-            payment_method: method,
-            status: method === 'faturado' ? 'pendente' : 'pago',
-            due_date: method === 'faturado' 
-              ? dueDateObj.toISOString().split('T')[0] 
-              : dueDate,
-            paid_at: method === 'faturado' ? undefined : paidAt,
-            created_at: new Date().toISOString()
-          };
-          
-          setFinancial(f => (
-            f.some(item => item.id === trans.id)
-              ? f
-              : [trans, ...f]
-          ));
-          supabase.from('financial_transactions').insert(trans).then(({ error }) => {
-            if (error) warnCaught('Erro ao sincronizar lançamento financeiro do pedido no Supabase:', error);
-          });
-
-          // Log Cash Register transaction if active session exists and payment isn't B2B faturado
-          const activeReg = sessions.find(s => s.status === 'aberto');
-          if (activeReg && method !== 'faturado') {
-            const newPOSRegTrans: CashRegisterTransaction = {
-              id: createOperationId('crt-ord-pay'),
-              session_id: activeReg.id,
-              type: 'venda',
-              amount: paymentAmount,
-              description: `Rec. Pedido ${orderDisplayNumber}`,
-              payment_method: method,
-              created_at: new Date().toISOString()
-            };
-            setRegisterTransactions(prev => [newPOSRegTrans, ...prev]);
-
-            if (method === 'dinheiro') {
-              setSessions(prev =>
-                prev.map(s =>
-                  s.id === activeReg.id
-                    ? { ...s, expected_cash: s.expected_cash + paymentAmount }
-                    : s
-                )
-              );
-            }
-          }
-
-          // Update customer credit used if faturado
-          if (method === 'faturado' && matchCust) {
-            const currentUsed = matchCust.credit_used || 0;
-            updateCustomer({
-              ...matchCust,
-              credit_used: currentUsed + paymentAmount
-            });
-          }
-
-          return nextOrder;
-        }
-        return o;
-      })
-    );
+    void recordOrderPayment<Order, FinancialTransaction, Customer, CashRegisterSession, CashRegisterTransaction>({
+      orderId: id,
+      amount,
+      method,
+      paymentType: options?.payment_type,
+      paidAt: options?.paid_at,
+      notes: options?.notes,
+      expectedUpdatedAt: current.updated_at
+    }).then(({ order: savedOrder, financial: savedFinancial, customer, session: savedSession, registerTransaction }) => {
+      const orderWithItems = { ...savedOrder, items: current.items };
+      setOrders((items) => items.map((item) => item.id === savedOrder.id ? orderWithItems : item));
+      setFinancial((items) => items.some((item) => item.id === savedFinancial.id)
+        ? items.map((item) => item.id === savedFinancial.id ? savedFinancial : item)
+        : [savedFinancial, ...items]);
+      if (customer) setCustomers((items) => items.map((item) => item.id === customer.id ? customer : item));
+      if (savedSession) setSessions((items) => items.map((item) => item.id === savedSession.id ? savedSession : item));
+      if (registerTransaction) {
+        setRegisterTransactions((items) => items.some((item) => item.id === registerTransaction.id)
+          ? items
+          : [registerTransaction, ...items]);
+      }
+      if (savedOrder.status === 'producao' && current.status !== 'producao') {
+        void injectProductionQueue(orderWithItems);
+      }
+      showToast('Pagamento registrado com sucesso.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as Order | undefined : undefined;
+      if (latest) setOrders((items) => items.map((item) => item.id === latest.id ? { ...latest, items: item.items } : item));
+      warnCaught('Erro ao registrar pagamento do pedido:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível registrar o pagamento.', 'error');
+    });
   };
 
   // ----------------------------------------------------
@@ -2390,67 +2004,37 @@ useEffect(() => {
       created_at: new Date().toISOString()
     };
     setFinancial(prev => [newTrans, ...prev]);
+    void insertTenantRecord<FinancialTransaction>('financial_transactions', newTrans).then((saved) => {
+      setFinancial((items) => items.map((item) => item.id === saved.id ? saved : item));
+      showToast('Lançamento financeiro salvo.', 'success');
+    }).catch((error) => {
+      setFinancial((items) => items.filter((item) => item.id !== newTrans.id));
+      warnCaught('Erro ao salvar lançamento financeiro:', error);
+      showToast('Não foi possível salvar o lançamento financeiro.', 'error');
+    });
     return newTrans;
   };
 
   const updateTransactionStatus = (id: string, status: 'pendente' | 'pago') => {
     const trans = financial.find(f => f.id === id);
-    if (trans && trans.type === 'receita' && trans.order_id && status === 'pago' && trans.status === 'pendente') {
-      const ord = orders.find(o => o.id === trans.order_id);
-      if (ord) {
-        if (trans.payment_method === 'faturado') {
-          const matchCust = customers.find(c => c.name === ord.customer_name);
-          if (matchCust) {
-            const currentUsed = matchCust.credit_used || 0;
-            setCustomers(prev =>
-              prev.map(c =>
-                c.id === matchCust.id
-                  ? { ...c, credit_used: Math.max(0, currentUsed - trans.amount) }
-                  : c
-              )
-            );
-          }
-        }
-
-        setOrders(prev =>
-          prev.map(o => {
-            if (o.id === ord.id) {
-              const newPaid = Math.min(o.total_amount, o.paid_amount + trans.amount);
-              const nextPaymentStatus = newPaid >= o.total_amount ? 'pago' : 'parcial';
-              supabase.from('orders').update({
-                paid_amount: newPaid,
-                payment_status: nextPaymentStatus
-              }).eq('id', o.id).then(({ error }) => {
-                if (error) warnCaught('Erro ao sincronizar baixa financeira do pedido no Supabase:', error);
-              });
-              return {
-                ...o,
-                paid_amount: newPaid,
-                payment_status: nextPaymentStatus
-              };
-            }
-            return o;
-          })
-        );
-      }
-    }
-
-    setFinancial(prev =>
-      prev.map(f =>
-        f.id === id
-          ? {
-              ...f,
-              status,
-              paid_at: status === 'pago' ? new Date().toISOString() : undefined
-            }
-          : f
-      )
-    );
-    supabase.from('financial_transactions').update({
+    if (!trans || trans.status === status) return;
+    void settleFinancialTransaction<FinancialTransaction>({
+      transactionId: id,
       status,
-      paid_at: status === 'pago' ? new Date().toISOString() : null
-    }).eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao sincronizar status financeiro no Supabase:', error);
+      expectedUpdatedAt: trans.updated_at
+    }).then(async (saved) => {
+      setFinancial((items) => items.map((item) => item.id === saved.id ? saved : item));
+      if (saved.order_id) {
+        const { data: orderRow } = await supabase.from('orders').select('*').eq('id', saved.order_id).eq('company_id', currentCompanyId).maybeSingle();
+        if (orderRow) setOrders((items) => items.map((item) => item.id === orderRow.id ? { ...item, ...orderRow } as Order : item));
+        if (saved.payment_method === 'faturado') setCustomers(await listCustomers(currentCompanyId));
+      }
+      showToast('Status financeiro atualizado.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as FinancialTransaction | undefined : undefined;
+      if (latest) setFinancial((items) => items.map((item) => item.id === latest.id ? latest : item));
+      warnCaught('Erro ao atualizar status financeiro:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o lançamento.', 'error');
     });
   };
 
@@ -2458,41 +2042,70 @@ useEffect(() => {
   // SHIPMENTS API
   // ----------------------------------------------------
   const updateShipmentStatus = (id: string, status: Shipment['status'], tracking?: string, carrier?: string) => {
-    setShipments(prev =>
-      prev.map(s => {
-        if (s.id === id) {
-          const shipped_at = status === 'enviado' ? new Date().toISOString() : s.shipped_at;
-          const delivered_at = status === 'entregue' ? new Date().toISOString() : s.delivered_at;
-          
-          // Auto-complete order if delivered
-          if (status === 'entregue') {
-            setTimeout(() => {
-              updateOrderStatus(s.order_id, 'entregue');
-            }, 10);
-          }
-
-          return {
-            ...s,
-            status,
-            tracking_code: tracking || s.tracking_code,
-            carrier: carrier || s.carrier,
-            shipped_at,
-            delivered_at
-          };
-        }
-        return s;
-      })
-    );
+    const current = shipments.find((shipment) => shipment.id === id);
+    if (!current) return;
+    void transitionShipment<Shipment>({
+      shipmentId: id,
+      status,
+      trackingCode: tracking,
+      carrier,
+      expectedUpdatedAt: current.updated_at
+    }).then((saved) => {
+      setShipments((items) => items.map((item) => item.id === saved.id ? saved : item));
+      if (saved.status === 'entregue') {
+        setOrders((items) => items.map((item) => item.id === saved.order_id && item.status !== 'finalizado' ? { ...item, status: 'entregue' } : item));
+      }
+      showToast('Expedição atualizada.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as Shipment | undefined : undefined;
+      if (latest) setShipments((items) => items.map((item) => item.id === latest.id ? latest : item));
+      warnCaught('Erro ao atualizar expedição:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a expedição.', 'error');
+    });
   };
   // ----------------------------------------------------
   // SETTINGS API
   // ----------------------------------------------------
   const updateSettings = (newSettings: Partial<typeof DUMMY_SETTINGS>) => {
+    const previous = settings;
+    const patch = Object.fromEntries(Object.entries(newSettings).filter(([key, value]) => (
+      value !== undefined && JSON.stringify(value) !== JSON.stringify((settings as unknown as Record<string, unknown>)[key])
+    )));
+    if (Object.keys(patch).length === 0) return;
     setSettings(prev => mergeSettingsWithDefaults(prev, newSettings, true));
+    void patchTenantRecord<Record<string, unknown>>(
+      'settings', currentCompanyId, currentCompanyId, patch,
+      { idColumn: 'company_id', companyColumn: 'company_id', expectedUpdatedAt: (settings as unknown as { updated_at?: string }).updated_at }
+    ).then((saved) => {
+      setSettings((current) => mergeSettingsWithDefaults(current, saved as Partial<typeof DUMMY_SETTINGS>, true));
+      showToast('Configurações salvas com sucesso.', 'success');
+    }).catch((error) => {
+      setSettings(previous);
+      warnCaught('Erro ao salvar configurações:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar as configurações.', 'error');
+    });
   };
 
   const updateCompany = (comp: Company) => {
+    const previous = company;
+    const excluded = new Set(['id', 'created_at', 'updated_at']);
+    const patch = Object.fromEntries(Object.entries(comp).filter(([key, value]) => (
+      !excluded.has(key) && value !== undefined && JSON.stringify(value) !== JSON.stringify((company as unknown as Record<string, unknown>)[key])
+    )));
+    if (Object.keys(patch).length === 0) return;
     setCompany(comp);
+    void patchTenantRecord<Company>(
+      'companies', comp.id, currentCompanyId, patch,
+      { companyColumn: 'id', expectedUpdatedAt: company.updated_at }
+    ).then((saved) => {
+      setCompany(saved);
+      showToast('Configurações da empresa salvas com sucesso.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as Company | undefined : undefined;
+      setCompany(latest || previous);
+      warnCaught('Erro ao salvar empresa:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar a empresa.', 'error');
+    });
   };
 
   // ----------------------------------------------------
@@ -2505,17 +2118,41 @@ useEffect(() => {
       company_id: currentCompanyId
     };
     setPickupPoints(prev => [...prev, newPoint]);
+    void insertTenantRecord<PickupPoint>('pickup_points', newPoint).then((saved) => {
+      setPickupPoints((items) => items.map((item) => item.id === saved.id ? saved : item));
+    }).catch((error) => {
+      setPickupPoints((items) => items.filter((item) => item.id !== newPoint.id));
+      warnCaught('Erro ao salvar ponto de coleta:', error);
+      showToast('Não foi possível salvar o ponto de coleta.', 'error');
+    });
     return newPoint;
   };
 
   const updatePickupPoint = (point: PickupPoint) => {
+    const current = pickupPoints.find((item) => item.id === point.id);
+    if (!current) return;
+    const patch = Object.fromEntries(Object.entries(point).filter(([key, value]) => (
+      !['id', 'company_id', 'updated_at'].includes(key) && JSON.stringify(value) !== JSON.stringify((current as unknown as Record<string, unknown>)[key])
+    )));
     setPickupPoints(prev => prev.map(p => (p.id === point.id ? point : p)));
+    void patchTenantRecord<PickupPoint>(
+      'pickup_points', point.id, currentCompanyId, patch, { expectedUpdatedAt: current.updated_at }
+    ).then((saved) => setPickupPoints((items) => items.map((item) => item.id === saved.id ? saved : item)))
+      .catch((error) => {
+        const latest = error instanceof PersistenceMutationError ? error.latest as PickupPoint | undefined : undefined;
+        setPickupPoints((items) => items.map((item) => item.id === point.id ? (latest || current) : item));
+        showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o ponto de coleta.', 'error');
+      });
   };
 
   const deletePickupPoint = (id: string) => {
+    const current = pickupPoints.find((item) => item.id === id);
+    if (!current) return;
     setPickupPoints(prev => prev.filter(p => p.id !== id));
-    supabase.from('pickup_points').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir ponto de coleta no Supabase:', error);
+    void deleteTenantRecord('pickup_points', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).catch((error) => {
+      setPickupPoints((items) => items.some((item) => item.id === id) ? items : [...items, current]);
+      warnCaught('Erro ao excluir ponto de coleta no Supabase:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível excluir o ponto de coleta.', 'error');
     });
   };
 
@@ -2525,128 +2162,54 @@ useEffect(() => {
   const openRegister = (openingBalance: number, notes?: string) => {
     const existing = sessions.find(s => s.status === 'aberto');
     if (existing) return;
-
-    const sessionId = `session-${Date.now()}`;
-    const newSession: CashRegisterSession = {
-      id: sessionId,
-      company_id: currentCompanyId,
-      opened_by: 'Operador Balcão',
-      opened_at: new Date().toISOString(),
-      opening_balance: openingBalance,
-      expected_cash: openingBalance,
-      status: 'aberto',
-      notes
-    };
-
-    setSessions(prev => [newSession, ...prev]);
-
-    const initialTransaction: CashRegisterTransaction = {
-      id: `crt-${Date.now()}`,
-      session_id: sessionId,
-      type: 'abertura',
-      amount: openingBalance,
-      description: 'Abertura do Caixa',
-      payment_method: 'dinheiro',
-      created_at: new Date().toISOString()
-    };
-
-    setRegisterTransactions(prev => [initialTransaction, ...prev]);
+    void operateCashRegister<CashRegisterSession, CashRegisterTransaction>({
+      operation: 'open', amount: openingBalance, description: notes
+    }).then(({ session: savedSession, transaction }) => {
+      setSessions((items) => [savedSession, ...items.filter((item) => item.id !== savedSession.id)]);
+      setRegisterTransactions((items) => [transaction, ...items.filter((item) => item.id !== transaction.id)]);
+      showToast('Caixa aberto com sucesso.', 'success');
+    }).catch((error) => {
+      warnCaught('Erro ao abrir caixa:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível abrir o caixa.', 'error');
+    });
   };
 
   const closeRegister = (actualCash: number, notes?: string) => {
     const active = sessions.find(s => s.status === 'aberto');
     if (!active) return;
-
-    const difference = actualCash - active.expected_cash;
-
-    setSessions(prev =>
-      prev.map(s =>
-        s.id === active.id
-          ? {
-              ...s,
-              status: 'fechado',
-              closed_at: new Date().toISOString(),
-              actual_cash: actualCash,
-              difference,
-              notes: notes || s.notes
-            }
-          : s
-      )
-    );
-
-    const closingTransaction: CashRegisterTransaction = {
-      id: `crt-${Date.now()}`,
-      session_id: active.id,
-      type: 'fechamento',
-      amount: actualCash,
-      description: 'Fechamento do Caixa',
-      payment_method: 'dinheiro',
-      created_at: new Date().toISOString()
-    };
-
-    setRegisterTransactions(prev => [closingTransaction, ...prev]);
-
-    if (difference !== 0) {
-      const summaryTrans: FinancialTransaction = {
-        id: `fin-closing-${Date.now()}`,
-        company_id: currentCompanyId,
-        type: difference >= 0 ? 'receita' : 'despesa',
-        category: 'Ajuste de Caixa',
-        amount: Math.abs(difference),
-        description: `Diferença de Fechamento de Caixa: ${difference >= 0 ? 'Sobra' : 'Quebra'} (Sessão ${active.id})`,
-        payment_method: 'dinheiro',
-        status: 'pago',
-        due_date: new Date().toISOString().split('T')[0],
-        paid_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      };
-      setFinancial(prev => [summaryTrans, ...prev]);
-    }
+    void operateCashRegister<CashRegisterSession, CashRegisterTransaction>({
+      operation: 'close', amount: actualCash, description: notes, expectedUpdatedAt: active.updated_at
+    }).then(async ({ session: savedSession, transaction }) => {
+      setSessions((items) => items.map((item) => item.id === savedSession.id ? savedSession : item));
+      setRegisterTransactions((items) => [transaction, ...items.filter((item) => item.id !== transaction.id)]);
+      const { data } = await supabase.from('financial_transactions').select('*').eq('company_id', currentCompanyId).order('created_at', { ascending: false });
+      if (data) setFinancial(data as FinancialTransaction[]);
+      showToast('Caixa fechado com sucesso.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as CashRegisterSession | undefined : undefined;
+      if (latest) setSessions((items) => items.map((item) => item.id === latest.id ? latest : item));
+      warnCaught('Erro ao fechar caixa:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível fechar o caixa.', 'error');
+    });
   };
 
   const addRegisterTransaction = (type: 'suprimento' | 'sangria', amount: number, description: string) => {
     const active = sessions.find(s => s.status === 'aberto');
     if (!active) return;
-
-    const newTrans: CashRegisterTransaction = {
-      id: `crt-${Date.now()}`,
-      session_id: active.id,
-      type,
-      amount,
-      description,
-      payment_method: 'dinheiro',
-      created_at: new Date().toISOString()
-    };
-
-    setRegisterTransactions(prev => [newTrans, ...prev]);
-
-    setSessions(prev =>
-      prev.map(s => {
-        if (s.id === active.id) {
-          const delta = type === 'suprimento' ? amount : -amount;
-          return {
-            ...s,
-            expected_cash: Math.max(0, s.expected_cash + delta)
-          };
-        }
-        return s;
-      })
-    );
-
-    const trans: FinancialTransaction = {
-      id: `fin-${Date.now()}`,
-      company_id: currentCompanyId,
-      type: type === 'suprimento' ? 'receita' : 'despesa',
-      category: 'Operações de Caixa',
-      amount,
-      description: `${type.toUpperCase()}: ${description} (Caixa)`,
-      payment_method: 'dinheiro',
-      status: 'pago',
-      due_date: new Date().toISOString().split('T')[0],
-      paid_at: new Date().toISOString(),
-      created_at: new Date().toISOString()
-    };
-    setFinancial(prev => [trans, ...prev]);
+    void operateCashRegister<CashRegisterSession, CashRegisterTransaction>({
+      operation: type, amount, description, expectedUpdatedAt: active.updated_at
+    }).then(async ({ session: savedSession, transaction }) => {
+      setSessions((items) => items.map((item) => item.id === savedSession.id ? savedSession : item));
+      setRegisterTransactions((items) => [transaction, ...items.filter((item) => item.id !== transaction.id)]);
+      const { data } = await supabase.from('financial_transactions').select('*').eq('company_id', currentCompanyId).order('created_at', { ascending: false });
+      if (data) setFinancial(data as FinancialTransaction[]);
+      showToast(type === 'suprimento' ? 'Suprimento registrado.' : 'Sangria registrada.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as CashRegisterSession | undefined : undefined;
+      if (latest) setSessions((items) => items.map((item) => item.id === latest.id ? latest : item));
+      warnCaught('Erro na operação de caixa:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível registrar a operação de caixa.', 'error');
+    });
   };
 
   // ----------------------------------------------------
@@ -2663,24 +2226,16 @@ useEffect(() => {
   }) => {
     const subtotal = posOrder.items.reduce((sum, item) => sum + item.total_price, 0);
     const total = subtotal - posOrder.discount;
-    const orderId = `order-${Date.now()}`;
-
     const newOrder: Order = {
-      id: orderId,
+      id: `order-${Date.now()}`,
       company_id: currentCompanyId,
       customer_id: posOrder.customer_id,
       customer_name: posOrder.customer_name,
       number: '',
-      status: posOrder.payment_method === 'faturado' || posOrder.paid_amount >= total ? 'producao' : 'aguardando_pagamento',
+      status: 'aguardando_pagamento',
       total_amount: total,
-      paid_amount: posOrder.payment_method === 'faturado' ? 0 : posOrder.paid_amount,
-      payment_status: posOrder.payment_method === 'faturado'
-        ? 'pendente'
-        : posOrder.paid_amount >= total 
-          ? 'pago' 
-          : posOrder.paid_amount > 0 
-            ? 'parcial' 
-            : 'pendente',
+      paid_amount: 0,
+      payment_status: 'pendente',
       shipping_cost: 0,
       deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
       notes: posOrder.notes || 'Venda direta realizada no PDV de Balcão.',
@@ -2692,89 +2247,42 @@ useEffect(() => {
       created_at: new Date().toISOString()
     };
 
-    const savedOrder = await saveOrderWithItems(newOrder, 'criado no PDV');
-    if (!savedOrder) return null;
+    const createdOrder = await saveOrderWithItems(newOrder, 'criado no PDV');
+    if (!createdOrder) return null;
 
-    const orderNumber = savedOrder.number;
-    const savedOrderId = savedOrder.id;
-    injectProductionQueue(savedOrder);
+    const paymentAmount = posOrder.payment_method === 'faturado'
+      ? total
+      : Math.min(total, Math.max(0, posOrder.paid_amount));
+    if (paymentAmount <= 0) return createdOrder;
 
-    if (posOrder.payment_method === 'faturado') {
-      const matchCust = customers.find(c => c.id === posOrder.customer_id);
-      if (matchCust) {
-        const currentUsed = matchCust.credit_used || 0;
-        updateCustomer({
-          ...matchCust,
-          credit_used: currentUsed + total
-        });
+    try {
+      const result = await recordOrderPayment<Order, FinancialTransaction, Customer, CashRegisterSession, CashRegisterTransaction>({
+        orderId: createdOrder.id,
+        amount: paymentAmount,
+        method: posOrder.payment_method,
+        paymentType: paymentAmount >= total ? 'total' : 'parcial',
+        notes: posOrder.notes,
+        expectedUpdatedAt: createdOrder.updated_at
+      });
+      const savedOrder = { ...result.order, items: createdOrder.items };
+      setOrders((items) => items.map((item) => item.id === savedOrder.id ? savedOrder : item));
+      setFinancial((items) => items.some((item) => item.id === result.financial.id)
+        ? items
+        : [result.financial, ...items]);
+      if (result.customer) setCustomers((items) => items.map((item) => item.id === result.customer?.id ? result.customer : item));
+      if (result.session) setSessions((items) => items.map((item) => item.id === result.session?.id ? result.session : item));
+      if (result.registerTransaction) {
+        setRegisterTransactions((items) => items.some((item) => item.id === result.registerTransaction?.id)
+          ? items
+          : [result.registerTransaction as CashRegisterTransaction, ...items]);
       }
-
-      let dueDays = 30;
-      if (matchCust && matchCust.billing_type === 'faturado' && matchCust.payment_terms_days) {
-        dueDays = matchCust.payment_terms_days;
-      }
-      const dueDateObj = new Date();
-      dueDateObj.setDate(dueDateObj.getDate() + dueDays);
-
-      const trans: FinancialTransaction = {
-        id: `fin-pos-${Date.now()}`,
-        company_id: currentCompanyId,
-        order_id: savedOrderId,
-        order_number: orderNumber,
-        type: 'receita',
-        category: 'Vendas',
-        amount: total,
-        description: `Faturamento B2B do Pedido PDV ${formatOrderDisplayNumber(orderNumber)}`,
-        payment_method: 'faturado',
-        status: 'pendente',
-        due_date: dueDateObj.toISOString().split('T')[0],
-        created_at: new Date().toISOString()
-      };
-      setFinancial(prev => [trans, ...prev]);
-    } else if (posOrder.paid_amount > 0) {
-      const trans: FinancialTransaction = {
-        id: `fin-pos-${Date.now()}`,
-        company_id: currentCompanyId,
-        order_id: savedOrderId,
-        order_number: orderNumber,
-        type: 'receita',
-        category: 'Vendas',
-        amount: posOrder.paid_amount,
-        description: `Venda direta PDV ${formatOrderDisplayNumber(orderNumber)}`,
-        payment_method: posOrder.payment_method,
-        status: 'pago',
-        due_date: new Date().toISOString().split('T')[0],
-        paid_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      };
-      setFinancial(prev => [trans, ...prev]);
-
-      const active = sessions.find(s => s.status === 'aberto');
-      if (active) {
-        const newPOSRegTrans: CashRegisterTransaction = {
-          id: `crt-pos-${Date.now()}`,
-          session_id: active.id,
-          type: 'venda',
-          amount: posOrder.paid_amount,
-          description: `Venda PDV ${formatOrderDisplayNumber(orderNumber)}`,
-          payment_method: posOrder.payment_method,
-          created_at: new Date().toISOString()
-        };
-        setRegisterTransactions(prev => [newPOSRegTrans, ...prev]);
-
-        if (posOrder.payment_method === 'dinheiro') {
-          setSessions(prev =>
-            prev.map(s =>
-              s.id === active.id
-                ? { ...s, expected_cash: s.expected_cash + posOrder.paid_amount }
-                : s
-            )
-          );
-        }
-      }
+      if (savedOrder.status === 'producao') void injectProductionQueue(savedOrder);
+      return savedOrder;
+    } catch (error) {
+      warnCaught('Erro ao registrar pagamento atômico do PDV:', error);
+      showToast(error instanceof Error ? error.message : 'O pedido foi criado, mas o pagamento não foi registrado.', 'error');
+      return createdOrder;
     }
-
-    return savedOrder;
   };
 
   const addBanner = (banner: Omit<StoreBanner, 'id'>) => {
@@ -2783,17 +2291,43 @@ useEffect(() => {
       id: `banner-${Date.now()}`
     };
     setBanners(prev => [...prev, newBanner]);
+    void insertTenantRecord<StoreBannerRow>('store_banners', {
+      ...newBanner,
+      company_id: currentCompanyId
+    }).then((saved) => {
+      setBanners((items) => items.map((item) => item.id === saved.id ? saved : item));
+    }).catch((error) => {
+      setBanners((items) => items.filter((item) => item.id !== newBanner.id));
+      warnCaught('Erro ao salvar banner:', error);
+      showToast('Não foi possível salvar o banner.', 'error');
+    });
     return newBanner;
   };
 
   const updateBanner = (id: string, patch: Partial<Omit<StoreBanner, 'id'>>) => {
+    const current = banners.find((banner) => banner.id === id);
+    if (!current) return;
     setBanners((current) => current.map((banner) => banner.id === id ? { ...banner, ...patch } : banner));
+    void patchTenantRecord<StoreBannerRow>(
+      'store_banners', id, currentCompanyId, patch, { expectedUpdatedAt: current.updated_at }
+    ).then((saved) => {
+      setBanners((items) => items.map((item) => item.id === saved.id ? saved : item));
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as StoreBanner | undefined : undefined;
+      setBanners((items) => items.map((item) => item.id === id ? (latest || current) : item));
+      warnCaught('Erro ao atualizar banner:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o banner.', 'error');
+    });
   };
 
   const deleteBanner = (id: string) => {
+    const current = banners.find((banner) => banner.id === id);
+    if (!current) return;
     setBanners(prev => prev.filter(b => b.id !== id));
-    supabase.from('store_banners').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir banner no Supabase:', error);
+    void deleteTenantRecord('store_banners', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).catch((error) => {
+      setBanners((items) => items.some((item) => item.id === id) ? items : [...items, current]);
+      warnCaught('Erro ao excluir banner no Supabase:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível excluir o banner.', 'error');
     });
   };
 
@@ -2862,7 +2396,35 @@ useEffect(() => {
   };
 
   const updateRolePermissions = (permissions: Record<string, string[]>) => {
+    const previous = rolePermissions;
     setRolePermissions(permissions);
+    void saveRolePermissions<RolePermissionRow>(permissions, rolePermissionVersionsRef.current).then((saved) => {
+      const nextPermissions: Record<string, string[]> = {};
+      const nextVersions: Record<string, string> = {};
+      saved.forEach((row) => {
+        nextPermissions[row.path] = row.roles;
+        if (row.updated_at) nextVersions[row.path] = row.updated_at;
+      });
+      rolePermissionVersionsRef.current = nextVersions;
+      setRolePermissions(nextPermissions);
+      showToast('Permissões atualizadas.', 'success');
+    }).catch((error) => {
+      const latest = error instanceof PersistenceMutationError ? error.latest as RolePermissionRow[] | undefined : undefined;
+      if (latest) {
+        const nextPermissions: Record<string, string[]> = {};
+        const nextVersions: Record<string, string> = {};
+        latest.forEach((row) => {
+          nextPermissions[row.path] = row.roles;
+          if (row.updated_at) nextVersions[row.path] = row.updated_at;
+        });
+        rolePermissionVersionsRef.current = nextVersions;
+        setRolePermissions(nextPermissions);
+      } else {
+        setRolePermissions(previous);
+      }
+      warnCaught('Erro ao salvar permissões:', error);
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar as permissões.', 'error');
+    });
   };
 
   const canRenderCurrentScope = isPublicStoreRoute() || (
