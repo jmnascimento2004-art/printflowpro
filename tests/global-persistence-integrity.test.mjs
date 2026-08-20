@@ -60,22 +60,25 @@ test('cash operation is atomic and carries the session concurrency token', async
 
 test('order payment is one RPC for order, finance, customer and cash side effects', async () => {
   const mock = rpcClient({ data: {
-    status: 'UPDATED', order: { id: 'o1' }, financial: { id: 'f1' }, session: { id: 's1' }, register_transaction: { id: 'r1' }
+    status: 'UPDATED', order: { id: 'o1' }, financial: { id: 'f1' }, session: { id: 's1' }, register_transaction: { id: 'r1' },
+    production: [{ id: 'q1' }]
   }, error: null });
   const result = await service.recordOrderPayment({ orderId: 'o1', amount: 50, method: 'pix', expectedUpdatedAt: 'v1' }, mock.client);
   assert.equal(result.financial.id, 'f1');
   assert.equal(result.registerTransaction.id, 'r1');
   assert.equal(mock.calls.length, 1);
-  assert.equal(mock.calls[0].name, 'record_order_payment_phase4b');
+  assert.equal(result.production[0].id, 'q1');
+  assert.equal(mock.calls[0].name, 'record_order_payment_and_production');
 });
 
 test('shipment and order transitions use server commands with CAS', async () => {
   const shipmentMock = rpcClient({ data: { status: 'UPDATED', shipment: { id: 's1' } }, error: null });
   await service.transitionShipment({ shipmentId: 's1', status: 'enviado', expectedUpdatedAt: 'v1' }, shipmentMock.client);
   assert.equal(shipmentMock.calls[0].name, 'transition_shipment');
-  const orderMock = rpcClient({ data: { status: 'UPDATED', order: { id: 'o1' }, shipment: { id: 's1' } }, error: null });
-  await service.transitionOrderStatus({ orderId: 'o1', status: 'expedicao', expectedUpdatedAt: 'v2' }, orderMock.client);
-  assert.equal(orderMock.calls[0].name, 'transition_order_status_phase4b');
+  const orderMock = rpcClient({ data: { status: 'UPDATED', order: { id: 'o1' }, shipment: { id: 's1' }, production: [] }, error: null });
+  const orderResult = await service.transitionOrderStatus({ orderId: 'o1', status: 'expedicao', expectedUpdatedAt: 'v2' }, orderMock.client);
+  assert.deepEqual(orderResult.production, []);
+  assert.equal(orderMock.calls[0].name, 'transition_order_status_and_production');
 });
 
 test('role permissions are an explicit legitimate bulk command with version map', async () => {
@@ -98,7 +101,7 @@ test('database context contains no collection snapshot upsert effects', async ()
   assert.match(context, /recordOrderPayment<Order, FinancialTransaction/);
   assert.match(context, /saveRolePermissions<RolePermissionRow>/);
   assert.match(context, /rpc\('save_quote_with_items_phase4b'/);
-  assert.match(context, /rpc\('save_order_with_items_phase4b'/);
+  assert.match(context, /rpc\('save_order_with_items_and_production'/);
   assert.doesNotMatch(context, /rpc\('save_quote_with_items',/);
   assert.doesNotMatch(context, /rpc\('save_order_with_items',/);
 });

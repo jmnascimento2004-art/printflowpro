@@ -194,20 +194,24 @@ export async function saveRolePermissions<TPermission>(
   return result.permissions;
 }
 
-export async function transitionOrderStatus<TOrder, TShipment>(args: {
+export async function transitionOrderStatus<TOrder, TShipment, TProduction = unknown>(args: {
   orderId: string;
   status: string;
   expectedUpdatedAt?: string;
-}, client: SupabaseClient = supabase): Promise<{ order: TOrder; shipment?: TShipment }> {
-  const result = await runRpc<RpcResult & { order: TOrder; shipment?: TShipment }>('transition_order_status_phase4b', {
+}, client: SupabaseClient = supabase): Promise<{ order: TOrder; shipment?: TShipment; production: TProduction[] }> {
+  const result = await runRpc<RpcResult & { order: TOrder; shipment?: TShipment; production?: TProduction[] }>('transition_order_status_and_production', {
     p_order_id: args.orderId,
     p_status: args.status,
     p_expected_updated_at: args.expectedUpdatedAt ?? null
   }, 'order', client);
-  return { order: result.order, shipment: result.shipment || undefined };
+  return {
+    order: result.order,
+    shipment: result.shipment || undefined,
+    production: result.production || []
+  };
 }
 
-export async function recordOrderPayment<TOrder, TFinancial, TCustomer, TSession, TRegister>(args: {
+export async function recordOrderPayment<TOrder, TFinancial, TCustomer, TSession, TRegister, TProduction = unknown>(args: {
   orderId: string;
   amount: number;
   method: string;
@@ -221,6 +225,7 @@ export async function recordOrderPayment<TOrder, TFinancial, TCustomer, TSession
   customer?: TCustomer;
   session?: TSession;
   registerTransaction?: TRegister;
+  production: TProduction[];
 }> {
   const result = await runRpc<RpcResult & {
     order: TOrder;
@@ -228,7 +233,8 @@ export async function recordOrderPayment<TOrder, TFinancial, TCustomer, TSession
     customer?: TCustomer;
     session?: TSession;
     register_transaction?: TRegister;
-  }>('record_order_payment_phase4b', {
+    production?: TProduction[];
+  }>('record_order_payment_and_production', {
     p_order_id: args.orderId,
     p_amount: args.amount,
     p_method: args.method,
@@ -242,6 +248,7 @@ export async function recordOrderPayment<TOrder, TFinancial, TCustomer, TSession
     financial: result.financial,
     customer: result.customer,
     session: result.session,
-    registerTransaction: result.register_transaction
+    registerTransaction: result.register_transaction,
+    production: result.production || []
   };
 }
