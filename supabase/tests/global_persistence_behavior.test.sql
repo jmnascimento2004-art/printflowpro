@@ -86,7 +86,7 @@ select is(
 );
 
 select is(
-  public.save_order_with_items_phase4b(
+  public.save_order_with_items_and_production(
     jsonb_build_object(
       'id', 'phase4b-order-save-a',
       'company_id', (select company_id from public.profiles where auth_user_id = '42000000-0000-0000-0000-000000000001'),
@@ -111,12 +111,12 @@ select is(
   'order aggregate save emits exactly one canonical event after deferred triggers run'
 );
 
-select is(public.transition_order_status_phase4b('phase4b-order-a', 'expedicao', '2026-08-19 10:00:00+00')->>'status', 'UPDATED', 'order transition is explicit and atomic');
+select is(public.transition_order_status_and_production('phase4b-order-a', 'expedicao', '2026-08-19 10:00:00+00')->>'status', 'UPDATED', 'order transition is explicit and atomic');
 set constraints phase4b_audit_business_mutation immediate;
 set constraints phase4b_audit_business_mutation deferred;
 select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4b-order-a' and action = 'order.status_changed'), 1, 'rich order transition suppresses its deferred generic duplicate');
 select is((select count(*)::integer from public.shipments where order_id = 'phase4b-order-a'), 1, 'expedition transition creates one shipment');
-select is(public.transition_order_status_phase4b('phase4b-order-a', 'finalizado', '2026-08-19 10:00:00+00')->>'status', 'CONFLICT', 'stale order transition is rejected');
+select is(public.transition_order_status_and_production('phase4b-order-a', 'finalizado', '2026-08-19 10:00:00+00')->>'status', 'CONFLICT', 'stale order transition is rejected');
 select is((select count(*)::integer from public.shipments where order_id = 'phase4b-order-a'), 1, 'stale transition cannot duplicate a shipment');
 
 select is(public.settle_financial_transaction('phase4b-fin-a', 'pago', '2026-08-19 10:00:00+00')->>'status', 'UPDATED', 'financial settlement is atomic');
@@ -130,7 +130,7 @@ select is((select credit_used from public.customers where id = 'phase4b-customer
 select is(public.settle_financial_transaction('phase4b-fin-a', 'pago', (select updated_at from public.financial_transactions where id = 'phase4b-fin-a'))->>'status', 'UPDATED', 'reapplying settlement remains consistent');
 select is((select paid_amount from public.orders where id = 'phase4b-order-a'), 20::numeric, 'reapplied settlement updates the order exactly once');
 
-select is(public.record_order_payment_phase4b('phase4b-order-a', 30, 'pix', 'parcial', null, null, (select updated_at from public.orders where id = 'phase4b-order-a'))->>'status', 'UPDATED', 'order payment persists through one server command');
+select is(public.record_order_payment_and_production('phase4b-order-a', 30, 'pix', 'parcial', null, null, (select updated_at from public.orders where id = 'phase4b-order-a'))->>'status', 'UPDATED', 'order payment persists through one server command');
 select is((select count(*)::integer from public.financial_transactions where order_id = 'phase4b-order-a'), 2, 'payment appends exactly one financial row');
 select is((select paid_amount from public.orders where id = 'phase4b-order-a'), 50::numeric, 'payment updates the authoritative order balance');
 select ok(not exists (select 1 from public.audit_logs where metadata ?| array['password','token','secret','service_role']), 'audit metadata contains no credential-shaped fields');

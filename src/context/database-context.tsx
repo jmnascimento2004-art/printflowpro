@@ -68,7 +68,6 @@ import { normalizeStatus } from '@/lib/order-status';
 import { useAuth } from '@/context/auth-context';
 import {
   assignProductionResponsiblePersisted,
-  ensureProductionQueueForOrder,
   ProductionMutationError,
   replaceProductionItem,
   transitionProductionStage
@@ -267,6 +266,7 @@ type Phase4bAggregateSaveResult = {
   payload?: SavedQuotePayload | SavedOrderPayload;
   quote?: Record<string, unknown>;
   order?: Record<string, unknown>;
+  production?: ProductionItem[];
 };
 type SavedOrderPayload = {
   order?: Omit<Order, 'items'> | null;
@@ -1667,9 +1667,30 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return savedQuote;
   };
 
+  const applyProductionQueueInsertions = (order: Order, queueItems: ProductionItem[]) => {
+    if (queueItems.length === 0) return;
+
+    setProduction((current) => queueItems.reduce(replaceProductionItem, current));
+
+    // Stock is deducted only for rows actually inserted by the idempotent server command.
+    queueItems.forEach((queueItem) => {
+      const item = order.items.find((orderItem) => orderItem.id === queueItem.order_item_id);
+      if (!item) return;
+      const product = products.find((candidate) => candidate.id === item.product_id);
+      if (product?.stock_controlled) {
+        adjustStock(
+          item.product_id,
+          item.quantity,
+          `Pedido ${formatOrderDisplayNumber(order.number)}`,
+          'saida'
+        );
+      }
+    });
+  };
+
   const saveOrderWithItems = async (order: Order, errorContext: string) => {
     const { items, ...parentOrder } = order;
-    const { data, error } = await supabase.rpc('save_order_with_items_phase4b', {
+    const { data, error } = await supabase.rpc('save_order_with_items_and_production', {
       p_order: parentOrder,
       p_items: items,
       p_expected_updated_at: order.updated_at || null
@@ -1704,6 +1725,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     }
 
     upsertOrderState(savedOrder);
+    applyProductionQueueInsertions(savedOrder, result.production || []);
     return savedOrder;
   };
 
@@ -1777,10 +1799,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     const savedOrder = await saveOrderWithItems(newOrder, 'criado');
     if (!savedOrder) return null;
 
-    if (savedOrder.status === 'producao' || savedOrder.status === 'impressao' || savedOrder.status === 'acabamento') {
-      void injectProductionQueue(savedOrder);
-    }
-
     return savedOrder;
   };
 
@@ -1792,33 +1810,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     void saveOrderWithItems(nextOrder, 'atualizado');
   };
 
-  const injectProductionQueue = async (order: Order) => {
-    try {
-      const newQueueItems = await ensureProductionQueueForOrder(order.id);
-      if (newQueueItems.length === 0) return;
-
-      setProduction((current) => newQueueItems.reduce(replaceProductionItem, current));
-
-      // Stock is deducted only for rows created by the idempotent server operation.
-      newQueueItems.forEach(queueItem => {
-        const item = order.items.find(orderItem => orderItem.id === queueItem.order_item_id);
-        if (!item) return;
-        const match = products.find(p => p.id === item.product_id);
-        if (match && match.stock_controlled) {
-          adjustStock(
-            item.product_id,
-            item.quantity,
-            `Pedido ${formatOrderDisplayNumber(order.number)}`,
-            'saida'
-          );
-        }
-      });
-    } catch (error) {
-      warnCaught('Erro ao criar itens da fila de produção:', error);
-      showToast('Não foi possível criar a fila de produção do pedido.', 'error');
-    }
-  };
-
   const updateOrderStatus = (id: string, status: Order['status']) => {
     const current = orders.find((order) => order.id === id);
     if (!current || current.status === status) return;
@@ -1828,16 +1819,14 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       orderId: id,
       status,
       expectedUpdatedAt: current.updated_at
-    }).then(({ order: savedOrder, shipment }) => {
+    }).then(({ order: savedOrder, shipment, production: insertedProduction }) => {
       setOrders((items) => items.map((item) => item.id === savedOrder.id ? { ...savedOrder, items: item.items } : item));
       if (shipment) {
         setShipments((items) => items.some((item) => item.id === shipment.id)
           ? items.map((item) => item.id === shipment.id ? shipment : item)
           : [shipment, ...items]);
       }
-      if (status === 'producao' && !production.some((item) => item.order_id === id)) {
-        void injectProductionQueue({ ...savedOrder, items: current.items });
-      }
+      applyProductionQueueInsertions({ ...savedOrder, items: current.items }, insertedProduction as ProductionItem[]);
     }).catch((error) => {
       const latest = error instanceof PersistenceMutationError ? error.latest as Order | undefined : undefined;
       setOrders((items) => items.map((item) => item.id === id ? { ...(latest || current), items: item.items } : item));
@@ -1875,7 +1864,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       paidAt: options?.paid_at,
       notes: options?.notes,
       expectedUpdatedAt: current.updated_at
-    }).then(({ order: savedOrder, financial: savedFinancial, customer, session: savedSession, registerTransaction }) => {
+    }).then(({ order: savedOrder, financial: savedFinancial, customer, session: savedSession, registerTransaction, production: insertedProduction }) => {
       const orderWithItems = { ...savedOrder, items: current.items };
       setOrders((items) => items.map((item) => item.id === savedOrder.id ? orderWithItems : item));
       setFinancial((items) => items.some((item) => item.id === savedFinancial.id)
@@ -1888,9 +1877,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           ? items
           : [registerTransaction, ...items]);
       }
-      if (savedOrder.status === 'producao' && current.status !== 'producao') {
-        void injectProductionQueue(orderWithItems);
-      }
+      applyProductionQueueInsertions(orderWithItems, insertedProduction as ProductionItem[]);
       showToast('Pagamento registrado com sucesso.', 'success');
     }).catch((error) => {
       const latest = error instanceof PersistenceMutationError ? error.latest as Order | undefined : undefined;
@@ -2277,7 +2264,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
           ? items
           : [result.registerTransaction as CashRegisterTransaction, ...items]);
       }
-      if (savedOrder.status === 'producao') void injectProductionQueue(savedOrder);
+      applyProductionQueueInsertions(savedOrder, result.production as ProductionItem[]);
       return savedOrder;
     } catch (error) {
       warnCaught('Erro ao registrar pagamento atômico do PDV:', error);

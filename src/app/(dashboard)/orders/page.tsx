@@ -43,6 +43,7 @@ import {
   calculateOrderPaidAmount,
   getActivePaymentTransactions
 } from '@/lib/finance-rules';
+import { getB2BCreditExposure } from '@/lib/finance/b2b-credit-exposure-service';
 
 type PdfPreviewState = {
   title: string;
@@ -97,7 +98,33 @@ export default function OrdersPage() {
   const [showPixCode, setShowPixCode] = useState(false);
   const [isSavingPayment, setIsSavingPayment] = useState(false);
   const paymentSubmissionRef = useRef(false);
+  const b2bExposureRequestRef = useRef(0);
+  const [corporateB2BFaturado, setCorporateB2BFaturado] = useState(0);
+  const [b2bExposureStatus, setB2BExposureStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [activeTab, setActiveTab] = useState<'todos' | 'orcamento' | 'producao' | 'finalizado' | 'cancelado'>('todos');
+
+  useEffect(() => {
+    const requestId = ++b2bExposureRequestRef.current;
+    if (!session) {
+      setCorporateB2BFaturado(0);
+      setB2BExposureStatus('ready');
+      return;
+    }
+
+    setB2BExposureStatus('loading');
+    void getB2BCreditExposure()
+      .then((value) => {
+        if (requestId !== b2bExposureRequestRef.current) return;
+        setCorporateB2BFaturado(value);
+        setB2BExposureStatus('ready');
+      })
+      .catch((error) => {
+        if (requestId !== b2bExposureRequestRef.current) return;
+        setCorporateB2BFaturado(0);
+        setB2BExposureStatus('error');
+        warnCaught('Erro ao carregar o faturado B2B utilizado:', error);
+      });
+  }, [session, orders, financial, customers]);
 
   // Edit Order state
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -982,13 +1009,6 @@ export default function OrdersPage() {
   const pendingPaymentOrdersCount = activeOrders.filter(o => o.payment_status === 'pendente').length;
   const pendingAmount = activeOrders.reduce((sum, o) => sum + Math.max(0, o.total_amount - o.paid_amount), 0);
   const activeProductionCount = activeOrders.filter(isProductionActiveOrder).length;
-  const corporateB2BFaturado = activeOrders.reduce((sum, order) => {
-    const invoice = getOpenInvoicedTransaction(order);
-    if (!invoice) return sum;
-    const paidAmount = Math.max(Number(order.paid_amount || 0), calculateOrderPaidAmount(order, financial));
-    return sum + Math.max(0, Number(order.total_amount || 0) - paidAmount);
-  }, 0);
-
   const selectedOrderPaidAmount = selectedOrder ? getConfirmedPaidAmountForOrder(selectedOrder) : 0;
   const editGrossTotal = editItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0)
     + getAdditionalServicesTotal(editAdditionalServices)
@@ -1711,7 +1731,11 @@ export default function OrdersPage() {
 
             <div className="p-4 bg-card border border-border rounded-2xl shadow-sm text-left">
               <span className="text-[10px] font-bold text-emerald-500 uppercase block">Faturado B2B Utilizado</span>
-              <h3 className="text-xl font-bold mt-1 text-emerald-500">{formatCurrency(corporateB2BFaturado)}</h3>
+              <h3 className="text-xl font-bold mt-1 text-emerald-500">
+                {b2bExposureStatus === 'ready'
+                  ? formatCurrency(corporateB2BFaturado)
+                  : b2bExposureStatus === 'loading' ? 'Carregando…' : 'Indisponível'}
+              </h3>
               <span className="text-[9px] text-muted-foreground mt-0.5 block">PJ com limite ativo</span>
             </div>
           </div>
