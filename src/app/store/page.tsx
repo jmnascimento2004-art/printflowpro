@@ -54,6 +54,11 @@ import {
   type CatalogBenefitIcon
 } from '@/lib/store/catalog-visual-settings';
 import { CatalogCategoryNavigation } from '@/components/store/catalog-category-navigation';
+import {
+  getProductSlugFromStorePath,
+  getPublicProductPath,
+  getPublicProductUrl
+} from '@/lib/store/product-permalink';
 
 interface CartItem {
   product: Product;
@@ -344,6 +349,18 @@ export default function StorefrontPage() {
   const [pendingWhatsAppOpen, setPendingWhatsAppOpen] = useState<{ href: string; message: string } | null>(null);
   const whatsAppProductRequestLocksRef = useRef<Set<string>>(new Set());
 
+  const closeProductConfigurator = useCallback(() => {
+    setActiveAdvancedConfigProduct(null);
+    if (typeof window === 'undefined') return;
+    if (getProductSlugFromStorePath(window.location.pathname)) {
+      if (window.history.state?.storeProduct) {
+        window.history.back();
+      } else {
+        window.history.replaceState({ ...(window.history.state || {}), storeProduct: null }, '', '/store');
+      }
+    }
+  }, []);
+
   // Client checkout info
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -561,8 +578,30 @@ export default function StorefrontPage() {
     else if (showHighlightSection) setShowcaseTab('highlight');
   }, [showcaseTab, showBestsellersSection, showPromoSection, showHighlightSection]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const syncProductFromLocation = () => {
+      const slug = getProductSlugFromStorePath(window.location.pathname);
+      if (!slug) {
+        setActiveAdvancedConfigProduct(null);
+        return;
+      }
+      const matchingProduct = products.find((product) => product.slug === slug && product.active !== false && product.catalog_active !== false);
+      if (matchingProduct) setActiveAdvancedConfigProduct(matchingProduct);
+    };
+
+    syncProductFromLocation();
+    window.addEventListener('popstate', syncProductFromLocation);
+    return () => window.removeEventListener('popstate', syncProductFromLocation);
+  }, [products]);
+
   const handleOpenProductConfig = (product: Product) => {
     setActiveAdvancedConfigProduct(product);
+    const path = getPublicProductPath(product.slug);
+    if (path && typeof window !== 'undefined' && window.location.pathname !== path) {
+      window.history.pushState({ ...(window.history.state || {}), storeProduct: product.slug }, '', path);
+    }
   };
 
   const handleAddAdvancedProductToCart = (payload: ProductConfiguratorCartPayload) => {
@@ -583,7 +622,7 @@ export default function StorefrontPage() {
     };
 
     setCart(prev => [...prev, newItem]);
-    setActiveAdvancedConfigProduct(null);
+    closeProductConfigurator();
   };
 
   const handleWhatsAppProductRequest = async (payload: ProductConfiguratorCartPayload) => {
@@ -1347,7 +1386,7 @@ export default function StorefrontPage() {
       <ProductConfiguratorModal
         product={activeAdvancedConfigProduct}
         isOpen={Boolean(activeAdvancedConfigProduct)}
-        onClose={() => setActiveAdvancedConfigProduct(null)}
+        onClose={closeProductConfigurator}
         onAddToCart={handleAddAdvancedProductToCart}
         onRequestWhatsApp={handleWhatsAppProductRequest}
         isWhatsAppRequestPending={whatsAppRequestPending}
@@ -1359,6 +1398,11 @@ export default function StorefrontPage() {
         isFavorite={Boolean(activeAdvancedConfigProduct && favoriteProductIdSet.has(activeAdvancedConfigProduct.id))}
         isFavoritePending={Boolean(activeAdvancedConfigProduct && favoritePendingProductIdSet.has(activeAdvancedConfigProduct.id))}
         onToggleFavorite={handleProductFavorite}
+        productUrl={getPublicProductUrl({
+          product: activeAdvancedConfigProduct,
+          company,
+          fallbackOrigin: typeof window !== 'undefined' ? window.location.origin : null
+        })}
       />
 
       {pendingWhatsAppOpen && (

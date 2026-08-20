@@ -21,7 +21,8 @@ import {
   ListOrdered,
   LayoutGrid,
   Rows3,
-  Eraser
+  Eraser,
+  ExternalLink
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
 import { Product, ProductConfiguratorGroup, ProductConfiguratorOption, ProductGalleryImage, ProductSaleMode, VariantPricingMatrixRow, VolumePriceTier } from '@/lib/dummy-data';
@@ -60,6 +61,7 @@ import {
   validateProductGalleryLimit,
   validateProductImage
 } from '@/lib/product-images';
+import { getPublicProductUrl } from '@/lib/store/product-permalink';
 
 type ProductSaleModeDraft = ProductSaleMode | 'linear_width';
 
@@ -627,6 +629,7 @@ export default function ProductsCRUDPage() {
   const [initialStock, setInitialStock] = useState(0); // For creation only
   const [, setActive] = useState(true);
   const [catalogActive, setCatalogActive] = useState(true);
+  const [publicLinkCopied, setPublicLinkCopied] = useState(false);
   const [isPromo, setIsPromo] = useState(false);
   const [isHighlight, setIsHighlight] = useState(false);
   const [deliveryTime, setDeliveryTime] = useState('');
@@ -1485,6 +1488,7 @@ export default function ProductsCRUDPage() {
     setMinStock(prod.min_stock);
     setActive(true);
     setCatalogActive(prod.catalog_active ?? true);
+    setPublicLinkCopied(false);
     setIsPromo(prod.is_promo || false);
     setIsHighlight(prod.is_highlight || false);
     const productGallery = normalizeProductGallery(prod);
@@ -1828,7 +1832,21 @@ export default function ProductsCRUDPage() {
         total: Math.round((firstMatrixPreviewTier.total_price || firstMatrixPreviewTier.quantity * firstMatrixPreviewTier.unit_price) * 100) / 100,
         matrixLabel: [firstMatrixPreviewRow?.material, firstMatrixPreviewRow?.size, firstMatrixPreviewRow?.colors, firstMatrixPreviewRow?.finishing].filter(Boolean).join(' | ')
       }
-    : initialVolumeTier;
+      : initialVolumeTier;
+  const selectedProductPublicUrl = selectedProduct?.slug
+    ? getPublicProductUrl({
+        product: selectedProduct,
+        company,
+        fallbackOrigin: typeof window !== 'undefined' ? window.location.origin : null
+      })
+    : null;
+
+  const copySelectedProductPublicUrl = async () => {
+    if (!selectedProductPublicUrl) return;
+    await navigator.clipboard.writeText(selectedProductPublicUrl);
+    setPublicLinkCopied(true);
+    window.setTimeout(() => setPublicLinkCopied(false), 1800);
+  };
   const matrixFinalTotals = activeMatrixRows.flatMap((row) => row.tiers.map((tier) => tier.total_price || tier.quantity * tier.unit_price));
   const matrixMinTotal = matrixFinalTotals.length > 0 ? Math.min(...matrixFinalTotals) : 0;
   const matrixFilterValues = {
@@ -3280,6 +3298,28 @@ export default function ProductsCRUDPage() {
                   />
                   <span>Marcar como DESTAQUE (tag no catálogo)</span>
                 </label>
+              </div>
+              <div className="md:col-span-2 rounded-xl border border-primary/15 bg-primary/5 p-3" data-testid="product-public-permalink-admin">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <span className="text-[9px] font-black uppercase tracking-wide text-primary">Link público do produto</span>
+                    {!isEditing ? (
+                      <p className="mt-1 text-[10px] text-muted-foreground">O link canônico será criado automaticamente ao salvar o produto.</p>
+                    ) : !catalogActive ? (
+                      <p className="mt-1 text-[10px] font-semibold text-amber-700">Produto fora do catálogo: o endereço permanece reservado, mas retorna indisponível ao público.</p>
+                    ) : selectedProductPublicUrl ? (
+                      <p className="mt-1 truncate text-[10px] font-semibold text-foreground" title={selectedProductPublicUrl}>{selectedProductPublicUrl}</p>
+                    ) : (
+                      <p className="mt-1 text-[10px] text-muted-foreground">Salve novamente para receber o permalink canônico.</p>
+                    )}
+                  </div>
+                  {isEditing && catalogActive && selectedProductPublicUrl && (
+                    <div className="flex shrink-0 gap-2">
+                      <button type="button" onClick={() => void copySelectedProductPublicUrl()} className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-bold text-foreground"><Copy className="h-4 w-4" />{publicLinkCopied ? 'Copiado' : 'Copiar'}</button>
+                      <a href={selectedProductPublicUrl} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-2 rounded-lg border border-primary/25 bg-background px-3 text-xs font-bold text-primary"><ExternalLink className="h-4 w-4" />Abrir</a>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="md:col-span-2 rounded-xl border border-primary/15 bg-secondary/10 p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

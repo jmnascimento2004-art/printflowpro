@@ -307,6 +307,7 @@ export interface ProductColorOption {
 export interface Product {
   id: string;
   company_id: string;
+  slug?: string;
   category_id: string;
   name: string;
   description: string;
