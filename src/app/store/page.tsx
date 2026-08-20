@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { 
   ShoppingBag, 
   ShoppingCart, 
@@ -153,6 +153,8 @@ const CATALOG_BENEFIT_ICONS: Record<CatalogBenefitIcon, React.ComponentType<{ cl
 
 export default function StorefrontPage() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const { products, categories, orders, addQuote, addCustomer, pickupPoints, banners, company, settings, refreshStoreCatalog } = useDatabase();
   const {
     isAuthenticated: storeCustomerAuthenticated,
@@ -351,15 +353,8 @@ export default function StorefrontPage() {
 
   const closeProductConfigurator = useCallback(() => {
     setActiveAdvancedConfigProduct(null);
-    if (typeof window === 'undefined') return;
-    if (getProductSlugFromStorePath(window.location.pathname)) {
-      if (window.history.state?.storeProduct) {
-        window.history.back();
-      } else {
-        window.history.replaceState({ ...(window.history.state || {}), storeProduct: null }, '', '/store');
-      }
-    }
-  }, []);
+    if (getProductSlugFromStorePath(pathname)) router.replace('/store', { scroll: false });
+  }, [pathname, router]);
 
   // Client checkout info
   const [clientName, setClientName] = useState('');
@@ -579,29 +574,19 @@ export default function StorefrontPage() {
   }, [showcaseTab, showBestsellersSection, showPromoSection, showHighlightSection]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const syncProductFromLocation = () => {
-      const slug = getProductSlugFromStorePath(window.location.pathname);
-      if (!slug) {
-        setActiveAdvancedConfigProduct(null);
-        return;
-      }
-      const matchingProduct = products.find((product) => product.slug === slug && product.active !== false && product.catalog_active !== false);
-      if (matchingProduct) setActiveAdvancedConfigProduct(matchingProduct);
-    };
-
-    syncProductFromLocation();
-    window.addEventListener('popstate', syncProductFromLocation);
-    return () => window.removeEventListener('popstate', syncProductFromLocation);
-  }, [products]);
+    const slug = getProductSlugFromStorePath(pathname);
+    if (!slug) {
+      setActiveAdvancedConfigProduct(null);
+      return;
+    }
+    const matchingProduct = products.find((product) => product.slug === slug && product.active !== false && product.catalog_active !== false);
+    if (matchingProduct) setActiveAdvancedConfigProduct(matchingProduct);
+  }, [pathname, products]);
 
   const handleOpenProductConfig = (product: Product) => {
     setActiveAdvancedConfigProduct(product);
     const path = getPublicProductPath(product.slug);
-    if (path && typeof window !== 'undefined' && window.location.pathname !== path) {
-      window.history.pushState({ ...(window.history.state || {}), storeProduct: product.slug }, '', path);
-    }
+    if (path && pathname !== path) router.push(path, { scroll: false });
   };
 
   const handleAddAdvancedProductToCart = (payload: ProductConfiguratorCartPayload) => {

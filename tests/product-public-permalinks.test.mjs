@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
-const [migration, permalink, resolver, publicData, store, routePage, routeLayout, modal, picker, banners, navigation, catalogAdmin, productsPage, database] = await Promise.all([
+const [migration, permalink, resolver, publicData, store, routePage, routeLayout, modal, picker, banners, navigation, catalogAdmin, productsPage, database, rootLayout, brandingHeadSync, companyThemeSync] = await Promise.all([
   read('../supabase/migrations/20260820021813_product_public_permalinks.sql'),
   read('../src/lib/store/product-permalink.ts'),
   read('../src/lib/store/resolve-public-store-product.server.ts'),
@@ -18,7 +18,10 @@ const [migration, permalink, resolver, publicData, store, routePage, routeLayout
   read('../src/components/settings/catalog-navigation-settings.tsx'),
   read('../src/components/catalog/catalog-admin.tsx'),
   read('../src/app/(dashboard)/products/page.tsx'),
-  read('../src/context/database-context.tsx')
+  read('../src/context/database-context.tsx'),
+  read('../src/app/layout.tsx'),
+  read('../src/components/branding-head-sync.tsx'),
+  read('../src/components/company-theme-sync.tsx')
 ]);
 
 test('migration creates stable tenant-scoped slugs with deterministic collision control', () => {
@@ -70,17 +73,28 @@ test('deep route validates server-side, returns sanitized notFound and publishes
   assert.match(routePage, /return <StorefrontPage \/>/);
 });
 
+test('branding synchronizers preserve product title and Open Graph metadata after hydration', () => {
+  assert.match(rootLayout, /isStoreProduct = window\.location\.pathname\.indexOf\('\/store\/product\/'\) === 0/);
+  assert.match(rootLayout, /if \(companyName && !isStoreProduct\)/);
+  assert.match(brandingHeadSync, /const isStoreProductPath = pathname\.startsWith\('\/store\/product\/'\)/);
+  assert.match(brandingHeadSync, /if \(!isStoreProductPath\) document\.title = appTitle/);
+  assert.match(brandingHeadSync, /if \(!isStoreProductPath\) \{[\s\S]*?meta\[name="description"\][\s\S]*?meta\[property="og:title"\]/);
+  assert.match(companyThemeSync, /if \(pathname\.startsWith\('\/store\/product\/'\)\) return;[\s\S]*?document\.title/);
+});
+
 test('public catalog payload includes the canonical slug but no private product cost', () => {
   assert.match(publicData, /'id', 'slug', 'category_id'/);
   assert.doesNotMatch(publicData.match(/const PRODUCT_FIELDS = \[[\s\S]*?\]\.join\(','\);/)?.[0] || '', /base_cost|current_stock/);
 });
 
 test('Store opens the same configurator from URL and keeps history coherent', () => {
-  assert.match(store, /getProductSlugFromStorePath\(window\.location\.pathname\)/);
+  assert.match(store, /usePathname, useRouter, useSearchParams/);
+  assert.match(store, /getProductSlugFromStorePath\(pathname\)/);
   assert.match(store, /products\.find\(\(product\) => product\.slug === slug/);
-  assert.match(store, /window\.history\.back\(\)/);
-  assert.match(store, /window\.history\.replaceState\([\s\S]*?storeProduct: null[\s\S]*?'\/store'\)/);
-  assert.match(store, /window\.addEventListener\('popstate', syncProductFromLocation\)/);
+  assert.match(store, /router\.push\(path, \{ scroll: false \}\)/);
+  assert.match(store, /router\.replace\('\/store', \{ scroll: false \}\)/);
+  assert.match(store, /\}, \[pathname, products\]\)/);
+  assert.doesNotMatch(store, /history\.(?:pushState|replaceState)|addEventListener\('popstate'/);
   assert.match(store, /<ProductConfiguratorModal[\s\S]*?productUrl=\{getPublicProductUrl/);
 });
 

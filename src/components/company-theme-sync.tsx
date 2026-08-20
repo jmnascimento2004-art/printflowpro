@@ -114,6 +114,7 @@ export function CompanyThemeSync() {
     if (!companyName) return;
 
     const isStorePath = pathname === '/store' || pathname.startsWith('/store/');
+    if (pathname.startsWith('/store/product/')) return;
     document.title = isStorePath ? `Catálogo - ${companyName}` : `Dashboard - ${companyName}`;
   }, [company.name, pathname]);
 
