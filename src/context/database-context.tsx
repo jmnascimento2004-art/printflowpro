@@ -1395,6 +1395,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   void insertTenantRecord<Product>('products', {
       id: newProd.id,
       company_id: newProd.company_id,
+      slug: newProd.slug || null,
       category_id: newProd.category_id,
       name: newProd.name,
       description: newProd.description,
@@ -1434,7 +1435,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       'category_id', 'name', 'description', 'sku', 'pricing_type', 'base_cost',
       'sales_price', 'stock_controlled', 'min_stock', 'active', 'catalog_active',
       'image_url', 'volume_pricing', 'variant_options', 'color_options', 'is_promo',
-      'is_highlight', 'pricing_details'
+      'is_highlight', 'pricing_details', 'slug'
     ];
     const patch = writableKeys.reduce<Record<string, unknown>>((result, key) => {
       if (JSON.stringify(current[key]) !== JSON.stringify(prod[key])) result[key] = prod[key] ?? null;

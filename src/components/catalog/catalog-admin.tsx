@@ -230,8 +230,8 @@ export function CatalogAdmin() {
         </div>
       )}
 
-      {activeTab === 'banners' && <CatalogBannerManager companyId={company.id} banners={banners} addBanner={addBanner} updateBanner={updateBanner} deleteBanner={deleteBanner} notify={notify} />}
-      {activeTab === 'navigation' && <CatalogNavigationSettings companyId={company.id} categories={categories} updateCategory={updateCategoryCatalogPresentation} notify={notify} />}
+      {activeTab === 'banners' && <CatalogBannerManager companyId={company.id} products={products} banners={banners} addBanner={addBanner} updateBanner={updateBanner} deleteBanner={deleteBanner} notify={notify} />}
+      {activeTab === 'navigation' && <CatalogNavigationSettings companyId={company.id} products={products} categories={categories} updateCategory={updateCategoryCatalogPresentation} notify={notify} />}
 
       {activeTab === 'merchandising' && <SectionCard title="Seções & Merchandising" description="Controle somente a visibilidade. A classificação dos produtos permanece inalterada." testId="catalog-showcase-toggles"><div className="grid gap-3 md:grid-cols-3"><Toggle label="+ Vendidos" help="Exibe o ranking atual de produtos mais vendidos." checked={settingsDraft.bestsellers} onChange={(value) => patchSettings({ bestsellers: value })} /><Toggle label="Promoções" help="Exibe produtos já marcados como promoção." checked={settingsDraft.promotions} onChange={(value) => patchSettings({ promotions: value })} /><Toggle label="Destaques" help="Exibe produtos já marcados como destaque." checked={settingsDraft.highlights} onChange={(value) => patchSettings({ highlights: value })} /></div><SaveButton onClick={saveMerchandising} label="Salvar merchandising" /></SectionCard>}
 

@@ -1,7 +1,7 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   Clock,
@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Tag,
   MessageCircle,
+  Share2,
   X
 } from 'lucide-react';
 import type { Product, ProductConfiguratorSettings, ProductSaleMode } from '@/lib/dummy-data';
@@ -86,6 +87,7 @@ interface ProductConfiguratorModalProps {
   isFavorite: boolean;
   isFavoritePending: boolean;
   onToggleFavorite: (productId: string) => void;
+  productUrl?: string | null;
 }
 
 const saleModeLabels: Record<ProductSaleMode, string> = {
@@ -156,7 +158,8 @@ export function ProductConfiguratorModal({
   categoryName,
   isFavorite,
   isFavoritePending,
-  onToggleFavorite
+  onToggleFavorite,
+  productUrl
 }: ProductConfiguratorModalProps) {
   const savedConfigurator = getProductConfigurator(product);
   const initialVolumeTier = useMemo(() => getInitialVolumePricingTier(product), [product]);
@@ -196,6 +199,53 @@ export function ProductConfiguratorModal({
   const [selectedMatrixColors, setSelectedMatrixColors] = useState('');
   const [selectedFinishing, setSelectedFinishing] = useState('');
   const [activeImageUrl, setActiveImageUrl] = useState('');
+  const [shareComplete, setShareComplete] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen || !product) return;
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    closeButtonRef.current?.focus();
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !modalRef.current) return;
+      const focusable = Array.from(modalRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => !element.hasAttribute('hidden'));
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleDialogKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleDialogKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [isOpen, product]);
 
   useEffect(() => {
     if (!isOpen || !product) return;
@@ -524,19 +574,54 @@ export function ProductConfiguratorModal({
     onRequestWhatsApp?.(buildPayload());
   };
 
+  const handleShare = async () => {
+    if (!productUrl || !product) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: product.name, text: `Confira ${product.name}`, url: productUrl });
+      } else {
+        await navigator.clipboard.writeText(productUrl);
+      }
+      setShareComplete(true);
+      window.setTimeout(() => setShareComplete(false), 1800);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      await navigator.clipboard.writeText(productUrl);
+      setShareComplete(true);
+      window.setTimeout(() => setShareComplete(false), 1800);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
-      <div className="w-full max-w-7xl max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="product-configurator-title"
+        className="w-full max-w-7xl max-h-[calc(100dvh-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl"
+      >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 md:px-5">
           <div>
             <span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">
               Produto configurável
             </span>
-            <h2 className="text-base md:text-xl font-black uppercase tracking-wide leading-tight">
+            <h2 id="product-configurator-title" className="text-base md:text-xl font-black uppercase tracking-wide leading-tight">
               {product.name}
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            {productUrl && (
+              <button
+                type="button"
+                onClick={() => void handleShare()}
+                className="flex h-11 min-w-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                aria-label={shareComplete ? 'Link do produto copiado' : 'Compartilhar produto'}
+              >
+                {shareComplete ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+                <span className="hidden sm:inline">{shareComplete ? 'Copiado' : 'Compartilhar'}</span>
+              </button>
+            )}
             <StoreFavoriteButton
               productId={product.id}
               isFavorite={isFavorite}
@@ -546,9 +631,10 @@ export function ProductConfiguratorModal({
               surfaceClassName="h-9 w-9 rounded-xl border border-slate-200 bg-white shadow-sm hover:bg-rose-50"
             />
             <button
+              ref={closeButtonRef}
               type="button"
               onClick={onClose}
-              className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center"
+              className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center"
               aria-label="Fechar configurador"
             >
               <X className="h-5 w-5" />

@@ -49,7 +49,7 @@ const CATEGORY_FIELDS = [
   'catalog_mega_menu_banner_new_tab'
 ].join(',');
 const PRODUCT_FIELDS = [
-  'id', 'category_id', 'name', 'description', 'sku', 'pricing_type', 'sales_price', 'active',
+  'id', 'slug', 'category_id', 'name', 'description', 'sku', 'pricing_type', 'sales_price', 'active',
   'catalog_active', 'pricing_details', 'image_url', 'volume_pricing',
   'variant_options', 'color_options', 'is_promo', 'is_highlight'
 ].join(',');

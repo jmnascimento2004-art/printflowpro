@@ -27,8 +27,9 @@ const companyHeadBootScript = `
     var isStore = window.location.pathname === '/store' ||
       window.location.pathname.indexOf('/store/') === 0 ||
       hostParts[0] === 'store';
+    var isStoreProduct = window.location.pathname.indexOf('/store/product/') === 0;
 
-    if (companyName) {
+    if (companyName && !isStoreProduct) {
       document.title = (isStore ? 'Catálogo - ' : 'Dashboard - ') + companyName;
     }
 

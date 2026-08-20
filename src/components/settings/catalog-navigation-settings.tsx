@@ -3,15 +3,17 @@
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { Check, ChevronRight, ImagePlus, Pencil, X } from 'lucide-react';
-import type { Category } from '@/lib/dummy-data';
+import type { Category, Product } from '@/lib/dummy-data';
 import type { CategoryCatalogPresentationPatch } from '@/context/database-context';
 import { uploadCatalogImage } from '@/lib/catalog-images';
 import { supabase } from '@/lib/supabaseClient';
 import { CATALOG_IMAGE_SPECS, formatCatalogImageMaxSize } from '@/lib/store/catalog-image-specs';
+import { CatalogLinkTargetPicker } from '@/components/catalog/catalog-link-target-picker';
 
 interface Props {
   companyId: string;
   categories: Category[];
+  products: Product[];
   updateCategory: (id: string, patch: CategoryCatalogPresentationPatch) => Promise<void>;
   notify: (message: string) => void;
 }
@@ -30,7 +32,7 @@ const getDraft = (category: Category): CategoryCatalogPresentationPatch => ({
   catalog_mega_menu_banner_new_tab: category.catalog_mega_menu_banner_new_tab === true
 });
 
-function CategoryEditor({ category, companyId, updateCategory, notify, onClose }: Props & { category: Category; onClose: () => void }) {
+function CategoryEditor({ category, companyId, products, updateCategory, notify, onClose }: Props & { category: Category; onClose: () => void }) {
   const [draft, setDraft] = useState(() => getDraft(category));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -95,7 +97,7 @@ function CategoryEditor({ category, companyId, updateCategory, notify, onClose }
                     </div>
                     <label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-3 text-xs font-bold text-foreground hover:border-primary"><ImagePlus className="h-4 w-4" />{uploading ? 'Enviando…' : 'Selecionar banner do Mega Menu'}<input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ''; }} /></label>
                     <label className="block text-[10px] font-bold uppercase text-muted-foreground">Texto alternativo<input className={fieldClass} value={draft.catalog_mega_menu_banner_alt || ''} onChange={(event) => patch({ catalog_mega_menu_banner_alt: event.target.value })} /></label>
-                    <label className="block text-[10px] font-bold uppercase text-muted-foreground">Link/destino<input className={fieldClass} value={draft.catalog_mega_menu_banner_link || ''} onChange={(event) => patch({ catalog_mega_menu_banner_link: event.target.value })} placeholder="/store?categoria=... ou https://..." /></label>
+                    <CatalogLinkTargetPicker products={products} value={draft.catalog_mega_menu_banner_link || ''} onChange={(catalog_mega_menu_banner_link) => patch({ catalog_mega_menu_banner_link })} label="Link/destino" />
                     <label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-foreground"><input className={checkboxClass} type="checkbox" checked={draft.catalog_mega_menu_banner_new_tab === true} onChange={(event) => patch({ catalog_mega_menu_banner_new_tab: event.target.checked })} />Abrir destino em nova aba</label>
                     {draft.catalog_mega_menu_banner_image_url && <div><p className="mb-1 text-[10px] font-black uppercase text-muted-foreground">Preview do slot</p><div className="relative mx-auto aspect-[15/16] w-full max-w-60 overflow-hidden rounded-xl border border-border bg-slate-900"><Image unoptimized fill sizes="240px" src={draft.catalog_mega_menu_banner_image_url} alt={draft.catalog_mega_menu_banner_alt || `Banner ${category.name}`} className="object-cover" /></div></div>}
                   </>

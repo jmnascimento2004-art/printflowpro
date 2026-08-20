@@ -16,6 +16,8 @@ import {
   X
 } from 'lucide-react';
 import type { StoreBanner } from '@/context/database-context';
+import type { Product } from '@/lib/dummy-data';
+import { CatalogLinkTargetPicker } from '@/components/catalog/catalog-link-target-picker';
 import { uploadCatalogImage } from '@/lib/catalog-images';
 import { supabase } from '@/lib/supabaseClient';
 import {
@@ -29,6 +31,7 @@ type BannerPlacement = 'hero' | 'catalog';
 interface Props {
   companyId: string;
   banners: StoreBanner[];
+  products: Product[];
   addBanner: (banner: Omit<StoreBanner, 'id'>) => StoreBanner;
   updateBanner: (id: string, patch: Partial<Omit<StoreBanner, 'id'>>) => void;
   deleteBanner: (id: string) => void;
@@ -98,13 +101,15 @@ function BannerForm({
   initial,
   submitLabel,
   onSubmit,
-  onCancel
+  onCancel,
+  products
 }: {
   placement: BannerPlacement;
   initial: BannerDraft;
   submitLabel: string;
   onSubmit: (draft: BannerDraft, desktopFile: File | null, mobileFile: File | null) => Promise<void>;
   onCancel: () => void;
+  products: Product[];
 }) {
   const [draft, setDraft] = useState(initial);
   const [desktopFile, setDesktopFile] = useState<File | null>(null);
@@ -140,7 +145,7 @@ function BannerForm({
           <label className="block text-[10px] font-bold uppercase text-muted-foreground">Título administrativo<input className={`${fieldClass} mt-1`} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
           {isHero && <label className="block text-[10px] font-bold uppercase text-muted-foreground">Subtítulo<input className={`${fieldClass} mt-1`} value={draft.subtitle} onChange={(event) => setDraft((current) => ({ ...current, subtitle: event.target.value }))} /></label>}
           <label className="block text-[10px] font-bold uppercase text-muted-foreground">Texto alternativo<input className={`${fieldClass} mt-1`} value={draft.altText} onChange={(event) => setDraft((current) => ({ ...current, altText: event.target.value }))} /></label>
-          <label className="block text-[10px] font-bold uppercase text-muted-foreground">Link de destino<input className={`${fieldClass} mt-1`} value={draft.link} onChange={(event) => setDraft((current) => ({ ...current, link: event.target.value }))} placeholder="/store?categoria=... ou https://..." /></label>
+          <CatalogLinkTargetPicker products={products} value={draft.link} onChange={(link) => setDraft((current) => ({ ...current, link }))} label="Link de destino" />
           <label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-foreground"><input type="checkbox" checked={draft.openInNewTab} onChange={(event) => setDraft((current) => ({ ...current, openInNewTab: event.target.checked }))} className="h-4 w-4 rounded border-border text-primary" />Abrir destino em nova aba</label>
         </div>
 
@@ -189,6 +194,7 @@ function BannerList({
   placement,
   companyId,
   banners,
+  products,
   addBanner,
   updateBanner,
   deleteBanner,
@@ -294,8 +300,8 @@ function BannerList({
         <button type="button" onClick={() => { setCreating(true); setEditing(null); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold text-primary-foreground"><Plus className="h-4 w-4" />Novo banner</button>
       </div>
 
-      {creating && <BannerForm placement={placement} initial={emptyDraft()} submitLabel="Adicionar banner" onSubmit={create} onCancel={() => setCreating(false)} />}
-      {editing && <BannerForm key={editing.id} placement={placement} initial={draftFromBanner(editing)} submitLabel="Salvar alterações" onSubmit={saveEdit} onCancel={() => setEditing(null)} />}
+      {creating && <BannerForm placement={placement} initial={emptyDraft()} submitLabel="Adicionar banner" onSubmit={create} onCancel={() => setCreating(false)} products={products} />}
+      {editing && <BannerForm key={editing.id} placement={placement} initial={draftFromBanner(editing)} submitLabel="Salvar alterações" onSubmit={saveEdit} onCancel={() => setEditing(null)} products={products} />}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {filtered.map((banner, index) => (
