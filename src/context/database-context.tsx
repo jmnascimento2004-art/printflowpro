@@ -1766,7 +1766,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.rpc('approve_quote_and_create_order', { p_quote_id: id });
     if (error) {
       warnCaught('Erro ao aprovar orçamento e criar pedido no Supabase:', error);
-      showToast('Não foi possível aprovar o orçamento. Tente novamente.', 'error');
+      showToast('Não foi possível aprovar o orçamento. Nenhuma alteração foi concluída.', 'error');
       return null;
     }
 
