@@ -274,6 +274,7 @@ type SavedOrderPayload = {
 };
 type ApprovedQuotePayload = SavedOrderPayload & {
   quote?: Omit<Quote, 'items'> | null;
+  production?: ProductionItem[];
 };
 type PublicStoreDataResponse = {
   debug?: Record<string, unknown>;
@@ -1667,10 +1668,15 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return savedQuote;
   };
 
-  const applyProductionQueueInsertions = (order: Order, queueItems: ProductionItem[]) => {
+  const applyProductionQueueState = (queueItems: ProductionItem[]) => {
     if (queueItems.length === 0) return;
 
     setProduction((current) => queueItems.reduce(replaceProductionItem, current));
+  };
+
+  const applyProductionQueueInsertions = (order: Order, queueItems: ProductionItem[]) => {
+    applyProductionQueueState(queueItems);
+    if (queueItems.length === 0) return;
 
     // Stock is deducted only for rows actually inserted by the idempotent server command.
     queueItems.forEach((queueItem) => {
@@ -1780,6 +1786,9 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
     upsertQuoteState({ ...match, ...payload.quote, items: match.items, status: 'aprovado' });
     upsertOrderState(savedOrder);
+    // Quote approval only mirrors the atomic queue result locally. Inventory
+    // remains tied to the existing explicit operational order workflow.
+    applyProductionQueueState(payload.production || []);
     showToast(`Pedido ${formatOrderDisplayNumber(savedOrder.number)} criado a partir do orçamento #${match.number}.`);
     return savedOrder;
   };
