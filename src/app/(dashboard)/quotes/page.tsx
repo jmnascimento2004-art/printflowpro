@@ -1418,12 +1418,12 @@ export default function QuotesPage() {
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
-                      {quote.status !== 'aprovado' && (
+                      {(quote.status === 'rascunho' || quote.status === 'pendente') && (
                         <button
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            if (confirm('Aprovar este orçamento e gerar o pedido na fila?')) {
+                            if (confirm('Aprovar este orçamento e gerar o Pedido?')) {
                               void handleApproveQuote(quote.id);
                             }
                           }}
@@ -1527,11 +1527,11 @@ export default function QuotesPage() {
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
                           
-                          {quote.status !== 'aprovado' && (
+                          {(quote.status === 'rascunho' || quote.status === 'pendente') && (
                             <button
                               type="button"
                               onClick={() => {
-                                if (confirm('Aprovar este orçamento e gerar o pedido na fila?')) {
+                                if (confirm('Aprovar este orçamento e gerar o Pedido?')) {
                                   void handleApproveQuote(quote.id);
                                 }
                               }}
