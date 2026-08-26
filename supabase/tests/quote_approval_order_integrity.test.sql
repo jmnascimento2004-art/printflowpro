@@ -1,5 +1,5 @@
 begin;
-select plan(36);
+select plan(46);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -82,6 +82,13 @@ insert into public.quotes (
     'quote-approval-customer-a', 'Cliente Approval A', 9108, 'reprovado', 30,
     0, null, 'retirada', 'Origem A', null, 0, 0, '[]'::jsonb,
     '2026-08-26 10:00:00+00'
+  ),
+  (
+    'quote-approval-queue-rollback',
+    (select company_id from public.profiles where auth_user_id = '46000000-0000-0000-0000-000000000001'),
+    'quote-approval-customer-a', 'Cliente Approval A', 9109, 'pendente', 40,
+    0, null, 'retirada', 'Origem A', null, 0, 0, '[]'::jsonb,
+    '2026-08-26 10:00:00+00'
   );
 
 insert into public.quote_items (
@@ -96,7 +103,8 @@ insert into public.quote_items (
   ('quote-approval-item-rejected', 'quote-approval-rejected', null, 'Produto rejeitado', 1, 30, 30, '{}'::jsonb),
   ('quote-approval-item-rollback', 'quote-approval-rollback', null, 'Rollback Trigger', 1, 30, 30, '{}'::jsonb),
   ('quote-approval-item-null-status', 'quote-approval-null-status', null, 'Produto sem status', 1, 30, 30, '{}'::jsonb),
-  ('quote-approval-item-linked-rejected', 'quote-approval-linked-rejected', null, 'Produto vinculado rejeitado', 1, 30, 30, '{}'::jsonb);
+  ('quote-approval-item-linked-rejected', 'quote-approval-linked-rejected', null, 'Produto vinculado rejeitado', 1, 30, 30, '{}'::jsonb),
+  ('quote-approval-item-queue-rollback', 'quote-approval-queue-rollback', null, 'Queue Failure', 1, 40, 40, '{}'::jsonb);
 
 insert into public.orders (
   id, company_id, customer_id, customer_name, number, status, total_amount,
@@ -123,6 +131,18 @@ $$;
 create trigger quote_approval_force_item_failure
 before insert on public.order_items
 for each row execute function pg_temp.fail_quote_order_item();
+
+create function pg_temp.fail_quote_production_item()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.product_name = 'Queue Failure' then
+    raise exception using errcode = 'P0001', message = 'TEST_PRODUCTION_QUEUE_FAILURE';
+  end if;
+  return new;
+end;
+$$;
 
 -- Flush fixture triggers while there is no authenticated actor. Otherwise the
 -- deferred tenant guard would evaluate tenant-B fixtures using tenant-A claims.
@@ -159,7 +179,9 @@ select is((select details from public.order_items oi join public.orders o on o.i
 select is((select unit_price from public.order_items oi join public.orders o on o.id = oi.order_id where o.source_quote_id = 'quote-approval-a'), 45::numeric, 'order item preserves unit price precision');
 select is((select total_price from public.order_items oi join public.orders o on o.id = oi.order_id where o.source_quote_id = 'quote-approval-a'), 90::numeric, 'order item preserves total price');
 select is((select status from public.orders where source_quote_id = 'quote-approval-a'), 'aguardando_pagamento', 'conversion preserves the official pre-payment order status');
-select is((select count(*)::integer from public.production_queue pq join public.orders o on o.id = pq.order_id where o.source_quote_id = 'quote-approval-a'), 0, 'approval does not bypass the official payment-to-production transition');
+select is((select count(*)::integer from public.production_queue pq join public.orders o on o.id = pq.order_id where o.source_quote_id = 'quote-approval-a'), 1, 'approval atomically creates one production row per order item');
+select is((select pq.status from public.production_queue pq join public.orders o on o.id = pq.order_id where o.source_quote_id = 'quote-approval-a'), 'fila', 'new production starts in the canonical waiting stage');
+select is(jsonb_array_length((select payload -> 'production' from quote_approval_result)), 1, 'approval returns only the inserted production row');
 
 create temporary table quote_approval_repeat on commit drop as
 select public.approve_quote_and_create_order('quote-approval-a') as payload;
@@ -167,11 +189,27 @@ select public.approve_quote_and_create_order('quote-approval-a') as payload;
 select is((select payload -> 'order' ->> 'id' from quote_approval_repeat), (select payload -> 'order' ->> 'id' from quote_approval_result), 'repeat approval returns the original order');
 select is((select count(*)::integer from public.orders where source_quote_id = 'quote-approval-a'), 1, 'repeat approval cannot duplicate the order');
 select is((select count(*)::integer from public.order_items oi join public.orders o on o.id = oi.order_id where o.source_quote_id = 'quote-approval-a'), 1, 'repeat approval cannot duplicate order items');
+select is((select count(*)::integer from public.production_queue pq join public.orders o on o.id = pq.order_id where o.source_quote_id = 'quote-approval-a'), 1, 'repeat approval cannot duplicate production');
+select is(jsonb_array_length((select payload -> 'production' from quote_approval_repeat)), 0, 'repeat approval reports no new production insertion');
+
+reset role;
+update public.production_queue
+set status = 'concluido'
+where order_id = (select id from public.orders where source_quote_id = 'quote-approval-a');
+select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+set local role authenticated;
+
+create temporary table quote_approval_advanced_retry on commit drop as
+select public.approve_quote_and_create_order('quote-approval-a') as payload;
+
+select is((select pq.status from public.production_queue pq join public.orders o on o.id = pq.order_id where o.source_quote_id = 'quote-approval-a'), 'concluido', 'ensure preserves an advanced manually persisted production stage');
+select is(jsonb_array_length((select payload -> 'production' from quote_approval_advanced_retry)), 0, 'advanced production is returned as an unchanged no-op');
 
 set constraints phase4b_audit_business_mutation immediate;
 set constraints phase4b_audit_business_mutation deferred;
 select is((select count(*)::integer from public.audit_logs where entity_id = 'quote-approval-a' and action = 'quote.approved'), 1, 'approval appends one quote approval audit event');
 select is((select count(*)::integer from public.audit_logs a join public.orders o on o.id = a.entity_id where o.source_quote_id = 'quote-approval-a' and a.action = 'order.created'), 1, 'approval appends one order creation audit event');
+select is((select count(*)::integer from public.audit_logs a join public.production_queue pq on pq.id = a.entity_id join public.orders o on o.id = pq.order_id where o.source_quote_id = 'quote-approval-a' and a.action = 'production.item_created'), 1, 'initial enqueue uses the existing production audit event exactly once');
 
 select throws_ok(
   $$select public.approve_quote_and_create_order('quote-approval-no-customer')$$,
@@ -211,6 +249,25 @@ select throws_ok(
 );
 select is((select count(*)::integer from public.orders where source_quote_id = 'quote-approval-rollback'), 0, 'rollback removes the partially inserted order');
 select is((select status from public.quotes where id = 'quote-approval-rollback'), 'pendente', 'rollback leaves the quote status unchanged');
+
+reset role;
+create trigger quote_approval_force_production_failure
+before insert on public.production_queue
+for each row execute function pg_temp.fail_quote_production_item();
+select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+set local role authenticated;
+select throws_ok(
+  $$select public.approve_quote_and_create_order('quote-approval-queue-rollback')$$,
+  'P0001',
+  'TEST_PRODUCTION_QUEUE_FAILURE',
+  'a production enqueue failure aborts the conversion'
+);
+select is((select count(*)::integer from public.orders where source_quote_id = 'quote-approval-queue-rollback'), 0, 'production failure rolls back the order');
+select is((select status from public.quotes where id = 'quote-approval-queue-rollback'), 'pendente', 'production failure rolls back the quote approval');
+reset role;
+drop trigger quote_approval_force_production_failure on public.production_queue;
+select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+set local role authenticated;
 
 select throws_ok(
   $$select public.approve_quote_and_create_order('quote-approval-b')$$,
