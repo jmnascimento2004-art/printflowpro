@@ -123,6 +123,16 @@ test('missing dimensions cannot charge the floor; plain linear has no invented m
   assert.equal(result.breakdown.length, 0.2);
   assert.equal(result.breakdown.minimumArea, 0);
 });
+
+test('quantity tier fixed totals cannot bypass the floor or diverge between Store and Quote', () => {
+  const tiered = { ...product, volume_pricing: [{ min_qty: 10, price: 100, total: 1000 }] };
+  const config = { width: 0.2, height: 1, quantity: 10 };
+  const quote = pricing.resolveProductPrice(tiered, config);
+  const store = pricing.resolveProductPrice(tiered, { ...config, customOptions: { baseSubtotal: 1000 } });
+  assert.equal(quote.totalPrice, 500);
+  assert.equal(store.totalPrice, quote.totalPrice);
+  assert.equal(store.breakdown.area, 0.2);
+});
 test('linear with width uses the configured area floor while keeping physical measure', () => {
   const linear = { ...product, pricing_type: 'linear', pricing_details: { configurator_options: { min_area: 0.5, max_width: 100 } } };
   const result = pricing.resolveProductPrice(linear, { width: 0.2, height: 1, length: 0.2, quantity: 2 });

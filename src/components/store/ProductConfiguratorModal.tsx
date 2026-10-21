@@ -433,7 +433,7 @@ export function ProductConfiguratorModal({
       selectedColor,
       customOptions: {
         selectedOptions: selectedPricingOptions,
-        baseSubtotal: selectedVolumeTier?.total,
+        baseSubtotal: product?.pricing_type === 'm2' || product?.pricing_type === 'linear' ? undefined : selectedVolumeTier?.total,
         variantSelection: matrixSelection
       }
     });

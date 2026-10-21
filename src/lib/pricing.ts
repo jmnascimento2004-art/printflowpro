@@ -711,7 +711,8 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
       ? length
       : 1;
   const explicitBaseSubtotal = toFiniteNumber(normalized.customOptions?.baseSubtotal, NaN);
-  const baseSubtotal = Number.isFinite(explicitBaseSubtotal)
+  // Quantity tiers provide a rate for measured products, never a fixed line total.
+  const baseSubtotal = !usesArea && pricingType !== 'linear' && Number.isFinite(explicitBaseSubtotal)
     ? roundMoney(Math.max(0, explicitBaseSubtotal))
     : roundMoney(unitPrice * multiplier * normalized.quantity);
   const optionReplacementTotal = roundMoney(getOptionReplacementTotal(normalized));

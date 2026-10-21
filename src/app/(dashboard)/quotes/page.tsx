@@ -852,8 +852,8 @@ export default function QuotesPage() {
       colors: snapshotColors,
       finishing: snapshotFinishing,
       quantity_tier: volumeTier.min_qty,
-      unit_price: volumeTier.price,
-      total_price: volumeTier.total,
+      unit_price: price,
+      total_price: priceResolution.totalPrice,
       production_time: productionTime,
       production_time_source: productionTimeSource,
       display_label: buildConfigurationLabel({
@@ -863,8 +863,8 @@ export default function QuotesPage() {
         colors: snapshotColors,
         finishing: snapshotFinishing,
         quantity_tier: volumeTier.min_qty,
-        unit_price: volumeTier.price,
-        total_price: volumeTier.total,
+        unit_price: price,
+        total_price: priceResolution.totalPrice,
         production_time: productionTime,
         production_time_source: productionTimeSource,
         display_label: ''
@@ -904,7 +904,7 @@ export default function QuotesPage() {
           production_time_source: productionTimeSource
         },
         notes: volumeTier
-          ? `Faixa de preço aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un, ${formatCurrency(volumeTier.total)} total). Prazo contratado: ${productionTime}.`
+          ? `Faixa de preço aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(price)} / un, ${formatCurrency(priceResolution.totalPrice)} total). Prazo contratado: ${productionTime}.`
           : ''
       }
     };
