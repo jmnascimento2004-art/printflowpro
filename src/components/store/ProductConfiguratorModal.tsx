@@ -60,6 +60,7 @@ export interface ProductConfiguratorCartPayload {
   sale_mode?: ProductSaleMode;
   sale_mode_label?: string;
   configuration_summary: string;
+  pricing_snapshot?: Record<string, unknown>;
   configuration_snapshot?: {
     sale_mode: 'variant_matrix' | 'volume';
     material?: string;
@@ -472,6 +473,7 @@ export function ProductConfiguratorModal({
     product.pricing_type === 'm2' ? `Medidas: ${widthCm}cm x ${heightCm}cm` : '',
     isLinearWidthMode ? `Medidas: ${widthCm}cm x ${heightCm}cm` : '',
     product.pricing_type === 'linear' && !isLinearWidthMode ? `Metragem: ${lengthCm}cm` : '',
+    breakdown.minimumArea > 0 ? `Área real: ${breakdown.area.toFixed(2)} m² | Área cobrável por peça: ${breakdown.billableArea.toFixed(2)} m²` : '',
     summarizeOptions(selectedOptions)
   ].filter(Boolean).join(' | ');
   const configurationSnapshot: ProductConfiguratorCartPayload['configuration_snapshot'] =
@@ -561,6 +563,16 @@ export function ProductConfiguratorModal({
       sale_mode: saleMode,
       sale_mode_label: saleModeLabel,
       configuration_summary: configurationSummary,
+      pricing_snapshot: {
+        area: breakdown.area,
+        billable_area: breakdown.billableArea,
+        minimum_area: breakdown.minimumArea,
+        base_unit_price: breakdown.unitPrice,
+        unit_price_basis: 'piece',
+        quantity: breakdown.quantity,
+        unit_price: unitPriceForCart,
+        total_price: subtotalForCart
+      },
       configuration_snapshot: configurationSnapshot
   });
 
@@ -1159,6 +1171,11 @@ export function ProductConfiguratorModal({
                       </span>
                     ) : priceResolution.canPurchase ? (
                       <span className="text-2xl font-black text-emerald-600">{formattedSubtotal}</span>
+                      {breakdown.minimumArea > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Área real por peça: {breakdown.area.toFixed(2)} m². Base de cobrança: {breakdown.billableArea.toFixed(2)} m².
+                        </p>
+                      )}
                     ) : (
                       <span className="max-w-[12rem] text-right text-[11px] font-bold leading-relaxed text-amber-700">
                         Preço sob consulta

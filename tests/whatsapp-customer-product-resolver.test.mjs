@@ -182,6 +182,17 @@ test('official pricing covers volume, area and linear products and fails closed 
   });
 });
 
+test('minimum area changes price but WhatsApp metragem remains physical', async () => {
+  const area = { ...productA, pricing_type: 'm2', sales_price: 100,
+    pricing_details: { configurator_options: { sale_mode: 'm2', min_area: 0.5 } } };
+  const result = await resolver.resolveWhatsAppProductVariables(productContext({
+    existingProduct: area, existingCategory: categoryA,
+    pricingConfig: { quantity: 3, width: 0.2, height: 1 }
+  }), dataSource().source);
+  assert.equal(result.variables['produto.preco'], 'R$ 150,00');
+  assert.equal(result.metadataSanitized.measurement.value, 0.2);
+});
+
 test('untrusted option prices are never used and invalid public products fail closed', async () => {
   const missingPrice = await resolver.resolveWhatsAppProductVariables(productContext({ existingProduct: productA, existingCategory: categoryA, selectedOptionsPresent: true }), dataSource().source);
   assert.equal('produto.preco' in missingPrice.variables, false);

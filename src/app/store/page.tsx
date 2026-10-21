@@ -77,6 +77,7 @@ interface CartItem {
   production_time_source?: ProductConfiguratorCartPayload['production_time_source'];
   configuration_summary?: string;
   configuration_snapshot?: ProductConfiguratorCartPayload['configuration_snapshot'];
+  pricing_snapshot?: Record<string, unknown>;
 }
 
 type StoreWhatsAppRequestResult = {
@@ -604,7 +605,8 @@ export default function StorefrontPage() {
       production_time: payload.production_time,
       production_time_source: payload.production_time_source,
       configuration_summary: payload.configuration_summary,
-      configuration_snapshot: payload.configuration_snapshot
+      configuration_snapshot: payload.configuration_snapshot,
+      pricing_snapshot: payload.pricing_snapshot
     };
 
     setCart(prev => [...prev, newItem]);
@@ -714,6 +716,7 @@ export default function StorefrontPage() {
         production_time_source: c.production_time_source,
         configuration_summary: c.configuration_summary,
         configuration_snapshot: c.configuration_snapshot,
+        pricing_snapshot: c.pricing_snapshot,
         notes: ['Enviado pelo catálogo online', c.variant ? `Variação: ${c.variant}` : '', c.color ? `Cor: ${c.color}` : ''].filter(Boolean).join(' | ')
       }
     }));

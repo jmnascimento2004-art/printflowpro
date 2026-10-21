@@ -94,6 +94,7 @@ export default function ProductionPage() {
   const mapProductionStatusToColumn = (status: unknown): ProductionItem['status'] => {
     const normalized = normalizeStatus(status);
     if (normalized.includes('acabamento') || normalized === 'finishing') return 'impressao';
+    if (['expedicao', 'entregue', 'finalizado'].includes(normalized)) return 'concluido';
     if (!['fila', 'producao', 'impressao', 'concluido', 'expedicao', 'entregue', 'finalizado'].includes(normalized)) return 'fila';
     return normalized as ProductionItem['status'];
   };
@@ -110,8 +111,6 @@ export default function ProductionPage() {
     { id: 'preparacao', label: 'Preparação', statuses: ['producao'], targetStatus: 'producao', color: 'border-purple-500/50 bg-purple-500/5', borderTop: 'border-t-purple-500' },
     { id: 'producao', label: 'Produção', statuses: ['impressao'], targetStatus: 'impressao', color: 'border-blue-500/50 bg-blue-500/5', borderTop: 'border-t-blue-500' },
     { id: 'pronto', label: 'Pronto', statuses: ['concluido'], targetStatus: 'concluido', color: 'border-emerald-500/50 bg-emerald-500/5', borderTop: 'border-t-emerald-500' },
-    { id: 'rota-entrega', label: 'Em rota de entrega', statuses: ['expedicao'], targetStatus: 'expedicao', color: 'border-cyan-500/50 bg-cyan-500/5', borderTop: 'border-t-cyan-500' },
-    { id: 'entregue-finalizado', label: 'Entregue / Finalizado', statuses: ['entregue', 'finalizado'], targetStatus: 'entregue', color: 'border-teal-500/50 bg-teal-500/5', borderTop: 'border-t-teal-500' },
   ];
 
   // 2. Drag & Drop Handlers
