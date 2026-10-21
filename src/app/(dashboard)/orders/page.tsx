@@ -34,7 +34,7 @@ import {
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
-import { formatUnitCurrency } from '@/lib/pricing';
+import { formatUnitCurrency, getPriceBreakdown, resolveBillableArea } from '@/lib/pricing';
 import { isActiveOrder, isCancelledOrder, isProductionActiveOrder, normalizeOrderOperationalStatus } from '@/lib/order-status';
 import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 import { resolveOperationalWhatsAppMessage } from '@/lib/whatsapp/service';
@@ -426,7 +426,10 @@ export default function OrdersPage() {
             ...((item.details?.pricing_snapshot as Record<string, unknown> | undefined) || {}),
             product_id: product.id,
             product_name: product.name,
-            base_unit_price: unitPrice
+            base_unit_price: unitPrice,
+            minimum_area: getPriceBreakdown(product).minimumArea,
+            measure_basis: getPriceBreakdown(product).measureBasis,
+            unit_price_basis: 'measure'
           }
         }
       };
@@ -893,6 +896,8 @@ export default function OrdersPage() {
     normalizeOrderItemPricingType(item.details?.manual_pricing_type || item.details?.pricing_type);
 
   const recalculateOrderItem = (item: Order['items'][number], changedField?: 'quantity' | 'unit_price' | 'total_price' | 'measure') => {
+    // Opening an existing order must not reprice its commercial snapshot.
+    if (!changedField) return item;
     const pricingType = getManualPricingType(item);
     const quantity = Math.max(0, Number(item.quantity || 0));
     const unitPrice = Math.max(0, Number(item.unit_price || 0));
@@ -903,13 +908,25 @@ export default function OrdersPage() {
     let nextUnitPrice = unitPrice;
     let areaTotal = item.details?.area_total;
     let linearMeters = item.details?.linear_meters;
+    const snapshot = item.details?.pricing_snapshot || {};
+    const measure = resolveBillableArea(width, height, Number(snapshot.minimum_area || 0));
+    const usesArea = pricingType === 'm2' || (pricingType === 'linear' && (snapshot.measure_basis === 'area' || height > 0));
+    const pieceBasis = snapshot.unit_price_basis === 'piece';
+    const physicalMultiplier = usesArea ? measure.billableArea : length;
+    const measureRate = pieceBasis && (usesArea || pricingType === 'linear')
+      ? changedField === 'unit_price'
+        ? (physicalMultiplier > 0 ? unitPrice / physicalMultiplier : 0)
+        : Number(snapshot.base_unit_price || 0)
+      : unitPrice;
 
-    if (pricingType === 'm2') {
+    if (usesArea) {
       areaTotal = Math.max(0, width * height * quantity);
-      totalPrice = Math.round(areaTotal * unitPrice * 100) / 100;
+      totalPrice = Math.round(measure.billableArea * quantity * measureRate * 100) / 100;
+      nextUnitPrice = pieceBasis ? measure.billableArea * measureRate : unitPrice;
     } else if (pricingType === 'linear') {
       linearMeters = Math.max(0, length * quantity);
-      totalPrice = Math.round(linearMeters * unitPrice * 100) / 100;
+      totalPrice = Math.round(linearMeters * measureRate * 100) / 100;
+      nextUnitPrice = pieceBasis ? length * measureRate : unitPrice;
     } else if (pricingType === 'manual_value') {
       nextUnitPrice = quantity > 0 ? Math.round((totalPrice / quantity) * 100) / 100 : totalPrice;
     } else if (changedField === 'total_price') {
@@ -956,7 +973,11 @@ export default function OrdersPage() {
           size: safeSize,
           quantity,
           unit_price: nextUnitPrice,
-          total_price: totalPrice
+          total_price: totalPrice,
+          area: measure.area,
+          billable_area: measure.billableArea,
+          minimum_area: measure.minimumArea,
+          base_unit_price: measureRate
         }
       }
     };
@@ -979,7 +1000,12 @@ export default function OrdersPage() {
 
   const getOrderItemConfigurationLines = (item: Order['items'][number]) => {
     const snapshot = item.details?.configuration_snapshot;
-    if (!snapshot) return null;
+    if (!snapshot) return item.details?.configuration_summary ? {
+      options: item.details.configuration_summary,
+      quantity: `${item.quantity} un`,
+      unit: `${formatUnitCurrency(item.unit_price)}/un`,
+      total: formatCurrency(item.total_price)
+    } : null;
 
     return {
       options: [snapshot.material, snapshot.size, snapshot.colors, snapshot.finishing].filter(Boolean).join(' • '),
@@ -1279,7 +1305,7 @@ export default function OrdersPage() {
                             </select>
                           </div>
 
-                          {pricingType === 'm2' && (
+                          {(pricingType === 'm2' || (pricingType === 'linear' && (item.details?.pricing_snapshot?.measure_basis === 'area' || Number(item.details?.height) > 0))) && (
                             <>
                               <div className="space-y-1 lg:col-span-2">
                                 <label className="text-[9px] font-bold uppercase text-muted-foreground">Largura (cm)</label>
@@ -1312,7 +1338,7 @@ export default function OrdersPage() {
                             </>
                           )}
 
-                          {pricingType === 'linear' && (
+                          {pricingType === 'linear' && item.details?.pricing_snapshot?.measure_basis !== 'area' && !(Number(item.details?.height) > 0) && (
                             <div className="space-y-1 lg:col-span-2">
                               <label className="text-[9px] font-bold uppercase text-muted-foreground">Comprimento (cm)</label>
                               <input

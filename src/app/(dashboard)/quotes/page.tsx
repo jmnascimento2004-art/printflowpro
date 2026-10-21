@@ -132,7 +132,12 @@ const getItemConfigurationSummaryLines = (item: Pick<QuoteItem, 'details' | 'qua
   }
 
   const snapshot = getItemConfigurationSnapshot(item);
-  if (!snapshot) return null;
+  if (!snapshot) return item.details?.configuration_summary ? {
+    options: item.details.configuration_summary,
+    quantity: `${item.quantity} un`,
+    unit: `${formatUnitCurrency(item.unit_price)}/un`,
+    total: formatQuoteMoney(item.total_price ?? item.quantity * item.unit_price)
+  } : null;
 
   return {
     options: [snapshot.material, snapshot.size, snapshot.colors, snapshot.finishing].filter(Boolean).join(' • '),
@@ -707,17 +712,13 @@ export default function QuotesPage() {
 
     const volumeTiers = prodId === selectedProductId ? effectiveQuantityTiers : getProductVolumeTiers(prodId);
     const volumeTier = [...volumeTiers].reverse().find(tier => qty >= tier.min_qty) || null;
-    const baseUnitPrice = volumeTier?.price ?? prod.sales_price;
-    let price = baseUnitPrice;
-
-    if (prod.pricing_type === 'm2') {
-      price = baseUnitPrice * itemWidth * itemHeight;
-    } else if (prod.pricing_type === 'linear') {
-      price = baseUnitPrice * itemWidth;
-    }
+    const resolution = resolveProductPrice(prod, {
+      quantity: qty, width: itemWidth, height: itemHeight, length: itemWidth
+    });
 
     return {
-      price,
+      price: resolution.unitPrice,
+      areaPricing: resolution.breakdown.measureBasis === 'area',
       type: prod.pricing_type,
       volumeTier,
       hasVolumePricing: volumeTiers.length > 0
@@ -810,8 +811,8 @@ export default function QuotesPage() {
     const originalQty = itemQty;
     if (normalizedQty !== originalQty) setItemQty(normalizedQty);
 
-    const { price, volumeTier } = configuredTier
-      ? { price: configuredTier.price, volumeTier: configuredTier }
+    const { volumeTier } = configuredTier
+      ? { volumeTier: configuredTier }
       : getProductPriceInfo(selectedProductId, normalizedQty);
     const snapshotMaterial = hasVariantPricingMatrix ? selectedMatrixRow?.material || selectedMaterial : undefined;
     const snapshotSize = hasVariantPricingMatrix ? selectedMatrixRow?.size || selectedMatrixSize : undefined;
@@ -836,6 +837,11 @@ export default function QuotesPage() {
       }
     });
     const productionTime = volumeTier?.productionTime || priceResolution.productionTime;
+    if (!priceResolution.canPurchase) {
+      alert(priceResolution.warningMessage || 'Complete a configuração do produto antes de adicionar.');
+      return;
+    }
+    const price = priceResolution.unitPrice;
     const productionTimeSource = volumeTier?.productionTime
       ? (hasVariantPricingMatrix ? 'matrix' as const : 'quantity_tier' as const)
       : priceResolution.productionTimeSource;
@@ -846,8 +852,8 @@ export default function QuotesPage() {
       colors: snapshotColors,
       finishing: snapshotFinishing,
       quantity_tier: volumeTier.min_qty,
-      unit_price: volumeTier.price,
-      total_price: volumeTier.total,
+      unit_price: price,
+      total_price: priceResolution.totalPrice,
       production_time: productionTime,
       production_time_source: productionTimeSource,
       display_label: buildConfigurationLabel({
@@ -857,8 +863,8 @@ export default function QuotesPage() {
         colors: snapshotColors,
         finishing: snapshotFinishing,
         quantity_tier: volumeTier.min_qty,
-        unit_price: volumeTier.price,
-        total_price: volumeTier.total,
+        unit_price: price,
+        total_price: priceResolution.totalPrice,
         production_time: productionTime,
         production_time_source: productionTimeSource,
         display_label: ''
@@ -872,24 +878,33 @@ export default function QuotesPage() {
       unit_price: price,
       details: {
         width: prod.pricing_type === 'm2' || prod.pricing_type === 'linear' ? itemWidth : undefined,
-        height: prod.pricing_type === 'm2' ? itemHeight : undefined,
+        height: prod.pricing_type === 'm2' || priceResolution.breakdown.area > 0 ? itemHeight : undefined,
+        length: prod.pricing_type === 'linear' ? itemWidth : undefined,
         selected_options: selectedOptions,
         pricing_type: prod.pricing_type,
         production_time: productionTime,
         production_time_source: productionTimeSource,
-        configuration_summary: configurationSnapshot?.display_label,
+        configuration_summary: configurationSnapshot?.display_label || (priceResolution.breakdown.minimumArea > 0
+          ? `Área real: ${priceResolution.breakdown.area.toFixed(2)} m² | Área cobrável por peça: ${priceResolution.breakdown.billableArea.toFixed(2)} m²`
+          : undefined),
         configuration_snapshot: configurationSnapshot,
         pricing_snapshot: {
+          area: priceResolution.breakdown.area,
+          billable_area: priceResolution.breakdown.billableArea,
+          minimum_area: priceResolution.breakdown.minimumArea,
+          measure_basis: priceResolution.breakdown.measureBasis,
+          base_unit_price: priceResolution.breakdown.unitPrice,
+          unit_price_basis: 'piece',
           product_id: prod.id,
           product_name: prod.name,
           quantity: normalizedQty,
           unit_price: price,
-          total_price: volumeTier?.total ?? roundQuoteNumber(normalizedQty * price),
+          total_price: priceResolution.totalPrice,
           production_time: productionTime,
           production_time_source: productionTimeSource
         },
         notes: volumeTier
-          ? `Faixa de preço aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(volumeTier.price)} / un, ${formatCurrency(volumeTier.total)} total). Prazo contratado: ${productionTime}.`
+          ? `Faixa de preço aplicada: a partir de ${volumeTier.min_qty} un (${formatUnitCurrency(price)} / un, ${formatCurrency(priceResolution.totalPrice)} total). Prazo contratado: ${productionTime}.`
           : ''
       }
     };
@@ -1837,7 +1852,7 @@ export default function QuotesPage() {
                       className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                     />
                   </div>
-                  {getProductPriceInfo(selectedProductId).type === 'm2' && (
+                  {getProductPriceInfo(selectedProductId).areaPricing && (
                     <div className="md:col-span-2 space-y-1">
                       <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
                       <input

@@ -151,7 +151,7 @@ export async function transitionProductionStage(
 ): Promise<ProductionItem> {
   const trustedId = requireIdentifier(id, 'Item');
   const trustedVersion = requireIdentifier(expectedUpdatedAt, 'Versão do item');
-  if (!isProductionStatus(nextStatus)) {
+  if (!['fila', 'producao', 'impressao', 'concluido'].includes(nextStatus)) {
     throw new ProductionMutationError('INVALID_STATUS', 'Fase de produção inválida.');
   }
 

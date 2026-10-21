@@ -1,4 +1,5 @@
 'use client';
+import { replaceShipment, mergeShipmentSnapshot } from '@/lib/shipment-state';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
@@ -197,7 +198,7 @@ interface DatabaseContextType {
   updateTransactionStatus: (id: string, status: 'pendente' | 'pago') => void;
 
   // Shipments
-  updateShipmentStatus: (id: string, status: Shipment['status'], tracking?: string, carrier?: string) => void;
+  updateShipmentStatus: (id: string, status: Shipment['status'], tracking?: string, carrier?: string) => Promise<void>;
 
   // Settings
   updateSettings: (newSettings: Partial<typeof DUMMY_SETTINGS>) => void;
@@ -779,7 +780,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
         if (productionData) setProduction(filterByCompany(productionData as ProductionItem[]));
         if (financialData) setFinancial(filterByCompany(financialData as FinancialTransaction[]));
-        if (shipmentsData) setShipments(filterByCompany(shipmentsData as Shipment[]));
+        if (shipmentsData) setShipments(current => mergeShipmentSnapshot(current, filterByCompany(shipmentsData as Shipment[])));
         if (stockMovementsData) setStockMovements(filterByCompany(stockMovementsData as StockMovement[]));
         if (pickupPointsData) setPickupPoints(filterByCompany(pickupPointsData as PickupPoint[]));
         if (bannersData) setBanners(filterByCompany(bannersData as StoreBannerRow[]));
@@ -1043,7 +1044,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         ));
         setProduction((productionData || []) as ProductionItem[]);
         setFinancial((financialData || []) as FinancialTransaction[]);
-        setShipments((shipmentsData || []) as Shipment[]);
+        setShipments(current => mergeShipmentSnapshot(current, (shipmentsData || []) as Shipment[]));
         setStockMovements((stockMovementsData || []) as StockMovement[]);
         setPickupPoints((pickupPointsData || []) as PickupPoint[]);
         setBanners((bannersData || []) as StoreBannerRow[]);
@@ -1150,6 +1151,22 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, [initialized, company.id, session?.user]);
 
   // Business writes are performed only by the explicit commands below. State
+  useEffect(() => {
+    if (!initialized || !company.id || !session?.user || isPublicStoreRoute()) return;
+    const channel = supabase.channel(`shipments-${company.id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'shipments', filter: `company_id=eq.${company.id}`
+      }, (payload) => {
+        // Deletes require a fresh collection read; an unversioned event cannot undo a newer row.
+        if (payload.eventType === 'DELETE') return;
+        const incoming = payload.new as Shipment;
+        if (incoming?.id && incoming.company_id === company.id) {
+          setShipments(current => replaceShipment(current, incoming));
+        }
+      }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [initialized, company.id, session?.user]);
+
   // changes, hydration and Realtime never write collection snapshots back.
 
   // Arm the demo-only quote/order fallback only after hydration. Production
@@ -1839,9 +1856,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     }).then(({ order: savedOrder, shipment, production: insertedProduction }) => {
       setOrders((items) => items.map((item) => item.id === savedOrder.id ? { ...savedOrder, items: item.items } : item));
       if (shipment) {
-        setShipments((items) => items.some((item) => item.id === shipment.id)
-          ? items.map((item) => item.id === shipment.id ? shipment : item)
-          : [shipment, ...items]);
+        setShipments((items) => replaceShipment(items, shipment));
       }
       applyProductionQueueInsertions({ ...savedOrder, items: current.items }, insertedProduction as ProductionItem[]);
     }).catch((error) => {
@@ -1927,33 +1942,17 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     };
     setProduction((items) => replaceProductionItem(items, optimisticItem));
 
-    const orderStatusByProductionStatus: Partial<Record<ProductionItem['status'], Order['status']>> = {
-      producao: 'producao',
-      impressao: 'impressao',
-      expedicao: 'expedicao',
-      entregue: 'entregue',
-      finalizado: 'finalizado'
-    };
-
     try {
       const savedItem = await transitionProductionStage(id, nextStatus, currentItem.updated_at);
       setProduction((items) => replaceProductionItem(items, savedItem));
 
-      const nextOrderStatus = orderStatusByProductionStatus[nextStatus];
-      if (nextOrderStatus) updateOrderStatus(savedItem.order_id, nextOrderStatus);
-
       if (nextStatus === 'concluido') {
         const { data, error } = await supabase
-          .from('production_queue')
-          .select('status')
+          .from('shipments')
+          .select('*')
           .eq('company_id', savedItem.company_id)
           .eq('order_id', savedItem.order_id);
-        if (!error && data && data.length > 0 && data.every((item) => item.status === 'concluido')) {
-          const order = orders.find((candidate) => candidate.id === savedItem.order_id);
-          if (order && ['producao', 'impressao', 'acabamento'].includes(order.status)) {
-            updateOrderStatus(savedItem.order_id, 'expedicao');
-          }
-        }
+        if (!error && data) setShipments(items => mergeShipmentSnapshot(items, data as Shipment[]));
       }
       showToast('Fase de produção atualizada.', 'success');
     } catch (error) {
@@ -2046,26 +2045,24 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   // ----------------------------------------------------
   // SHIPMENTS API
   // ----------------------------------------------------
-  const updateShipmentStatus = (id: string, status: Shipment['status'], tracking?: string, carrier?: string) => {
+  const updateShipmentStatus = async (id: string, status: Shipment['status'], tracking?: string, carrier?: string) => {
     const current = shipments.find((shipment) => shipment.id === id);
-    if (!current) return;
-    void transitionShipment<Shipment>({
+    if (!current?.updated_at) throw new Error('Recarregue a expedição antes de atualizar.');
+    await transitionShipment<Shipment>({
       shipmentId: id,
       status,
       trackingCode: tracking,
       carrier,
       expectedUpdatedAt: current.updated_at
     }).then((saved) => {
-      setShipments((items) => items.map((item) => item.id === saved.id ? saved : item));
-      if (saved.status === 'entregue') {
-        setOrders((items) => items.map((item) => item.id === saved.order_id && item.status !== 'finalizado' ? { ...item, status: 'entregue' } : item));
-      }
+      setShipments((items) => replaceShipment(items, saved));
       showToast('Expedição atualizada.', 'success');
     }).catch((error) => {
       const latest = error instanceof PersistenceMutationError ? error.latest as Shipment | undefined : undefined;
-      if (latest) setShipments((items) => items.map((item) => item.id === latest.id ? latest : item));
+      if (latest) setShipments((items) => replaceShipment(items, latest));
       warnCaught('Erro ao atualizar expedição:', error);
       showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a expedição.', 'error');
+      throw error;
     });
   };
   // ----------------------------------------------------

@@ -12,6 +12,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
+import { resolveBillableArea } from '@/lib/pricing';
 
 type OutsourcedChargeType = 'fixed' | 'm2' | 'hour' | 'day';
 type PricingCalculatorType = 'unidade' | 'm2' | 'linear_width' | 'linear' | 'pacote' | 'service' | 'project';
@@ -335,9 +336,9 @@ export default function PricingPage() {
         waste_percent: wastePercent,
         calculated_price: suggestedPrice,
         delivery_time: deliveryTime.trim() || undefined,
-        configurator_options: pricingType === 'linear_width' ? {
-          sale_mode: 'linear',
-          max_width: simMaxWidth > 0 ? simMaxWidth * 100 : 0,
+        configurator_options: pricingType === 'linear_width' || pricingType === 'm2' ? {
+          sale_mode: pricingType === 'm2' ? 'm2' : 'linear',
+          max_width: pricingType === 'linear_width' && simMaxWidth > 0 ? simMaxWidth * 100 : 0,
           min_area: simMinimumArea,
           allow_custom_measure: true
         } : undefined
@@ -374,15 +375,14 @@ export default function PricingPage() {
   // Get simulated job price
   const getSimulatedJob = () => {
     let size = 1.0;
-    if (pricingType === 'm2') {
-      size = simWidth * simHeight;
-    } else if (pricingType === 'linear_width') {
-      size = Math.max(simWidth * simHeight, simMinimumArea);
+    if (pricingType === 'm2' || pricingType === 'linear_width') {
+      size = resolveBillableArea(simWidth, simHeight, simMinimumArea).billableArea;
     } else if (pricingType === 'linear') {
       size = simWidth;
     }
     
-    const cost = totalCost * size * simQuantity;
+    const physicalSize = pricingType === 'm2' || pricingType === 'linear_width' ? simWidth * simHeight : size;
+    const cost = totalCost * physicalSize * simQuantity;
     const price = suggestedPrice * size * simQuantity;
     const profit = price - cost - (price * (taxPercent + commissionPercent) / 100);
 
@@ -913,6 +913,14 @@ export default function PricingPage() {
                 </div>
               </div>
 
+              {pricingType === 'm2' && (
+                <label className="block text-xs text-muted-foreground">
+                  Área mínima cobrável por peça (m²)
+                  <input type="number" min="0" step="0.01" value={numberInputValue(simMinimumArea, 2)}
+                    onChange={event => setSimMinimumArea(toNumberOrZero(event.target.value))}
+                    className="ml-2 w-24 rounded border border-border bg-secondary p-1" />
+                </label>
+              )}
               <div className="border-t border-border pt-3 space-y-1.5 text-xs">
                 {pricingType === 'linear_width' && simMaxWidth > 0 && simWidth > simMaxWidth && (
                   <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 font-bold text-rose-600">
@@ -927,13 +935,13 @@ export default function PricingPage() {
                   </div>
                 )}
                 <div className="flex justify-between items-center text-muted-foreground">
-                  <span>Área Calculada:</span>
+                  <span>Medida real por peça:</span>
                   <span className="font-bold text-foreground">
-                    {pricingType === 'm2' ? `${(simWidth * simHeight).toFixed(2)} m²` : `${simWidth.toFixed(2)} m`}
+                    {pricingType === 'm2' || pricingType === 'linear_width' ? `${(simWidth * simHeight).toFixed(2)} m²` : `${simWidth.toFixed(2)} m`}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-muted-foreground">
-                  <span>Custo Estimado:</span>
+                  <span>Base cobrável por peça: {simulation.size.toFixed(2)} {pricingType === 'linear' ? 'm' : 'm²'}. Custo estimado:</span>
                   <span className="font-semibold text-foreground">{formatCurrency(simulation.cost)}</span>
                 </div>
                 <div className="flex justify-between items-center border-t border-border pt-1.5">

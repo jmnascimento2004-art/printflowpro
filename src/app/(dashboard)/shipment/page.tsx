@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Truck, 
   Search, 
@@ -21,6 +21,26 @@ export default function ShipmentPage() {
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
   const [carrierInput, setCarrierInput] = useState('Correios');
   const [trackingInput, setTrackingInput] = useState('');
+  const pendingRef = useRef(false);
+  const [pending, setPending] = useState(false);
+  const [mutationError, setMutationError] = useState('');
+
+  const transition = async (id: string, status: Shipment['status'], tracking?: string, carrier?: string) => {
+    if (pendingRef.current) return false;
+    pendingRef.current = true;
+    setPending(true);
+    setMutationError('');
+    try {
+      await updateShipmentStatus(id, status, tracking, carrier);
+      return true;
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'Não foi possível atualizar a entrega.');
+      return false;
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
+    }
+  };
 
   // Filter shipments
   const filteredShipments = shipments.filter(s => 
@@ -28,11 +48,11 @@ export default function ShipmentPage() {
     getOrderNumberSearchText(s.order_number).includes(searchQuery.toLowerCase())
   );
 
-  const handleShipPackage = (e: React.FormEvent) => {
+  const handleShipPackage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedShipment) return;
 
-    updateShipmentStatus(selectedShipment.id, 'enviado', trackingInput, carrierInput);
+    if (!await transition(selectedShipment.id, 'enviado', trackingInput, carrierInput)) return;
 
     // Refresh local selected state
     setSelectedShipment(null);
@@ -44,13 +64,15 @@ export default function ShipmentPage() {
       separacao: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
       embalagem: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
       enviado: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      em_rota: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
       entregue: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     };
 
     const labels = {
-      separacao: 'Separação',
+      separacao: 'Aguardando expedição',
       embalagem: 'Embalagem',
-      enviado: 'Em Trânsito',
+      enviado: 'Expedido',
+      em_rota: 'Em rota',
       entregue: 'Entregue',
     };
 
@@ -63,6 +85,7 @@ export default function ShipmentPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      {mutationError && <p role="alert" className="text-sm text-red-500">{mutationError}</p>}
       <div className={`space-y-6 ${selectedShipment ? 'hidden' : ''}`}>
         {/* Search and general indicators */}
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between no-print">
@@ -121,7 +144,8 @@ export default function ShipmentPage() {
               <div className="border-t border-border/50 pt-4 flex gap-2 w-full mt-4 justify-end items-center">
                 {ship.status === 'separacao' && (
                   <button
-                    onClick={() => updateShipmentStatus(ship.id, 'embalagem')}
+                    disabled={pending}
+                    onClick={() => void transition(ship.id, 'embalagem')}
                     className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow"
                   >
                     Pronto para Embalagem <ArrowRight className="h-3.5 w-3.5" />
@@ -130,6 +154,7 @@ export default function ShipmentPage() {
 
                 {ship.status === 'embalagem' && (
                   <button
+                    disabled={pending}
                     onClick={() => {
                       setSelectedShipment(ship);
                       setCarrierInput(ship.carrier || 'Correios');
@@ -140,12 +165,13 @@ export default function ShipmentPage() {
                   </button>
                 )}
 
-                {ship.status === 'enviado' && (
+                {(ship.status === 'enviado' || ship.status === 'em_rota') && (
                   <button
-                    onClick={() => updateShipmentStatus(ship.id, 'entregue')}
+                    disabled={pending}
+                    onClick={() => void transition(ship.id, ship.status === 'enviado' ? 'em_rota' : 'entregue')}
                     className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1 shadow"
                   >
-                    Confirmar Entrega <Check className="h-3.5 w-3.5" />
+                    {ship.status === 'enviado' ? 'Confirmar saída em rota' : 'Confirmar entrega'} <Check className="h-3.5 w-3.5" />
                   </button>
                 )}
 
@@ -219,6 +245,7 @@ export default function ShipmentPage() {
               </button>
               <button
                 type="submit"
+                disabled={pending}
                 className="px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all flex items-center gap-1"
               >
                 <Check className="h-4 w-4" /> Confirmar Despacho

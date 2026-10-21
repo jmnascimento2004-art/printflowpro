@@ -43,6 +43,9 @@ export interface PriceBreakdown {
   unitPrice: number;
   quantity: number;
   area: number;
+  billableArea: number;
+  minimumArea: number;
+  measureBasis: 'area' | 'length' | 'unit';
   length: number;
   baseSubtotal: number;
   optionsTotal: number;
@@ -684,20 +687,32 @@ export function calculateProductPrice(product: ProductLike | null | undefined, c
   return breakdown.subtotal;
 }
 
+/** Commercial floor per piece; physical dimensions and quantities are never changed. */
+export function resolveBillableArea(width: number, height: number, minimumArea = 0) {
+  const area = Math.max(0, toFiniteNumber(width, 0)) * Math.max(0, toFiniteNumber(height, 0));
+  const minimum = Math.max(0, toFiniteNumber(minimumArea, 0));
+  return { area, billableArea: area > 0 ? Math.max(area, minimum) : 0, minimumArea: minimum };
+}
+
 export function getPriceBreakdown(product: ProductLike | null | undefined, config: PricingConfig = {}): PriceBreakdown {
   const normalized = normalizePricingConfig(config);
   const pricingType = (product?.pricing_type || 'unidade') as PricingType;
   const unitPrice = getProductUnitPrice(product, normalized.quantity);
 
-  const area = pricingType === 'm2' ? normalized.width * normalized.height : 0;
+  const configurator = getConfiguratorObject(product);
+  const usesArea = pricingType === 'm2' || (pricingType === 'linear' && Number(configurator.max_width) > 0);
+  const { area, billableArea, minimumArea } = usesArea
+    ? resolveBillableArea(normalized.width, normalized.height, Number(configurator.min_area))
+    : { area: 0, billableArea: 0, minimumArea: 0 };
   const length = pricingType === 'linear' ? normalized.length : 0;
-  const multiplier = pricingType === 'm2'
-    ? area
+  const multiplier = usesArea
+    ? billableArea
     : pricingType === 'linear'
       ? length
       : 1;
   const explicitBaseSubtotal = toFiniteNumber(normalized.customOptions?.baseSubtotal, NaN);
-  const baseSubtotal = Number.isFinite(explicitBaseSubtotal)
+  // Quantity tiers provide a rate for measured products, never a fixed line total.
+  const baseSubtotal = !usesArea && pricingType !== 'linear' && Number.isFinite(explicitBaseSubtotal)
     ? roundMoney(Math.max(0, explicitBaseSubtotal))
     : roundMoney(unitPrice * multiplier * normalized.quantity);
   const optionReplacementTotal = roundMoney(getOptionReplacementTotal(normalized));
@@ -709,6 +724,9 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
     unitPrice,
     quantity: normalized.quantity,
     area,
+    billableArea,
+    minimumArea,
+    measureBasis: usesArea ? 'area' : pricingType === 'linear' ? 'length' : 'unit',
     length,
     baseSubtotal,
     optionsTotal: optionReplacementTotal,
