@@ -20,6 +20,7 @@ import {
   LayoutGrid,
   List
 } from 'lucide-react';
+import { PersistenceMutationError, getPersistenceErrorMessage } from '@/lib/persistence/persistence-service';
 import { useDatabase } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
 import { Order } from '@/lib/dummy-data';
@@ -85,6 +86,8 @@ export default function OrdersPage() {
     products
   } = useDatabase();
 
+  const orderMutationRef = useRef(false);
+  const [orderPending, setOrderPending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -537,9 +540,9 @@ export default function OrdersPage() {
     }
   };
 
-  const handleSaveEditOrder = (e: React.FormEvent) => {
+  const handleSaveEditOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingOrder) return;
+    if (!editingOrder || orderMutationRef.current) return;
 
     if (editItems.length === 0) {
       alert('O pedido precisa ter pelo menos um item.');
@@ -558,23 +561,35 @@ export default function OrdersPage() {
     const paidAmount = editPaid;
     const deliveryDistanceKm = parseDecimalBR(editDeliveryDistanceInput);
 
-    updateOrder({
-      ...editingOrder,
-      status: editStatus,
-      deadline: new Date(editDeadline).toISOString(),
-      notes: buildOrderNotesWithDiscount(sanitizeDisplayText(editNotes), safeDiscount, editDiscountReason),
-      total_amount: nextTotal,
-      shipping_cost: editShipping,
-      paid_amount: paidAmount,
-      payment_status: getPaymentStatusForTotal(paidAmount, nextTotal),
-      items: editItems.map((item) => recalculateOrderItem(item)),
-      additional_services: editAdditionalServices,
-      delivery_type: editDeliveryType,
-      delivery_address: editDeliveryType !== 'retirada' ? editDeliveryAddress : undefined,
-      delivery_distance_km: ['motoboy', 'carro'].includes(editDeliveryType) ? deliveryDistanceKm : undefined
-    });
+    orderMutationRef.current = true;
+    setOrderPending(true);
+    try {
+      await updateOrder({
+        ...editingOrder,
+        status: editStatus,
+        deadline: new Date(editDeadline).toISOString(),
+        notes: buildOrderNotesWithDiscount(sanitizeDisplayText(editNotes), safeDiscount, editDiscountReason),
+        total_amount: nextTotal,
+        shipping_cost: editShipping,
+        paid_amount: paidAmount,
+        payment_status: getPaymentStatusForTotal(paidAmount, nextTotal),
+        items: editItems.map((item) => recalculateOrderItem(item)),
+        additional_services: editAdditionalServices,
+        delivery_type: editDeliveryType,
+        delivery_address: editDeliveryType !== 'retirada' ? editDeliveryAddress : undefined,
+        delivery_distance_km: ['motoboy', 'carro'].includes(editDeliveryType) ? deliveryDistanceKm : undefined
+      });
 
-    setEditingOrder(null);
+      setEditingOrder(null);
+    } catch (error) {
+      if (error instanceof PersistenceMutationError && error.code === 'CONFLICT' && error.latest) {
+        handleOpenEditOrder(error.latest as Order);
+      }
+      alert(getPersistenceErrorMessage(error));
+    } finally {
+      orderMutationRef.current = false;
+      setOrderPending(false);
+    }
   };
 
   const handlePrintOrderPdf = (order: Order) => {
@@ -1058,7 +1073,8 @@ export default function OrdersPage() {
       {editingOrder ? (
         /* Edit Order Form */
         <div className="mx-auto w-full max-w-6xl bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print animate-in slide-in-from-bottom duration-300">
-          <form onSubmit={handleSaveEditOrder} className="flex flex-col space-y-4">
+          <form onSubmit={handleSaveEditOrder}>
+          <fieldset disabled={orderPending} aria-busy={orderPending} className="flex min-w-0 flex-col space-y-4">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <h3 className="font-bold text-foreground text-sm uppercase flex items-center gap-1.5">
                 <Edit3 className="h-4.5 w-4.5 text-primary" /> 
@@ -1696,9 +1712,10 @@ export default function OrdersPage() {
                 className="px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all flex items-center gap-1"
               >
                 <Check className="h-4 w-4" /> 
-                Salvar Alterações
+                {orderPending ? 'Salvando...' : 'Salvar Alterações'}
               </button>
             </div>
+          </fieldset>
           </form>
         </div>
       ) : !selectedOrder ? (

@@ -79,6 +79,7 @@ import {
   operateCashRegister,
   patchTenantRecord,
   PersistenceMutationError,
+  getPersistenceErrorMessage,
   recordOrderPayment,
   saveRolePermissions,
   settleFinancialTransaction,
@@ -167,14 +168,14 @@ interface DatabaseContextType {
   stockMovements: StockMovement[];
 
   // Quotes
-  addQuote: (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => Quote;
-  updateQuote: (quote: Quote) => void;
-  deleteQuote: (id: string) => void;
+  addQuote: (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => Promise<Quote>;
+  updateQuote: (quote: Quote) => Promise<Quote>;
+  deleteQuote: (id: string) => Promise<void>;
   approveQuote: (id: string) => Promise<Order | null>;
 
   // Orders
   addOrder: (order: Omit<Order, 'id' | 'company_id' | 'number' | 'created_at'>) => Promise<Order | null>;
-  updateOrder: (order: Order) => void;
+  updateOrder: (order: Order) => Promise<Order>;
   updateOrderStatus: (id: string, status: Order['status']) => void;
   payOrder: (
     id: string,
@@ -1585,6 +1586,26 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const refetchQuote = async (id: string) => {
+    const { data, error } = await supabase.from('quotes').select('*, quote_items(*)')
+      .eq('id', id).eq('company_id', currentCompanyId).abortSignal(AbortSignal.timeout(15000)).maybeSingle();
+    if (error) throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Não foi possível carregar a versão atual do orçamento. Recarregue antes de tentar novamente.');
+    const latest = data ? normalizeQuotePayload({ quote: data as Quote, items: data.quote_items || [] }) : null;
+    if (latest) upsertQuoteState(latest);
+    else setQuotes(prev => prev.filter(item => item.id !== id));
+    return latest;
+  };
+
+  const refetchOrder = async (id: string) => {
+    const { data, error } = await supabase.from('orders').select('*, order_items(*)')
+      .eq('id', id).eq('company_id', currentCompanyId).abortSignal(AbortSignal.timeout(15000)).maybeSingle();
+    if (error) throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Não foi possível carregar a versão atual do pedido. Recarregue antes de tentar novamente.');
+    const latest = data ? normalizeOrderPayload({ order: data as Order, items: data.order_items || [] }) : null;
+    if (latest) upsertOrderState(latest);
+    else setOrders(prev => prev.filter(item => item.id !== id));
+    return latest;
+  };
+
   const saveQuoteWithItems = async (quote: Quote, errorContext: string) => {
     const { items, ...parentQuote } = quote;
     const p_quote = parentQuote;
@@ -1599,20 +1620,17 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
     if (!String(p_quote.company_id || '').trim()) {
       warnCaught(`Payload inválido ao salvar orçamento ${errorContext}:`, { reason: 'company_id vazio', p_quote, p_items });
-      showToast('Não foi possível salvar: empresa não identificada.', 'error');
-      return null;
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Não foi possível salvar: empresa não identificada.');
     }
 
     if (!String(p_quote.customer_name || '').trim()) {
       warnCaught(`Payload inválido ao salvar orçamento ${errorContext}:`, { reason: 'cliente vazio', p_quote, p_items });
-      showToast('Selecione um cliente antes de salvar o orçamento.', 'error');
-      return null;
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Selecione um cliente antes de salvar o orçamento.');
     }
 
     if (!Number.isFinite(Number(p_quote.total_amount))) {
       warnCaught(`Payload inválido ao salvar orçamento ${errorContext}:`, { reason: 'total inválido', p_quote, p_items });
-      showToast('O total do orçamento está inválido.', 'error');
-      return null;
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'O total do orçamento está inválido.');
     }
 
     if (p_items.length === 0 || invalidItem) {
@@ -1622,8 +1640,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         p_quote,
         p_items
       });
-      showToast('Inclua pelo menos um item válido antes de salvar o orçamento.', 'error');
-      return null;
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Inclua pelo menos um item válido antes de salvar o orçamento.');
     }
 
     if (process.env.NODE_ENV === 'development') {
@@ -1634,34 +1651,26 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       p_quote,
       p_items,
       p_expected_updated_at: quote.updated_at || null
-    });
+    }).abortSignal(AbortSignal.timeout(30000));
 
     if (error) {
       warnCaught(`Erro ao salvar orçamento ${errorContext} no Supabase:`, { error, p_quote, p_items });
-      showToast('Não foi possível salvar o orçamento. Verifique os dados e tente novamente.', 'error');
-      return null;
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Não foi possível salvar o orçamento. Verifique os dados e tente novamente.');
     }
 
-    const result = data as Phase4bAggregateSaveResult;
-    if (result.result_status === 'CONFLICT') {
-      const [{ data: latestQuote }, { data: latestItems }] = await Promise.all([
-        supabase.from('quotes').select('*').eq('id', quote.id).eq('company_id', currentCompanyId).maybeSingle(),
-        supabase.from('quote_items').select('*').eq('quote_id', quote.id)
-      ]);
-      const latest = latestQuote ? normalizeQuotePayload({ quote: latestQuote as Quote, items: (latestItems || []) as QuoteItemRow[] }) : null;
-      if (latest) upsertQuoteState(latest);
-      showToast('Este orçamento foi alterado em outra sessão. A versão mais recente foi carregada.', 'error');
-      return null;
+    const result = data as Phase4bAggregateSaveResult | null;
+    if (result?.result_status === 'CONFLICT') {
+      const latest = await refetchQuote(quote.id);
+      throw new PersistenceMutationError('CONFLICT', 'Este orçamento foi alterado em outra sessão. Revise a versão atual antes de salvar novamente.', latest || undefined);
     }
-    if (result.result_status !== 'UPDATED' || !result.payload) {
-      showToast('Você não tem permissão ou os dados do orçamento são inválidos.', 'error');
-      return null;
+    if (result?.result_status !== 'UPDATED' || !result.payload) {
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Você não tem permissão ou os dados do orçamento são inválidos.');
     }
     const savedQuote = normalizeQuotePayload(result.payload as SavedQuotePayload);
-    if (!savedQuote) {
+    if (!savedQuote?.id || savedQuote.id !== quote.id || savedQuote.company_id !== currentCompanyId ||
+        !savedQuote.updated_at || !Array.isArray((result.payload as SavedQuotePayload).items)) {
       warnCaught(`Resposta inválida ao salvar orçamento ${errorContext} no Supabase:`, data);
-      showToast('O orçamento foi enviado, mas a resposta do servidor veio incompleta.', 'error');
-      return null;
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'O orçamento foi enviado, mas a resposta do servidor veio incompleta.');
     }
 
     upsertQuoteState(savedQuote);
@@ -1700,34 +1709,26 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       p_order: parentOrder,
       p_items: items,
       p_expected_updated_at: order.updated_at || null
-    });
+    }).abortSignal(AbortSignal.timeout(30000));
 
     if (error) {
       warnCaught(`Erro ao salvar pedido ${errorContext} no Supabase:`, error);
-      showToast('Não foi possível salvar o pedido. Verifique os dados e tente novamente.', 'error');
-      return null;
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Não foi possível salvar o pedido. Verifique os dados e tente novamente.');
     }
 
-    const result = data as Phase4bAggregateSaveResult;
-    if (result.result_status === 'CONFLICT') {
-      const [{ data: latestOrder }, { data: latestItems }] = await Promise.all([
-        supabase.from('orders').select('*').eq('id', order.id).eq('company_id', currentCompanyId).maybeSingle(),
-        supabase.from('order_items').select('*').eq('order_id', order.id)
-      ]);
-      const latest = latestOrder ? normalizeOrderPayload({ order: latestOrder as Order, items: (latestItems || []) as OrderItemRow[] }) : null;
-      if (latest) upsertOrderState(latest);
-      showToast('Este pedido foi alterado em outra sessão. A versão mais recente foi carregada.', 'error');
-      return null;
+    const result = data as Phase4bAggregateSaveResult | null;
+    if (result?.result_status === 'CONFLICT') {
+      const latest = await refetchOrder(order.id);
+      throw new PersistenceMutationError('CONFLICT', 'Este pedido foi alterado em outra sessão. Revise a versão atual antes de salvar novamente.', latest || undefined);
     }
-    if (result.result_status !== 'UPDATED' || !result.payload) {
-      showToast('Você não tem permissão ou os dados do pedido são inválidos.', 'error');
-      return null;
+    if (result?.result_status !== 'UPDATED' || !result.payload) {
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'Você não tem permissão ou os dados do pedido são inválidos.');
     }
     const savedOrder = normalizeOrderPayload(result.payload as SavedOrderPayload);
-    if (!savedOrder) {
+    if (!savedOrder?.id || savedOrder.id !== order.id || savedOrder.company_id !== currentCompanyId ||
+        !savedOrder.updated_at || !Array.isArray((result.payload as SavedOrderPayload).items)) {
       warnCaught(`Resposta inválida ao salvar pedido ${errorContext} no Supabase:`, data);
-      showToast('O pedido foi enviado, mas a resposta do servidor veio incompleta.', 'error');
-      return null;
+      throw new PersistenceMutationError('PERSISTENCE_ERROR', 'O pedido foi enviado, mas a resposta do servidor veio incompleta.');
     }
 
     upsertOrderState(savedOrder);
@@ -1735,33 +1736,40 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return savedOrder;
   };
 
-  const addQuote = (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => {
+  const addQuote = async (quote: Omit<Quote, 'id' | 'company_id' | 'number' | 'created_at'>) => {
     const nextNum = quotes.length > 0 ? Math.max(...quotes.map(q => q.number)) + 1 : 1001;
     const newQuote: Quote = {
       ...quote,
-      id: `quote-${Date.now()}`,
+      id: createOperationId('quote'),
       company_id: currentCompanyId,
       number: nextNum,
       created_at: new Date().toISOString()
     };
-    void saveQuoteWithItems(newQuote, 'criado');
-
-    return newQuote;
+    return await saveQuoteWithItems(newQuote, 'criado');
   };
 
-  const updateQuote = (quote: Quote) => {
-    const nextQuote = {
-      ...quote,
-      company_id: quote.company_id || currentCompanyId
-    };
-
-    void saveQuoteWithItems(nextQuote, 'atualizado');
+  const updateQuote = async (quote: Quote) => {
+    if (quote.company_id !== currentCompanyId) throw new PersistenceMutationError('NOT_AUTHORIZED', 'Você não tem permissão para alterar este orçamento.');
+    if (!quote.updated_at) throw new PersistenceMutationError('CONFLICT', 'Reabra o orçamento para carregar sua versão atual.');
+    return await saveQuoteWithItems(quote, 'atualizado');
   };
 
-  const deleteQuote = (id: string) => {
-    setQuotes(prev => prev.filter(q => q.id !== id));
-    supabase.from('quotes').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir orçamento no Supabase:', error);
+  const deleteQuote = async (id: string) => {
+    const current = quotes.find(item => item.id === id && item.company_id === currentCompanyId);
+    if (!current?.updated_at) throw new PersistenceMutationError('CONFLICT', 'Recarregue os orçamentos antes de excluir.');
+    try {
+      await deleteTenantRecord('quotes', id, currentCompanyId, {
+        expectedUpdatedAt: current.updated_at, signal: AbortSignal.timeout(30000)
+      });
+    } catch (error) {
+      // A lost response may have committed; reload instead of inventing rollback.
+      await refetchQuote(id);
+      throw error;
+    }
+    setQuotes(prev => {
+      const next = prev.filter(item => item.id !== id);
+      persistQuotesSnapshot(next);
+      return next;
     });
   };
 
@@ -1805,18 +1813,18 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString()
     };
 
-    const savedOrder = await saveOrderWithItems(newOrder, 'criado');
-    if (!savedOrder) return null;
-
-    return savedOrder;
+    try {
+      return await saveOrderWithItems(newOrder, 'criado');
+    } catch (error) {
+      showToast(getPersistenceErrorMessage(error), 'error');
+      return null;
+    }
   };
 
-  const updateOrder = (order: Order) => {
-    const nextOrder = {
-      ...order,
-      company_id: order.company_id || currentCompanyId
-    };
-    void saveOrderWithItems(nextOrder, 'atualizado');
+  const updateOrder = async (order: Order) => {
+    if (order.company_id !== currentCompanyId) throw new PersistenceMutationError('NOT_AUTHORIZED', 'Você não tem permissão para alterar este pedido.');
+    if (!order.updated_at) throw new PersistenceMutationError('CONFLICT', 'Reabra o pedido para carregar sua versão atual.');
+    return await saveOrderWithItems(order, 'atualizado');
   };
 
   const updateOrderStatus = (id: string, status: Order['status']) => {

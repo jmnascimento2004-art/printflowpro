@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Plus, 
   FileText, 
@@ -19,6 +19,7 @@ import {
   LayoutGrid,
   List
 } from 'lucide-react';
+import { PersistenceMutationError, getPersistenceErrorMessage } from '@/lib/persistence/persistence-service';
 import { useDatabase } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
 import { Quote, QuoteItem } from '@/lib/dummy-data';
@@ -155,6 +156,23 @@ export default function QuotesPage() {
     company
   } = useDatabase();
 
+  const quoteMutationRef = useRef(false);
+  const [quotePending, setQuotePending] = useState(false);
+  const [editingQuoteVersion, setEditingQuoteVersion] = useState<string | undefined>();
+  const handleDeleteQuote = async (id: string) => {
+    if (quoteMutationRef.current || !confirm('Excluir este orçamento?')) return;
+    quoteMutationRef.current = true;
+    setQuotePending(true);
+    try {
+      await deleteQuote(id);
+    } catch (error) {
+      alert(getPersistenceErrorMessage(error));
+    } finally {
+      quoteMutationRef.current = false;
+      setQuotePending(false);
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [isCreating, setIsCreating] = useState(false);
@@ -233,7 +251,9 @@ export default function QuotesPage() {
       return;
     }
     const resolvedQuote = withResolvedCustomer(quote);
+    if (quoteMutationRef.current) return;
     setEditingQuoteId(resolvedQuote.id);
+    setEditingQuoteVersion(resolvedQuote.updated_at);
     setCustomerId(resolvedQuote.customer_id);
     setDiscountInput(normalizePtBrDecimalOnBlur(resolvedQuote.discount));
     setDiscountMode('fixed');
@@ -268,23 +288,20 @@ export default function QuotesPage() {
   };
 
   const sendQuoteProposalWhatsApp = async (quote: Quote) => {
-    const quoteForSending: Quote = {
-      ...quote,
-      status: quote.status === 'rascunho' ? 'pendente' : quote.status
-    };
+    if (quoteMutationRef.current) return;
+    quoteMutationRef.current = true;
+    setQuotePending(true);
+    let quoteForSending = quote;
     let resolved;
     try {
-      resolved = await resolveOperationalWhatsAppMessage(
-        session?.access_token,
-        'quote_proposal',
-        quoteForSending.id
-      );
+      if (quote.status === 'rascunho') quoteForSending = await updateQuote({ ...quote, status: 'pendente' });
+      resolved = await resolveOperationalWhatsAppMessage(session?.access_token, 'quote_proposal', quoteForSending.id);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível preparar a proposta no WhatsApp.');
+      alert(getPersistenceErrorMessage(error));
       return;
-    }
-    if (quote.status === 'rascunho') {
-      updateQuote(quoteForSending);
+    } finally {
+      quoteMutationRef.current = false;
+      setQuotePending(false);
     }
 
     if (typeof window !== 'undefined') {
@@ -911,6 +928,7 @@ export default function QuotesPage() {
     : '';
 
   const resetForm = () => {
+    setEditingQuoteVersion(undefined);
     setIsCreating(false);
     setEditingQuoteId(null);
     setCustomerId('');
@@ -947,7 +965,8 @@ export default function QuotesPage() {
     setDeliveryZipCode('');
   };
 
-  const handleSaveQuote = (status: 'rascunho' | 'pendente') => {
+  const handleSaveQuote = async (status: 'rascunho' | 'pendente') => {
+    if (quoteMutationRef.current) return;
     const client = customers.find(c => c.id === customerId);
     if (!client) {
       alert('Por favor, selecione o cliente.');
@@ -974,47 +993,61 @@ export default function QuotesPage() {
       ? 'Proposta salva como enviada.'
       : 'Orçamento salvo com sucesso.';
 
-    if (editingQuoteId) {
-      const match = quotes.find(q => q.id === editingQuoteId);
-      updateQuote({
-        id: editingQuoteId,
-        company_id: match?.company_id || 'c1',
-        customer_id: client.id,
-        customer_name: client.name,
-        number: match?.number || 0,
-        status,
-        total_amount: finalTotal,
-        discount: effectiveDiscount,
-        valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        notes,
-        items: finalItems,
-        additional_services: additionalServices,
-        created_at: match?.created_at || new Date().toISOString(),
-        delivery_type: deliveryType,
-        delivery_address: deliveryType !== 'retirada' ? deliveryAddress : undefined,
-        delivery_distance_km: ['motoboy', 'carro'].includes(deliveryType) ? deliveryDistanceKm : undefined,
-        delivery_fee: deliveryType !== 'retirada' ? deliveryFee : 0
-      });
-    } else {
-      addQuote({
-        customer_id: client.id,
-        customer_name: client.name,
-        status,
-        total_amount: finalTotal,
-        discount: effectiveDiscount,
-        valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        notes,
-        items: finalItems,
-        additional_services: additionalServices,
-        delivery_type: deliveryType,
-        delivery_address: deliveryType !== 'retirada' ? deliveryAddress : undefined,
-        delivery_distance_km: ['motoboy', 'carro'].includes(deliveryType) ? deliveryDistanceKm : undefined,
-        delivery_fee: deliveryType !== 'retirada' ? deliveryFee : 0
-      });
-    }
+    quoteMutationRef.current = true;
+    setQuotePending(true);
+    try {
+      if (editingQuoteId) {
+        const match = quotes.find(q => q.id === editingQuoteId);
+        await updateQuote({
+          id: editingQuoteId,
+          company_id: match?.company_id || company.id,
+          updated_at: editingQuoteVersion,
+          customer_id: client.id,
+          customer_name: client.name,
+          number: match?.number || 0,
+          status,
+          total_amount: finalTotal,
+          discount: effectiveDiscount,
+          valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          notes,
+          items: finalItems,
+          additional_services: additionalServices,
+          created_at: match?.created_at || new Date().toISOString(),
+          delivery_type: deliveryType,
+          delivery_address: deliveryType !== 'retirada' ? deliveryAddress : undefined,
+          delivery_distance_km: ['motoboy', 'carro'].includes(deliveryType) ? deliveryDistanceKm : undefined,
+          delivery_fee: deliveryType !== 'retirada' ? deliveryFee : 0
+        });
+      } else {
+        await addQuote({
+          customer_id: client.id,
+          customer_name: client.name,
+          status,
+          total_amount: finalTotal,
+          discount: effectiveDiscount,
+          valid_until: validUntil || new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          notes,
+          items: finalItems,
+          additional_services: additionalServices,
+          delivery_type: deliveryType,
+          delivery_address: deliveryType !== 'retirada' ? deliveryAddress : undefined,
+          delivery_distance_km: ['motoboy', 'carro'].includes(deliveryType) ? deliveryDistanceKm : undefined,
+          delivery_fee: deliveryType !== 'retirada' ? deliveryFee : 0
+        });
+      }
 
-    alert(successMessage);
-    resetForm();
+      alert(successMessage);
+      resetForm();
+    } catch (error) {
+      if (error instanceof PersistenceMutationError && error.code === 'CONFLICT' && error.latest) {
+        quoteMutationRef.current = false;
+        handleStartEdit(error.latest as Quote);
+      }
+      alert(getPersistenceErrorMessage(error));
+    } finally {
+      quoteMutationRef.current = false;
+      setQuotePending(false);
+    }
   };
 
   const formatCurrency = (val: number) => {
@@ -1442,6 +1475,7 @@ export default function QuotesPage() {
                           sendQuoteProposalWhatsApp(quote);
                         }}
                         className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-1.5 text-emerald-600 hover:bg-emerald-500/25"
+                        disabled={quotePending}
                         title="Enviar pelo WhatsApp"
                         aria-label="Enviar pelo WhatsApp"
                       >
@@ -1451,11 +1485,10 @@ export default function QuotesPage() {
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          if (confirm('Excluir este orçamento?')) {
-                            deleteQuote(quote.id);
-                          }
+                          void handleDeleteQuote(quote.id);
                         }}
                         className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/25"
+                        disabled={quotePending}
                         title="Excluir orçamento"
                         aria-label="Excluir orçamento"
                       >
@@ -1545,6 +1578,7 @@ export default function QuotesPage() {
 
                           <button
                             type="button"
+                            disabled={quotePending}
                             onClick={() => sendQuoteProposalWhatsApp(quote)}
                             className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/25 border border-emerald-500/20"
                             title="Enviar proposta via WhatsApp Web"
@@ -1557,11 +1591,10 @@ export default function QuotesPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              if (confirm('Excluir este orçamento?')) {
-                                deleteQuote(quote.id);
-                              }
+                              void handleDeleteQuote(quote.id);
                             }}
                             className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/25 border border-rose-500/20"
+                            disabled={quotePending}
                             title="Excluir Orçamento"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1584,7 +1617,7 @@ export default function QuotesPage() {
         </div>
       ) : (
         /* Create Quote Form Builder */
-        <div className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-5 no-print">
+        <fieldset disabled={quotePending} aria-busy={quotePending} className="bg-card border border-border rounded-2xl shadow-sm p-6 space-y-5 no-print min-w-0">
           <div className="flex justify-between items-center border-b border-border pb-3">
             <h3 className="font-bold text-foreground text-sm uppercase tracking-wider flex items-center gap-1.5">
               <FileText className="h-4.5 w-4.5 text-primary" /> {editingQuoteId ? "Editar Orçamento Comercial" : "Novo Orçamento Comercial"}
@@ -2314,7 +2347,7 @@ export default function QuotesPage() {
               onClick={() => handleSaveQuote('rascunho')}
               className="px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/85 text-foreground text-xs font-semibold transition-all border border-border"
             >
-              Salvar Orçamento
+              {quotePending ? 'Salvando...' : 'Salvar Orçamento'}
             </button>
             <button
               type="button"
@@ -2324,7 +2357,7 @@ export default function QuotesPage() {
               Enviar Proposta
             </button>
           </div>
-        </div>
+        </fieldset>
       )}
     </div>
   );
