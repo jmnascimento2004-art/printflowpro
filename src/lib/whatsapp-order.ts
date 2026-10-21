@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/pricing';
 import { normalizeWhatsAppPhone, openWhatsAppUrl } from '@/lib/whatsapp';
 import { renderWhatsAppTemplate } from '@/lib/whatsapp/template-engine';
 import { getWhatsAppTemplateDefinition } from '@/lib/whatsapp/template-registry';
+import { formatMeters } from '@/lib/metric.mjs';
 
 type WhatsAppSelectedOption = PricingSelectedOption & {
   group_name?: string;
@@ -39,11 +40,6 @@ const saleTypeLabels: Partial<Record<Product['pricing_type'] | ProductSaleMode, 
   kit: 'Pacote / Kit',
   size_grid: 'Grade de tamanhos',
   custom: 'Produto personalizado'
-};
-
-const formatMeters = (value?: number) => {
-  if (!value) return '';
-  return `${(Number(value) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 3 })}cm`;
 };
 
 const formatOptions = (options: WhatsAppSelectedOption[] = []) => {

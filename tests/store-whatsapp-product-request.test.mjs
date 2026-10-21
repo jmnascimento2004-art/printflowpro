@@ -14,7 +14,7 @@ async function compile(path, requireMap = {}) {
   return module.exports;
 }
 
-const subject = await compile('../src/lib/store/whatsapp-product-request.ts');
+const subject = await compile('../src/lib/store/whatsapp-product-request.ts', { '@/lib/metric.mjs': await import('../src/lib/metric.mjs') });
 const lockSubject = await compile('../src/lib/store/product-request-lock.ts');
 const route = await readFile(new URL('../src/app/api/store/whatsapp/product-request/route.ts', import.meta.url), 'utf8');
 const page = await readFile(new URL('../src/app/store/page.tsx', import.meta.url), 'utf8');
@@ -66,7 +66,7 @@ test('Store variable adapter derives bounded facts around canonical product vari
   });
   assert.equal(variables.produto_nome, 'Produto canônico');
   assert.equal(variables.quantidade, 2);
-  assert.equal(variables.medidas, '20cm x 30cm');
+  assert.equal(variables.medidas, '20,00 m x 30,00 m');
   assert.equal(variables.opcoes, 'Acabamento: Fosco');
   assert.equal(variables.valor_total, 'R$ 20,00');
 });

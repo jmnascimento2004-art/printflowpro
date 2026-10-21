@@ -1,5 +1,8 @@
 'use client';
 
+import { MetricInput } from '@/components/MetricInput';
+import { formatMeters, legacyStoreConfiguredMeters } from '@/lib/metric.mjs';
+
 /* eslint-disable @next/next/no-img-element */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -111,11 +114,6 @@ const toPositiveNumber = (value: unknown, fallback = 0): number => {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
 };
 
-const toDisplayCm = (value?: number): number => {
-  const numeric = toPositiveNumber(value, 1);
-  return numeric <= 20 ? Math.round(numeric * 100) : Math.round(numeric);
-};
-
 const summarizeOptions = (options: ProductConfiguratorCartPayload['selected_options']): string => {
   if (options.length === 0) return 'Sem opções adicionais';
   return options
@@ -185,12 +183,12 @@ export function ProductConfiguratorModal({
   const hasVariantPricingMatrix = variantPricingRows.length > 0;
   const linearWidthMaxMeters = toPositiveNumber(configurator?.max_width, 0);
   const isLinearWidthMode = product?.pricing_type === 'linear' && linearWidthMaxMeters > 0;
-  const maxWidthCm = isLinearWidthMode ? toDisplayCm(linearWidthMaxMeters) : 0;
+  const maxWidthMeters = isLinearWidthMode ? legacyStoreConfiguredMeters(linearWidthMaxMeters, configurator?.dimension_unit) : 0;
 
   const [quantity, setQuantity] = useState(1);
-  const [widthCm, setWidthCm] = useState(100);
-  const [heightCm, setHeightCm] = useState(100);
-  const [lengthCm, setLengthCm] = useState(100);
+  const [widthMeters, setWidthMeters] = useState(1);
+  const [heightMeters, setHeightMeters] = useState(1);
+  const [lengthMeters, setLengthMeters] = useState(1);
   const [selectedOptionsByGroup, setSelectedOptionsByGroup] = useState<Record<string, string[]>>({});
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedVariant, setSelectedVariant] = useState('');
@@ -278,9 +276,9 @@ export function ProductConfiguratorModal({
       : '';
 
     setQuantity(initialQuantity);
-    setWidthCm(isLinearWidthMode ? maxWidthCm : toDisplayCm(configurator?.min_width));
-    setHeightCm(isLinearWidthMode ? toDisplayCm(configurator?.min_length || configurator?.min_height) : toDisplayCm(configurator?.min_height));
-    setLengthCm(toDisplayCm(configurator?.min_length));
+    setWidthMeters(isLinearWidthMode ? maxWidthMeters : legacyStoreConfiguredMeters(configurator?.min_width, configurator?.dimension_unit, 1));
+    setHeightMeters(isLinearWidthMode ? legacyStoreConfiguredMeters(configurator?.min_length || configurator?.min_height, configurator?.dimension_unit, 1) : legacyStoreConfiguredMeters(configurator?.min_height, configurator?.dimension_unit, 1));
+    setLengthMeters(legacyStoreConfiguredMeters(configurator?.min_length, configurator?.dimension_unit, 1));
     setSelectedOptionsByGroup(initialGroups);
     setSelectedSize(defaultSize);
     setSelectedVariant(product.variant_options?.[0]?.name || '');
@@ -290,7 +288,7 @@ export function ProductConfiguratorModal({
     setSelectedMatrixColors(firstMatrixRow?.colors || '');
     setSelectedFinishing(firstMatrixRow?.finishing || '');
     setActiveImageUrl(getPrimaryProductImage(product));
-  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode, variantPricingRows, isLinearWidthMode, maxWidthCm]);
+  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode, variantPricingRows, isLinearWidthMode, maxWidthMeters]);
 
   const matrixSelection = useMemo(() => ({
     material: selectedMaterial,
@@ -405,10 +403,13 @@ export function ProductConfiguratorModal({
     }));
   }, [selectedOptions]);
 
-  const width = widthCm / 100;
-  const height = heightCm / 100;
-  const length = isLinearWidthMode ? width * height : lengthCm / 100;
-  const linearWidthError = isLinearWidthMode && widthCm > maxWidthCm
+  const width = widthMeters;
+  const height = heightMeters;
+  const length = isLinearWidthMode ? width * height : lengthMeters;
+  const invalidMeasure = product?.pricing_type === 'm2' || isLinearWidthMode
+    ? !(width > 0 && height > 0)
+    : product?.pricing_type === 'linear' && !(length > 0);
+  const linearWidthError = invalidMeasure ? 'Informe medidas em metros maiores que zero.' : isLinearWidthMode && widthMeters > maxWidthMeters
     ? 'A largura informada ultrapassa a largura máxima deste produto.'
     : '';
   const selectedVolumeTier = hasVolumePricing
@@ -470,9 +471,9 @@ export function ProductConfiguratorModal({
   const configurationSummary = [
     `Tipo: ${saleModeLabel}`,
     `Quantidade: ${configuredQuantity}`,
-    product.pricing_type === 'm2' ? `Medidas: ${widthCm}cm x ${heightCm}cm` : '',
-    isLinearWidthMode ? `Medidas: ${widthCm}cm x ${heightCm}cm` : '',
-    product.pricing_type === 'linear' && !isLinearWidthMode ? `Metragem: ${lengthCm}cm` : '',
+    product.pricing_type === 'm2' ? `Medidas: ${formatMeters(widthMeters)} x ${formatMeters(heightMeters)}` : '',
+    isLinearWidthMode ? `Medidas: ${formatMeters(widthMeters)} x ${formatMeters(heightMeters)}` : '',
+    product.pricing_type === 'linear' && !isLinearWidthMode ? `Metragem: ${formatMeters(lengthMeters)}` : '',
     breakdown.minimumArea > 0 ? `Área real: ${breakdown.area.toFixed(2)} m² | Área cobrável por peça: ${breakdown.billableArea.toFixed(2)} m²` : '',
     summarizeOptions(selectedOptions)
   ].filter(Boolean).join(' | ');
@@ -564,6 +565,9 @@ export function ProductConfiguratorModal({
       sale_mode_label: saleModeLabel,
       configuration_summary: configurationSummary,
       pricing_snapshot: {
+        dimension_unit: 'm',
+        ...dimensions,
+        length: breakdown.length,
         area: breakdown.area,
         billable_area: breakdown.billableArea,
         minimum_area: breakdown.minimumArea,
@@ -779,24 +783,18 @@ export function ProductConfiguratorModal({
                 {product.pricing_type === 'm2' && (
                   <>
                     <label className="space-y-1">
-                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Largura (cm)</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="0.1"
-                        value={widthCm}
-                        onChange={(event) => setWidthCm(Math.max(1, Number(event.target.value) || 1))}
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Largura (m)</span>
+                      <MetricInput aria-label="Largura (m)"
+                        value={widthMeters}
+                        onValueChange={setWidthMeters}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
                       />
                     </label>
                     <label className="space-y-1">
-                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Altura (cm)</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="0.1"
-                        value={heightCm}
-                        onChange={(event) => setHeightCm(Math.max(1, Number(event.target.value) || 1))}
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Altura (m)</span>
+                      <MetricInput aria-label="Altura (m)"
+                        value={heightMeters}
+                        onValueChange={setHeightMeters}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
                       />
                     </label>
@@ -807,41 +805,32 @@ export function ProductConfiguratorModal({
                   isLinearWidthMode ? (
                     <>
                       <label className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Largura (cm)</span>
-                        <input
-                          type="number"
-                          min="1"
-                          step="0.1"
-                          max={maxWidthCm}
-                          value={widthCm}
-                          onChange={(event) => setWidthCm(Math.max(1, Number(event.target.value) || 1))}
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Largura (m)</span>
+                        <MetricInput aria-label="Largura (m)"
+                          max={maxWidthMeters}
+                          value={widthMeters}
+                          onValueChange={setWidthMeters}
                           className={`w-full rounded-xl border px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:bg-white ${
                             linearWidthError ? 'border-rose-300 bg-rose-50 focus:border-rose-500' : 'border-slate-200 bg-slate-50 focus:border-emerald-500'
                           }`}
                         />
-                        <span className="block text-[10px] font-semibold text-slate-400">Máximo: {maxWidthCm} cm</span>
+                        <span className="block text-[10px] font-semibold text-slate-400">Máximo: {formatMeters(maxWidthMeters)}</span>
                       </label>
                       <label className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Altura/Comprimento (cm)</span>
-                        <input
-                          type="number"
-                          min="1"
-                          step="0.1"
-                          value={heightCm}
-                          onChange={(event) => setHeightCm(Math.max(1, Number(event.target.value) || 1))}
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Altura/Comprimento (m)</span>
+                        <MetricInput aria-label="Altura/Comprimento (m)"
+                          value={heightMeters}
+                          onValueChange={setHeightMeters}
                           className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
                         />
                       </label>
                     </>
                   ) : (
                     <label className="space-y-1">
-                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Metro linear (cm)</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="0.1"
-                        value={lengthCm}
-                        onChange={(event) => setLengthCm(Math.max(1, Number(event.target.value) || 1))}
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Comprimento (m)</span>
+                      <MetricInput aria-label="Comprimento (m)"
+                        value={lengthMeters}
+                        onValueChange={setLengthMeters}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:bg-white"
                       />
                     </label>
@@ -1122,25 +1111,25 @@ export function ProductConfiguratorModal({
                   {product.pricing_type === 'm2' && (
                     <div className="flex justify-between gap-3">
                       <span className="text-slate-500">Dimensões</span>
-                      <span className="font-bold text-slate-700">{widthCm} x {heightCm} cm</span>
+                      <span className="font-bold text-slate-700">{formatMeters(widthMeters)} x {formatMeters(heightMeters)}</span>
                     </div>
                   )}
                   {isLinearWidthMode && (
                     <>
                       <div className="flex justify-between gap-3">
                         <span className="text-slate-500">Largura</span>
-                        <span className="font-bold text-slate-700">{widthCm} cm</span>
+                        <span className="font-bold text-slate-700">{formatMeters(widthMeters)}</span>
                       </div>
                       <div className="flex justify-between gap-3">
                         <span className="text-slate-500">Altura/Comprimento</span>
-                        <span className="font-bold text-slate-700">{heightCm} cm</span>
+                        <span className="font-bold text-slate-700">{formatMeters(heightMeters)}</span>
                       </div>
                     </>
                   )}
                   {product.pricing_type === 'linear' && !isLinearWidthMode && (
                     <div className="flex justify-between gap-3">
                       <span className="text-slate-500">Metragem</span>
-                      <span className="font-bold text-slate-700">{lengthCm} cm</span>
+                      <span className="font-bold text-slate-700">{formatMeters(lengthMeters)}</span>
                     </div>
                   )}
                 </div>

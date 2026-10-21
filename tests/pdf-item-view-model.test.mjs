@@ -16,7 +16,7 @@ test('separates legacy description, quantity and size', () => {
   assert.deepEqual(result, {
     quantity: 150,
     description: 'RÓTULO TEMPERO ALHO FRITO',
-    size: `7,3${NBSP}×${NBSP}7,3${NBSP}cm`,
+    size: `0,073${NBSP}m${NBSP}×${NBSP}0,073${NBSP}m`,
     unitPrice: 1,
     totalPrice: 150
   });
@@ -47,11 +47,11 @@ test('uses line total divided by quantity for UNIT', () => {
 
 test('keeps supported sizes in one non-breaking string', () => {
   const fixtures = [
-    [{ width: 1.8, height: 1.2 }, `180${NBSP}×${NBSP}120${NBSP}cm`],
-    [{ width: 0.073, height: 0.073 }, `7,3${NBSP}×${NBSP}7,3${NBSP}cm`],
-    [{ width: 0.1, height: 0.05 }, `10${NBSP}×${NBSP}5${NBSP}cm`],
-    [{ width: 1, height: 1 }, `100${NBSP}×${NBSP}100${NBSP}cm`],
-    [{ width: 10, height: 5 }, `1.000${NBSP}×${NBSP}500${NBSP}cm`]
+    [{ width: 1.8, height: 1.2 }, `1,80${NBSP}m${NBSP}×${NBSP}1,20${NBSP}m`],
+    [{ width: 0.073, height: 0.073 }, `0,073${NBSP}m${NBSP}×${NBSP}0,073${NBSP}m`],
+    [{ width: 0.1, height: 0.05 }, `0,10${NBSP}m${NBSP}×${NBSP}0,05${NBSP}m`],
+    [{ width: 1, height: 1 }, `1,00${NBSP}m${NBSP}×${NBSP}1,00${NBSP}m`],
+    [{ width: 10, height: 5 }, `10,00${NBSP}m${NBSP}×${NBSP}5,00${NBSP}m`]
   ];
 
   for (const [details, expected] of fixtures) {

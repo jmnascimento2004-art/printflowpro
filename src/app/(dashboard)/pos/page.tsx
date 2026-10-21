@@ -1,5 +1,8 @@
 'use client';
 
+import { MetricInput } from '@/components/MetricInput';
+import { formatMeters } from '@/lib/metric.mjs';
+
 import React, { useState, useEffect } from 'react';
 import {
   Search,
@@ -229,6 +232,11 @@ export default function POSPage() {
   const handleDimensionConfirm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!configuringProduct) return;
+
+    if (!(customWidth > 0) || (configuringProduct.pricing_type === 'm2' && !(customHeight > 0))) {
+      alert('Informe medidas em metros maiores que zero.');
+      return;
+    }
 
     addToCart(configuringProduct, 1, {
       width: customWidth,
@@ -623,7 +631,7 @@ export default function POSPage() {
                             {/* Render dimensions details */}
                             {item.details && (item.details.width || item.details.height) && (
                               <div className="text-[9px] text-muted-foreground">
-                                Medidas: {Number(((item.details.width || 0) * 100).toFixed(3))} cm {item.details.height ? `x ${Number((item.details.height * 100).toFixed(3))} cm` : 'linear'} ({sizeFactor.toFixed(2)} m²)
+                                Medidas: {formatMeters(item.details.width || 0)} {item.details.height ? `x ${formatMeters(item.details.height)}` : 'linear'} ({sizeFactor.toFixed(2)} m²)
                               </div>
                             )}
                             {item.details?.notes && (
@@ -1088,13 +1096,10 @@ export default function POSPage() {
             <form onSubmit={handleDimensionConfirm} className="space-y-4 text-left font-medium">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground">Largura / Compr. (cm)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="1"
-                    value={Number((customWidth * 100).toFixed(2))}
-                    onChange={(e) => setCustomWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
+                  <label className="text-[10px] font-bold text-muted-foreground">Largura / Compr. (m)</label>
+                  <MetricInput aria-label="Largura / Compr. (m)"
+                    value={customWidth}
+                    onValueChange={setCustomWidth}
                     className="w-full px-2.5 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs font-bold text-foreground"
                     required
                   />
@@ -1102,13 +1107,10 @@ export default function POSPage() {
                 
                 {configuringProduct.pricing_type === 'm2' && (
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-muted-foreground">Altura (cm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="1"
-                      value={Number((customHeight * 100).toFixed(2))}
-                      onChange={(e) => setCustomHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
+                    <label className="text-[10px] font-bold text-muted-foreground">Altura (m)</label>
+                    <MetricInput aria-label="Altura (m)"
+                      value={customHeight}
+                      onValueChange={setCustomHeight}
                       className="w-full px-2.5 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs font-bold text-foreground"
                       required
                     />
@@ -1575,7 +1577,7 @@ export default function POSPage() {
                   </div>
                   {hasDimensions && (
                     <div className="text-[9px] text-gray-500 pl-2 leading-tight">
-                      Medida: {Number(((details.width || 0) * 100).toFixed(3))} cm {details.height ? `x ${Number((details.height * 100).toFixed(3))} cm` : 'linear'}
+                      Medida: {formatMeters(details.width || 0)} {details.height ? `x ${formatMeters(details.height)}` : 'linear'}
                     </div>
                   )}
                 </div>

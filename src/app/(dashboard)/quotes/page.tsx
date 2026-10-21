@@ -1,5 +1,8 @@
 'use client';
 
+import { MetricInput } from '@/components/MetricInput';
+import { formatMeters } from '@/lib/metric.mjs';
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   Plus, 
@@ -752,9 +755,9 @@ export default function QuotesPage() {
       }
 
       const manualSummary = manualPricingType === 'm2'
-        ? `${Number((manualItemWidth * 100).toFixed(3))}cm x ${Number((manualItemHeight * 100).toFixed(3))}cm - ${quantity} un - ${manualItemAreaTotal.toFixed(2)} m²`
+        ? `${formatMeters(manualItemWidth)} x ${formatMeters(manualItemHeight)} - ${quantity} un - ${manualItemAreaTotal.toFixed(2)} m²`
         : manualPricingType === 'linear'
-          ? `${Number((manualItemLinearMeters * 100).toFixed(3))} cm - ${quantity} un`
+          ? `${formatMeters(manualItemLinearMeters)} - ${quantity} un`
           : `${quantity} un`;
       const newItem: DraftQuoteItem = {
         product_id: '',
@@ -801,6 +804,12 @@ export default function QuotesPage() {
 
     const prod = products.find(p => p.id === selectedProductId);
     if (!prod) return;
+
+    if ((prod.pricing_type === 'm2' || prod.pricing_type === 'linear') &&
+      (!(itemWidth > 0) || ((prod.pricing_type === 'm2' || Number(prod.pricing_details?.configurator_options?.max_width) > 0) && !(itemHeight > 0)))) {
+      alert('Informe medidas em metros maiores que zero.');
+      return;
+    }
 
     const volumeTiers = requiresTierSelection ? effectiveQuantityTiers : getProductVolumeTiers(selectedProductId);
     const minAllowedQty = volumeTiers[0]?.min_qty || 1;
@@ -889,6 +898,10 @@ export default function QuotesPage() {
           : undefined),
         configuration_snapshot: configurationSnapshot,
         pricing_snapshot: {
+          dimension_unit: 'm',
+          width: itemWidth,
+          height: itemHeight,
+          length: priceResolution.breakdown.length,
           area: priceResolution.breakdown.area,
           billable_area: priceResolution.breakdown.billableArea,
           minimum_area: priceResolution.breakdown.minimumArea,
@@ -1765,25 +1778,19 @@ export default function QuotesPage() {
                   {manualPricingType === 'm2' && (
                     <>
                       <div className="md:col-span-2 space-y-1">
-                        <label className="text-[10px] font-semibold text-muted-foreground">Largura (cm)</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0.1"
-                          value={Number((itemWidth * 100).toFixed(3))}
-                          onChange={(e) => setItemWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1) / 100)}
+                        <label className="text-[10px] font-semibold text-muted-foreground">Largura (m)</label>
+                        <MetricInput aria-label="Largura (m)"
+                          value={itemWidth}
+                          onValueChange={setItemWidth}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                         />
                       </div>
 
                       <div className="md:col-span-2 space-y-1">
-                        <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0.1"
-                          value={Number((itemHeight * 100).toFixed(3))}
-                          onChange={(e) => setItemHeight(Math.max(0.1, parseFloat(e.target.value) || 0.1) / 100)}
+                        <label className="text-[10px] font-semibold text-muted-foreground">Altura (m)</label>
+                        <MetricInput aria-label="Altura (m)"
+                          value={itemHeight}
+                          onValueChange={setItemHeight}
                           className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                         />
                       </div>
@@ -1792,13 +1799,10 @@ export default function QuotesPage() {
 
                   {manualPricingType === 'linear' && (
                     <div className="md:col-span-3 space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (cm)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0.1"
-                        value={Number((itemWidth * 100).toFixed(3))}
-                        onChange={(e) => setItemWidth(Math.max(0.1, parseFloat(e.target.value) || 0.1) / 100)}
+                      <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (m)</label>
+                      <MetricInput aria-label="Comprimento (m)"
+                        value={itemWidth}
+                        onValueChange={setItemWidth}
                         className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                       />
                     </div>
@@ -1842,25 +1846,19 @@ export default function QuotesPage() {
               {selectedProductId && !isManualQuoteItem && ['m2', 'linear'].includes(getProductPriceInfo(selectedProductId).type) && (
                 <>
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Largura / Compr. (cm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="1"
-                      value={Number((itemWidth * 100).toFixed(2))}
-                      onChange={(e) => setItemWidth(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
+                    <label className="text-[10px] font-semibold text-muted-foreground">Largura / Compr. (m)</label>
+                    <MetricInput aria-label="Largura / Compr. (m)"
+                      value={itemWidth}
+                      onValueChange={setItemWidth}
                       className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                     />
                   </div>
                   {getProductPriceInfo(selectedProductId).areaPricing && (
                     <div className="md:col-span-2 space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="1"
-                        value={Number((itemHeight * 100).toFixed(2))}
-                        onChange={(e) => setItemHeight(Math.max(1, parseFloat(e.target.value) || 1) / 100)}
+                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (m)</label>
+                      <MetricInput aria-label="Altura (m)"
+                        value={itemHeight}
+                        onValueChange={setItemHeight}
                         className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                       />
                     </div>
@@ -2026,7 +2024,7 @@ export default function QuotesPage() {
                           })()}
                           {item.details && (item.details.width || item.details.height) && (
                             <div className="text-[9px] text-muted-foreground">
-                              Medidas: {Number(((item.details.width || 0) * 100).toFixed(3))} cm {item.details.height ? `x ${Number((item.details.height * 100).toFixed(3))} cm` : 'linear'}
+                              Medidas: {formatMeters(item.details.width || 0)} {item.details.height ? `x ${formatMeters(item.details.height)}` : 'linear'}
                             </div>
                           )}
                           {item.details?.notes && (

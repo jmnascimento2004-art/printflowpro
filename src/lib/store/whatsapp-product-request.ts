@@ -1,4 +1,5 @@
 import 'server-only';
+import { formatMeters } from '@/lib/metric.mjs';
 
 export type StoreProductRequestInput = { productId?: unknown; quantity?: unknown; dimensions?: unknown; selectedOptions?: unknown; configurationSnapshot?: unknown; productionDays?: unknown; estimatedDeadline?: unknown; customerName?: unknown; customerPhone?: unknown; notes?: unknown };
 export type StoreProductRequestContext = {
@@ -54,7 +55,7 @@ function summarizeDimensions(value: unknown) {
   const row = value as Record<string, unknown>;
   const values = [row.width, row.height, row.length].map(Number);
   if (values.some((item) => Number.isFinite(item) && (item < 0 || item > 100000))) return '';
-  return values.filter((item) => Number.isFinite(item) && item > 0).map((item) => `${item}cm`).join(' x ');
+  return values.filter((item) => Number.isFinite(item) && item > 0).map(formatMeters).join(' x ');
 }
 function summarizeOptions(value: unknown) {
   if (!Array.isArray(value)) return '';
