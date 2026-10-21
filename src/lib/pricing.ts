@@ -45,6 +45,7 @@ export interface PriceBreakdown {
   area: number;
   billableArea: number;
   minimumArea: number;
+  measureBasis: 'area' | 'length' | 'unit';
   length: number;
   baseSubtotal: number;
   optionsTotal: number;
@@ -724,6 +725,7 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
     area,
     billableArea,
     minimumArea,
+    measureBasis: usesArea ? 'area' : pricingType === 'linear' ? 'length' : 'unit',
     length,
     baseSubtotal,
     optionsTotal: optionReplacementTotal,

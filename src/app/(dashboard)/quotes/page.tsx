@@ -712,12 +712,13 @@ export default function QuotesPage() {
 
     const volumeTiers = prodId === selectedProductId ? effectiveQuantityTiers : getProductVolumeTiers(prodId);
     const volumeTier = [...volumeTiers].reverse().find(tier => qty >= tier.min_qty) || null;
-    const price = resolveProductPrice(prod, {
+    const resolution = resolveProductPrice(prod, {
       quantity: qty, width: itemWidth, height: itemHeight, length: itemWidth
-    }).unitPrice;
+    });
 
     return {
-      price,
+      price: resolution.unitPrice,
+      areaPricing: resolution.breakdown.measureBasis === 'area',
       type: prod.pricing_type,
       volumeTier,
       hasVolumePricing: volumeTiers.length > 0
@@ -836,6 +837,10 @@ export default function QuotesPage() {
       }
     });
     const productionTime = volumeTier?.productionTime || priceResolution.productionTime;
+    if (!priceResolution.canPurchase) {
+      alert(priceResolution.warningMessage || 'Complete a configuração do produto antes de adicionar.');
+      return;
+    }
     const price = priceResolution.unitPrice;
     const productionTimeSource = volumeTier?.productionTime
       ? (hasVariantPricingMatrix ? 'matrix' as const : 'quantity_tier' as const)
@@ -887,6 +892,7 @@ export default function QuotesPage() {
           area: priceResolution.breakdown.area,
           billable_area: priceResolution.breakdown.billableArea,
           minimum_area: priceResolution.breakdown.minimumArea,
+          measure_basis: priceResolution.breakdown.measureBasis,
           base_unit_price: priceResolution.breakdown.unitPrice,
           unit_price_basis: 'piece',
           product_id: prod.id,
@@ -1846,7 +1852,7 @@ export default function QuotesPage() {
                       className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
                     />
                   </div>
-                  {getProductPriceInfo(selectedProductId).type === 'm2' && (
+                  {getProductPriceInfo(selectedProductId).areaPricing && (
                     <div className="md:col-span-2 space-y-1">
                       <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
                       <input

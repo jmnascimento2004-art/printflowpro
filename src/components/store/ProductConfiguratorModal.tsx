@@ -567,6 +567,7 @@ export function ProductConfiguratorModal({
         area: breakdown.area,
         billable_area: breakdown.billableArea,
         minimum_area: breakdown.minimumArea,
+        measure_basis: breakdown.measureBasis,
         base_unit_price: breakdown.unitPrice,
         unit_price_basis: 'piece',
         quantity: breakdown.quantity,

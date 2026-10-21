@@ -44,6 +44,16 @@ test('order editing preserves an unopened commercial snapshot and reapplies the 
   const measureEdit = recalculateOrderItem({ ...item, details: { ...item.details, width: 0.7 } }, 'measure');
   assert.equal(measureEdit.total_price, 210);
   assert.equal(measureEdit.unit_price, 70);
+  const linear = { quantity: 3, unit_price: 20, total_price: 60, details: { pricing_type: 'linear', length: 0.2,
+    pricing_snapshot: { measure_basis: 'length', unit_price_basis: 'piece', base_unit_price: 100 } } };
+  const linearEdit = recalculateOrderItem({ ...linear, quantity: 4 }, 'quantity');
+  assert.equal(linearEdit.total_price, 80);
+  assert.equal(linearEdit.unit_price, 20);
+  assert.equal(linearEdit.details.length, 0.2);
+  const widthLinear = { ...item, details: { ...item.details, pricing_type: 'linear',
+    pricing_snapshot: { ...item.details.pricing_snapshot, measure_basis: 'area' } } };
+  const heightEdit = recalculateOrderItem({ ...widthLinear, details: { ...widthLinear.details, height: 4 } }, 'measure');
+  assert.equal(heightEdit.total_price, 240);
 });
 
 test('quote price preview consumes canonical pricing for the actual dimensions', async () => {
@@ -53,6 +63,24 @@ test('quote price preview consumes canonical pricing for the actual dimensions',
     itemWidth: 0.2, itemHeight: 1, resolveProductPrice: pricing.resolveProductPrice
   });
   assert.equal(getProductPriceInfo('p').price, 50);
+  assert.equal(getProductPriceInfo('p').areaPricing, true);
+});
+
+test('quote cannot insert a product whose required configuration is unresolved', async () => {
+  const requiredProduct = { ...product, id: 'p', pricing_details: { configurator_options: {
+    min_area: 0.5, option_groups: [{ id: 'finish', name: 'Acabamento', required: true, selection_type: 'single', options: [{ name: 'Refile', price_delta: 0 }] }]
+  } } };
+  const alerts = [];
+  let inserted = false;
+  const { handleAddItem } = await declarations('../src/app/(dashboard)/quotes/page.tsx', ['handleAddItem'], {
+    isManualQuoteItem: false, products: [requiredProduct], selectedProductId: 'p', requiresTierSelection: false,
+    getProductVolumeTiers: () => [], itemQty: 1, itemWidth: 0.2, itemHeight: 1,
+    getProductPriceInfo: () => ({ price: 0, volumeTier: null }), hasVariantPricingMatrix: false,
+    resolveProductPrice: pricing.resolveProductPrice, alert: value => alerts.push(value), setItems: () => { inserted = true; }
+  });
+  handleAddItem();
+  assert.equal(inserted, false);
+  assert.equal(alerts.length, 1);
 });
 
 test('Store payload retains physical dimensions, quantity and billable snapshot', async () => {

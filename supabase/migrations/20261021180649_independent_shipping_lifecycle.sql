@@ -3,6 +3,16 @@ alter table public.shipments drop constraint shipments_status_check;
 alter table public.shipments add constraint shipments_status_check
   check (status in ('separacao','embalagem','enviado','em_rota','entregue'));
 
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+    and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime'
+      and schemaname = 'public' and tablename = 'shipments') then
+    alter publication supabase_realtime add table public.shipments;
+  end if;
+end;
+$$;
+
 create or replace function public.transition_shipment(
   p_shipment_id text,
   p_status text,

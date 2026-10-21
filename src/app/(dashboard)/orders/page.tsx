@@ -428,6 +428,7 @@ export default function OrdersPage() {
             product_name: product.name,
             base_unit_price: unitPrice,
             minimum_area: getPriceBreakdown(product).minimumArea,
+            measure_basis: getPriceBreakdown(product).measureBasis,
             unit_price_basis: 'measure'
           }
         }
@@ -909,11 +910,12 @@ export default function OrdersPage() {
     let linearMeters = item.details?.linear_meters;
     const snapshot = item.details?.pricing_snapshot || {};
     const measure = resolveBillableArea(width, height, Number(snapshot.minimum_area || 0));
-    const usesArea = pricingType === 'm2' || (pricingType === 'linear' && height > 0);
+    const usesArea = pricingType === 'm2' || (pricingType === 'linear' && (snapshot.measure_basis === 'area' || height > 0));
     const pieceBasis = snapshot.unit_price_basis === 'piece';
-    const measureRate = pieceBasis
+    const physicalMultiplier = usesArea ? measure.billableArea : length;
+    const measureRate = pieceBasis && (usesArea || pricingType === 'linear')
       ? changedField === 'unit_price'
-        ? (measure.billableArea > 0 ? unitPrice / measure.billableArea : 0)
+        ? (physicalMultiplier > 0 ? unitPrice / physicalMultiplier : 0)
         : Number(snapshot.base_unit_price || 0)
       : unitPrice;
 
@@ -923,7 +925,8 @@ export default function OrdersPage() {
       nextUnitPrice = pieceBasis ? measure.billableArea * measureRate : unitPrice;
     } else if (pricingType === 'linear') {
       linearMeters = Math.max(0, length * quantity);
-      totalPrice = Math.round(linearMeters * unitPrice * 100) / 100;
+      totalPrice = Math.round(linearMeters * measureRate * 100) / 100;
+      nextUnitPrice = pieceBasis ? length * measureRate : unitPrice;
     } else if (pricingType === 'manual_value') {
       nextUnitPrice = quantity > 0 ? Math.round((totalPrice / quantity) * 100) / 100 : totalPrice;
     } else if (changedField === 'total_price') {
@@ -1302,7 +1305,7 @@ export default function OrdersPage() {
                             </select>
                           </div>
 
-                          {pricingType === 'm2' && (
+                          {(pricingType === 'm2' || (pricingType === 'linear' && (item.details?.pricing_snapshot?.measure_basis === 'area' || Number(item.details?.height) > 0))) && (
                             <>
                               <div className="space-y-1 lg:col-span-2">
                                 <label className="text-[9px] font-bold uppercase text-muted-foreground">Largura (cm)</label>
@@ -1335,7 +1338,7 @@ export default function OrdersPage() {
                             </>
                           )}
 
-                          {pricingType === 'linear' && (
+                          {pricingType === 'linear' && item.details?.pricing_snapshot?.measure_basis !== 'area' && !(Number(item.details?.height) > 0) && (
                             <div className="space-y-1 lg:col-span-2">
                               <label className="text-[9px] font-bold uppercase text-muted-foreground">Comprimento (cm)</label>
                               <input

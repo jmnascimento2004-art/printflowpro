@@ -1,5 +1,6 @@
 begin;
 select no_plan();
+select ok(exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='shipments'),'shipments publishes realtime events');
 insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values
 ('61000000-0000-0000-0000-000000000001','authenticated','authenticated','shipping-a@example.test','',now(),'{}','{"name":"Shipping Admin","company_name":"Shipping A"}',now(),now()),
