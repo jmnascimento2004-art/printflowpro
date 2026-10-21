@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2,
@@ -23,6 +23,11 @@ import {
   UnlockKeyhole,
   X
 } from 'lucide-react';
+import { CustomerRanking } from '@/components/commercial/CustomerRanking';
+import { useAuth } from '@/context/auth-context';
+import { canAccessModule } from '@/lib/module-permissions';
+import { normalizeCustomerTags } from '@/lib/commercial-intelligence';
+import { isActiveOrder } from '@/lib/order-status';
 import { useDatabase } from '@/context/database-context';
 import type { Customer } from '@/lib/dummy-data';
 import { lookupCEP } from '@/lib/cep-lookup';
@@ -83,7 +88,9 @@ const validateCustomerCPF = (cpf: string) => {
 };
 
 export default function CustomersPage() {
-  const { customers, addCustomer, updateCustomer, deleteCustomer, orders, quotes } = useDatabase();
+  const { customers, saveCustomer, updateCustomer, deleteCustomer, orders, quotes, rolePermissions } = useDatabase();
+  const { activeProfile } = useAuth();
+  const canViewRanking = canAccessModule(activeProfile.role, '/orders', rolePermissions);
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<CustomerFilter>('todos');
@@ -111,6 +118,12 @@ export default function CustomersPage() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [notes, setNotes] = useState('');
+  const [tagsInput, setTagsInput] = useState('');
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
+  const [showRanking, setShowRanking] = useState(false);
+  useEffect(() => { const params = new URLSearchParams(window.location.search); if (params.get('view') === 'ranking') setShowRanking(true); if (params.get('new') === '1') setIsEditing(true); }, []);
   const [b2bEnabled, setB2bEnabled] = useState(false);
   const [creditLimit, setCreditLimit] = useState(0);
   const [paymentTermsDays, setPaymentTermsDays] = useState(15);
@@ -137,6 +150,7 @@ export default function CustomersPage() {
     setCity('');
     setState('');
     setNotes('');
+    setTagsInput('');
     setB2bEnabled(false);
     setCreditLimit(0);
     setPaymentTermsDays(15);
@@ -175,6 +189,7 @@ export default function CustomersPage() {
     setCity(customer.address?.city || '');
     setState(customer.address?.state || '');
     setNotes(customer.notes || '');
+    setTagsInput((customer.tags || []).join(', '));
     setB2bEnabled(customer.billing_type === 'faturado');
     setCreditLimit(customer.credit_limit || 0);
     setPaymentTermsDays(customer.payment_terms_days || 15);
@@ -195,7 +210,7 @@ export default function CustomersPage() {
       (activeFilter === 'catalogo' && isCatalogCustomer(customer)) ||
       (activeFilter === 'bloqueados' && isBlockedCustomer(customer));
 
-    if (!matchesFilter) return false;
+    if (!matchesFilter || (tagFilter && !customer.tags?.includes(tagFilter))) return false;
     if (!search) return true;
 
     return [
@@ -212,7 +227,7 @@ export default function CustomersPage() {
   });
 
   const getCustomerOrders = (customer: Customer) =>
-    orders.filter((order) => order.customer_id === customer.id || order.customer_name === customer.name);
+    orders.filter((order) => order.customer_id === customer.id && isActiveOrder(order));
 
   const getCustomerQuotes = (customer: Customer) =>
     quotes.filter((quote) =>
@@ -356,8 +371,9 @@ export default function CustomersPage() {
     }
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (savingCustomer) return;
 
     const rawDocument = document.replace(/\D/g, '');
     if (personType === 'fisica' && rawDocument && !validateCustomerCPF(rawDocument)) {
@@ -407,7 +423,7 @@ export default function CustomersPage() {
         state,
         zip_code: zipCode
       },
-      tags: selectedCustomer?.tags?.length ? selectedCustomer.tags : ['Cliente'],
+      tags: normalizeCustomerTags(tagsInput),
       notes,
       billing_type: nextBillingEnabled ? 'faturado' as const : 'imediato' as const,
       credit_limit: nextBillingEnabled ? Math.max(0, creditLimit) : 0,
@@ -429,18 +445,16 @@ export default function CustomersPage() {
       }
     };
 
-    if (selectedCustomer) {
-      updateCustomer({
-        ...selectedCustomer,
-        ...nextCustomer
-      });
-    } else {
-      addCustomer(nextCustomer);
-    }
-
-    resetForm();
-    setIsEditing(false);
-    setSelectedCustomer(null);
+    setSavingCustomer(true);
+    setSaveError('');
+    try {
+      await saveCustomer(nextCustomer, selectedCustomer || undefined);
+      resetForm();
+      setIsEditing(false);
+      setSelectedCustomer(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar o cliente.');
+    } finally { setSavingCustomer(false); }
   };
 
   const totalCustomers = customers.length;
@@ -467,13 +481,17 @@ export default function CustomersPage() {
     .filter(Boolean)
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
 
+  if (showRanking && canViewRanking) return <CustomerRanking onBack={() => setShowRanking(false)} onCustomer={id => { const customer = customers.find(row => row.id === id); if (customer) { setShowRanking(false); startEdit(customer); } }} />;
+
   return (
-    <div className="space-y-4 bg-slate-50/60 p-1">
+    <fieldset disabled={savingCustomer} className="min-w-0 space-y-4 bg-slate-50/60 p-1">
       {!isEditing && (
         <div className="no-print space-y-4">
           <div className="flex flex-col gap-3 border-b border-border/50 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-black tracking-tight text-slate-950">Clientes</h1>
+              {canViewRanking && <button type="button" className="mt-2 text-sm font-semibold text-primary" onClick={() => setShowRanking(true)}>Ranking de clientes</button>}
+              <label className="ml-3 text-xs">Tag <select aria-label="Filtrar clientes por tag" value={tagFilter} onChange={event => setTagFilter(event.target.value)} className="rounded border border-border bg-background p-1"><option value="">Todas</option>{[...new Set(customers.flatMap(customer => customer.tags || []))].sort().map(tag => <option key={tag}>{tag}</option>)}</select></label>
               <p className="mt-0.5 text-xs font-medium text-slate-500">
                 Gerencie pessoas físicas e jurídicas cadastradas
               </p>
@@ -862,7 +880,11 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <Field label="Observações">
+              <Field label="Tags / segmentos (separados por vírgula)">
+                  <input aria-label="Tags do cliente" value={tagsInput} onChange={event => setTagsInput(event.target.value)} className={inputClass} placeholder="VIP, Agência, Parceiro" />
+                  <span className="mt-1 block text-xs font-normal text-muted-foreground">Crie ou renomeie uma tag editando o texto; remova-a apagando seu nome. Alterações são salvas neste cliente.</span>
+              </Field>
+              <Field label="Observações internas">
                 <textarea
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
@@ -872,6 +894,7 @@ export default function CustomersPage() {
                 />
               </Field>
 
+              {saveError && <p role="alert" className="text-sm text-rose-600">{saveError}</p>}
               <div className="mt-1 flex justify-end gap-2 border-t border-border pt-4">
                 <button
                   type="button"
@@ -885,6 +908,7 @@ export default function CustomersPage() {
                 </button>
                 <button
                   type="submit"
+                  disabled={savingCustomer}
                   className="flex items-center gap-1 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-md shadow-primary/20 transition-all hover:bg-primary/90"
                 >
                   <Check className="h-4 w-4" /> Salvar Cliente
@@ -1189,7 +1213,7 @@ export default function CustomersPage() {
           </div>
         </div>
       )}
-    </div>
+    </fieldset>
   );
 }
 

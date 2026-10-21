@@ -576,6 +576,7 @@ export default function ProductsCRUDPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('new') === '1') setIsFormOpen(true); }, []);
   const [isEditing, setIsEditing] = useState(false);
   const [isLabelsModalOpen, setIsLabelsModalOpen] = useState(false);
   const [labelProductId, setLabelProductId] = useState('');
