@@ -1,6 +1,7 @@
 'use client';
 
-import { MetricInput } from '@/components/MetricInput';
+import { ProductConfiguratorModal, type ProductConfiguratorCartPayload } from '@/components/store/ProductConfiguratorModal';
+import { createPOSCartItem, changePOSItemQuantity, posCheckoutItems, type POSCartItem } from '@/lib/pos-cart';
 import { formatMeters } from '@/lib/metric.mjs';
 
 import React, { useState, useEffect } from 'react';
@@ -19,26 +20,23 @@ import {
   UserPlus
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
-import type { Customer, Order, OrderItem, Product } from '@/lib/dummy-data';
+import type { Customer, Order, Product } from '@/lib/dummy-data';
 import { lookupCNPJ } from '@/lib/cnpj-lookup';
 import { warnCaught } from '@/lib/safe-log';
-import { 
-  formatCurrencyInput, 
-  parseCurrencyInputToNumber, 
-  validateCNPJ, 
-  formatCNPJ, 
-  formatCPF, 
+import {
+  formatCurrencyInput,
+  parseCurrencyInputToNumber,
+  validateCNPJ,
+  formatCNPJ,
+  formatCPF,
   generatePixPayload,
-  getProductUnitPrice,
   stripRichTextHtml
 } from '@/lib/utils';
-import { formatUnitCurrency } from '@/lib/pricing';
+import { formatUnitCurrency, resolveProductPrice, hasAdvancedConfigurator, getNormalizedVariantPricingMatrix, getNormalizedVolumePricing } from '@/lib/pricing';
 
 type PaymentMethod = 'pix' | 'cartao_credito' | 'cartao_debito' | 'boleto' | 'dinheiro' | 'faturado';
 type POSCustomer = Pick<Customer, 'id' | 'name' | 'document' | 'phone' | 'email' | 'billing_type' | 'credit_status' | 'credit_limit' | 'credit_used' | 'payment_terms_days'>;
-type CartItem = Omit<OrderItem, 'id' | 'outsourced' | 'total_price'> & {
-  pricing_type: Product['pricing_type'];
-};
+type CartItem = POSCartItem;
 
 export default function POSPage() {
   const {
@@ -76,9 +74,7 @@ export default function POSPage() {
 
   // Modal configure dimension for m2/linear products
   const [configuringProduct, setConfiguringProduct] = useState<Product | null>(null);
-  const [customWidth, setCustomWidth] = useState<number>(1);
-  const [customHeight, setCustomHeight] = useState<number>(1);
-  const [customNotes, setCustomNotes] = useState<string>('');
+
 
   // Daily Cash Register Dialog States
   const [openingBalance, setOpeningBalance] = useState<number>(100);
@@ -119,16 +115,7 @@ export default function POSPage() {
   }, [justCompletedOrder]);
 
   // POS Calculations
-  const getSubtotal = () => {
-    return cart.reduce((sum, item) => {
-      const factor = (item.pricing_type === 'm2' && item.details)
-        ? (item.details.width || 1) * (item.details.height || 1)
-        : (item.pricing_type === 'linear' && item.details)
-          ? (item.details.width || 1)
-          : 1;
-      return sum + item.unit_price * factor * item.quantity;
-    }, 0);
-  };
+  const getSubtotal = () => cart.reduce((sum, item) => sum + item.total_price, 0);
 
   const getCartTotal = () => {
     return Math.max(0, getSubtotal() - discountAmount);
@@ -174,7 +161,7 @@ export default function POSPage() {
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const selectedCategoryIds = selectedCategory === 'todos'
       ? []
       : [selectedCategory, ...categories.filter(c => c.parent_id === selectedCategory).map(c => c.id)];
@@ -191,60 +178,39 @@ export default function POSPage() {
   };
 
   // Handlers
-  const handleAddProductClick = (prod: Product) => {
-    if (prod.pricing_type === 'm2' || prod.pricing_type === 'linear') {
-      setConfiguringProduct(prod);
-      setCustomWidth(1);
-      setCustomHeight(1);
-      setCustomNotes('');
-    } else {
-      addToCart(prod, 1);
-    }
+  const requiresConfiguration = (product: Product) => product.pricing_type === 'm2' || product.pricing_type === 'linear'
+    || hasAdvancedConfigurator(product) || getNormalizedVariantPricingMatrix(product).length > 0
+    || getNormalizedVolumePricing(product).length > 0;
+
+  const handleAddProductClick = (product: Product) => {
+    if (requiresConfiguration(product)) { setConfiguringProduct(product); return; }
+    try {
+      const item = createPOSCartItem(product, { quantity: 1 });
+      setCart(previous => [...previous, item]);
+    } catch (error) { alert(error instanceof Error ? error.message : 'Produto indisponível.'); }
   };
 
-  const addToCart = (prod: Product, quantity: number, details?: CartItem['details']) => {
-    setCart(prev => {
-      // Find if item already exists with matching product and dimensions
-      const matchIdx = prev.findIndex(item =>
-        item.product_id === prod.id &&
-        JSON.stringify(item.details) === JSON.stringify(details)
-      );
-
-      if (matchIdx > -1) {
-        const next = [...prev];
-        const newQty = next[matchIdx].quantity + quantity;
-        next[matchIdx].quantity = newQty;
-        next[matchIdx].unit_price = getProductUnitPrice(prod, newQty);
-        return next;
-      }
-
-      return [...prev, {
-        product_id: prod.id,
-        product_name: prod.name,
-        quantity,
-        unit_price: getProductUnitPrice(prod, quantity),
-        pricing_type: prod.pricing_type,
-        details
-      }];
-    });
+  const addConfiguredItem = (payload: ProductConfiguratorCartPayload) => {
+    try {
+      const item = createPOSCartItem(payload.product, payload.pricing_config, {
+        ...payload.dimensions, notes: payload.notes, selected_options: payload.selected_options,
+        configuration_summary: payload.configuration_summary,
+        configuration_snapshot: payload.configuration_snapshot,
+        pricing_snapshot: payload.pricing_snapshot
+      });
+      setCart(previous => [...previous, item]);
+      setConfiguringProduct(null);
+    } catch (error) { alert(error instanceof Error ? error.message : 'Configuração indisponível.'); }
   };
 
-  const handleDimensionConfirm = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!configuringProduct) return;
-
-    if (!(customWidth > 0) || (configuringProduct.pricing_type === 'm2' && !(customHeight > 0))) {
-      alert('Informe medidas em metros maiores que zero.');
-      return;
-    }
-
-    addToCart(configuringProduct, 1, {
-      width: customWidth,
-      height: configuringProduct.pricing_type === 'm2' ? customHeight : undefined,
-      notes: customNotes
-    });
-
-    setConfiguringProduct(null);
+  const changeQuantity = (index: number, direction: -1 | 1) => {
+    const item = cart[index];
+    const product = products.find(product => product.id === item.product_id);
+    if (!product) { alert('Produto não está mais disponível.'); return; }
+    try {
+      const updated = changePOSItemQuantity(product, item, direction);
+      setCart(previous => previous.map((entry, i) => i === index ? updated : entry));
+    } catch (error) { alert(error instanceof Error ? error.message : 'Quantidade indisponível.'); }
   };
 
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
@@ -283,21 +249,8 @@ export default function POSPage() {
       newOrd = await addOrderFromPOS({
         customer_id: customer.id,
         customer_name: customer.name,
-        items: cart.map(item => ({
-          product_id: item.product_id,
-          product_name: item.product_name,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.unit_price * item.quantity * (
-            (item.pricing_type === 'm2' && item.details)
-              ? (item.details.width || 1) * (item.details.height || 1)
-              : (item.pricing_type === 'linear' && item.details)
-                ? (item.details.width || 1)
-                : 1
-          ),
-          details: item.details
-        })),
-        discount: discountAmount,
+        items: posCheckoutItems(cart),
+        discount: Math.min(getSubtotal(), discountAmount),
         paid_amount: paymentMethod === 'dinheiro' ? Math.min(total, amountPaid) : total,
         payment_method: paymentMethod,
         notes: checkoutNotes
@@ -420,7 +373,7 @@ export default function POSPage() {
             <p className="text-[11px] text-muted-foreground mt-0.5">Terminal de balcão rápido e fechamento financeiro do dia</p>
           </div>
         </div>
-        
+
         {/* Navigation Tabs */}
         <div className="flex items-center gap-1.5 bg-secondary/35 p-1 rounded-xl border border-border text-xs font-semibold">
           <button
@@ -456,7 +409,7 @@ export default function POSPage() {
       </div>
 
       {/* 2. Content Sections based on Tabs */}
-      
+
       {/* ---------------------------------------------------- */}
       {/* TAB 1: PDV (Vendas) */}
       {/* ---------------------------------------------------- */}
@@ -548,9 +501,9 @@ export default function POSPage() {
                         </div>
                         <div className="flex justify-between items-end mt-3 gap-2">
                           <span className="text-xs font-extrabold text-foreground min-w-0 leading-tight">
-                            {formatCurrency(prod.sales_price)}
-                            {prod.pricing_type === 'm2' && <span className="text-[9px] text-muted-foreground font-medium">/m²</span>}
-                            {prod.pricing_type === 'linear' && <span className="text-[9px] text-muted-foreground font-medium">/m.lin</span>}
+                            {requiresConfiguration(prod) ? 'Configurar preço' : formatCurrency(resolveProductPrice(prod, { quantity: 1 }).totalPrice)}
+
+
                           </span>
                           <span className="h-7 w-7 rounded-lg bg-secondary group-hover:bg-primary group-hover:text-primary-foreground text-muted-foreground flex items-center justify-center transition-all shrink-0">
                             <Plus className="h-3.5 w-3.5" />
@@ -596,7 +549,7 @@ export default function POSPage() {
                       </button>
                     </div>
                   </div>
-                  
+
                   <select
                     value={selectedCustomerId}
                     onChange={(e) => setSelectedCustomerId(e.target.value)}
@@ -615,23 +568,17 @@ export default function POSPage() {
                 <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
                   {cart.length > 0 ? (
                     cart.map((item, idx) => {
-                      const sizeFactor = (item.pricing_type === 'm2' && item.details)
-                        ? (item.details.width || 1) * (item.details.height || 1)
-                        : (item.pricing_type === 'linear' && item.details)
-                          ? (item.details.width || 1)
-                          : 1;
-                      
-                      const lineTotal = item.unit_price * sizeFactor * item.quantity;
+                      const lineTotal = item.total_price;
 
                       return (
                         <div key={idx} className="p-3 bg-secondary/15 border border-border rounded-xl flex justify-between items-start gap-4">
                           <div className="space-y-0.5">
                             <div className="font-bold text-foreground line-clamp-1">{item.product_name}</div>
-                            
+
                             {/* Render dimensions details */}
-                            {item.details && (item.details.width || item.details.height) && (
+                            {item.details && (item.details.width || item.details.height || item.details.length) && (
                               <div className="text-[9px] text-muted-foreground">
-                                Medidas: {formatMeters(item.details.width || 0)} {item.details.height ? `x ${formatMeters(item.details.height)}` : 'linear'} ({sizeFactor.toFixed(2)} m²)
+                                {item.details.configuration_summary || `Medida: ${formatMeters(item.details.length || item.details.width || 0)}`}
                               </div>
                             )}
                             {item.details?.notes && (
@@ -642,46 +589,26 @@ export default function POSPage() {
                               {formatUnitCurrency(item.unit_price)} x {item.quantity}
                             </div>
                           </div>
-                          
+
                           <div className="text-right shrink-0 space-y-1.5">
                             <span className="font-bold text-foreground text-xs block">{formatCurrency(lineTotal)}</span>
-                            
+
                             <div className="flex items-center gap-2">
                               {/* Quantity triggers */}
                               <button
-                                onClick={() => {
-                                  setCart(prev => prev.map((c, i) => {
-                                    if (i === idx) {
-                                      const newQty = Math.max(1, c.quantity - 1);
-                                      const prod = products.find(p => p.id === c.product_id);
-                                      const uPrice = prod ? getProductUnitPrice(prod, newQty) : c.unit_price;
-                                      return { ...c, quantity: newQty, unit_price: uPrice };
-                                    }
-                                    return c;
-                                  }));
-                                }}
+                                onClick={() => changeQuantity(idx, -1)}
                                 className="text-muted-foreground hover:text-foreground"
                               >
                                 <MinusCircle className="h-4 w-4" />
                               </button>
                               <span className="font-bold text-xs font-mono">{item.quantity}</span>
                               <button
-                                onClick={() => {
-                                  setCart(prev => prev.map((c, i) => {
-                                    if (i === idx) {
-                                      const newQty = c.quantity + 1;
-                                      const prod = products.find(p => p.id === c.product_id);
-                                      const uPrice = prod ? getProductUnitPrice(prod, newQty) : c.unit_price;
-                                      return { ...c, quantity: newQty, unit_price: uPrice };
-                                    }
-                                    return c;
-                                  }));
-                                }}
+                                onClick={() => changeQuantity(idx, 1)}
                                 className="text-muted-foreground hover:text-foreground"
                               >
                                 <PlusCircle className="h-4 w-4" />
                               </button>
-                              
+
                               <button
                                 onClick={() => {
                                   setCart(prev => prev.filter((_, i) => i !== idx));
@@ -709,7 +636,7 @@ export default function POSPage() {
                       <span>Subtotal:</span>
                       <span className="text-foreground font-bold">{formatCurrency(getSubtotal())}</span>
                     </div>
-                    
+
                     <div className="flex justify-between items-center text-muted-foreground">
                       <span>Desconto (R$):</span>
                       <input
@@ -783,7 +710,7 @@ export default function POSPage() {
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-1 text-xs">
                   <label className="font-bold text-muted-foreground block">Observações de Abertura (Opcional)</label>
                   <textarea
@@ -1085,76 +1012,10 @@ export default function POSPage() {
       {/* ---------------------------------------------------- */}
       {/* POPUP: CONFIGURAR DIMENSÕES DO PRODUTO (m2 / linear) */}
       {/* ---------------------------------------------------- */}
-      {configuringProduct && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto flex justify-center items-start p-4 text-xs no-print">
-          <div className="bg-card border border-border p-5 rounded-2xl w-full max-w-sm my-auto space-y-4 shadow-xl text-foreground">
-            <h3 className="text-sm font-bold text-foreground">Medidas Personalizadas</h3>
-            <p className="text-[10px] text-muted-foreground">
-              O produto <strong>{configuringProduct.name}</strong> é cobrado por {configuringProduct.pricing_type === 'm2' ? 'Metro Quadrado (m²)' : 'Metro Linear'}. Informe as medidas do trabalho:
-            </p>
-
-            <form onSubmit={handleDimensionConfirm} className="space-y-4 text-left font-medium">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-muted-foreground">Largura / Compr. (m)</label>
-                  <MetricInput aria-label="Largura / Compr. (m)"
-                    value={customWidth}
-                    onValueChange={setCustomWidth}
-                    className="w-full px-2.5 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs font-bold text-foreground"
-                    required
-                  />
-                </div>
-                
-                {configuringProduct.pricing_type === 'm2' && (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-muted-foreground">Altura (m)</label>
-                    <MetricInput aria-label="Altura (m)"
-                      value={customHeight}
-                      onValueChange={setCustomHeight}
-                      className="w-full px-2.5 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs font-bold text-foreground"
-                      required
-                    />
-                  </div>
-                )}
-              </div>
-
-              {configuringProduct.pricing_type === 'm2' && (
-                <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold bg-secondary/20 p-2 rounded-lg border border-border/50">
-                  <span>Área Total Calculada:</span>
-                  <span className="text-foreground text-xs">{(customWidth * customHeight).toFixed(2)} m²</span>
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted-foreground">Acabamento / Observações do Item</label>
-                <input
-                  type="text"
-                  value={customNotes}
-                  onChange={(e) => setCustomNotes(e.target.value)}
-                  placeholder="Ex: Ilhós a cada 50cm, solda nas bordas."
-                  className="w-full px-2.5 py-1.5 bg-secondary/35 border border-border rounded-lg text-xs text-foreground"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfiguringProduct(null)}
-                  className="flex-1 py-2 rounded-xl bg-secondary text-foreground hover:bg-secondary/80 text-xs font-semibold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold"
-                >
-                  Adicionar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {configuringProduct && <ProductConfiguratorModal
+        product={configuringProduct} isOpen compact onClose={() => setConfiguringProduct(null)}
+        onAddToCart={addConfiguredItem} isFavorite={false} isFavoritePending={false} onToggleFavorite={() => {}}
+      />}
 
       {/* ---------------------------------------------------- */}
       {/* MODAL: CHECKOUT DE RECEBIMENTO */}
@@ -1257,7 +1118,7 @@ export default function POSPage() {
                   return (
                     <div className="p-3 bg-card border border-primary/20 border-dashed rounded-xl flex flex-col items-center justify-center text-center space-y-2">
                       <div className="h-44 w-44 bg-white p-2 rounded-lg flex items-center justify-center border border-border">
-                        <img 
+                        <img
                           src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=10&data=${encodeURIComponent(pixPayload)}`}
                           alt="PIX QR Code"
                           className="h-40 w-40"
@@ -1419,8 +1280,8 @@ export default function POSPage() {
                 if (diff === 0) return null;
                 return (
                   <div className={`p-2.5 rounded-lg border text-[10px] font-bold ${
-                    diff > 0 
-                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                    diff > 0
+                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                       : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
                   }`}>
                     {diff > 0 ? `SOBRA DE CAIXA: + ${formatCurrency(diff)}` : `QUEBRA DE CAIXA (FALTA): - ${formatCurrency(Math.abs(diff))}`}
@@ -1565,10 +1426,10 @@ export default function POSPage() {
               <span>Item / Qtd</span>
               <span className="text-right">Total</span>
             </div>
-            
+
             {justCompletedOrder.items.map((item, idx) => {
               const details = item.details;
-              const hasDimensions = details && (details.width || details.height);
+              const hasDimensions = details && (details.width || details.height || details.length);
               return (
                 <div key={idx} className="space-y-px leading-tight">
                   <div className="flex justify-between gap-2">
@@ -1577,7 +1438,7 @@ export default function POSPage() {
                   </div>
                   {hasDimensions && (
                     <div className="text-[9px] text-gray-500 pl-2 leading-tight">
-                      Medida: {formatMeters(details.width || 0)} {details.height ? `x ${formatMeters(details.height)}` : 'linear'}
+                      Medida: {formatMeters(details.length || details.width || 0)} {details.height ? `x ${formatMeters(details.height)}` : 'linear'}
                     </div>
                   )}
                 </div>
@@ -1588,11 +1449,11 @@ export default function POSPage() {
           <div className="py-2.5 space-y-1.5 font-bold">
             <div className="flex justify-between">
               <span>Subtotal:</span>
-              <span>{formatCurrency(justCompletedOrder.total_amount)}</span>
+              <span>{formatCurrency(justCompletedOrder.items.reduce((sum, item) => sum + item.total_price, 0))}</span>
             </div>
             <div className="flex justify-between text-black">
               <span>Desconto:</span>
-              <span>R$ 0,00</span>
+              <span>{formatCurrency(justCompletedOrder.items.reduce((sum, item) => sum + item.total_price, 0) - justCompletedOrder.total_amount)}</span>
             </div>
             <div className="flex justify-between text-base border-t border-dashed border-black pt-1.5 font-black">
               <span>TOTAL DO CUPOM:</span>

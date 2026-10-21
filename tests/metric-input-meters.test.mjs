@@ -44,9 +44,12 @@ test('Store and POS cannot submit zero physical dimensions',async()=>{
   for(const type of ['m2','linear']){
     const invalid=await declaration('../src/components/store/ProductConfiguratorModal.tsx','invalidMeasure',{product:{pricing_type:type},isLinearWidthMode:false,width:0,height:1,length:0});
     assert.equal(invalid,true);
-    let added=false;const alerts=[];
-    const confirm=await declaration('../src/app/(dashboard)/pos/page.tsx','handleDimensionConfirm',{configuringProduct:{pricing_type:type},customWidth:0,customHeight:1,alert:m=>alerts.push(m),addToCart:()=>{added=true;}});
-    confirm({preventDefault(){}});assert.equal(added,false);assert.equal(alerts.length,1);
+    let added=false;
+    const handleAdd=await declaration('../src/components/store/ProductConfiguratorModal.tsx','handleAdd',{isConfigurationUnavailable:true,linearWidthError:'',onAddToCart:()=>{added=true;},buildPayload:()=>({})});
+    handleAdd();assert.equal(added,false);
+    const posSource=await readFile(new URL('../src/app/(dashboard)/pos/page.tsx',import.meta.url),'utf8');
+    assert.match(posSource, /<ProductConfiguratorModal/);
+
   }
 });
 

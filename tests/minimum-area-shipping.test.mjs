@@ -86,7 +86,7 @@ test('quote cannot insert a product whose required configuration is unresolved',
 test('Store payload retains physical dimensions, quantity and billable snapshot', async () => {
   const resolution = pricing.resolveProductPrice(product, { width: 0.2, height: 1, quantity: 3 });
   const { buildPayload } = await declarations('../src/components/store/ProductConfiguratorModal.tsx', ['buildPayload'], {
-    product, breakdown: resolution.breakdown, unitPriceForCart: resolution.unitPrice, subtotalForCart: resolution.totalPrice,
+    product, pricingConfig: {width:0.2,height:1,quantity:3}, compact:false, itemNotes:'', breakdown: resolution.breakdown, unitPriceForCart: resolution.unitPrice, subtotalForCart: resolution.totalPrice,
     selectedOptions: [], dimensions: { width: 0.2, height: 1 }, additionalDays: 0,
     resolvedProductionTime: '', resolvedProductionTimeSource: 'fallback', saleMode: 'm2', saleModeLabel: 'm²',
     configurationSummary: 'real 0.2, billable 0.5', configurationSnapshot: undefined
