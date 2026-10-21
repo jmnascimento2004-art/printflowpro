@@ -317,7 +317,7 @@ export default function POSPage() {
   return (
     <div className="space-y-6 text-foreground">
       {/* 1. Header with Tabs */}
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-card border border-border p-4 rounded-2xl gap-4 no-print shadow-sm">
+      <div className="flex flex-col xl:flex-row justify-between items-center bg-card border border-border p-4 rounded-2xl gap-4 no-print shadow-sm">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 bg-primary/10 text-primary flex items-center justify-center rounded-xl border border-primary/20">
             <ShoppingBag className="h-5 w-5" />
