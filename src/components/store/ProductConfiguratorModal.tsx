@@ -1170,12 +1170,14 @@ export function ProductConfiguratorModal({
                         {subtotalPendingMessage}
                       </span>
                     ) : priceResolution.canPurchase ? (
+                      <>
                       <span className="text-2xl font-black text-emerald-600">{formattedSubtotal}</span>
                       {breakdown.minimumArea > 0 && (
                         <p className="text-xs text-muted-foreground">
                           Área real por peça: {breakdown.area.toFixed(2)} m². Base de cobrança: {breakdown.billableArea.toFixed(2)} m².
                         </p>
                       )}
+                      </>
                     ) : (
                       <span className="max-w-[12rem] text-right text-[11px] font-bold leading-relaxed text-amber-700">
                         Preço sob consulta
