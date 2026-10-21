@@ -51,9 +51,10 @@ test('ownership writes are serialized, reassignment-safe and auditable without P
   assert.doesNotMatch(auditMetadata, /document|phone|v_auth_email/i);
 });
 
-test('Store browser caller supplies profile fields but cannot supply email or actor identity', () => {
-  const rpcCall = storeContext.match(/supabase\.rpc\('ensure_store_customer_account',[\s\S]*?\n\s*\}\);/)?.[0] ?? '';
-  assert.match(rpcCall, /p_company_id:/);
+test('Store browser caller uses the server route without tenant or actor authority', () => {
+  const rpcCall = storeContext.match(/fetch\('\/api\/store\/customer-account',[\s\S]*?\n\s*\}\);/)?.[0] ?? '';
+  assert.doesNotMatch(rpcCall, /p_company_id:/);
   assert.match(rpcCall, /p_document:/);
   assert.doesNotMatch(rpcCall, /p_email|p_auth_user_id|auth_user_id:/i);
+  assert.match(rpcCall, /currentSession.access_token/);
 });

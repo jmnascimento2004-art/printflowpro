@@ -1,4 +1,7 @@
 begin;
+-- Ownership-core regression under the function owner after the browser grant
+-- cutover. Public entry-point authorization is exercised separately by
+-- store_account_tenant_authority.test.sql and the real HTTP concurrency test.
 select plan(33);
 
 insert into auth.users (
@@ -22,7 +25,7 @@ select
   (select company_id from public.profiles where auth_user_id = '46000000-0000-0000-0000-000000000001'),
   (select company_id from public.profiles where auth_user_id = '46000000-0000-0000-0000-000000000005');
 
-grant select on store_link_test_tenants to authenticated;
+grant select on store_link_test_tenants to service_role;
 
 update public.companies
 set store_domain = case
@@ -58,7 +61,7 @@ select is_definer(
 select function_privs_are(
   'public', 'ensure_store_customer_account',
   array['text','text','text','text','text','text','text','date','text','text','text','boolean','boolean'],
-  'authenticated', array['EXECUTE']
+  'authenticated', array[]::text[]
 );
 select function_privs_are(
   'public', 'ensure_store_customer_account',
@@ -92,7 +95,7 @@ select ok(
 
 select set_config('request.headers', '{"origin":"https://store-link-a.example.test"}', true);
 select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001","role":"authenticated","email":"spoofed@example.test"}', true);
-set local role authenticated;
+set local role postgres;
 
 select throws_ok(
   format(
@@ -109,7 +112,7 @@ select is((select auth_user_id from public.customers where id = 'store-link-exis
 select is((select count(*)::integer from public.store_customer_accounts where customer_id = 'store-link-existing-a'), 0, 'rejected document creates no Store account');
 
 select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-set local role authenticated;
+set local role postgres;
 select lives_ok(
   format(
     'select * from public.ensure_store_customer_account(%L,%L,%L,%L,%L,null,null,null::date,''whatsapp'',''2026-06'',''2026-06'',false,false)',
@@ -126,7 +129,7 @@ select is((select metadata ->> 'identity_proof' from public.audit_logs where act
 select ok((select not (metadata ? 'email') and not (metadata ? 'document') from public.audit_logs where action = 'customer.store_account_linked' and entity_id = 'store-link-existing-a'), 'audit metadata stores no email or document');
 
 select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-set local role authenticated;
+set local role postgres;
 select lives_ok(
   format(
     'select * from public.ensure_store_customer_account(%L,%L,%L,%L,%L,null,null,null::date,''whatsapp'',''2026-06'',''2026-06'',false,false)',
@@ -139,7 +142,7 @@ select is((select count(*)::integer from public.store_customer_accounts where cu
 select is((select count(*)::integer from public.audit_logs where action = 'customer.store_account_linked' and entity_id = 'store-link-existing-a'), 1, 'idempotent retry never duplicates the link audit');
 
 select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-set local role authenticated;
+set local role postgres;
 select throws_ok(
   format(
     'select * from public.ensure_store_customer_account(%L,%L,%L,%L,%L,null,null,null::date,''whatsapp'',''2026-06'',''2026-06'',false,false)',
@@ -153,7 +156,7 @@ reset role;
 select is((select auth_user_id from public.customers where id = 'store-link-owned'), '46000000-0000-0000-0000-000000000003'::uuid, 'another user never overwrites the existing owner');
 
 select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000006","role":"authenticated"}', true);
-set local role authenticated;
+set local role postgres;
 select throws_ok(
   format(
     'select * from public.ensure_store_customer_account(%L,%L,%L,%L,%L,null,null,null::date,''whatsapp'',''2026-06'',''2026-06'',false,false)',
@@ -167,7 +170,7 @@ reset role;
 select is((select auth_user_id from public.customers where id = 'store-link-unconfirmed'), null::uuid, 'unconfirmed identity leaves the existing customer untouched');
 
 select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-set local role authenticated;
+set local role postgres;
 select lives_ok(
   format(
     'select * from public.ensure_store_customer_account(%L,%L,%L,%L,%L,null,null,null::date,''whatsapp'',''2026-06'',''2026-06'',false,false)',
@@ -181,7 +184,7 @@ select is((select count(*)::integer from public.store_customer_accounts where co
 
 select set_config('request.headers', '{"origin":"https://store-link-a.example.test"}', true);
 select set_config('request.jwt.claims', '{"sub":"46000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
-set local role authenticated;
+set local role postgres;
 select throws_ok(
   format(
     'select * from public.ensure_store_customer_account(%L,%L,%L,%L,%L,null,null,null::date,''whatsapp'',''2026-06'',''2026-06'',false,false)',
@@ -195,7 +198,7 @@ reset role;
 select is((select count(*)::integer from public.store_customer_accounts where company_id = (select tenant_b from store_link_test_tenants) and auth_user_id = '46000000-0000-0000-0000-000000000004'), 0, 'cross-tenant attempt creates no account');
 
 select set_config('request.jwt.claims', '{}', true);
-set local role authenticated;
+set local role postgres;
 select throws_ok(
   format(
     'select * from public.ensure_store_customer_account(%L,%L,%L,%L,%L,null,null,null::date,''whatsapp'',''2026-06'',''2026-06'',false,false)',
