@@ -42,7 +42,6 @@ export default function POSPage() {
   const {
     products,
     customers,
-    categories,
     activeSession,
     sessions,
     registerTransactions,
@@ -60,7 +59,6 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('todos');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('guest');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('dinheiro');
@@ -121,54 +119,10 @@ export default function POSPage() {
     return Math.max(0, getSubtotal() - discountAmount);
   };
 
-  // Categories extraction sorted hierarchically
-  const getSortedCategories = () => {
-    const sorted: typeof categories = [];
-    const parents = categories.filter(c => !c.parent_id);
-    parents.forEach(p => {
-      sorted.push(p);
-      const children = categories.filter(c => c.parent_id === p.id);
-      sorted.push(...children);
-    });
-    categories.forEach(c => {
-      if (!sorted.some(sc => sc.id === c.id)) {
-        sorted.push(c);
-      }
-    });
-    return sorted;
-  };
-
-  const categoriesList = [
-    'todos',
-    ...getSortedCategories().map(c => c.id),
-    ...Array.from(new Set(products.map(p => p.category_id)))
-      .filter(id => id && !categories.some(c => c.id === id))
-  ];
-
-  const getCategoryName = (catId: string) => {
-    if (catId === 'todos') return 'Todos';
-    const match = categories.find(c => c.id === catId);
-    if (match) {
-      if (match.parent_id) {
-        const parent = categories.find(p => p.id === match.parent_id);
-        return parent ? `${parent.name} > ${match.name}` : match.name;
-      }
-      return match.name;
-    }
-    return catId.replace('cat-', 'Categoria ');
-  };
-
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const selectedCategoryIds = selectedCategory === 'todos'
-      ? []
-      : [selectedCategory, ...categories.filter(c => c.parent_id === selectedCategory).map(c => c.id)];
-
-    const matchesCategory = selectedCategory === 'todos' || selectedCategoryIds.includes(p.category_id);
-    return matchesSearch && matchesCategory;
-  });
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const getSelectedCustomer = () => {
     if (selectedCustomerId === 'guest') {
@@ -440,8 +394,8 @@ export default function POSPage() {
             /* POS Main Grid */
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Column: Products Grid */}
-              <div className="lg:col-span-7 space-y-4">
-                <div className="bg-card border border-border p-3.5 rounded-2xl shadow-sm space-y-3">
+              <div className="lg:col-span-7 space-y-3">
+                <div className="bg-card border border-border p-3.5 rounded-2xl shadow-sm">
                   <div className="relative w-full">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <input
@@ -452,21 +406,7 @@ export default function POSPage() {
                       className="w-full pl-9 pr-4 py-2 bg-secondary/20 border border-border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-slate-400"
                     />
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    {categoriesList.map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all whitespace-nowrap ${
-                          selectedCategory === cat
-                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                            : 'bg-secondary/30 text-muted-foreground border-border hover:text-foreground'
-                        }`}
-                      >
-                        {getCategoryName(cat).toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
+
                 </div>
 
                 {/* Catalog Grid */}
