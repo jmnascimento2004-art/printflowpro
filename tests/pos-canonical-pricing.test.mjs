@@ -9,8 +9,9 @@ async function compile(path, dependencies = {}) {
   new Function('exports', 'module', 'require', code)(module.exports, module, name => { assert.ok(dependencies[name], name); return dependencies[name]; });
   return module.exports;
 }
+const productFields = await compile('../src/lib/product-custom-fields.ts');
 const pricing = await compile('../src/lib/pricing.ts');
-const pos = await compile('../src/lib/pos-cart.ts', { './pricing': pricing });
+const pos = await compile('../src/lib/pos-cart.ts', { './pricing': pricing, './product-custom-fields': productFields });
 const base = { id: 'fixture', name: 'Fixture', pricing_type: 'unidade', sales_price: 59.99 };
 const area = { ...base, pricing_type: 'm2', sales_price: 100, pricing_details: { configurator_options: { min_area: .5 } } };
 const cases = [

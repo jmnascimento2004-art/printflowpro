@@ -1,5 +1,8 @@
 'use client';
 
+import { ProductFieldInputs } from '@/components/products/ProductCustomFields';
+import { resolveProductFields, productFieldsSummary, type ProductFieldValues } from '@/lib/product-custom-fields';
+
 import { QuoteTextAssistant } from '@/components/commercial/QuoteTextAssistant';
 import { canAccessModule } from '@/lib/module-permissions';
 import { MetricInput } from '@/components/MetricInput';
@@ -588,6 +591,7 @@ export default function QuotesPage() {
   };
 
   // Item Form State (Temporary row inputs)
+  const [productFieldValues, setProductFieldValues] = useState<ProductFieldValues>({});
   const [selectedProductId, setSelectedProductId] = useState('');
   const [itemQty, setItemQty] = useState(1);
   const [itemWidth, setItemWidth] = useState(1.0);
@@ -798,7 +802,7 @@ export default function QuotesPage() {
       };
 
       setItems(prev => [...prev, newItem]);
-      setSelectedProductId('');
+      setSelectedProductId(''); setProductFieldValues({});
       setManualItemDescription('');
       setManualPricingType('unidade');
       setManualUnitPrice(0);
@@ -817,6 +821,8 @@ export default function QuotesPage() {
       return;
     }
 
+    const customFields = resolveProductFields(prod.pricing_details?.configurator_options?.custom_fields, productFieldValues);
+    if (customFields.errors.length) { alert(customFields.errors.join(' ')); return; }
     const volumeTiers = requiresTierSelection ? effectiveQuantityTiers : getProductVolumeTiers(selectedProductId);
     const minAllowedQty = volumeTiers[0]?.min_qty || 1;
     const configuredTier = requiresTierSelection ? selectedQuantityTier : null;
@@ -899,11 +905,12 @@ export default function QuotesPage() {
         pricing_type: prod.pricing_type,
         production_time: productionTime,
         production_time_source: productionTimeSource,
-        configuration_summary: configurationSnapshot?.display_label || (priceResolution.breakdown.minimumArea > 0
+        configuration_summary: [productFieldsSummary(customFields.snapshot), configurationSnapshot?.display_label || (priceResolution.breakdown.minimumArea > 0
           ? `Área real: ${priceResolution.breakdown.area.toFixed(2)} m² | Área cobrável por peça: ${priceResolution.breakdown.billableArea.toFixed(2)} m²`
-          : undefined),
+          : undefined)].filter(Boolean).join(' | '),
         configuration_snapshot: configurationSnapshot,
         pricing_snapshot: {
+          custom_fields: customFields.snapshot,
           dimension_unit: 'm',
           width: itemWidth,
           height: itemHeight,
@@ -931,7 +938,7 @@ export default function QuotesPage() {
     setItems(prev => [...prev, newItem]);
     
     // Reset Row Inputs
-    setSelectedProductId('');
+    setSelectedProductId(''); setProductFieldValues({});
     setItemQty(1);
     setItemWidth(1.0);
     setItemHeight(1.0);
@@ -974,7 +981,7 @@ export default function QuotesPage() {
     setNotes('');
     setItems([]);
     setAdditionalServices([]);
-    setSelectedProductId('');
+    setSelectedProductId(''); setProductFieldValues({});
     setItemQty(1);
     setItemWidth(1.0);
     setItemHeight(1.0);
@@ -1855,6 +1862,7 @@ export default function QuotesPage() {
               )}
 
               {/* Dynamic Dimension Inputs */}
+              {selectedProduct && !isManualQuoteItem && <ProductFieldInputs fields={selectedProduct.pricing_details?.configurator_options?.custom_fields || []} values={productFieldValues} onChange={setProductFieldValues}/>}
               {selectedProductId && !isManualQuoteItem && ['m2', 'linear'].includes(getProductPriceInfo(selectedProductId).type) && (
                 <>
                   <div className="md:col-span-2 space-y-1">

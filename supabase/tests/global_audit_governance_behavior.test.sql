@@ -52,7 +52,9 @@ select is((select count(*)::integer from public.audit_logs where action = 'whats
 select ok(not exists (select 1 from public.audit_logs where action = 'whatsapp.configuration_changed' and (new_values ?| array['business_phone','signature'])), 'WhatsApp secrets/contact content are absent');
 
 update public.products set sales_price = 99 where id = 'phase4e-product-b';
+reset role;
 select is((select sales_price from public.products where id = 'phase4e-product-b'), 10::numeric, 'cross-tenant product mutation changes no row');
+set local role authenticated;
 select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4e-product-b'), 0, 'cross-tenant attempt creates no audit event');
 
 reset role;

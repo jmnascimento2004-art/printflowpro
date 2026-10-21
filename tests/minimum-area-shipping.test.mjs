@@ -10,6 +10,7 @@ async function compile(path) {
   new Function('exports', 'module', code)(module.exports, module);
   return module.exports;
 }
+const fields = await compile('../src/lib/product-custom-fields.ts');
 const pricing = await compile('../src/lib/pricing.ts');
 const shipping = await compile('../src/lib/shipment-state.ts');
 const product = { pricing_type: 'm2', sales_price: 100, pricing_details: { configurator_options: { min_area: 0.5, sale_mode: 'm2' } } };
@@ -73,6 +74,7 @@ test('quote cannot insert a product whose required configuration is unresolved',
   const alerts = [];
   let inserted = false;
   const { handleAddItem } = await declarations('../src/app/(dashboard)/quotes/page.tsx', ['handleAddItem'], {
+    resolveProductFields: fields.resolveProductFields, productFieldValues: {},
     isManualQuoteItem: false, products: [requiredProduct], selectedProductId: 'p', requiresTierSelection: false,
     getProductVolumeTiers: () => [], itemQty: 1, itemWidth: 0.2, itemHeight: 1,
     getProductPriceInfo: () => ({ price: 0, volumeTier: null }), hasVariantPricingMatrix: false,
@@ -86,7 +88,7 @@ test('quote cannot insert a product whose required configuration is unresolved',
 test('Store payload retains physical dimensions, quantity and billable snapshot', async () => {
   const resolution = pricing.resolveProductPrice(product, { width: 0.2, height: 1, quantity: 3 });
   const { buildPayload } = await declarations('../src/components/store/ProductConfiguratorModal.tsx', ['buildPayload'], {
-    product, pricingConfig: {width:0.2,height:1,quantity:3}, compact:false, itemNotes:'', breakdown: resolution.breakdown, unitPriceForCart: resolution.unitPrice, subtotalForCart: resolution.totalPrice,
+    customFields: { snapshot: [] }, product, pricingConfig: {width:0.2,height:1,quantity:3}, compact:false, itemNotes:'', breakdown: resolution.breakdown, unitPriceForCart: resolution.unitPrice, subtotalForCart: resolution.totalPrice,
     selectedOptions: [], dimensions: { width: 0.2, height: 1 }, additionalDays: 0,
     resolvedProductionTime: '', resolvedProductionTimeSource: 'fallback', saleMode: 'm2', saleModeLabel: 'm²',
     configurationSummary: 'real 0.2, billable 0.5', configurationSnapshot: undefined

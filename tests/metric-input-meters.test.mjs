@@ -29,7 +29,7 @@ async function declaration(path, name, dependencies) {
 
 test('saving unrelated product fields preserves every legacy dimension exactly',async()=>{
   const original={min_width:120.123,max_width:250.555,min_height:1.2345,max_height:10,min_length:25.12345};
-  const context={saleMode:'linear',registrationType:'standard',allowCustomMeasure:true,changedMetricFields:[],metricConfigurationForSave:metric.metricConfigurationForSave,isEditing:true,
+  const context={customFields:[],saleMode:'linear',registrationType:'standard',allowCustomMeasure:true,changedMetricFields:[],metricConfigurationForSave:metric.metricConfigurationForSave,isEditing:true,
     selectedProduct:{pricing_details:{configurator_options:original}},minWidth:1.20123,minHeight:1.2345,maxWidth:2.50555,maxHeight:10,minLength:25.12345,
     minArea:.5,kitItems:'',configMinQuantity:1,sizeOptions:[],quoteOnRequest:false,customerMessage:'',normalizeConfiguratorGroups:()=>[],normalizeVariantMatrixRows:()=>[],variantPricingMatrix:[]};
   const saved=(await declaration('../src/app/(dashboard)/products/page.tsx','buildConfiguratorOptions',context))();

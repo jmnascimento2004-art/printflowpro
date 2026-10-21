@@ -1,7 +1,7 @@
 import 'server-only';
 import { formatMeters } from '@/lib/metric.mjs';
 
-export type StoreProductRequestInput = { productId?: unknown; quantity?: unknown; dimensions?: unknown; selectedOptions?: unknown; configurationSnapshot?: unknown; productionDays?: unknown; estimatedDeadline?: unknown; customerName?: unknown; customerPhone?: unknown; notes?: unknown };
+export type StoreProductRequestInput = { fieldValues?: unknown; productId?: unknown; quantity?: unknown; dimensions?: unknown; selectedOptions?: unknown; configurationSnapshot?: unknown; productionDays?: unknown; estimatedDeadline?: unknown; customerName?: unknown; customerPhone?: unknown; notes?: unknown };
 export type StoreProductRequestContext = {
   companyName: string;
   product: { id: string; name: string; active: boolean; catalog_active: boolean; sales_price: number; pricing_type?: string | null } | null;
@@ -9,7 +9,7 @@ export type StoreProductRequestContext = {
 };
 
 const REQUEST_KEYS = new Set([
-  'productId', 'quantity', 'dimensions', 'selectedOptions', 'configurationSnapshot',
+  'fieldValues', 'productId', 'quantity', 'dimensions', 'selectedOptions', 'configurationSnapshot',
   'productionDays', 'estimatedDeadline', 'customerName', 'customerPhone', 'notes'
 ]);
 const DIMENSION_KEYS = new Set(['width', 'height', 'length']);
@@ -30,6 +30,7 @@ export function parseStoreProductRequestInput(value: unknown): StoreProductReque
       !validOptionalText(value.customerPhone, 30) || !validOptionalText(value.notes, 500)) return null;
   if (value.productionDays !== undefined && (!Number.isInteger(value.productionDays) || Number(value.productionDays) < 0 || Number(value.productionDays) > 365)) return null;
 
+  if (value.fieldValues !== undefined && (!isPlainRecord(value.fieldValues) || Object.keys(value.fieldValues).length > 30 || Object.values(value.fieldValues).some(item => !['string', 'number', 'boolean'].includes(typeof item) || String(item).length > 2000))) return null;
   if (value.dimensions !== undefined) {
     if (!isPlainRecord(value.dimensions) || !hasOnlyKeys(value.dimensions, DIMENSION_KEYS)) return null;
     if (Object.values(value.dimensions).some((item) => !validOptionalPositiveNumber(item))) return null;
@@ -90,6 +91,6 @@ export function resolveStoreProductRequestVariables(
     valor_total: context.productVariables?.['produto.preco'] || '',
     cliente_nome: boundedText(input.customerName, 120),
     cliente_telefone: boundedText(input.customerPhone, 30),
-    observacoes: boundedText(input.notes, 500)
+    observacoes: [boundedText(input.notes, 500), context.productVariables?.product_custom_fields].filter(Boolean).join(' | ')
   };
 }

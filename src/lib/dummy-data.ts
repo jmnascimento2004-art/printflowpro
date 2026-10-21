@@ -215,6 +215,9 @@ export interface Category {
 }
 
 export interface PricingDetails {
+  cost_composition?: import('./product-costs').ProductCostComposition;
+  margin_mode?: 'margin' | 'markup';
+  markup_multiplier?: number;
   raw_material_cost: number;
   operating_cost: number;
   production_time: number; // minutes
@@ -272,6 +275,7 @@ export interface VariantPricingMatrixRow {
 }
 
 export interface ProductConfiguratorSettings {
+  custom_fields?: import('./product-custom-fields').ProductCustomField[];
   /** Explicit for newly edited configurations; absent keeps legacy dimension decoding. */
   dimension_unit?: 'm';
   sale_mode: ProductSaleMode;

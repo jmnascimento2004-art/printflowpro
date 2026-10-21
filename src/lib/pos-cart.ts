@@ -1,3 +1,4 @@
+import { resolveProductFields, type ProductFieldValues } from './product-custom-fields';
 import type { OrderItem, Product } from './dummy-data';
 import { resolveProductPrice, getNormalizedVolumePricing, type PricingConfig, type ProductPriceResolution } from './pricing';
 
@@ -9,6 +10,8 @@ export type POSCartItem = Omit<OrderItem, 'id' | 'outsourced'> & {
 
 // Adapt the canonical result to the existing commercial item contract. No pricing rules here.
 export function createPOSCartItem(product: Product, config: PricingConfig, details: OrderItem['details'] = {}): POSCartItem {
+  const fields = resolveProductFields(product.pricing_details?.configurator_options?.custom_fields, config.customOptions?.fieldValues as ProductFieldValues);
+  if (fields.errors.length) throw new Error(fields.errors.join(' '));
   const result = resolveProductPrice(product, config);
   if (!result.canPurchase) throw new Error(result.warningMessage || 'Configuração indisponível.');
   const breakdown = result.breakdown;
@@ -25,7 +28,7 @@ export function createPOSCartItem(product: Product, config: PricingConfig, detai
       selected_options: result.selectedOptionsSnapshot,
       production_time: result.productionTime, production_time_source: result.productionTimeSource,
       pricing_snapshot: {
-        dimension_unit: 'm', ...details.pricing_snapshot,
+        dimension_unit: 'm', ...details.pricing_snapshot, custom_fields: fields.snapshot,
         area: breakdown.area, billable_area: breakdown.billableArea, minimum_area: breakdown.minimumArea,
         length: breakdown.length, measure_basis: breakdown.measureBasis,
         base_unit_price: breakdown.unitPrice, unit_price_basis: 'piece',

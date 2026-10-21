@@ -4,6 +4,8 @@ import { MetricInput } from '@/components/MetricInput';
 import { formatMeters, legacyStoreConfiguredMeters } from '@/lib/metric.mjs';
 
 /* eslint-disable @next/next/no-img-element */
+import { ProductFieldInputs } from '@/components/products/ProductCustomFields';
+import { resolveProductFields, productFieldsSummary, type ProductFieldValues } from '@/lib/product-custom-fields';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
@@ -169,6 +171,7 @@ export function ProductConfiguratorModal({
   confirmLabel = 'Adicionar ao carrinho',
   initialConfig
 }: ProductConfiguratorModalProps) {
+  const [fieldValues, setFieldValues] = useState<ProductFieldValues>({});
   const [itemNotes, setItemNotes] = useState('');
   const savedConfigurator = getProductConfigurator(product);
   const initialVolumeTier = useMemo(() => getInitialVolumePricingTier(product), [product]);
@@ -259,6 +262,7 @@ export function ProductConfiguratorModal({
   useEffect(() => {
     if (!isOpen || !product) return;
 
+    setFieldValues(initialConfig?.customOptions?.fieldValues as ProductFieldValues || {});
     const firstMatrixRow = variantPricingRows[0];
     const firstMatrixTier = firstMatrixRow?.tiers[0];
     const initialQuantity = Math.max(
@@ -445,16 +449,18 @@ export function ProductConfiguratorModal({
   const pricingConfig = useMemo<PricingConfig>(() => ({
     quantity: configuredQuantity, width, height, length, selectedVariant, selectedColor,
     customOptions: {
+      fieldValues,
       selectedOptions: selectedPricingOptions,
       baseSubtotal: product?.pricing_type === 'm2' || product?.pricing_type === 'linear' ? undefined : selectedVolumeTier?.total,
       variantSelection: matrixSelection
     }
-  }), [product, configuredQuantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions, selectedVolumeTier, matrixSelection]);
+  }), [fieldValues, product, configuredQuantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions, selectedVolumeTier, matrixSelection]);
   const priceResolution = useMemo(() => resolveProductPrice(product, pricingConfig), [product, pricingConfig]);
   const breakdown = priceResolution.breakdown;
 
   if (!isOpen || !product) return null;
 
+  const customFields = resolveProductFields(configurator?.custom_fields, fieldValues);
   const additionalDays = selectedOptions.reduce((sum, option) => {
     return sum + toPositiveNumber(option.additional_days, 0);
   }, 0);
@@ -487,7 +493,8 @@ export function ProductConfiguratorModal({
     isLinearWidthMode ? `Medidas: ${formatMeters(widthMeters)} x ${formatMeters(heightMeters)}` : '',
     product.pricing_type === 'linear' && !isLinearWidthMode ? `Metragem: ${formatMeters(lengthMeters)}` : '',
     breakdown.minimumArea > 0 ? `Área real: ${breakdown.area.toFixed(2)} m² | Área cobrável por peça: ${breakdown.billableArea.toFixed(2)} m²` : '',
-    summarizeOptions(selectedOptions)
+    summarizeOptions(selectedOptions),
+    productFieldsSummary(customFields.snapshot)
   ].filter(Boolean).join(' | ');
   const configurationSnapshot: ProductConfiguratorCartPayload['configuration_snapshot'] =
     priceResolution.matchedMatrixRow && priceResolution.matchedTier
@@ -579,6 +586,7 @@ export function ProductConfiguratorModal({
       sale_mode_label: saleModeLabel,
       configuration_summary: configurationSummary,
       pricing_snapshot: {
+        custom_fields: customFields.snapshot,
         dimension_unit: 'm',
         ...dimensions,
         length: breakdown.length,
@@ -596,12 +604,12 @@ export function ProductConfiguratorModal({
   });
 
   const handleAdd = () => {
-    if (isConfigurationUnavailable || linearWidthError) return;
+    if (isConfigurationUnavailable || linearWidthError || customFields.errors.length) return;
     onAddToCart(buildPayload());
   };
 
   const handleWhatsAppRequest = () => {
-    if (isConfigurationIncomplete || linearWidthError || isWhatsAppRequestPending) return;
+    if (isConfigurationIncomplete || linearWidthError || customFields.errors.length || isWhatsAppRequestPending) return;
     onRequestWhatsApp?.(buildPayload());
   };
 
@@ -747,6 +755,8 @@ export function ProductConfiguratorModal({
           </aside>}
 
           <main className="space-y-5 p-4 md:p-5">
+            <ProductFieldInputs fields={configurator?.custom_fields || []} values={fieldValues} onChange={setFieldValues}/>
+            {customFields.errors.map(error => <p key={error} role="status" className="text-xs text-red-600">{error}</p>)}
             {compact && <label className="block text-xs font-bold">
               Acabamento / Observações do Item
               <input value={itemNotes} onChange={event => setItemNotes(event.target.value)}

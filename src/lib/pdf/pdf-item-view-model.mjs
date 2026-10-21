@@ -52,9 +52,11 @@ export function buildPdfItemViewModel(item) {
     : '';
   const savedDescription = cleanLegacyGeneratedDescription(item?.product_name);
 
+  const fields = Array.isArray(pricingSnapshot.custom_fields) ? pricingSnapshot.custom_fields : [];
+  const fieldText = fields.map(field => `${normalizePdfCellText(field.label)}: ${normalizePdfCellText(typeof field.value === 'boolean' ? field.value ? 'Sim' : 'Não' : String(field.value ?? ''))}${field.type === 'measure' ? ' m' : ''}`).join(' • ');
   return {
     quantity,
-    description: structuredDescription || savedDescription || 'Item sem descrição',
+    description: [structuredDescription || savedDescription || 'Item sem descrição', fieldText].filter(Boolean).join(' • '),
     size: formatPdfItemSizeValue(item),
     unitPrice: quantity > 0 ? totalPrice / quantity : Math.max(0, Number(item?.unit_price || 0)),
     totalPrice

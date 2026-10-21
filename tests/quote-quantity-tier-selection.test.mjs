@@ -17,6 +17,7 @@ async function compile(path, requireMap = {}) {
   return module.exports;
 }
 
+const productFields = await compile('../src/lib/product-custom-fields.ts');
 const pricing = await compile('../src/lib/pricing.ts');
 const quotesPage = await readFile(new URL('../src/app/(dashboard)/quotes/page.tsx', import.meta.url), 'utf8');
 const storeModal = await readFile(new URL('../src/components/store/ProductConfiguratorModal.tsx', import.meta.url), 'utf8');
@@ -29,6 +30,7 @@ const customerProductResolver = await compile('../src/lib/whatsapp/customer-prod
   './variable-contract': contract,
   './template-engine': engine,
   '@/lib/pricing': pricing,
+  '@/lib/product-custom-fields': productFields,
   '@/lib/utils': { richTextToPlainText: richText.richTextToPlainText },
   '@/lib/supabase/server-admin': { getSupabaseAdminClient: () => { throw new Error('not used'); } }
 });

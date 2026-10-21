@@ -1,3 +1,4 @@
+import { productFieldsSummary, type ProductFieldSnapshot } from '@/lib/product-custom-fields';
 import { formatMeters } from '@/lib/metric.mjs';
 import type { AdditionalService, Company, Customer, OrderItem, QuoteItem } from '@/lib/dummy-data';
 import type { PdfSettings } from '@/lib/pdf/pdf-data';
@@ -102,7 +103,9 @@ export function getItemDescriptionLines(item: QuoteItem | OrderItem) {
     item.details?.length ? `${formatMeters(item.details.length)}` : ''
   ].filter(Boolean);
 
-  const options = optionParts.length > 0 ? optionParts.join(' • ') : fallbackParts.join(' • ');
+  const customFields = item.details?.pricing_snapshot?.custom_fields;
+  const customSummary = Array.isArray(customFields) ? productFieldsSummary(customFields as ProductFieldSnapshot[]) : '';
+  const options = optionParts.length > 0 ? [optionParts.join(' • '), customSummary].filter(Boolean).join(' • ') : fallbackParts.join(' • ');
   const tierQuantity = snapshot?.quantity_tier || item.quantity;
   const unitPrice = snapshot?.unit_price ?? item.unit_price;
   const totalPrice = snapshot?.total_price ?? item.total_price;

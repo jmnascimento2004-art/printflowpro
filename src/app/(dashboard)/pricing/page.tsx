@@ -1,5 +1,7 @@
 'use client';
 
+import { suggestProductPrice } from '@/lib/product-costs';
+
 import { MetricInput } from '@/components/MetricInput';
 
 import React, { useState, useEffect } from 'react';
@@ -156,7 +158,7 @@ function MoneyInput({
 }
 
 export default function PricingPage() {
-  const { addProduct, categories, settings } = useDatabase();
+  const { saveProduct, categories, settings } = useDatabase();
 
   // Pricing Parameters
   const [name, setName] = useState('');
@@ -265,22 +267,7 @@ export default function PricingPage() {
     setTotalCost(baseCost);
 
     // 4. Suggested Retail Price
-    let price = 0;
-    if (marginType === 'percent') {
-      // Required Price = Cost / (1 - (Profit% + Tax% + Commission%) / 100)
-      const denominator = 1 - (profitMargin + taxPercent + commissionPercent) / 100;
-      if (denominator > 0.05) {
-        price = baseCost / denominator;
-      } else {
-        // Fallback to prevent divide by zero
-        price = baseCost * 3.5;
-      }
-    } else {
-      // Cost * Multiplier, then add taxes/commissions as markup adjustments
-      const basePrice = baseCost * markupMultiplier;
-      const denominator = 1 - (taxPercent + commissionPercent) / 100;
-      price = basePrice / denominator;
-    }
+    const price = suggestProductPrice(baseCost, profitMargin, taxPercent, commissionPercent, marginType === 'percent' ? 'margin' : 'markup', markupMultiplier) ?? 0;
 
     setSuggestedPrice(price);
 
@@ -304,7 +291,8 @@ export default function PricingPage() {
     taxPercent
   ]);
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const [savingProduct, setSavingProduct] = useState(false);
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       alert('Por favor, informe o nome do produto.');
@@ -316,9 +304,12 @@ export default function PricingPage() {
         ? 'unidade'
         : pricingType;
 
-    addProduct({
+    if (savingProduct) return;
+    setSavingProduct(true);
+    try {
+    await saveProduct({
       name,
-      description: `Produto precificado automaticamente por ${pricingType}. Custo base: R$ ${totalCost.toFixed(2)}`,
+      description: `Produto precificado por ${pricingType}.`,
       sku: sku || `AUTO-${pricingType.toUpperCase()}-${Math.floor(Math.random() * 1000)}`,
       category_id: categoryId || (categories[0] ? categories[0].id : ''),
       pricing_type: productPricingType,
@@ -332,6 +323,8 @@ export default function PricingPage() {
         raw_material_cost: rawMaterialCost,
         operating_cost: operationalCost,
         production_time: productionTime,
+        margin_mode: marginType === 'percent' ? 'margin' : 'markup',
+        markup_multiplier: marginType === 'percent' ? undefined : markupMultiplier,
         markup: marginType === 'percent' ? profitMargin : markupMultiplier * 100,
         commission: commissionPercent,
         taxes: taxPercent,
@@ -356,6 +349,7 @@ export default function PricingPage() {
     setTimeout(() => {
       setNotification(null);
     }, 4000);
+    } catch (error) { setNotification(error instanceof Error ? error.message : 'Não foi possível salvar o produto.'); } finally { setSavingProduct(false); }
   };
 
   const getPricingTypeLabel = () => {
@@ -719,6 +713,7 @@ export default function PricingPage() {
                 />
               </div>
               <button
+                disabled={savingProduct}
                 onClick={handleSaveProduct}
                 className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-md shadow-primary/20 transition-all"
               >

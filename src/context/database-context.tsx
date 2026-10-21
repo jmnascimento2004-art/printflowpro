@@ -165,6 +165,8 @@ interface DatabaseContextType {
   deleteCategory: (id: string) => void;
 
   // Products
+  initializeProductStock: (product: Product, quantity: number) => Promise<void>;
+  saveProduct: (prod: Omit<Product, 'id' | 'company_id' | 'created_at' | 'current_stock'>, previous?: Product) => Promise<Product>;
   addProduct: (prod: Omit<Product, 'id' | 'company_id' | 'created_at' | 'current_stock'>) => Product;
   updateProduct: (prod: Product) => void;
   deleteProduct: (id: string) => void;
@@ -1398,6 +1400,31 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   // ----------------------------------------------------
   // PRODUCTS & INVENTORY API
   // ----------------------------------------------------
+  const initializeProductStock = async (product: Product, quantity: number) => {
+    if (product.company_id !== currentCompanyId || !product.updated_at) throw new Error('Recarregue o produto antes de lançar estoque.');
+    const generation = loadGenerationRef.current;
+    const saved = await adjustInventoryStock<Product, StockMovement>({ productId: product.id, quantity, type: 'entrada', reason: 'Lançamento Inicial de Estoque', unitCost: product.base_cost, expectedUpdatedAt: product.updated_at });
+    if (generation !== loadGenerationRef.current) throw new Error('A sessão mudou. Recarregue o estoque.');
+    setProducts(items => items.map(item => item.id === saved.product.id ? saved.product : item));
+    setStockMovements(items => items.some(item => item.id === saved.movement.id) ? items : [saved.movement, ...items]);
+  };
+
+  const saveProduct = async (prod: Omit<Product, 'id' | 'company_id' | 'created_at' | 'current_stock'>, previous?: Product): Promise<Product> => {
+    const generation = loadGenerationRef.current;
+    if (previous && previous.company_id !== currentCompanyId) throw new Error('Produto de outra empresa.');
+    if (previous && !previous.updated_at) throw new Error('Recarregue o produto antes de editar.');
+    const keys = ['category_id', 'name', 'description', 'sku', 'pricing_type', 'base_cost', 'sales_price', 'stock_controlled', 'min_stock', 'active', 'catalog_active', 'image_url', 'volume_pricing', 'variant_options', 'color_options', 'is_promo', 'is_highlight', 'pricing_details', 'slug'] as const;
+    const patch: Record<string, unknown> = {};
+    for (const key of keys) if (!previous || JSON.stringify(previous[key]) !== JSON.stringify(prod[key])) patch[key] = prod[key] ?? null;
+    if (previous && !Object.keys(patch).length) return previous;
+    const saved = previous
+      ? await patchTenantRecord<Product>('products', previous.id, currentCompanyId, patch, { expectedUpdatedAt: previous.updated_at })
+      : await insertTenantRecord<Product>('products', { ...patch, id: `prod-${crypto.randomUUID()}`, company_id: currentCompanyId, current_stock: 0, created_at: new Date().toISOString() } as Product);
+    if (generation !== loadGenerationRef.current) throw new Error('A sessão mudou durante o salvamento. Recarregue os produtos.');
+    setProducts(items => previous ? items.map(item => item.id === saved.id ? saved : item) : [saved, ...items]);
+    return saved;
+  };
+
   const addProduct = (prod: Omit<Product, 'id' | 'company_id' | 'created_at' | 'current_stock'>) => {
   const newProd: Product = {
     ...prod,
@@ -2464,6 +2491,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         updateCategoryCatalogPresentation,
         deleteCategory,
         addProduct,
+        saveProduct,
+        initializeProductStock,
         updateProduct,
         deleteProduct,
         adjustStock,

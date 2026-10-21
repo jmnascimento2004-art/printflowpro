@@ -1,3 +1,4 @@
+import { resolveProductFields, productFieldsSummary, type ProductFieldValues } from './product-custom-fields';
 import type { Customer, Product, QuoteItem } from './dummy-data';
 import { resolveProductPrice, type PricingConfig } from './pricing';
 
@@ -38,6 +39,8 @@ export function interpretQuoteText(text: string, products: Product[], customers:
 }
 
 export function buildAssistedQuoteItem(product: Product, config: PricingConfig, notes: string): Omit<QuoteItem, 'id'> {
+  const fields = resolveProductFields(product.pricing_details?.configurator_options?.custom_fields, config.customOptions?.fieldValues as ProductFieldValues);
+  if (fields.errors.length) throw new Error(fields.errors.join(' '));
   const result = resolveProductPrice(product, config);
   const b = result.breakdown;
   if (!Number.isInteger(Number(config.quantity)) || Number(config.quantity) < 1) throw new Error('Revise a quantidade.');
@@ -53,12 +56,12 @@ export function buildAssistedQuoteItem(product: Product, config: PricingConfig, 
     matrix_row_id: row?.id, production_time: result.productionTime, production_time_source: result.productionTimeSource
   } : undefined;
   return { product_id: product.id, product_name: product.name, quantity: b.quantity, unit_price: result.unitPrice, total_price: result.totalPrice,
-    details: { item_type: 'catalog', pricing_type: product.pricing_type,
+    details: { configuration_summary: productFieldsSummary(fields.snapshot), item_type: 'catalog', pricing_type: product.pricing_type,
       width: b.measureBasis === 'area' ? Number(config.width) : undefined, height: b.measureBasis === 'area' ? Number(config.height) : undefined,
       length: b.measureBasis === 'length' ? b.length : undefined, notes, selected_options: result.selectedOptionsSnapshot,
       production_time: result.productionTime, production_time_source: result.productionTimeSource,
       configuration_snapshot: configurationSnapshot,
-      pricing_snapshot: { dimension_unit: 'm', quantity: b.quantity, area: b.area, billable_area: b.billableArea, minimum_area: b.minimumArea, length: b.length, measure_basis: b.measureBasis, base_unit_price: b.unitPrice, unit_price_basis: 'piece', unit_price: result.unitPrice, total_price: result.totalPrice, pricing_config: structuredClone(config), pricing_result: structuredClone(result) }
+      pricing_snapshot: { custom_fields: fields.snapshot, dimension_unit: 'm', quantity: b.quantity, area: b.area, billable_area: b.billableArea, minimum_area: b.minimumArea, length: b.length, measure_basis: b.measureBasis, base_unit_price: b.unitPrice, unit_price_basis: 'piece', unit_price: result.unitPrice, total_price: result.totalPrice, pricing_config: structuredClone(config), pricing_result: structuredClone(result) }
     }
   };
 }
