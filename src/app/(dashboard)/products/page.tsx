@@ -1,7 +1,7 @@
 'use client';
 
 import { MetricInput } from '@/components/MetricInput';
-import { configuredMeters } from '@/lib/metric.mjs';
+import { configuredMeters, metricConfigurationForSave } from '@/lib/metric.mjs';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -654,7 +654,7 @@ export default function ProductsCRUDPage() {
   const [isConfiguratorOpen, setIsConfiguratorOpen] = useState(false);
   const [saleMode, setSaleMode] = useState<ProductSaleModeDraft>('unidade');
   const [allowCustomMeasure, setAllowCustomMeasure] = useState(true);
-  const [metricConfigChanged, setMetricConfigChanged] = useState(false);
+  const [changedMetricFields, setChangedMetricFields] = useState<string[]>([]);
   const [minWidth, setMinWidth] = useState(0);
   const [minHeight, setMinHeight] = useState(0);
   const [maxWidth, setMaxWidth] = useState(0);
@@ -1367,10 +1367,7 @@ export default function ProductsCRUDPage() {
     sale_mode: saleMode === 'linear_width' ? 'linear' : saleMode,
     registration_type: registrationType,
     allow_custom_measure: allowCustomMeasure,
-    ...(!metricConfigChanged && isEditing && selectedProduct ? (() => {
-      const original = selectedProduct.pricing_details?.configurator_options;
-      return { dimension_unit: original?.dimension_unit, min_width: original?.min_width, min_height: original?.min_height, max_width: original?.max_width, max_height: original?.max_height, min_length: original?.min_length };
-    })() : { dimension_unit: 'm' as const, min_width: minWidth || undefined, min_height: minHeight || undefined, max_width: maxWidth || undefined, max_height: maxHeight || undefined, min_length: minLength || undefined }),
+    ...metricConfigurationForSave(isEditing ? selectedProduct?.pricing_details?.configurator_options : undefined, { min_width: minWidth, min_height: minHeight, max_width: maxWidth, max_height: maxHeight, min_length: minLength }, changedMetricFields),
     min_area: minArea || undefined,
     kit_items: kitItems.trim() || undefined,
     min_quantity: saleMode === 'volume' ? undefined : Math.max(1, configMinQuantity || 1),
@@ -1445,7 +1442,7 @@ export default function ProductsCRUDPage() {
     setIsConfiguratorOpen(false);
     setSaleMode('unidade');
     setAllowCustomMeasure(true);
-    setMetricConfigChanged(false);
+    setChangedMetricFields([]);
     setMinWidth(0);
     setMinHeight(0);
     setMaxWidth(0);
@@ -1511,7 +1508,7 @@ export default function ProductsCRUDPage() {
     setIsAdvancedPricingOpen(false);
     setIsConfiguratorOpen(false);
     setAllowCustomMeasure(configurator?.allow_custom_measure !== false);
-    setMetricConfigChanged(false);
+    setChangedMetricFields([]);
     setMinWidth(configuredMeters(configurator?.min_width, configurator?.dimension_unit));
     setMinHeight(configuredMeters(configurator?.min_height, configurator?.dimension_unit));
     setMaxWidth(configuredMeters(configurator?.max_width, configurator?.dimension_unit));
@@ -3025,11 +3022,11 @@ export default function ProductsCRUDPage() {
                         </p>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura mínima (m)</label>
-                          <MetricInput aria-label="Largura mínima (m)" value={minWidth} onValueChange={value => { setMetricConfigChanged(true); setMinWidth(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <MetricInput aria-label="Largura mínima (m)" value={minWidth} onValueChange={value => { setChangedMetricFields(fields => [...fields, 'min_width']); setMinWidth(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Altura mínima (m)</label>
-                          <MetricInput aria-label="Altura mínima (m)" value={minHeight} onValueChange={value => { setMetricConfigChanged(true); setMinHeight(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <MetricInput aria-label="Altura mínima (m)" value={minHeight} onValueChange={value => { setChangedMetricFields(fields => [...fields, 'min_height']); setMinHeight(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Área mínima cobrada (m²)</label>
@@ -3039,11 +3036,11 @@ export default function ProductsCRUDPage() {
                           <>
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura máxima (m)</label>
-                              <MetricInput aria-label="Largura máxima (m)" value={maxWidth} onValueChange={value => { setMetricConfigChanged(true); setMaxWidth(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                              <MetricInput aria-label="Largura máxima (m)" value={maxWidth} onValueChange={value => { setChangedMetricFields(fields => [...fields, 'max_width']); setMaxWidth(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                             </div>
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-muted-foreground uppercase">Altura máxima (m)</label>
-                              <MetricInput aria-label="Altura máxima (m)" value={maxHeight} onValueChange={value => { setMetricConfigChanged(true); setMaxHeight(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                              <MetricInput aria-label="Altura máxima (m)" value={maxHeight} onValueChange={value => { setChangedMetricFields(fields => [...fields, 'max_height']); setMaxHeight(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                             </div>
                           </>
                         )}
@@ -3061,11 +3058,11 @@ export default function ProductsCRUDPage() {
                         </p>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura máxima do material (m)</label>
-                          <MetricInput aria-label="Largura máxima do material (m)" value={maxWidth} onValueChange={value => { setMetricConfigChanged(true); setMaxWidth(value); }} placeholder="Ex: 1,20" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <MetricInput aria-label="Largura máxima do material (m)" value={maxWidth} onValueChange={value => { setChangedMetricFields(fields => [...fields, 'max_width']); setMaxWidth(value); }} placeholder="Ex: 1,20" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Largura mínima opcional (m)</label>
-                          <MetricInput aria-label="Largura mínima opcional (m)" value={minWidth} onValueChange={value => { setMetricConfigChanged(true); setMinWidth(value); }} placeholder="Ex: 0,30" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <MetricInput aria-label="Largura mínima opcional (m)" value={minWidth} onValueChange={value => { setChangedMetricFields(fields => [...fields, 'min_width']); setMinWidth(value); }} placeholder="Ex: 0,30" className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Cobrança mínima opcional (m²)</label>
@@ -3091,7 +3088,7 @@ export default function ProductsCRUDPage() {
                         </p>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase">Comprimento mínimo (m)</label>
-                          <MetricInput aria-label="Comprimento mínimo (m)" value={minLength} onValueChange={value => { setMetricConfigChanged(true); setMinLength(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
+                          <MetricInput aria-label="Comprimento mínimo (m)" value={minLength} onValueChange={value => { setChangedMetricFields(fields => [...fields, 'min_length']); setMinLength(value); }} className="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs text-foreground" />
                         </div>
                         <label className="flex items-center gap-2 text-[11px] font-bold text-foreground self-end pb-2">
                           <input type="checkbox" checked={allowCustomMeasure} onChange={(e) => setAllowCustomMeasure(e.target.checked)} className="h-4 w-4 rounded border-border text-primary" />

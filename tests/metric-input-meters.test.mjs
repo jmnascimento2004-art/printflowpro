@@ -29,14 +29,15 @@ async function declaration(path, name, dependencies) {
 
 test('saving unrelated product fields preserves every legacy dimension exactly',async()=>{
   const original={min_width:120.123,max_width:250.555,min_height:1.2345,max_height:10,min_length:25.12345};
-  const context={saleMode:'linear',registrationType:'standard',allowCustomMeasure:true,metricConfigChanged:false,isEditing:true,
+  const context={saleMode:'linear',registrationType:'standard',allowCustomMeasure:true,changedMetricFields:[],metricConfigurationForSave:metric.metricConfigurationForSave,isEditing:true,
     selectedProduct:{pricing_details:{configurator_options:original}},minWidth:1.20123,minHeight:1.2345,maxWidth:2.50555,maxHeight:10,minLength:25.12345,
     minArea:.5,kitItems:'',configMinQuantity:1,sizeOptions:[],quoteOnRequest:false,customerMessage:'',normalizeConfiguratorGroups:()=>[],normalizeVariantMatrixRows:()=>[],variantPricingMatrix:[]};
   const saved=(await declaration('../src/app/(dashboard)/products/page.tsx','buildConfiguratorOptions',context))();
   for(const key of Object.keys(original))assert.equal(saved[key],original[key]);
   assert.equal(saved.dimension_unit,undefined);
-  const edited=(await declaration('../src/app/(dashboard)/products/page.tsx','buildConfiguratorOptions',{...context,metricConfigChanged:true,minWidth:.8}))();
-  assert.equal(edited.dimension_unit,'m');assert.equal(edited.min_width,.8);assert.equal(edited.min_length,25.12345);assert.equal(edited.min_height,1.2345);
+  const edited=(await declaration('../src/app/(dashboard)/products/page.tsx','buildConfiguratorOptions',{...context,changedMetricFields:['min_width'],minWidth:.8}))();
+  assert.equal(edited.dimension_unit,'m');assert.equal(edited.min_width,.8);assert.equal(edited.min_length,metric.legacyStoreConfiguredMeters(original.min_length,undefined));assert.equal(edited.min_height,metric.legacyStoreConfiguredMeters(original.min_height,undefined));
+  for(const key of ['min_length','min_height','max_width','max_height'])assert.equal(metric.legacyStoreConfiguredMeters(edited[key],edited.dimension_unit),metric.legacyStoreConfiguredMeters(original[key],undefined));
 });
 
 test('Store and POS cannot submit zero physical dimensions',async()=>{

@@ -29,3 +29,20 @@ export function legacyStoreConfiguredMeters(value, unit, fallback = 1) {
   if (unit === 'm') return number;
   return number <= 20 ? Math.round(number * 100) / 100 : centimetersToMeters(Math.round(number));
 }
+
+/** Upgrade a configuration only on explicit dimension edits. Untouched fields retain
+ * their previous effective Store measurement, including the legacy rounding rule. */
+export function metricConfigurationForSave(original, draft, changedFields) {
+  const keys = ['min_width', 'min_height', 'max_width', 'max_height', 'min_length'];
+  if (original && changedFields.length === 0) {
+    return { dimension_unit: original.dimension_unit, ...Object.fromEntries(keys.map(key => [key, original[key]])) };
+  }
+  return {
+    dimension_unit: /** @type {'m'} */ ('m'),
+    ...Object.fromEntries(keys.map(key => [key,
+      original && !changedFields.includes(key)
+        ? (legacyStoreConfiguredMeters(original[key], original.dimension_unit, 0) || undefined)
+        : (draft[key] || undefined)
+    ]))
+  };
+}
