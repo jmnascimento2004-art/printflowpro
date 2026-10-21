@@ -187,24 +187,28 @@ export function StoreCustomerProvider({ children }: { children: React.ReactNode 
 
     if (!company.id || !email) return null;
 
-    const { data: ensuredData, error: rpcError } = await supabase.rpc('ensure_store_customer_account', {
-      p_company_id: company.id,
-      p_name: data.name,
-      p_customer_type: data.customerType,
-      p_document: data.document,
-      p_phone: data.phone,
-      p_whatsapp: data.whatsapp,
-      p_trade_name: data.tradeName,
-      p_birth_date: data.birthDate,
-      p_contact_preference: data.contactPreference,
-      p_privacy_policy_version: PRIVACY_POLICY_VERSION,
-      p_terms_version: TERMS_VERSION,
-      p_marketing_email_granted: data.marketingEmailAccepted,
-      p_marketing_whatsapp_granted: data.marketingWhatsappAccepted
+    const response = await fetch('/api/store/customer-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentSession.access_token}` },
+      cache: 'no-store',
+      body: JSON.stringify({
+        p_name: data.name,
+        p_customer_type: data.customerType,
+        p_document: data.document,
+        p_phone: data.phone,
+        p_whatsapp: data.whatsapp,
+        p_trade_name: data.tradeName,
+        p_birth_date: data.birthDate,
+        p_contact_preference: data.contactPreference,
+        p_marketing_email_granted: data.marketingEmailAccepted,
+        p_marketing_whatsapp_granted: data.marketingWhatsappAccepted,
+        p_privacy_policy_version: PRIVACY_POLICY_VERSION,
+        p_terms_version: TERMS_VERSION
+      })
     });
 
-    if (rpcError) throw rpcError;
-    return (ensuredData?.[0] as EnsuredStoreAccount | undefined) || null;
+    if (!response.ok) throw new Error('Nao foi possivel concluir o cadastro.');
+    return await response.json() as EnsuredStoreAccount;
   };
 
   const loadStoreCustomer = async (nextSession = session) => {
