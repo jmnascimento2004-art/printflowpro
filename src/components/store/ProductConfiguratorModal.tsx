@@ -32,6 +32,7 @@ import {
   normalizeCombinationKey,
   resolveProductPrice,
   updateVariantPricingSelection,
+  type PricingConfig,
   type NormalizedVolumePriceTier,
   type PricingSelectedOption,
   type VariantPricingSelection
@@ -42,6 +43,8 @@ import { StoreFavoriteButton } from '@/components/store/StoreFavoriteButton';
 
 export interface ProductConfiguratorCartPayload {
   product: Product;
+  pricing_config: PricingConfig;
+  notes?: string;
   product_id: string;
   product_name: string;
   quantity: number;
@@ -92,6 +95,7 @@ interface ProductConfiguratorModalProps {
   isFavoritePending: boolean;
   onToggleFavorite: (productId: string) => void;
   productUrl?: string | null;
+  compact?: boolean;
 }
 
 const saleModeLabels: Record<ProductSaleMode, string> = {
@@ -158,8 +162,10 @@ export function ProductConfiguratorModal({
   isFavorite,
   isFavoritePending,
   onToggleFavorite,
-  productUrl
+  productUrl,
+  compact = false
 }: ProductConfiguratorModalProps) {
+  const [itemNotes, setItemNotes] = useState('');
   const savedConfigurator = getProductConfigurator(product);
   const initialVolumeTier = useMemo(() => getInitialVolumePricingTier(product), [product]);
   const volumeTiers = useMemo(() => getNormalizedVolumePricing(product), [product]);
@@ -424,21 +430,15 @@ export function ProductConfiguratorModal({
   );
   const hasProductDescription = stripRichTextHtml(productDescription).length > 0;
 
-  const priceResolution = useMemo(() => {
-    return resolveProductPrice(product, {
-      quantity: configuredQuantity,
-      width,
-      height,
-      length,
-      selectedVariant,
-      selectedColor,
-      customOptions: {
-        selectedOptions: selectedPricingOptions,
-        baseSubtotal: product?.pricing_type === 'm2' || product?.pricing_type === 'linear' ? undefined : selectedVolumeTier?.total,
-        variantSelection: matrixSelection
-      }
-    });
-  }, [product, configuredQuantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions, selectedVolumeTier, matrixSelection]);
+  const pricingConfig = useMemo<PricingConfig>(() => ({
+    quantity: configuredQuantity, width, height, length, selectedVariant, selectedColor,
+    customOptions: {
+      selectedOptions: selectedPricingOptions,
+      baseSubtotal: product?.pricing_type === 'm2' || product?.pricing_type === 'linear' ? undefined : selectedVolumeTier?.total,
+      variantSelection: matrixSelection
+    }
+  }), [product, configuredQuantity, width, height, length, selectedVariant, selectedColor, selectedPricingOptions, selectedVolumeTier, matrixSelection]);
+  const priceResolution = useMemo(() => resolveProductPrice(product, pricingConfig), [product, pricingConfig]);
   const breakdown = priceResolution.breakdown;
 
   if (!isOpen || !product) return null;
@@ -550,6 +550,8 @@ export function ProductConfiguratorModal({
 
   const buildPayload = (): ProductConfiguratorCartPayload => ({
       product,
+      pricing_config: pricingConfig,
+      notes: compact ? itemNotes : undefined,
       product_id: product.id,
       product_name: product.name,
       quantity: breakdown.quantity,
@@ -639,14 +641,14 @@ export function ProductConfiguratorModal({
                 <span className="hidden sm:inline">{shareComplete ? 'Copiado' : 'Compartilhar'}</span>
               </button>
             )}
-            <StoreFavoriteButton
+            {!compact && <StoreFavoriteButton
               productId={product.id}
               isFavorite={isFavorite}
               isPending={isFavoritePending}
               onToggle={onToggleFavorite}
               className="h-11 w-11"
               surfaceClassName="h-9 w-9 rounded-xl border border-slate-200 bg-white shadow-sm hover:bg-rose-50"
-            />
+            />}
             <button
               ref={closeButtonRef}
               type="button"
@@ -659,8 +661,8 @@ export function ProductConfiguratorModal({
           </div>
         </div>
 
-        <div className="grid max-h-[calc(100dvh-5.5rem)] grid-cols-1 overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)_320px]">
-          <aside className="border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r">
+        <div className={`grid max-h-[calc(100dvh-5.5rem)] grid-cols-1 overflow-y-auto ${compact ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-[320px_minmax(0,1fr)_320px]'}`}>
+          {!compact && <aside className="border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r">
             <div className="aspect-square w-full overflow-hidden bg-white">
               {activeImageUrl ? (
                 <img
@@ -730,9 +732,14 @@ export function ProductConfiguratorModal({
                 </div>
               </div>
             </div>
-          </aside>
+          </aside>}
 
           <main className="space-y-5 p-4 md:p-5">
+            {compact && <label className="block text-xs font-bold">
+              Acabamento / Observações do Item
+              <input value={itemNotes} onChange={event => setItemNotes(event.target.value)}
+                className="mt-2 w-full rounded-lg border border-slate-200 p-2" placeholder="Instruções para este item" />
+            </label>}
             {isUnsupportedMode && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
                 Este tipo de venda já está preparado no cadastro, mas ainda usa o cálculo padrão no catálogo para manter compatibilidade.
@@ -1199,7 +1206,7 @@ export function ProductConfiguratorModal({
               >
                 Finalizar produto
               </button>
-              <button
+              {onRequestWhatsApp && <button
                 type="button"
                 onClick={handleWhatsAppRequest}
                 disabled={isConfigurationIncomplete || Boolean(linearWidthError) || isWhatsAppRequestPending}
@@ -1209,7 +1216,7 @@ export function ProductConfiguratorModal({
               >
                 <MessageCircle className="h-4 w-4" />
                 {isWhatsAppRequestPending ? 'Preparando mensagem...' : 'Solicitar pelo WhatsApp'}
-              </button>
+              </button>}
             </div>
           </aside>
         </div>
