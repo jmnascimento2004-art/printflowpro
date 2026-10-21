@@ -274,6 +274,7 @@ export default function ProductionPage() {
                         {/* Product and details */}
                         <div>
                           <span className="font-semibold text-xs text-foreground block leading-tight">{item.product_name}</span>
+                          <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{orders.find(order => order.id === item.order_id)?.items.find(row => row.id === item.order_item_id)?.details?.configuration_summary}</p>
                           <span className="text-[10px] text-muted-foreground mt-1 block">
                             Qtd: <span className="font-bold text-foreground">{item.quantity}</span>
                           </span>

@@ -511,6 +511,7 @@ export function getCatalogPricePresentation(product: ProductLike | null | undefi
 
 const hasConfiguratorContent = (configurator: ProductConfiguratorSettings): boolean => {
   return Boolean(
+    configurator.custom_fields?.length ||
     configurator.sale_mode ||
     configurator.allow_custom_measure ||
     configurator.min_width ||
@@ -739,6 +740,12 @@ export function getPriceBreakdown(product: ProductLike | null | undefined, confi
   };
 }
 
+/** Priority: registered matrix/exact tier; otherwise quantity break or base rate,
+ * multiplied by the measured basis (minimum area per piece). Registered priced
+ * options replace that line total (legacy contract, never an additive surcharge).
+ * is_promo is display-only. Document discounts are applied after item totals.
+ * Historical documents consume their saved snapshots, not this current catalog.
+ */
 export function resolveProductPrice(product: ProductLike | null | undefined, config: PricingConfig = {}): ProductPriceResolution {
   const matrixRows = getNormalizedVariantPricingMatrix(product);
   const rawSelectedOptions = Array.isArray(config.customOptions?.selectedOptions)
@@ -751,6 +758,10 @@ export function resolveProductPrice(product: ProductLike | null | undefined, con
     ...config,
     customOptions: {
       ...(config.customOptions || {}),
+      // Caller-supplied totals are never commercial authority. Registered options
+      // and quantity tiers are resolved below from the product.
+      baseSubtotal: undefined,
+      optionSurcharge: undefined,
       selectedOptions: optionCompleteness.selectedOptions
     }
   };

@@ -1,3 +1,4 @@
+import { resolveProductFields, productFieldsSummary, type ProductFieldValues } from '@/lib/product-custom-fields';
 import 'server-only';
 
 import { formatCurrency, getProductConfigurator, resolveProductPrice, type PricingConfig, type PricingType } from '@/lib/pricing';
@@ -292,6 +293,7 @@ function rehydrateSizeGridPricingConfig(
 }
 
 export function createStoreProductPricingContext(input: {
+  fieldValues?: unknown;
   quantity?: unknown;
   dimensions?: unknown;
   selectedOptions?: unknown;
@@ -331,7 +333,7 @@ export function createStoreProductPricingContext(input: {
       width: boundedPositiveNumber(dimensions.width),
       height: boundedPositiveNumber(dimensions.height),
       length: boundedPositiveNumber(dimensions.length),
-      customOptions: { variantSelection, selectedOptions }
+      customOptions: { variantSelection, selectedOptions, ...(input.fieldValues ? { fieldValues: input.fieldValues } : {}) }
     } satisfies PricingConfig,
     selectedOptionsPresent: Array.isArray(input.selectedOptions) && input.selectedOptions.length > 0
   };
@@ -464,6 +466,8 @@ export async function resolveWhatsAppProductVariables(
     volume_pricing: product.volume_pricing
   } as Parameters<typeof resolveProductPrice>[0];
   const sizeGridPricing = rehydrateSizeGridPricingConfig(pricingProduct, pricingConfig);
+  const fields = resolveProductFields(getProductConfigurator(pricingProduct)?.custom_fields, pricingConfig.customOptions?.fieldValues as ProductFieldValues);
+  if (context.eventKey === 'store_product_request' && fields.errors.length) throw new Error('PRODUCT_FIELDS_INVALID');
   const resolution = resolveProductPrice(pricingProduct, sizeGridPricing.pricingConfig);
   const pricingType = clean(product.pricing_type, 80).toLowerCase();
   const dimensionsComplete = pricingType === 'm2'
@@ -507,6 +511,7 @@ export async function resolveWhatsAppProductVariables(
     else missing.push(token);
   }
   addAliases(variables);
+  variables.product_custom_fields = productFieldsSummary(fields.snapshot);
   return {
     variables,
     missing,

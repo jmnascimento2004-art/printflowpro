@@ -623,6 +623,7 @@ export default function StorefrontPage() {
           cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            fieldValues: payload.pricing_config.customOptions?.fieldValues,
             productId: payload.product_id,
             quantity: payload.quantity,
             dimensions: payload.dimensions,

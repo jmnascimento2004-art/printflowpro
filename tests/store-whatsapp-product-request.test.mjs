@@ -17,7 +17,7 @@ async function compile(path, requireMap = {}) {
 const subject = await compile('../src/lib/store/whatsapp-product-request.ts', { '@/lib/metric.mjs': await import('../src/lib/metric.mjs') });
 const lockSubject = await compile('../src/lib/store/product-request-lock.ts');
 const route = await readFile(new URL('../src/app/api/store/whatsapp/product-request/route.ts', import.meta.url), 'utf8');
-const page = await readFile(new URL('../src/app/store/page.tsx', import.meta.url), 'utf8');
+const page = (await readFile(new URL('../src/app/store/page.tsx', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
 const modal = await readFile(new URL('../src/components/store/ProductConfiguratorModal.tsx', import.meta.url), 'utf8');
 
 const validRequest = {

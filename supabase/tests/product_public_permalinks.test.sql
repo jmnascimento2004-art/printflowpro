@@ -13,7 +13,7 @@ select function_privs_are('private', 'allocate_product_slug', array['text','text
 select ok((select prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname = 'ensure_product_slug'), 'slug trigger is SECURITY DEFINER');
 select function_privs_are('private', 'ensure_product_slug', array[]::text[], 'authenticated', array[]::text[]);
 select ok(exists (select 1 from pg_constraint where conrelid = 'public.products'::regclass and conname = 'products_slug_format_check'), 'slug format is constrained');
-select ok(exists (
+select ok(not exists (
   select 1
   from pg_policies
   where schemaname = 'public'
@@ -21,7 +21,7 @@ select ok(exists (
     and policyname = 'public_store_products_select'
     and qual ilike '%active = true%'
     and qual ilike '%catalog_active = true%'
-), 'public product policy requires both active and catalog publication');
+), 'public product metadata is served by the tenant-scoped server projection');
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -63,7 +63,9 @@ select is((select new_values ->> 'slug' from public.audit_logs where entity_id =
 select ok((select old_values = jsonb_build_object('slug', 'cartao-agil') and new_values = jsonb_build_object('slug', 'campanha-especial') from public.audit_logs where entity_id = 'permalink-product-a1' and action = 'product.slug_changed'), 'slug audit exposes no unrelated product data');
 
 update public.products set slug = 'cross-tenant-attempt' where id = 'permalink-product-b1';
+reset role;
 select is((select slug from public.products where id = 'permalink-product-b1'), 'cartao-agil', 'cross-tenant slug update changes no row');
+set local role authenticated;
 select is((select count(*)::integer from public.audit_logs where entity_id = 'permalink-product-b1' and action = 'product.slug_changed'), 0, 'cross-tenant attempt creates no audit event');
 select is((select count(*)::integer from public.products where id = 'permalink-product-b2'), 0, 'authenticated tenant cannot read another tenant unpublished permalink');
 

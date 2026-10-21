@@ -1,5 +1,10 @@
 'use client';
 
+import { ProductPricingPreview } from '@/components/products/ProductPricingPreview';
+import { ProductFieldsEditor } from '@/components/products/ProductCustomFields';
+import { validateProductFields, type ProductCustomField } from '@/lib/product-custom-fields';
+import { ProductCostEditor } from '@/components/products/ProductCostEditor';
+import { PRODUCT_PRICING_PRESETS, resolveProductCost, validateCostComposition, type ProductCostComposition } from '@/lib/product-costs';
 import { MetricInput } from '@/components/MetricInput';
 import { configuredMeters, metricConfigurationForSave } from '@/lib/metric.mjs';
 
@@ -554,11 +559,11 @@ type MatrixRowDraft = {
 export default function ProductsCRUDPage() {
   const { 
     products, 
-    categories, 
-    addProduct, 
-    updateProduct, 
+    categories,
+    suppliers,
+    saveProduct,
     deleteProduct,
-    adjustStock,
+    initializeProductStock,
     addCategory,
     updateCategory,
     deleteCategory,
@@ -1113,6 +1118,13 @@ export default function ProductsCRUDPage() {
   };
 
   // Profitability parameters
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [customFields, setCustomFields] = useState<ProductCustomField[]>([]);
+  const [marginMode, setMarginMode] = useState<'margin' | 'markup'>('margin');
+  const [markupMultiplier, setMarkupMultiplier] = useState(1);
+  const [costComposition, setCostComposition] = useState<ProductCostComposition>({ version: 1, mode: 'manual', components: [] });
+  const effectiveCost = resolveProductCost(baseCost, costComposition);
   const [profitMargin, setProfitMargin] = useState(defaultProfitMargin);
   const [commissionPercent, setCommissionPercent] = useState(defaultCommissionRate);
   const [taxPercent, setTaxPercent] = useState(defaultTaxRate);
@@ -1124,20 +1136,6 @@ export default function ProductsCRUDPage() {
       setTaxPercent(defaultTaxRate);
     }
   }, [defaultProfitMargin, defaultCommissionRate, defaultTaxRate, isFormOpen, isEditing]);
-
-  // Auto calculate suggested sales price based on cost and margins
-  useEffect(() => {
-    if (baseCost <= 0) {
-      setSalesPrice(0);
-      setSalesPriceInput(formatPtBrMoneyInput(0));
-      return;
-    }
-    const denominator = 1 - (profitMargin + taxPercent + commissionPercent) / 100;
-    const calculated = denominator > 0.05 ? baseCost / denominator : baseCost * 3.5;
-    const nextSalesPrice = Math.round(calculated * 100) / 100;
-    setSalesPrice(nextSalesPrice);
-    setSalesPriceInput(formatPtBrMoneyInput(nextSalesPrice));
-  }, [baseCost, profitMargin, commissionPercent, taxPercent]);
 
   // Auto SKU Helper
   const handleAutoSku = () => {
@@ -1367,6 +1365,7 @@ export default function ProductsCRUDPage() {
   const buildConfiguratorOptions = () => ({
     sale_mode: saleMode === 'linear_width' ? 'linear' : saleMode,
     registration_type: registrationType,
+    custom_fields: customFields,
     allow_custom_measure: allowCustomMeasure,
     ...metricConfigurationForSave(isEditing ? selectedProduct?.pricing_details?.configurator_options : undefined, { min_width: minWidth, min_height: minHeight, max_width: maxWidth, max_height: maxHeight, min_length: minLength }, changedMetricFields),
     min_area: minArea || undefined,
@@ -1413,6 +1412,10 @@ export default function ProductsCRUDPage() {
   });
 
   const handleOpenCreate = () => {
+    setSelectedProduct(null);
+    setMarginMode('margin'); setMarkupMultiplier(1);
+    setCustomFields([]);
+    setCostComposition({ version: 1, mode: 'manual', components: [] });
     setName('');
     setSku('');
     setDescription('');
@@ -1476,6 +1479,10 @@ export default function ProductsCRUDPage() {
   };
 
   const handleOpenEdit = (prod: Product) => {
+    setMarginMode(prod.pricing_details?.margin_mode || (Number(prod.pricing_details?.markup) >= 100 ? 'markup' : 'margin'));
+    setMarkupMultiplier(prod.pricing_details?.markup_multiplier ?? (Number(prod.pricing_details?.markup) >= 100 ? Number(prod.pricing_details?.markup) / 100 : 1));
+    setCustomFields(structuredClone(prod.pricing_details?.configurator_options?.custom_fields || []));
+    setCostComposition(structuredClone(prod.pricing_details?.cost_composition || { version: 1, mode: 'manual', components: [] }));
     setSelectedProduct(prod);
     setName(prod.name);
     setSku(prod.sku);
@@ -1541,9 +1548,9 @@ export default function ProductsCRUDPage() {
     setTempMinQty('');
     setTempUnitPriceInput('');
     if (prod.pricing_details) {
-      setProfitMargin(prod.pricing_details.markup || defaultProfitMargin);
-      setCommissionPercent(prod.pricing_details.commission || defaultCommissionRate);
-      setTaxPercent(prod.pricing_details.taxes || defaultTaxRate);
+      setProfitMargin((prod.pricing_details.margin_mode === 'markup' || prod.pricing_details.markup >= 100) ? defaultProfitMargin : (prod.pricing_details.markup ?? defaultProfitMargin));
+      setCommissionPercent(prod.pricing_details.commission ?? defaultCommissionRate);
+      setTaxPercent(prod.pricing_details.taxes ?? defaultTaxRate);
     } else {
       setProfitMargin(defaultProfitMargin);
       setCommissionPercent(defaultCommissionRate);
@@ -1553,8 +1560,9 @@ export default function ProductsCRUDPage() {
     setIsFormOpen(true);
   };
 
-  const handleDuplicateProduct = (prod: Product) => {
-    const duplicated = addProduct({
+  const handleDuplicateProduct = async (prod: Product) => {
+    try {
+    const duplicated = await saveProduct({
       name: `${prod.name} (Copia)`,
       sku: `${prod.sku}-COPIA-${Math.floor(100 + Math.random() * 900)}`,
       description: prod.description,
@@ -1579,12 +1587,17 @@ export default function ProductsCRUDPage() {
     });
 
     handleOpenEdit(duplicated);
+    } catch (error) { alert(error instanceof Error ? error.message : 'Não foi possível duplicar.'); }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingProduct) return;
     if (!name.trim()) return;
     if (hasInvalidMoneyDraft) return;
+    const tierErrors = volumePricing.some(tier => !Number.isInteger(tier.min_qty) || tier.min_qty < 1 || !Number.isFinite(tier.price) || tier.price < 0) || new Set(volumePricing.map(tier => tier.min_qty)).size !== volumePricing.length;
+    const costErrors = [...validateCostComposition(costComposition), ...validateProductFields(customFields), ...(tierErrors ? ['Faixas inconsistentes: informe quantidades únicas e preços válidos.'] : [])];
+    if (costErrors.length) { alert(costErrors.join(' ')); return; }
     const usesRequiredVolumePricing = saleMode === 'volume';
     const productVolumePricing = volumePricing.length > 0 ? volumePricing : undefined;
     const hasMatrixPricingRows = normalizeVariantMatrixRows(variantPricingMatrix)
@@ -1601,13 +1614,17 @@ export default function ProductsCRUDPage() {
     const normalizedGallery = prepareProductGallery(galleryImages, name.trim() || 'Produto');
     const primaryImageUrl = normalizedGallery.find((image) => image.is_primary)?.url || normalizedGallery[0]?.url || '';
     const pricingDetails = {
-      raw_material_cost: baseCost,
-      operating_cost: 0,
-      production_time: 0,
-      markup: profitMargin,
+      ...selectedProduct?.pricing_details,
+      cost_composition: costComposition,
+      raw_material_cost: selectedProduct?.pricing_details?.raw_material_cost ?? baseCost,
+      operating_cost: selectedProduct?.pricing_details?.operating_cost ?? 0,
+      production_time: selectedProduct?.pricing_details?.production_time ?? 0,
+      margin_mode: marginMode,
+      markup_multiplier: marginMode === 'markup' ? markupMultiplier : undefined,
+      markup: marginMode === 'markup' ? markupMultiplier * 100 : profitMargin,
       commission: commissionPercent,
       taxes: taxPercent,
-      waste_percent: 0,
+      waste_percent: selectedProduct?.pricing_details?.waste_percent ?? 0,
       calculated_price: salesPrice,
       delivery_time: cleanDeliveryTime || undefined,
       configurator_options: configuratorOptions,
@@ -1615,16 +1632,19 @@ export default function ProductsCRUDPage() {
       gallery_images: normalizedGallery.length > 0 ? normalizedGallery : undefined
     };
 
+    setSavingProduct(true);
+    setSaveError('');
+    try {
     if (isEditing && selectedProduct) {
       // Edit Product
-      updateProduct({
+      await saveProduct({
         ...selectedProduct,
         name,
         sku: sku.trim() || `SKU-${pricingType.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
         description: cleanDescription,
         category_id: categoryId,
         pricing_type: pricingType,
-        base_cost: baseCost,
+        base_cost: effectiveCost,
         sales_price: salesPrice,
         stock_controlled: stockControlled,
         min_stock: minStock,
@@ -1638,16 +1658,16 @@ export default function ProductsCRUDPage() {
         variant_options: variantOptions.length > 0 ? variantOptions : undefined,
         color_options: colorOptions.length > 0 ? colorOptions : undefined,
         pricing_details: pricingDetails
-      });
+      }, selectedProduct);
     } else {
       // Create Product
-      const newProd = addProduct({
+      const newProd = await saveProduct({
         name,
         sku: sku.trim() || `SKU-${pricingType.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
         description: cleanDescription,
         category_id: categoryId,
         pricing_type: pricingType,
-        base_cost: baseCost,
+        base_cost: effectiveCost,
         sales_price: salesPrice,
         stock_controlled: stockControlled,
         min_stock: minStock,
@@ -1663,20 +1683,19 @@ export default function ProductsCRUDPage() {
         pricing_details: pricingDetails
       });
 
-      // Inject initial stock movement if set
+      // The product is already persisted. On stock failure keep its identity,
+      // so retrying the form cannot create a duplicate product.
+      setSelectedProduct(newProd);
+      setIsEditing(true);
       if (stockControlled && initialStock > 0) {
-        adjustStock(
-          newProd.id, 
-          initialStock, 
-          'Lançamento Inicial de Estoque', 
-          'entrada', 
-          baseCost
-        );
+        try { await initializeProductStock(newProd, initialStock); }
+        catch (error) { throw new Error(`Produto salvo; estoque inicial não confirmado. Confira em Estoque antes de lançar novamente. ${error instanceof Error ? error.message : ''}`); }
       }
     }
 
     setIsFormOpen(false);
     setSelectedProduct(null);
+    } catch (error) { setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar.'); } finally { setSavingProduct(false); }
   };
 
   const formatCurrency = (val: number) => {
@@ -2780,6 +2799,8 @@ export default function ProductsCRUDPage() {
       ) : (
         <div className="max-w-5xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
           <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
+            {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
+            <fieldset disabled={savingProduct} className="contents">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <h3 className="font-bold text-foreground text-sm uppercase flex items-center gap-1.5">
                 <Package className="h-4.5 w-4.5 text-primary" /> 
@@ -3468,6 +3489,11 @@ export default function ProductsCRUDPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2"><ProductCostEditor suppliers={suppliers} value={costComposition} onChange={setCostComposition} manualCost={baseCost} mode={marginMode} multiplier={markupMultiplier} onModeChange={setMarginMode} onMultiplierChange={setMarkupMultiplier} margin={profitMargin} taxes={taxPercent} commission={commissionPercent} finalPrice={salesPrice}
+                onApplyPrice={price => { setSalesPrice(price); setSalesPriceInput(formatPtBrMoneyInput(price)); }}
+                onPreset={id => { const preset = PRODUCT_PRICING_PRESETS.find(item => item.id === id); if (!preset) return; setPricingType(preset.pricingType); setSaleMode(preset.saleMode); setRegistrationType(preset.saleMode === 'volume' ? 'tiered' : preset.pricingType === 'unidade' ? 'simple_unit' : 'measured'); }} /></div>
+              <div className="md:col-span-2"><ProductFieldsEditor fields={customFields} onChange={setCustomFields}/></div>
+              <div className="md:col-span-2"><ProductPricingPreview product={{ id: 'preview', company_id: company?.id || '', name, description, sku, category_id: categoryId, pricing_type: pricingType, sales_price: salesPrice, base_cost: effectiveCost, stock_controlled: stockControlled, min_stock: minStock, current_stock: 0, active: true, created_at: '', volume_pricing: volumePricing, pricing_details: { raw_material_cost: baseCost, operating_cost: 0, production_time: 0, markup: profitMargin, commission: commissionPercent, taxes: taxPercent, waste_percent: 0, calculated_price: salesPrice, configurator_options: buildConfiguratorOptions() } }}/></div>
               {/* Cost Price */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Custo de Matéria-Prima / Aquisição (R$)</label>
@@ -3484,7 +3510,7 @@ export default function ProductsCRUDPage() {
 
               {/* Sales Price */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Preço Final de Venda Sugerido (R$) *</label>
+                <label className="text-xs font-semibold text-muted-foreground">Preço Final de Venda (R$) *</label>
                 <input
                   type="text"
                   required
@@ -4438,6 +4464,7 @@ export default function ProductsCRUDPage() {
                 {isEditing ? 'Atualizar Produto' : 'Cadastrar Produto'}
               </button>
             </div>
+          </fieldset>
           </form>
         </div>
       )}

@@ -16,12 +16,14 @@ async function compile(path, requireMap = {}) {
 
 const contract = await compile('../src/lib/whatsapp/variable-contract.ts');
 const engine = await compile('../src/lib/whatsapp/template-engine.ts', { './variable-contract': contract });
+const productFields = await compile('../src/lib/product-custom-fields.ts');
 const pricing = await compile('../src/lib/pricing.ts');
 const richText = await import('../src/lib/rich-text-editor-core.mjs');
 const resolver = await compile('../src/lib/whatsapp/customer-product-variable-resolver.server.ts', {
   './variable-contract': contract,
   './template-engine': engine,
   '@/lib/pricing': pricing,
+  '@/lib/product-custom-fields': productFields,
   '@/lib/utils': { richTextToPlainText: richText.richTextToPlainText },
   '@/lib/supabase/server-admin': { getSupabaseAdminClient: () => { throw new Error('not used'); } }
 });

@@ -1,5 +1,8 @@
 'use client';
 
+import { ProductConfiguratorModal } from '@/components/store/ProductConfiguratorModal';
+import { createPOSCartItem } from '@/lib/pos-cart';
+
 import { MetricInput } from '@/components/MetricInput';
 import { formatMeters } from '@/lib/metric.mjs';
 
@@ -37,7 +40,7 @@ import {
 } from '@/lib/utils';
 import { calculateRouteDistance } from '@/lib/delivery';
 import { warnCaught } from '@/lib/safe-log';
-import { formatUnitCurrency, getPriceBreakdown, resolveBillableArea } from '@/lib/pricing';
+import { formatUnitCurrency, resolveBillableArea } from '@/lib/pricing';
 import { isActiveOrder, isCancelledOrder, isProductionActiveOrder, normalizeOrderOperationalStatus } from '@/lib/order-status';
 import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 import { resolveOperationalWhatsAppMessage } from '@/lib/whatsapp/service';
@@ -149,6 +152,7 @@ export default function OrdersPage() {
   const [editDiscount, setEditDiscount] = useState(0);
   const [editDiscountMode, setEditDiscountMode] = useState<'amount' | 'percentage'>('amount');
   const [editDiscountReason, setEditDiscountReason] = useState('');
+  const [configuringOrderItem, setConfiguringOrderItem] = useState<{ itemId: string; productId: string } | null>(null);
   const [editItems, setEditItems] = useState<Order['items']>([]);
   const [editAdditionalServices, setEditAdditionalServices] = useState<AdditionalService[]>([]);
 
@@ -399,50 +403,13 @@ export default function OrdersPage() {
   };
 
   const handleEditItemProductChange = (itemId: string, productId: string) => {
-    updateEditItem(itemId, (item) => {
-      if (!productId) {
-        return {
-          ...item,
-          product_id: '',
-          product_name: item.product_name || 'Item manual / personalizado',
-          details: {
-            ...(item.details || {}),
-            item_type: 'manual',
-            manual_pricing_type: item.details?.manual_pricing_type || 'unidade'
-          }
-        };
-      }
-
-      const product = products.find((candidate) => candidate.id === productId);
-      if (!product) return item;
-
-      const unitPrice = Math.max(0, Number(product.sales_price || product.pricing_details?.calculated_price || item.unit_price || 0));
-      const quantity = Math.max(1, Number(item.quantity || 1));
-
-      return {
-        ...item,
-        product_id: product.id,
-        product_name: product.name,
-        quantity,
-        unit_price: unitPrice,
-        total_price: Math.round(quantity * unitPrice * 100) / 100,
-        details: {
-          ...(item.details || {}),
-          item_type: 'catalog',
-          pricing_type: product.pricing_type,
-          manual_pricing_type: normalizeOrderItemPricingType(product.pricing_type),
-          pricing_snapshot: {
-            ...((item.details?.pricing_snapshot as Record<string, unknown> | undefined) || {}),
-            product_id: product.id,
-            product_name: product.name,
-            base_unit_price: unitPrice,
-            minimum_area: getPriceBreakdown(product).minimumArea,
-            measure_basis: getPriceBreakdown(product).measureBasis,
-            unit_price_basis: 'measure'
-          }
-        }
-      };
-    }, 'unit_price');
+    if (productId) {
+      if (products.some(product => product.id === productId)) setConfiguringOrderItem({ itemId, productId });
+      return;
+    }
+    updateEditItem(itemId, item => ({ ...item, product_id: '', product_name: item.product_name || 'Item manual / personalizado',
+      details: { ...(item.details || {}), item_type: 'manual', manual_pricing_type: item.details?.manual_pricing_type || 'unidade' }
+    }), 'unit_price');
   };
 
   const handleAddEditItem = () => {
@@ -2632,6 +2599,11 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {configuringOrderItem && products.find(product => product.id === configuringOrderItem.productId) && <ProductConfiguratorModal
+        product={products.find(product => product.id === configuringOrderItem.productId)!} isOpen compact confirmLabel="Aplicar ao pedido"
+        isFavorite={false} isFavoritePending={false} onToggleFavorite={() => {}} onClose={() => setConfiguringOrderItem(null)}
+        onAddToCart={payload => { const configured = createPOSCartItem(payload.product, payload.pricing_config, { ...payload.dimensions, configuration_summary: payload.configuration_summary, configuration_snapshot: payload.configuration_snapshot, pricing_snapshot: payload.pricing_snapshot, notes: payload.notes });
+          setEditItems(items => items.map(item => item.id === configuringOrderItem.itemId ? { ...item, product_id: configured.product_id, product_name: configured.product_name, quantity: configured.quantity, unit_price: configured.unit_price, total_price: configured.total_price, details: configured.details } : item)); setConfiguringOrderItem(null); }} />}
     </div>
   );
 }

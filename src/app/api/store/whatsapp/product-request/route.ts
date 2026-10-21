@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     if (/PRODUCT_(?:NOT_FOUND|UNAVAILABLE)|TENANT_MISMATCH/.test(message)) return json({ error: 'Produto indisponível.' }, 404);
+    if (/PRODUCT_FIELDS_INVALID/.test(message)) return json({ error: 'Preencha os campos personalizados do produto.' }, 422);
     if (/RECIPIENT_MISSING/.test(message)) return json({ error: 'WhatsApp da empresa não configurado.' }, 422);
     console.error('[Store WhatsApp request]', { stage: 'request', message: error instanceof Error ? error.message : 'Unexpected error' });
     return json({ error: 'Não foi possível preparar a mensagem agora.' }, 503);
