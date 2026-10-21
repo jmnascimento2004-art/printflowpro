@@ -94,6 +94,12 @@ export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const openedLinkRef = useRef('');
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('orderId');
+    const order = orders.find(order => order.id === id);
+    if (order && openedLinkRef.current !== id) { openedLinkRef.current = id || ''; setSelectedOrder(order); }
+  }, [orders]);
   const [selectedPdfPreview, setSelectedPdfPreview] = useState<PdfPreviewState | null>(null);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(0);

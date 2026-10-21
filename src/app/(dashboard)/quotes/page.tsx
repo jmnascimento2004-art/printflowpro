@@ -1,5 +1,7 @@
 'use client';
 
+import { QuoteTextAssistant } from '@/components/commercial/QuoteTextAssistant';
+import { canAccessModule } from '@/lib/module-permissions';
 import { MetricInput } from '@/components/MetricInput';
 import { formatMeters } from '@/lib/metric.mjs';
 
@@ -151,7 +153,7 @@ const getItemConfigurationSummaryLines = (item: Pick<QuoteItem, 'details' | 'qua
 };
 
 export default function QuotesPage() {
-  const { session } = useAuth();
+  const { session, activeProfile } = useAuth();
   const { 
     quotes, 
     addQuote, 
@@ -161,7 +163,7 @@ export default function QuotesPage() {
     customers, 
     products,
     settings,
-    company
+    company, rolePermissions
   } = useDatabase();
 
   const quoteMutationRef = useRef(false);
@@ -184,6 +186,8 @@ export default function QuotesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [isCreating, setIsCreating] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
+  const canUseAssistant = canAccessModule(activeProfile.role, '/quotes', rolePermissions) && canAccessModule(activeProfile.role, '/products', rolePermissions);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [approvingQuoteId, setApprovingQuoteId] = useState<string | null>(null);
   const [activePrintQuote, setActivePrintQuote] = useState<Quote | null>(null);
@@ -388,6 +392,8 @@ export default function QuotesPage() {
 
     const params = new URLSearchParams(window.location.search);
     const nextCustomerId = params.get('customerId')?.trim() || '';
+    if (params.get('new') === '1') setIsCreating(true);
+    if (params.get('assistant') === '1') setShowAssistant(true);
     if (nextCustomerId) {
       setRequestedCustomerId(nextCustomerId);
       setIsCreating(true);
@@ -1127,6 +1133,12 @@ export default function QuotesPage() {
 
   return (
     <div className="space-y-6">
+      {!isCreating && canUseAssistant && <button type="button" onClick={() => setShowAssistant(value => !value)} className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">Assistente de Orçamentos</button>}
+      {showAssistant && !isCreating && canUseAssistant && <QuoteTextAssistant key={activeProfile.company_id} products={products.filter(product => product.company_id === activeProfile.company_id)} customers={canAccessModule(activeProfile.role, '/crm', rolePermissions) ? customers : []} onClose={() => setShowAssistant(false)} onDraft={(id, draftItems) => {
+        resetForm(); setCustomerId(id); setItems(draftItems);
+        setDeliveryFee(0); setDeliveryType('retirada'); setNotes('Rascunho preparado pelo assistente de texto. Revisão humana obrigatória.');
+        setShowAssistant(false); setIsCreating(true);
+      }} />}
       {selectedPdfPreview && (
         <PdfPreviewDialog
           open={Boolean(selectedPdfPreview)}

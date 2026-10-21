@@ -38,7 +38,7 @@ test('admin page includes permissions-safe route UI, tabs, editor, chips and pre
     read('../src/app/(dashboard)/whatsapp/page.tsx'),
     read('../src/components/whatsapp/system-message-workspace.tsx'),
     read('../src/components/dashboard/sidebar.tsx'),
-    read('../src/context/database-context.tsx')
+    read('../src/lib/module-permissions.ts')
   ]);
   assert.match(sidebar, /name: 'WhatsApp', path: '\/whatsapp'/);
   assert.match(context, /'\/whatsapp': \['admin', 'gerente'\]/);

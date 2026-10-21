@@ -1,4 +1,6 @@
 'use client';
+
+import { DEFAULT_ROLE_PERMISSIONS } from '@/lib/module-permissions';
 import { replaceShipment, mergeShipmentSnapshot } from '@/lib/shipment-state';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -152,6 +154,7 @@ interface DatabaseContextType {
   // Clientes
   addCustomer: (cust: NewCustomerInput) => Customer;
   updateCustomer: (cust: Customer) => void;
+  saveCustomer: (cust: NewCustomerInput, previous?: Customer) => Promise<Customer>;
   deleteCustomer: (id: string) => void;
 
   // Suppliers & Categories
@@ -305,23 +308,7 @@ const DEFAULT_BANNERS: StoreBanner[] = [
   }
 ];
 
-export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
-  '/dashboard': ['admin', 'gerente', 'financeiro', 'vendas', 'producao', 'arte_finalista', 'estoque'],
-  '/pos': ['admin', 'gerente', 'financeiro', 'vendas'],
-  '/crm': ['admin', 'gerente', 'financeiro', 'vendas'],
-  '/whatsapp': ['admin', 'gerente'],
-  '/customers': ['admin', 'gerente', 'financeiro', 'vendas'],
-  '/products': ['admin', 'gerente', 'financeiro', 'vendas', 'producao', 'arte_finalista', 'estoque'],
-  '/quotes': ['admin', 'gerente', 'financeiro', 'vendas'],
-  '/pricing': ['admin', 'gerente', 'financeiro', 'vendas'],
-  '/orders': ['admin', 'gerente', 'financeiro', 'vendas', 'producao', 'arte_finalista', 'estoque'],
-  '/production': ['admin', 'gerente', 'producao', 'arte_finalista'],
-  '/financial': ['admin', 'gerente', 'financeiro'],
-  '/stock': ['admin', 'gerente', 'financeiro', 'producao', 'estoque'],
-  '/shipment': ['admin', 'gerente', 'financeiro', 'producao'],
-  '/resale': ['admin', 'gerente', 'financeiro', 'vendas'],
-  '/settings': ['admin', 'gerente'],
-};
+export { DEFAULT_ROLE_PERMISSIONS } from '@/lib/module-permissions';
 
 const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
 const SETTINGS_LOCAL_FALLBACK_KEYS = [
@@ -1258,6 +1245,17 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   // ----------------------------------------------------
   // Clientes API
   // ----------------------------------------------------
+  const saveCustomer = async (cust: NewCustomerInput, previous?: Customer): Promise<Customer> => {
+    const generation = loadGenerationRef.current;
+    if (previous && previous.company_id !== currentCompanyId) throw new Error('Cliente de outra empresa.');
+    const saved = previous
+      ? await updateCustomerRecord({ ...previous, ...cust }, previous)
+      : await createCustomer(buildCustomerRecord(cust, currentCompanyId));
+    if (generation !== loadGenerationRef.current) throw new Error('A sessão mudou durante o salvamento. Recarregue os clientes.');
+    setCustomers(items => previous ? items.map(item => item.id === saved.id ? saved : item) : [saved, ...items]);
+    return saved;
+  };
+
   const addCustomer = (cust: NewCustomerInput) => {
     const newCust = buildCustomerRecord(cust, currentCompanyId);
     setCustomers(prev => [newCust, ...prev]);
@@ -2458,6 +2456,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         pickupPoints,
         addCustomer,
         updateCustomer,
+        saveCustomer,
         deleteCustomer,
         addSupplier,
         addCategory,

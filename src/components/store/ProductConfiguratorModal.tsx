@@ -96,6 +96,8 @@ interface ProductConfiguratorModalProps {
   onToggleFavorite: (productId: string) => void;
   productUrl?: string | null;
   compact?: boolean;
+  initialConfig?: PricingConfig;
+  confirmLabel?: string;
 }
 
 const saleModeLabels: Record<ProductSaleMode, string> = {
@@ -163,7 +165,9 @@ export function ProductConfiguratorModal({
   isFavoritePending,
   onToggleFavorite,
   productUrl,
-  compact = false
+  compact = false,
+  confirmLabel = 'Adicionar ao carrinho',
+  initialConfig
 }: ProductConfiguratorModalProps) {
   const [itemNotes, setItemNotes] = useState('');
   const savedConfigurator = getProductConfigurator(product);
@@ -266,6 +270,9 @@ export function ProductConfiguratorModal({
     );
 
     const initialGroups = optionGroups.reduce<Record<string, string[]>>((acc, group) => {
+      const restored = initialConfig?.customOptions?.selectedOptions?.filter(option => option.group_id === group.id || option.group_name === group.name)
+        .map(option => option.name || option.option_name || '').filter(name => group.options.some(option => option.name === name));
+      if (restored) { acc[group.id] = group.selection_type === 'single' ? restored.slice(0, 1) : restored; return acc; }
       const defaults = group.options.filter((option) => option.is_default).map((option) => option.name);
       if (defaults.length > 0) {
         acc[group.id] = group.selection_type === 'single' ? [defaults[0]] : defaults;
@@ -281,20 +288,24 @@ export function ProductConfiguratorModal({
       ? sizeOptions.find((option) => option.is_default)?.name || sizeOptions[0]?.name || ''
       : '';
 
-    setQuantity(initialQuantity);
-    setWidthMeters(isLinearWidthMode ? maxWidthMeters : legacyStoreConfiguredMeters(configurator?.min_width, configurator?.dimension_unit, 1));
-    setHeightMeters(isLinearWidthMode ? legacyStoreConfiguredMeters(configurator?.min_length || configurator?.min_height, configurator?.dimension_unit, 1) : legacyStoreConfiguredMeters(configurator?.min_height, configurator?.dimension_unit, 1));
-    setLengthMeters(legacyStoreConfiguredMeters(configurator?.min_length, configurator?.dimension_unit, 1));
+    setQuantity(Number(initialConfig?.quantity) > 0 ? Number(initialConfig?.quantity) : initialQuantity);
+    setWidthMeters(Number(initialConfig?.width) > 0 ? Number(initialConfig?.width) : isLinearWidthMode ? maxWidthMeters : legacyStoreConfiguredMeters(configurator?.min_width, configurator?.dimension_unit, 1));
+    setHeightMeters(Number(initialConfig?.height) > 0 ? Number(initialConfig?.height) : isLinearWidthMode ? legacyStoreConfiguredMeters(configurator?.min_length || configurator?.min_height, configurator?.dimension_unit, 1) : legacyStoreConfiguredMeters(configurator?.min_height, configurator?.dimension_unit, 1));
+    setLengthMeters(Number(initialConfig?.length) > 0 ? Number(initialConfig?.length) : legacyStoreConfiguredMeters(configurator?.min_length, configurator?.dimension_unit, 1));
     setSelectedOptionsByGroup(initialGroups);
-    setSelectedSize(defaultSize);
-    setSelectedVariant(product.variant_options?.[0]?.name || '');
-    setSelectedColor(product.color_options?.[0]?.name || '');
-    setSelectedMaterial(firstMatrixRow?.material || '');
-    setSelectedMatrixSize(firstMatrixRow?.size || '');
-    setSelectedMatrixColors(firstMatrixRow?.colors || '');
-    setSelectedFinishing(firstMatrixRow?.finishing || '');
+    const savedSize = initialConfig?.customOptions?.selectedOptions?.find(option => option.group_name === 'Tamanho')?.name;
+    setSelectedSize(sizeOptions.some(option => option.name === savedSize) ? savedSize! : defaultSize);
+    setSelectedVariant(product.variant_options?.some(option => option.name === initialConfig?.selectedVariant) ? initialConfig!.selectedVariant! : product.variant_options?.[0]?.name || '');
+    setSelectedColor(product.color_options?.some(option => option.name === initialConfig?.selectedColor) ? initialConfig!.selectedColor! : product.color_options?.[0]?.name || '');
+    const savedMatrix = initialConfig?.customOptions?.variantSelection;
+    const restoredMatrix = savedMatrix && findVariantPricingMatrixRow(variantPricingRows, savedMatrix);
+    const initialMatrix = restoredMatrix || firstMatrixRow;
+    setSelectedMaterial(initialMatrix?.material || '');
+    setSelectedMatrixSize(initialMatrix?.size || '');
+    setSelectedMatrixColors(initialMatrix?.colors || '');
+    setSelectedFinishing(initialMatrix?.finishing || '');
     setActiveImageUrl(getPrimaryProductImage(product));
-  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode, variantPricingRows, isLinearWidthMode, maxWidthMeters]);
+  }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode, variantPricingRows, isLinearWidthMode, maxWidthMeters, initialConfig]);
 
   const matrixSelection = useMemo(() => ({
     material: selectedMaterial,
@@ -329,8 +340,9 @@ export function ProductConfiguratorModal({
 
   useEffect(() => {
     if (!isOpen || !hasVolumePricing || !minimumVolumeTier) return;
-    setQuantity(minimumVolumeTier.min_qty);
-  }, [isOpen, hasVolumePricing, minimumVolumeTier, selectedMatrixRowKey, tierQuantityKey]);
+    const requested = Number(initialConfig?.quantity);
+    setQuantity(tierQuantityKey.split('|').includes(String(requested)) ? requested : minimumVolumeTier.min_qty);
+  }, [isOpen, hasVolumePricing, minimumVolumeTier, selectedMatrixRowKey, tierQuantityKey, initialConfig?.quantity]);
 
   useEffect(() => {
     if (!isOpen || !hasVolumePricing) return;
@@ -1196,7 +1208,7 @@ export function ProductConfiguratorModal({
                 className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-600/15 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none flex items-center justify-center gap-2"
               >
                 <ShoppingCart className="h-4 w-4" />
-                Adicionar ao carrinho
+                {confirmLabel}
               </button>
               <button
                 type="button"
