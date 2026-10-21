@@ -272,6 +272,8 @@ export interface VariantPricingMatrixRow {
 }
 
 export interface ProductConfiguratorSettings {
+  /** Explicit for newly edited configurations; absent keeps legacy dimension decoding. */
+  dimension_unit?: 'm';
   sale_mode: ProductSaleMode;
   allow_custom_measure?: boolean;
   min_width?: number;

@@ -1,3 +1,4 @@
+import { formatMeters } from '@/lib/metric.mjs';
 import type { AdditionalService, Company, Customer, OrderItem, QuoteItem } from '@/lib/dummy-data';
 import type { PdfSettings } from '@/lib/pdf/pdf-data';
 import { formatPdfCurrencyCell, normalizePdfCellText } from '@/lib/pdf/pdf-cell-text.mjs';
@@ -97,8 +98,8 @@ export function getItemDescriptionLines(item: QuoteItem | OrderItem) {
     item.details?.configuration_summary,
     item.details?.variant,
     item.details?.color,
-    item.details?.width && item.details?.height ? `${Number((item.details.width * 100).toFixed(3))}x${Number((item.details.height * 100).toFixed(3))}cm` : '',
-    item.details?.length ? `${Number((item.details.length * 100).toFixed(3))}cm` : ''
+    item.details?.width && item.details?.height ? `${formatMeters(item.details.width)}x${formatMeters(item.details.height)}` : '',
+    item.details?.length ? `${formatMeters(item.details.length)}` : ''
   ].filter(Boolean);
 
   const options = optionParts.length > 0 ? optionParts.join(' • ') : fallbackParts.join(' • ');

@@ -92,12 +92,12 @@ test('renders every product cell on one visual line', async () => {
     const sameLine = pages[0]
       .filter((item) => Math.abs(item.y - row.y) < 1)
       .map((item) => item.text);
-    assert.ok(sameLine.includes('180 × 120'), `${description} dimension moved off its row`);
-    assert.ok(sameLine.includes('cm'), `${description} unit moved off its row`);
+    assert.ok(sameLine.join(' ').includes('1,80 m × 1,20 m'), `${description} dimension moved off its row`);
+    assert.ok(sameLine.join(' ').includes(' m'), `${description} unit moved off its row`);
     assert.ok(sameLine.some((text) => text.startsWith('R$ ')), `${description} currency moved off its row`);
 
     const positionedLine = pages[0].filter((item) => Math.abs(item.y - row.y) < 1);
-    const dimension = positionedLine.find((item) => item.text === '180 × 120');
+    const dimension = positionedLine.find((item) => item.text.startsWith('1,80'));
     const currencies = positionedLine.filter((item) => item.text.startsWith('R$ ')).sort((a, b) => a.x - b.x);
     assert.ok(row.x < dimension.x);
     assert.equal(currencies.length, 2);
@@ -123,8 +123,8 @@ test('keeps rows indivisible across multiple pages', async () => {
     const sameLine = pages[row.pageIndex]
       .filter((entry) => Math.abs(entry.y - row.y) < 1)
       .map((entry) => entry.text);
-    assert.ok(sameLine.includes('180 × 120'), `${description} dimension moved off its row`);
-    assert.ok(sameLine.includes('cm'), `${description} unit moved off its row`);
+    assert.ok(sameLine.join(' ').includes('1,80 m × 1,20 m'), `${description} dimension moved off its row`);
+    assert.ok(sameLine.join(' ').includes(' m'), `${description} unit moved off its row`);
     assert.ok(sameLine.some((text) => text.startsWith('R$ ')), `${description} currency moved off its row`);
 
     const positionedLine = pages[row.pageIndex].filter((entry) => Math.abs(entry.y - row.y) < 1);

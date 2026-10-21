@@ -1,5 +1,6 @@
 'use client';
 
+import { formatMeters } from '@/lib/metric.mjs';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { getPersistenceErrorMessage } from '@/lib/persistence/persistence-service';
@@ -724,9 +725,9 @@ export default function StorefrontPage() {
     const purchaseInterest = cart
       .map((item, index) => {
         const dimensions = [
-          item.width ? `largura ${Number((item.width * 100).toFixed(3))}cm` : '',
-          item.height ? `altura ${Number((item.height * 100).toFixed(3))}cm` : '',
-          item.length ? `comprimento ${Number((item.length * 100).toFixed(3))}cm` : '',
+          item.width ? `largura ${formatMeters(item.width)}` : '',
+          item.height ? `altura ${formatMeters(item.height)}` : '',
+          item.length ? `comprimento ${formatMeters(item.length)}` : '',
           item.variant ? `variacao ${item.variant}` : '',
           item.color ? `cor ${item.color}` : '',
           item.production_time ? `prazo ${item.production_time}` : '',
@@ -1449,12 +1450,12 @@ export default function StorefrontPage() {
                         <div className="font-bold text-slate-900 break-words">{item.product.name}</div>
                         {item.width && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                            Dimensões: {Number((item.width * 100).toFixed(3))} cm {item.height ? `x ${Number((item.height * 100).toFixed(3))} cm` : 'linear'}
+                            Dimensões: {formatMeters(item.width)} {item.height ? `x ${formatMeters(item.height)}` : 'linear'}
                           </div>
                         )}
                         {item.length && (
                           <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                            Comprimento: {Number((item.length * 100).toFixed(3))} cm
+                            Comprimento: {formatMeters(item.length)}
                           </div>
                         )}
                         {(item.variant || item.color) && (

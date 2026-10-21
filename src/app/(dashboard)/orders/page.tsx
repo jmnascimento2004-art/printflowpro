@@ -1,5 +1,8 @@
 'use client';
 
+import { MetricInput } from '@/components/MetricInput';
+import { formatMeters } from '@/lib/metric.mjs';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, 
@@ -547,6 +550,23 @@ export default function OrdersPage() {
     e.preventDefault();
     if (!editingOrder || orderMutationRef.current) return;
 
+    const invalidMeasure = editItems.some(item => {
+      const original = editingOrder.items.find(previous => previous.id === item.id);
+      const details = item.details || {};
+      const changed = !original || ['width', 'height', 'length'].some(key =>
+        details[key as 'width' | 'height' | 'length'] !== original.details?.[key as 'width' | 'height' | 'length']);
+      if (!changed) return false; // Opening a historical order never reinterprets its snapshot.
+      const type = getManualPricingType(item);
+      if (type === 'm2' || (type === 'linear' && (details.pricing_snapshot?.measure_basis === 'area' || Number(details.height) > 0))) {
+        return !(Number(details.width) > 0 && Number(details.height) > 0);
+      }
+      return type === 'linear' && !(Number(details.length ?? details.width) > 0);
+    });
+    if (invalidMeasure) {
+      alert('Informe medidas em metros maiores que zero.');
+      return;
+    }
+
     if (editItems.length === 0) {
       alert('O pedido precisa ter pelo menos um item.');
       return;
@@ -869,8 +889,8 @@ export default function OrdersPage() {
     const snapshotSize = sanitizeDisplayText(configSnapshot?.size || String(pricingSnapshot?.size || ''));
     if (snapshotSize) return snapshotSize;
 
-    if (item.details?.width && item.details?.height) return `${Number((item.details.width * 100).toFixed(3))}x${Number((item.details.height * 100).toFixed(3))}cm`;
-    if (item.details?.length) return `${Number((item.details.length * 100).toFixed(3))}cm`;
+    if (item.details?.width && item.details?.height) return `${formatMeters(item.details.width)}x${formatMeters(item.details.height)}`;
+    if (item.details?.length) return `${formatMeters(item.details.length)}`;
     return '-';
   };
 
@@ -1308,29 +1328,23 @@ export default function OrdersPage() {
                           {(pricingType === 'm2' || (pricingType === 'linear' && (item.details?.pricing_snapshot?.measure_basis === 'area' || Number(item.details?.height) > 0))) && (
                             <>
                               <div className="space-y-1 lg:col-span-2">
-                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Largura (cm)</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.1"
-                                  value={Number(((item.details?.width || 0) * 100).toFixed(3))}
-                                  onChange={(event) => updateEditItem(item.id, (current) => ({
+                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Largura (m)</label>
+                                <MetricInput aria-label="Largura (m)"
+                                  value={item.details?.width || 0}
+                                  onValueChange={(value) => updateEditItem(item.id, (current) => ({
                                     ...current,
-                                    details: { ...(current.details || {}), width: (Number(event.target.value) || 0) / 100 }
+                                    details: { ...(current.details || {}), width: value }
                                   }), 'measure')}
                                   className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
                                 />
                               </div>
                               <div className="space-y-1 lg:col-span-2">
-                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Altura (cm)</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.1"
-                                  value={Number(((item.details?.height || 0) * 100).toFixed(3))}
-                                  onChange={(event) => updateEditItem(item.id, (current) => ({
+                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Altura (m)</label>
+                                <MetricInput aria-label="Altura (m)"
+                                  value={item.details?.height || 0}
+                                  onValueChange={(value) => updateEditItem(item.id, (current) => ({
                                     ...current,
-                                    details: { ...(current.details || {}), height: (Number(event.target.value) || 0) / 100 }
+                                    details: { ...(current.details || {}), height: value }
                                   }), 'measure')}
                                   className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
                                 />
@@ -1340,15 +1354,12 @@ export default function OrdersPage() {
 
                           {pricingType === 'linear' && item.details?.pricing_snapshot?.measure_basis !== 'area' && !(Number(item.details?.height) > 0) && (
                             <div className="space-y-1 lg:col-span-2">
-                              <label className="text-[9px] font-bold uppercase text-muted-foreground">Comprimento (cm)</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.1"
-                                value={Number(((item.details?.length || 0) * 100).toFixed(3))}
-                                onChange={(event) => updateEditItem(item.id, (current) => ({
+                              <label className="text-[9px] font-bold uppercase text-muted-foreground">Comprimento (m)</label>
+                              <MetricInput aria-label="Comprimento (m)"
+                                value={item.details?.length || 0}
+                                onValueChange={(value) => updateEditItem(item.id, (current) => ({
                                   ...current,
-                                  details: { ...(current.details || {}), length: (Number(event.target.value) || 0) / 100 }
+                                  details: { ...(current.details || {}), length: value }
                                 }), 'measure')}
                                 className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
                               />
@@ -2277,7 +2288,7 @@ export default function OrdersPage() {
                     })()}
                     {item.details && (item.details.width || item.details.height) && (
                       <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Medidas: {Number(((item.details.width || 0) * 100).toFixed(3))} cm {item.details.height ? `x ${Number((item.details.height * 100).toFixed(3))} cm` : 'linear'}
+                        Medidas: {formatMeters(item.details.width || 0)} {item.details.height ? `x ${formatMeters(item.details.height)}` : 'linear'}
                       </div>
                     )}
                     {item.outsourced && (

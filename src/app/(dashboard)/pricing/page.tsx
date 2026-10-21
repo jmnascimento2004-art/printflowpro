@@ -1,5 +1,7 @@
 'use client';
 
+import { MetricInput } from '@/components/MetricInput';
+
 import React, { useState, useEffect } from 'react';
 import { 
   Calculator, 
@@ -338,7 +340,8 @@ export default function PricingPage() {
         delivery_time: deliveryTime.trim() || undefined,
         configurator_options: pricingType === 'linear_width' || pricingType === 'm2' ? {
           sale_mode: pricingType === 'm2' ? 'm2' : 'linear',
-          max_width: pricingType === 'linear_width' && simMaxWidth > 0 ? simMaxWidth * 100 : 0,
+          dimension_unit: 'm',
+          max_width: pricingType === 'linear_width' && simMaxWidth > 0 ? simMaxWidth : 0,
           min_area: simMinimumArea,
           allow_custom_measure: true
         } : undefined
@@ -808,26 +811,20 @@ export default function PricingPage() {
                 {pricingType === 'm2' ? (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Largura (cm)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={simWidth > 0 ? Number((simWidth * 100).toFixed(2)) : ''}
-                        onChange={(e) => setSimWidth(toNumberOrZero(e.target.value) / 100)}
-                        placeholder="Ex: 100"
+                      <label className="text-[10px] font-semibold text-muted-foreground">Largura (m)</label>
+                      <MetricInput aria-label="Largura (m)"
+                        value={simWidth}
+                        onValueChange={setSimWidth}
+                        placeholder="Ex: 1,00"
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (cm)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={simHeight > 0 ? Number((simHeight * 100).toFixed(2)) : ''}
-                        onChange={(e) => setSimHeight(toNumberOrZero(e.target.value) / 100)}
-                        placeholder="Ex: 100"
+                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (m)</label>
+                      <MetricInput aria-label="Altura (m)"
+                        value={simHeight}
+                        onValueChange={setSimHeight}
+                        placeholder="Ex: 1,00"
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                       />
                     </div>
@@ -835,40 +832,31 @@ export default function PricingPage() {
                 ) : pricingType === 'linear_width' ? (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Largura máxima (cm)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={simMaxWidth > 0 ? Number((simMaxWidth * 100).toFixed(2)) : ''}
-                        onChange={(e) => setSimMaxWidth(toNumberOrZero(e.target.value) / 100)}
-                        placeholder="Ex: 120"
+                      <label className="text-[10px] font-semibold text-muted-foreground">Largura máxima (m)</label>
+                      <MetricInput aria-label="Largura máxima (m)"
+                        value={simMaxWidth}
+                        onValueChange={setSimMaxWidth}
+                        placeholder="Ex: 1,20"
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Largura solicitada (cm)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={simWidth > 0 ? Number((simWidth * 100).toFixed(2)) : ''}
-                        onChange={(e) => setSimWidth(toNumberOrZero(e.target.value) / 100)}
-                        placeholder="Ex: 80"
+                      <label className="text-[10px] font-semibold text-muted-foreground">Largura solicitada (m)</label>
+                      <MetricInput aria-label="Largura solicitada (m)"
+                        value={simWidth}
+                        onValueChange={setSimWidth}
+                        placeholder="Ex: 0,80"
                         className={`w-full px-2.5 py-1.5 bg-secondary/50 border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center ${
                           simMaxWidth > 0 && simWidth > simMaxWidth ? 'border-rose-300' : 'border-border'
                         }`}
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Altura/comprimento (cm)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={simHeight > 0 ? Number((simHeight * 100).toFixed(2)) : ''}
-                        onChange={(e) => setSimHeight(toNumberOrZero(e.target.value) / 100)}
-                        placeholder="Ex: 300"
+                      <label className="text-[10px] font-semibold text-muted-foreground">Altura/comprimento (m)</label>
+                      <MetricInput aria-label="Altura/comprimento (m)"
+                        value={simHeight}
+                        onValueChange={setSimHeight}
+                        placeholder="Ex: 3,00"
                         className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                       />
                     </div>
@@ -887,14 +875,11 @@ export default function PricingPage() {
                   </>
                 ) : (
                   <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (cm)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={simWidth > 0 ? Number((simWidth * 100).toFixed(2)) : ''}
-                      onChange={(e) => setSimWidth(toNumberOrZero(e.target.value) / 100)}
-                      placeholder="Ex: 100"
+                    <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (m)</label>
+                    <MetricInput aria-label="Comprimento (m)"
+                      value={simWidth}
+                      onValueChange={setSimWidth}
+                      placeholder="Ex: 1,00"
                       className="w-full px-2.5 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs focus:outline-none text-foreground font-semibold text-center"
                     />
                   </div>
@@ -1027,26 +1012,20 @@ export default function PricingPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Largura (cm)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={visualWidth > 0 ? Number((visualWidth * 100).toFixed(3)) : ''}
-                    onChange={(e) => setVisualWidth(toNumberOrZero(e.target.value) / 100)}
-                    placeholder="Ex: 100"
+                  <label className="text-xs font-semibold text-muted-foreground">Largura (m)</label>
+                  <MetricInput aria-label="Largura (m)"
+                    value={visualWidth}
+                    onValueChange={setVisualWidth}
+                    placeholder="Ex: 1,00"
                     className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Altura (cm)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={visualHeight > 0 ? Number((visualHeight * 100).toFixed(3)) : ''}
-                    onChange={(e) => setVisualHeight(toNumberOrZero(e.target.value) / 100)}
-                    placeholder="Ex: 100"
+                  <label className="text-xs font-semibold text-muted-foreground">Altura (m)</label>
+                  <MetricInput aria-label="Altura (m)"
+                    value={visualHeight}
+                    onValueChange={setVisualHeight}
+                    placeholder="Ex: 1,00"
                     className="w-full rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs font-semibold text-foreground outline-none"
                   />
                 </div>

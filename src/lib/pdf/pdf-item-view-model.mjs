@@ -1,4 +1,5 @@
 import { keepPdfSizeTogether, normalizePdfCellText } from './pdf-cell-text.mjs';
+import { formatMeters } from '../metric.mjs';
 
 function formatPtBrDecimal(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -30,11 +31,11 @@ export function formatPdfItemSizeValue(item) {
   const width = Number(details.width || 0);
   const height = Number(details.height || 0);
   if (width > 0 && height > 0) {
-    return keepPdfSizeTogether(`${formatPtBrDecimal(width * 100)} × ${formatPtBrDecimal(height * 100)} cm`);
+    return keepPdfSizeTogether(`${formatMeters(width)} × ${formatMeters(height)}`);
   }
 
   const length = Number(details.length || 0);
-  if (length > 0) return keepPdfSizeTogether(`${formatPtBrDecimal(length * 100)} cm`);
+  if (length > 0) return keepPdfSizeTogether(formatMeters(length));
 
   const pricingSnapshot = details.pricing_snapshot || {};
   const structuredSize = details.configuration_snapshot?.size ||
