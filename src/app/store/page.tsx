@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { getPersistenceErrorMessage } from '@/lib/persistence/persistence-service';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { 
@@ -667,8 +668,12 @@ export default function StorefrontPage() {
   };
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleCheckout = (e: React.FormEvent) => {
+  const checkoutMutationRef = useRef(false);
+  const [checkoutPending, setCheckoutPending] = useState(false);
+
+  const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (checkoutMutationRef.current) return;
     if (cart.length === 0 || !clientName.trim() || !clientPhone.trim()) return;
     const isMotoboyDelivery = deliveryMethod === 'motoboy';
     if (
@@ -731,57 +736,66 @@ export default function StorefrontPage() {
 
     const checkoutNotes = clientNotes.trim() || 'Sem observacoes.';
 
-    const webCustomer = storeCustomerAuthenticated && storeCustomer ? storeCustomer : addCustomer({
-      name: clientName.trim(),
-      document: '',
-      phone: clientPhone.trim(),
-      email: '',
-      address: {
-        street: isMotoboyDelivery ? deliveryStreet : '',
-        number: isMotoboyDelivery ? deliveryNumber : '',
-        neighborhood: isMotoboyDelivery ? deliveryNeighborhood : '',
-        city: isMotoboyDelivery ? deliveryCity : '',
-        state: isMotoboyDelivery ? deliveryState : '',
-        zip_code: isMotoboyDelivery ? deliveryZipCode : ''
-      },
-      tags: ['Catalogo Online'],
-      notes: `Cliente criado pelo catálogo online.\nInteresse de compra:\n${purchaseInterest}\nObs cliente: ${checkoutNotes}`,
-      billing_type: 'imediato',
-      credit_limit: 0,
-      credit_used: 0,
-      payment_terms_days: 0,
-      credit_status: 'aprovado'
-    });
+    checkoutMutationRef.current = true;
+    setCheckoutPending(true);
+    try {
+      const webCustomer = storeCustomerAuthenticated && storeCustomer ? storeCustomer : addCustomer({
+        name: clientName.trim(),
+        document: '',
+        phone: clientPhone.trim(),
+        email: '',
+        address: {
+          street: isMotoboyDelivery ? deliveryStreet : '',
+          number: isMotoboyDelivery ? deliveryNumber : '',
+          neighborhood: isMotoboyDelivery ? deliveryNeighborhood : '',
+          city: isMotoboyDelivery ? deliveryCity : '',
+          state: isMotoboyDelivery ? deliveryState : '',
+          zip_code: isMotoboyDelivery ? deliveryZipCode : ''
+        },
+        tags: ['Catalogo Online'],
+        notes: `Cliente criado pelo catálogo online.\nInteresse de compra:\n${purchaseInterest}\nObs cliente: ${checkoutNotes}`,
+        billing_type: 'imediato',
+        credit_limit: 0,
+        credit_used: 0,
+        payment_terms_days: 0,
+        credit_status: 'aprovado'
+      });
 
-    const nextQuote = addQuote({
-      customer_id: webCustomer.id,
-      customer_name: storeCustomerAuthenticated ? clientName.trim() : `${clientName} (Web)`,
-      status: 'pendente',
-      total_amount: getCartTotal(),
-      discount: 0,
-      valid_until: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      customer_phone: clientPhone,
-      delivery_type: deliveryMethod,
-      delivery_address: isMotoboyDelivery ? deliveryFullAddress : undefined,
-      delivery_fee: 0,
-      notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no Balcão - ${selectedPickupPoint}` : `Envio por motoboy - ${deliveryFullAddress}`}. Interesse de compra: ${purchaseInterest.replace(/\n/g, ' | ')}. Obs cliente: ${checkoutNotes}`,
-      items: qItems
-    });
+      const nextQuote = await addQuote({
+        customer_id: webCustomer.id,
+        customer_name: storeCustomerAuthenticated ? clientName.trim() : `${clientName} (Web)`,
+        status: 'pendente',
+        total_amount: getCartTotal(),
+        discount: 0,
+        valid_until: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        customer_phone: clientPhone,
+        delivery_type: deliveryMethod,
+        delivery_address: isMotoboyDelivery ? deliveryFullAddress : undefined,
+        delivery_fee: 0,
+        notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no Balcão - ${selectedPickupPoint}` : `Envio por motoboy - ${deliveryFullAddress}`}. Interesse de compra: ${purchaseInterest.replace(/\n/g, ' | ')}. Obs cliente: ${checkoutNotes}`,
+        items: qItems
+      });
 
-    // Reset Cart
-    setCart([]);
-    if (typeof window !== 'undefined') window.localStorage.removeItem('printflow_store_cart');
-    setClientName('');
-    setClientPhone('');
-    setClientNotes('');
-    setDeliveryZipCode('');
-    setDeliveryStreet('');
-    setDeliveryNumber('');
-    setDeliveryNeighborhood('');
-    setDeliveryCity('');
-    setDeliveryState('');
-    setCartOpen(false);
-    setOrderCompleted(nextQuote.number.toString());
+      // Reset Cart
+      setCart([]);
+      if (typeof window !== 'undefined') window.localStorage.removeItem('printflow_store_cart');
+      setClientName('');
+      setClientPhone('');
+      setClientNotes('');
+      setDeliveryZipCode('');
+      setDeliveryStreet('');
+      setDeliveryNumber('');
+      setDeliveryNeighborhood('');
+      setDeliveryCity('');
+      setDeliveryState('');
+      setCartOpen(false);
+      setOrderCompleted(nextQuote.number.toString());
+    } catch (error) {
+      alert(getPersistenceErrorMessage(error));
+    } finally {
+      checkoutMutationRef.current = false;
+      setCheckoutPending(false);
+    }
   };
 
   let primaryColor = company.theme_color || '#5b3df4';
@@ -1415,6 +1429,7 @@ export default function StorefrontPage() {
                   <ShoppingCart className="h-4.5 w-4.5 text-emerald-600" /> Carrinho de Orçamentos
                 </h3>
                 <button 
+                  disabled={checkoutPending}
                   onClick={() => setCartOpen(false)}
                   className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
                 >
@@ -1459,6 +1474,7 @@ export default function StorefrontPage() {
                       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                         <span className="font-black text-slate-900 whitespace-nowrap">{formatCurrency(item.quantity * item.calculatedPrice)}</span>
                         <button
+                          disabled={checkoutPending}
                           onClick={() => handleRemoveFromCart(idx)}
                           className="p-1.5 rounded-lg border border-slate-200 hover:bg-rose-50 text-rose-500 hover:text-white transition-colors"
                         >
@@ -1484,7 +1500,8 @@ export default function StorefrontPage() {
 
               {/* Checkout Client Form */}
               {cart.length > 0 && (
-                <form onSubmit={handleCheckout} className="border-t border-slate-100 pt-4 mt-2 space-y-3.5">
+                <form onSubmit={handleCheckout}>
+                <fieldset disabled={checkoutPending} aria-busy={checkoutPending} className="border-t border-slate-100 pt-4 mt-2 space-y-3.5">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Preencha seus Dados para Contato</h4>
                   {!storeCustomerAuthenticated && (
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
@@ -1712,15 +1729,17 @@ export default function StorefrontPage() {
                     type="submit"
                     className="sticky bottom-0 z-10 w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all flex items-center justify-center gap-1.5 mt-3"
                   >
-                    Enviar Pedido de Orçamento <ArrowRight className="h-4.5 w-4.5" />
+                    {checkoutPending ? 'Salvando...' : 'Enviar Pedido de Orçamento'} <ArrowRight className="h-4.5 w-4.5" />
                   </button>
+                </fieldset>
                 </form>
               )}
             </div>
 
             <div className="border-t border-slate-100 pt-4">
               <button
-                onClick={() => setCartOpen(false)}
+                disabled={checkoutPending}
+                  onClick={() => setCartOpen(false)}
                 className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold text-center transition-colors"
               >
                 Voltar ao Catálogo

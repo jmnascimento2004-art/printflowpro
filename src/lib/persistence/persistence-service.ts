@@ -22,6 +22,12 @@ export class PersistenceMutationError<T = unknown> extends Error {
   }
 }
 
+export function getPersistenceErrorMessage(error: unknown): string {
+  return error instanceof PersistenceMutationError
+    ? error.message
+    : 'Não foi possível confirmar a alteração. Verifique a conexão e tente novamente.';
+}
+
 type RpcResult = {
   status?: string;
   [key: string]: unknown;
@@ -107,12 +113,13 @@ export async function deleteTenantRecord(
   table: string,
   id: string,
   companyId: string,
-  options: { idColumn?: string; expectedUpdatedAt?: string } = {},
+  options: { idColumn?: string; expectedUpdatedAt?: string; signal?: AbortSignal } = {},
   client: SupabaseClient = supabase
 ): Promise<void> {
   const idColumn = options.idColumn || 'id';
   let query = client.from(table).delete().eq(idColumn, id).eq('company_id', companyId);
   if (options.expectedUpdatedAt) query = query.eq('updated_at', options.expectedUpdatedAt);
+  if (options.signal) query = query.abortSignal(options.signal);
   const { data, error } = await query.select(idColumn).maybeSingle();
   if (error) throw mapClientError(error);
   if (!data) throw new PersistenceMutationError('CONFLICT', STATUS_MESSAGES.CONFLICT);
