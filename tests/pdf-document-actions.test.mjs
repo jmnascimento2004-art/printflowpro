@@ -45,8 +45,22 @@ test('explicit print action embeds the viewed PDF and prints only after its load
   assert.equal(f.frame.src, 'blob:loaded-pdf');
   assert.equal(f.calls.some(call => call[0] === 'print'), false);
   f.frame.onload(); await ready; assert.deepEqual(f.calls.at(-1), ['print']);
-  f.events.get('afterprint')(); assert.deepEqual(f.calls.at(-1), ['revoke', 'blob:loaded-pdf']);
-  f.events.get('afterprint')(); assert.equal(f.calls.filter(call => call[0] === 'revoke').length, 1);
+  f.events.get('afterprint')(); assert.equal(f.calls.some(call => call[0] === 'remove-frame'), false);
+  f.timers[1](); assert.deepEqual(f.calls.at(-1), ['revoke', 'blob:loaded-pdf']);
+  f.timers[1](); assert.equal(f.calls.filter(call => call[0] === 'revoke').length, 1);
+  assert.equal(f.frame.onload, null); assert.equal(f.frame.onerror, null);
+});
+
+test('canceling the native print dialog does not dispose its frame while print is on the stack', async () => {
+  const f = browserFixture();
+  f.frame.contentWindow.print = () => {
+    f.events.get('afterprint')();
+    assert.equal(f.calls.some(call => call[0] === 'remove-frame'), false);
+  };
+  const ready = printPdfDocument({ blob: new Blob() }, f.browser);
+  f.frame.onload(); await ready;
+  f.timers[1]();
+  assert.equal(f.calls.filter(call => call[0] === 'remove-frame').length, 1);
 });
 
 test('unavailable print frame gives a recoverable error and releases the PDF', async () => {

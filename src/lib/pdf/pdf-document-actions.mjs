@@ -22,14 +22,23 @@ export function printPdfDocument({ blob }, browser = window) {
     if (disposed) return;
     disposed = true;
     browser.clearTimeout(timer);
+    frame.onload = null;
+    frame.onerror = null;
     frame.remove();
     browser.URL.revokeObjectURL(href);
   };
   const ready = new Promise((resolve, reject) => {
     frame.onload = () => {
+      if (disposed) return;
+      // This watchdog covers loading only. The native dialog may stay open for
+      // any amount of time, and closing it is not a printing failure.
+      browser.clearTimeout(timer);
       try {
         if (!frame.contentWindow) throw new Error('Print frame unavailable');
-        frame.contentWindow.addEventListener('afterprint', cleanup, { once: true });
+        frame.contentWindow.addEventListener('afterprint', () => {
+          // Let print() return before removing its browsing context.
+          browser.setTimeout(cleanup, 0);
+        }, { once: true });
         frame.contentWindow.focus();
         frame.contentWindow.print();
         resolve();
