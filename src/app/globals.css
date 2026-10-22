@@ -17,6 +17,10 @@
     --pf-space-4: 16px;
     --pf-space-6: 24px;
     --pf-space-8: 32px;
+    --pf-select-icon-size: var(--pf-space-4);
+    --pf-select-icon-inset: var(--pf-space-3);
+    --pf-select-text-reserve: calc(var(--pf-select-icon-inset) + var(--pf-select-icon-size) + var(--pf-space-3));
+    --pf-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 
     --background: 214 32% 96%;
     --foreground: 224 54% 13%;
@@ -56,6 +60,7 @@
   }
 
   .dark {
+    --pf-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     --background: 225 46% 7%;
     --foreground: 210 40% 98%;
 
@@ -179,6 +184,49 @@
   .dark select option {
     color: rgb(226 232 240);
     background-color: rgb(24 24 27);
+  }
+}
+
+/* Shared dropdown geometry stays above page padding utilities in specificity.
+   Keep native select semantics; listboxes/multiple selects have no disclosure arrow. */
+select:not([multiple]):is(:not([size]), [size="0"], [size="1"]),
+input[role="combobox"] {
+  appearance: none;
+  padding-left: var(--pf-space-3);
+  padding-right: var(--pf-select-text-reserve);
+  background-image: var(--pf-select-chevron);
+  background-repeat: no-repeat;
+  background-size: var(--pf-select-icon-size) var(--pf-select-icon-size);
+  background-position: right var(--pf-select-icon-inset) center;
+  text-overflow: ellipsis;
+}
+
+input[role="combobox"].pf-combobox-clearable {
+  padding-right: calc(var(--pf-select-text-reserve) + var(--pf-space-8));
+}
+
+.pf-combobox-clear {
+  position: absolute;
+  right: calc(var(--pf-select-icon-inset) + var(--pf-select-icon-size) + var(--pf-space-1));
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--pf-space-8);
+  height: var(--pf-space-8);
+}
+
+/* Datalist retains its native disclosure hit target and keyboard behavior. */
+input[list]::-webkit-calendar-picker-indicator {
+  background: var(--pf-select-chevron) center / var(--pf-select-icon-size) no-repeat;
+  width: var(--pf-select-icon-size);
+  height: var(--pf-select-icon-size);
+  margin-inline-start: var(--pf-space-3);
+  opacity: 1;
+}
+
+@media (forced-colors: active) {
+  select:not([multiple]):is(:not([size]), [size="0"], [size="1"]) {
+    appearance: auto;
+    background-image: none;
   }
 }
 

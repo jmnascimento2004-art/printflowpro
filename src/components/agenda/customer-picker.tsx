@@ -26,7 +26,7 @@ export function CustomerPicker({ value, onChange, query, onQuery, options, loadi
     <div className="relative">
       <input id={id} role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-list`}
         aria-activedescendant={open && !loading && options[active] ? `${id}-${active}` : undefined}
-        autoComplete="off" placeholder="Buscar cliente por nome…" className={`${inputClass} pr-9`}
+        autoComplete="off" placeholder="Buscar cliente por nome…" className={`${inputClass} ${value ? 'pf-combobox-clearable' : ''}`}
         value={open ? query : value ? selected?.name || 'Cliente vinculado' : ''}
         onFocus={() => { if (selected) setChosen(selected); setOpen(true); }}
         onChange={e => { onQuery(e.target.value); setActive(-1); setOpen(true); }}
@@ -40,7 +40,7 @@ export function CustomerPicker({ value, onChange, query, onQuery, options, loadi
             e.preventDefault(); e.stopPropagation(); setOpen(false); setActive(-1);
           }
         }} />
-      {value && <button type="button" aria-label="Remover cliente" className="absolute right-1 top-1 h-8 w-8 rounded-md text-muted-foreground hover:bg-secondary"
+      {value && <button type="button" aria-label="Remover cliente" className="pf-combobox-clear rounded-md text-muted-foreground hover:bg-secondary"
         onClick={() => { onChange(''); onQuery(''); setChosen(undefined); setOpen(false); }}>×</button>}
     </div>
     {open && <div ref={list} id={`${id}-list`} role="listbox" aria-label="Clientes" className="absolute left-0 right-0 top-full z-10 mt-1 max-h-44 overflow-y-auto rounded-lg border border-border bg-card p-1 shadow-lg">
