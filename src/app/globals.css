@@ -215,6 +215,10 @@ input[role="combobox"].pf-combobox-clearable {
 }
 
 /* Datalist retains its native disclosure hit target and keyboard behavior. */
+input[list] {
+  padding-inline: var(--pf-space-3);
+}
+
 input[list]::-webkit-calendar-picker-indicator {
   background: var(--pf-select-chevron) center / var(--pf-select-icon-size) no-repeat;
   width: var(--pf-select-icon-size);
