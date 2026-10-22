@@ -220,6 +220,7 @@ input[list] {
 }
 
 input[list]::-webkit-calendar-picker-indicator {
+  appearance: none;
   background: var(--pf-select-chevron) center / var(--pf-select-icon-size) no-repeat;
   width: var(--pf-select-icon-size);
   height: var(--pf-select-icon-size);
