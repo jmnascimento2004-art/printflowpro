@@ -514,6 +514,21 @@ export interface ProductionItem {
 }
 
 export interface FinancialTransaction {
+  account_id?: string;
+  category_id?: string;
+  supplier_id?: string;
+  source?: string;
+  entry_role?: 'movement' | 'payable';
+  economic_kind?: 'operating' | 'capital' | 'transfer' | 'opening' | 'adjustment';
+  payable_id?: string;
+  reversal_of?: string;
+  reversed_at?: string;
+  cancelled_at?: string;
+  competency_date?: string;
+  notes?: string;
+  is_fixed?: boolean;
+  recurrence?: 'none' | 'weekly' | 'monthly' | 'yearly';
+  recurrence_parent_id?: string;
   id: string;
   company_id: string;
   order_id?: string;

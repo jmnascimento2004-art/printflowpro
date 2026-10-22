@@ -23,7 +23,7 @@ export async function loadAgenda(client:SupabaseClient, company:string, allowed:
     allowed('/production')?readRows(client,'production_queue','id,order_number,product_name,deadline,status,responsible_name,orders(status)',company,'deadline',from,to):[],
     allowed('/shipment')?readRows(client,'shipments','id,order_number,shipped_at,status',company,'shipped_at',from,to):[],
     allowed('/shipment')?readRows(client,'shipments','id,order_number,delivered_at,status',company,'delivered_at',from,to):[],
-    finance&&allowed('/financial')?readRows(client,'financial_transactions','id,type,description,due_date,status,orders(status)',company,'due_date',from,to):[]
+    finance&&allowed('/financial')?readRows(client,'financial_transactions','id,type,description,due_date,status,orders(status),cancelled_at,payable_id,reversal_of,economic_kind',company,'due_date',from,to):[]
   ]);
   const events=expandManual(manual as unknown as ManualEvent[],from,to);
   function add(rows:Row[], source:AgendaEvent['source_type'], path:string,dateKey:string,title:(r:Row)=>string,done:string[],allDay=false,eventType='prazo') {
@@ -40,6 +40,6 @@ export async function loadAgenda(client:SupabaseClient, company:string, allowed:
   add(production,'production','/production','deadline',r=>`${r.order_number} · ${r.product_name}`,['concluido','expedicao','entregue','finalizado']);
   add(shipped,'shipping','/shipment','shipped_at',r=>`${r.order_number} · Envio realizado`,['enviado','em_rota','entregue'],false,'envio');
   add(delivered,'shipping','/shipment','delivered_at',r=>`${r.order_number} · Entrega realizada`,['entregue'],false,'entrega');
-  add(financial,'financial','/financial','due_date',r=>`${r.type==='despesa'?'A pagar':'A receber'} · ${r.description||'Vencimento'}`,['pago'],true);
+  add(financial.filter(r=>!r.cancelled_at&&!r.payable_id&&!r.reversal_of&&(!r.economic_kind||r.economic_kind==='operating')),'financial','/financial','due_date',r=>`${r.type==='despesa'?'A pagar':'A receber'} · ${r.description||'Vencimento'}`,['pago'],true);
   return markConflicts(events).sort((a,b)=>a.start_at.localeCompare(b.start_at)||a.id.localeCompare(b.id));
 }
