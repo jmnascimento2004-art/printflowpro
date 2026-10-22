@@ -1,0 +1,146 @@
+begin;
+select no_plan();
+insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
+('a1000000-0000-0000-0000-000000000001','authenticated','authenticated','phase10-a@example.test','',now(),'{}','{"name":"Phase10 A","company_name":"Phase10 A"}',now(),now()),
+('a1000000-0000-0000-0000-000000000002','authenticated','authenticated','phase10-b@example.test','',now(),'{}','{"name":"Phase10 B","company_name":"Phase10 B"}',now(),now());
+select set_config('request.jwt.claims','{"sub":"a1000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+select set_config('phase10.a',private.current_company_id(),true);
+select set_config('request.jwt.claims','{"sub":"a1000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+select set_config('phase10.b',private.current_company_id(),true);
+select set_config('request.jwt.claims','{}',true);
+insert into public.categories(id,company_id,name,show_in_catalog) values('phase10-cat',current_setting('phase10.a'),'Impressos',true),('phase10-cat-b',current_setting('phase10.b'),'Impressos B',true);
+insert into public.products(id,company_id,category_id,name,pricing_type,base_cost,sales_price) values('phase10-p',current_setting('phase10.a'),'phase10-cat','Produto A','unidade',20,100),('phase10-p-b',current_setting('phase10.b'),'phase10-cat-b','Produto B','unidade',20,100);
+insert into public.store_banners(id,company_id,title,image_url,active) values('phase10-banner',current_setting('phase10.a'),'Banner A','https://example.test/banner.png',true);
+select set_config('request.jwt.claims','{"sub":"a1000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select is((public.catalog_source(current_date,current_date)#>>'{summary,sessions}')::integer,0,'empty source is zero');
+select is((public.catalog_source(current_date,current_date)#>>'{summary,revenue}')::numeric,0::numeric,'empty revenue is zero');
+select ok(not has_function_privilege('anon','public.catalog_source(date,date,text,integer)','execute'),'anon cannot read aggregates');
+select ok(not has_function_privilege('authenticated','public.catalog_record_events(text,uuid,jsonb)','execute'),'browser cannot insert events by RPC');
+select ok(not has_function_privilege('authenticated','public.catalog_checkout(text,uuid,uuid,text,jsonb,jsonb,text,uuid,boolean,uuid)','execute'),'browser cannot consume coupons by RPC');
+select ok(not has_function_privilege('authenticated','public.catalog_checkout_result(text,uuid,text)','execute'),'browser cannot retrieve checkout operations');
+select throws_ok($$select * from public.catalog_events$$,'42501','permission denied for table catalog_events','raw event access revoked');
+select throws_ok($$select public.catalog_source('2020-01-01','2026-01-01')$$,'22023','Invalid catalog window','oversized window rejected');
+select set_config('phase10.coupon',public.catalog_command('coupon_save','{"code":" save10 ","name":"Desconto 10","kind":"percent","amount":10,"global_limit":2,"session_limit":1,"product_ids":["phase10-p"]}')::text,true);
+select is(current_setting('phase10.coupon')::jsonb->>'code','SAVE10','coupon normalized');
+select throws_ok($$select public.catalog_command('coupon_save',current_setting('phase10.coupon')::jsonb-'revision')$$,'40001','Recarregue o cupom: ele foi alterado.','omitted CAS revision rejected');
+select throws_ok($$select public.catalog_command('coupon_save',jsonb_set(current_setting('phase10.coupon')::jsonb,'{revision}','0'))$$,'40001','Recarregue o cupom: ele foi alterado.','stale coupon revision rejected');
+select throws_ok($$select public.catalog_command('coupon_save','{"code":"SAVE10","name":"Duplicate","kind":"fixed","amount":1}')$$,'23505',null,'same tenant code unique');
+select throws_ok($$select public.catalog_command('coupon_save','{"code":"ALIEN","name":"Wrong tenant","kind":"fixed","amount":1,"product_ids":["phase10-p-b"]}')$$,'P0001','Produtos inválidos.','foreign product eligibility rejected');
+select set_config('phase10.marketing',public.catalog_command('marketing_save','{"revision":0,"config":{"active":true,"text":"Oferta","socialActive":true}}')::text,true);
+select throws_ok($$select public.catalog_command('marketing_save','{"revision":0,"config":{}}')$$,'40001','Recarregue o marketing: ele foi alterado.','marketing first revision cannot overwrite');
+select is((public.catalog_source(current_date,current_date,'coupons')->>'total')::integer,1,'coupon source bounded tenant list');
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select lives_ok($$select public.catalog_record_events(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000010','[{"id":"a1000000-0000-0000-0000-000000000011","type":"session_started"},{"id":"a1000000-0000-0000-0000-000000000012","type":"product_viewed","productId":"phase10-p"},{"id":"a1000000-0000-0000-0000-000000000013","type":"cart_item_added","productId":"phase10-p"},{"id":"a1000000-0000-0000-0000-000000000014","type":"checkout_started"},{"id":"a1000000-0000-0000-0000-000000000015","type":"search_performed","term":"adesivo","results":0},{"id":"a1000000-0000-0000-0000-000000000016","type":"banner_clicked","bannerId":"phase10-banner"}]')$$,'tracking stages and real banner accepted');
+select lives_ok($$select public.catalog_record_events(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000010','[{"id":"a1000000-0000-0000-0000-000000000012","type":"product_viewed","productId":"phase10-p"}]')$$,'event retry accepted');
+select is((select count(*) from public.catalog_events where company_id=current_setting('phase10.a')),6::bigint,'event retry does not duplicate');
+select throws_ok($$select public.catalog_record_events(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000010','[{"id":"a1000000-0000-0000-0000-000000000020","type":"product_viewed","productId":"phase10-p-b"}]')$$,'P0001','Invalid product','cross-tenant product event rejected');
+select throws_ok($$select public.catalog_record_events(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000010','[{"id":"a1000000-0000-0000-0000-000000000021","type":"search_performed","term":"user@example.com","results":0}]')$$,'P0001','Invalid search','email search rejected in SQL');
+select set_config('phase10.items','[{"product_id":"phase10-p","category_id":"phase10-cat","product_name":"Produto A","quantity":1,"unit_price":100,"total_price":100,"details":{}}]',true);
+reset role;
+select set_config('phase10.items',(select jsonb_build_array(current_setting('phase10.items')::jsonb->0||jsonb_build_object('product_version',updated_at))::text from public.products where id='phase10-p'),true);
+set local role service_role;
+select set_config('phase10.customer','{"name":"Cliente Store","phone":"71999990000","delivery_type":"retirada"}',true);
+select set_config('phase10.preview',public.catalog_checkout(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000030','a1000000-0000-0000-0000-000000000031',repeat('a',64),current_setting('phase10.customer')::jsonb,current_setting('phase10.items')::jsonb,'save10',null,true)::text,true);
+select is((current_setting('phase10.preview')::jsonb->>'discount')::numeric,10::numeric,'percent calculated after subtotal');
+select is((select count(*) from public.catalog_coupon_uses where company_id=current_setting('phase10.a')),0::bigint,'preview does not consume');
+select set_config('phase10.result',public.catalog_checkout(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000030','a1000000-0000-0000-0000-000000000031',repeat('a',64),current_setting('phase10.customer')::jsonb,current_setting('phase10.items')::jsonb,'save10','a1000000-0000-0000-0000-000000000010',false)::text,true);
+select is((current_setting('phase10.result')::jsonb->>'total')::numeric,90::numeric,'single canonical discount');
+select is(public.catalog_checkout(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000030','a1000000-0000-0000-0000-000000000031',repeat('a',64),current_setting('phase10.customer')::jsonb,current_setting('phase10.items')::jsonb,'save10','a1000000-0000-0000-0000-000000000010',false),current_setting('phase10.result')::jsonb,'checkout retry returns same result');
+select is((select count(*) from public.catalog_coupon_uses where company_id=current_setting('phase10.a')),1::bigint,'retry consumes once');
+select throws_ok($$select public.catalog_checkout_result(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000031',repeat('b',64))$$,'40001','Operação já usada com outro carrinho.','different retry payload rejected');
+select throws_ok($$select public.catalog_checkout(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000030',gen_random_uuid(),repeat('c',64),current_setting('phase10.customer')::jsonb,current_setting('phase10.items')::jsonb,'save10')$$,'22023','Limite por sessão atingido.','session coupon limit enforced');
+reset role;
+select set_config('phase10.quote',(select quote_id from public.catalog_checkout_operations where company_id=current_setting('phase10.a') and id='a1000000-0000-0000-0000-000000000031'),true);
+select set_config('request.jwt.claims','{"sub":"a1000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select is((public.catalog_source(current_date,current_date)#>>'{summary,sessions}')::integer,1,'one consented session');
+select is((public.catalog_source(current_date,current_date)#>>'{funnel,cart}')::integer,1,'cart counts distinct session');
+select is((public.catalog_source(current_date,current_date)#>>'{funnel,quotes}')::integer,1,'submitted quote is own funnel stage');
+select is((public.catalog_source(current_date,current_date)#>>'{summary,orders}')::integer,0,'quote is not Order');
+select set_config('phase10.approval',public.approve_quote_and_create_order(current_setting('phase10.quote'))::text,true);
+select is((current_setting('phase10.approval')::jsonb#>>'{order,total_amount}')::numeric,90::numeric,'canonical approval preserves net total');
+select is(current_setting('phase10.approval')::jsonb#>>'{order,store_origin,coupon,code}','SAVE10','Order retains coupon snapshot');
+select is((public.catalog_source(current_date,current_date)#>>'{funnel,orders}')::integer,1,'approved Order enters cohort once');
+select is((public.catalog_source(current_date,current_date)#>>'{summary,revenue}')::numeric,90::numeric,'revenue comes from canonical Order');
+select is((public.catalog_source(current_date,current_date)#>>'{products,0,revenue}')::numeric,90::numeric,'product revenue includes coupon allocation');
+select lives_ok($$select public.approve_quote_and_create_order(current_setting('phase10.quote'))$$,'approval retry safe');
+select is((public.catalog_source(current_date,current_date,'orders')#>>'{summary,total}')::integer,1,'Store read model reconciles');
+select lives_ok($$select public.catalog_command('coupon_delete',current_setting('phase10.coupon')::jsonb)$$,'coupon may be deleted');
+reset role;
+select is((select store_origin#>>'{coupon,code}' from public.orders where source_quote_id=current_setting('phase10.quote')),'SAVE10','deleting coupon preserves Order snapshot');
+select ok(exists(select 1 from public.audit_logs where company_id=current_setting('phase10.a') and action='catalog.coupon_created'),'coupon create audited');
+select ok(exists(select 1 from public.audit_logs where company_id=current_setting('phase10.a') and action='catalog.coupon_deleted'),'coupon delete audited');
+select ok(not exists(select 1 from public.audit_logs where company_id=current_setting('phase10.a') and entity_type='catalog_events'),'navigation not business audit');
+select set_config('request.jwt.claims','{"sub":"a1000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select lives_ok($$delete from public.quotes where id=current_setting('phase10.quote')$$,'canonical quote deletion not blocked by Growth references');
+reset role;
+select is(public.catalog_checkout_result(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000031',repeat('a',64)),current_setting('phase10.result')::jsonb,'deleted quote keeps original idempotent receipt');
+select is((select store_origin#>>'{coupon,code}' from public.orders where id=current_setting('phase10.approval')::jsonb#>>'{order,id}'),'SAVE10','source quote deletion preserves Order snapshot');
+-- Eligibility, dates, limits, immutable snapshots and authorization boundaries.
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+insert into public.catalog_coupons(company_id,code,name,kind,amount,active,starts_at,ends_at,minimum,global_limit,product_ids,category_ids) values
+(current_setting('phase10.a'),'FIXED','Fixed','fixed',150,true,null,null,0,null,'{}','{}'),
+(current_setting('phase10.a'),'CATEGORY','Category','percent',20,true,null,null,0,null,'{}',array['phase10-cat']),
+(current_setting('phase10.a'),'INACTIVE','Inactive','fixed',5,false,null,null,0,null,'{}','{}'),
+(current_setting('phase10.a'),'EXPIRED','Expired','fixed',5,true,null,now()-interval '1 day',0,null,'{}','{}'),
+(current_setting('phase10.a'),'FUTURE','Future','fixed',5,true,now()+interval '1 day',null,0,null,'{}','{}'),
+(current_setting('phase10.a'),'MINIMUM','Minimum','fixed',5,true,null,null,200,null,'{}','{}'),
+(current_setting('phase10.a'),'NOITEM','Wrong product','fixed',5,true,null,null,0,null,array['phase10-p-b'],'{}'),
+(current_setting('phase10.a'),'NOCAT','Wrong category','fixed',5,true,null,null,0,null,'{}',array['phase10-cat-b']),
+(current_setting('phase10.a'),'GLOBAL','Global','fixed',5,true,null,null,0,1,'{}','{}'),
+(current_setting('phase10.b'),'TENANT','Only B','fixed',5,true,null,null,0,null,'{}','{}');
+create function pg_temp.preview_coupon(code text) returns jsonb language sql as $$select public.catalog_checkout(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000040',gen_random_uuid(),repeat('d',64),current_setting('phase10.customer')::jsonb,current_setting('phase10.items')::jsonb,code,null,true)$$;
+select is((pg_temp.preview_coupon('FIXED')->>'discount')::numeric,100::numeric,'fixed discount capped to eligible subtotal');
+select is((pg_temp.preview_coupon('CATEGORY')->>'discount')::numeric,20::numeric,'category eligibility resolved from server lines');
+select throws_ok($$select pg_temp.preview_coupon('INACTIVE')$$,'22023','Cupom indisponível.','inactive coupon rejected');
+select throws_ok($$select pg_temp.preview_coupon('EXPIRED')$$,'22023','Cupom indisponível.','expired coupon rejected');
+select throws_ok($$select pg_temp.preview_coupon('FUTURE')$$,'22023','Cupom indisponível.','future coupon rejected');
+select throws_ok($$select pg_temp.preview_coupon('MINIMUM')$$,'22023','Cupom não se aplica a este carrinho.','minimum evaluated server-side');
+select throws_ok($$select pg_temp.preview_coupon('NOITEM')$$,'22023','Cupom não se aplica a este carrinho.','ineligible product excluded');
+select throws_ok($$select pg_temp.preview_coupon('NOCAT')$$,'22023','Cupom não se aplica a este carrinho.','ineligible category excluded');
+select throws_ok($$select pg_temp.preview_coupon('TENANT')$$,'22023','Cupom indisponível.','foreign tenant coupon inaccessible');
+select lives_ok($$select public.catalog_checkout(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000040',gen_random_uuid(),repeat('e',64),current_setting('phase10.customer')::jsonb,current_setting('phase10.items')::jsonb,'GLOBAL')$$,'last global coupon use consumed');
+select throws_ok($$select pg_temp.preview_coupon('GLOBAL')$$,'22023','Limite do cupom atingido.','global limit cannot oversubscribe');
+select throws_ok($$select public.catalog_checkout(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000040',gen_random_uuid(),repeat('e',64),current_setting('phase10.customer')::jsonb,current_setting('phase10.items')::jsonb,'',null,false,'a1000000-0000-0000-0000-000000000002')$$,'42501','Conta Store indisponível.','foreign account cannot attach to A');
+select ok((public.catalog_public_marketing(current_setting('phase10.a'))->'purchases'->0) ?& array['name','slug'],'social proof returns real public product');
+select is((select count(*) from jsonb_object_keys(public.catalog_public_marketing(current_setting('phase10.a'))->'purchases'->0)),2::bigint,'social proof DTO contains no customer or Order identity');
+reset role;
+select set_config('request.jwt.claims','{}',true);
+insert into public.customers(id,company_id,name,document)values('phase10-linked-customer',current_setting('phase10.a'),'Conta verificada','');
+insert into public.store_customer_accounts(id,company_id,customer_id,auth_user_id,status)values('phase10-linked-account',current_setting('phase10.a'),'phase10-linked-customer','a1000000-0000-0000-0000-000000000001','active');
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select lives_ok($$select public.catalog_checkout(current_setting('phase10.a'),'a1000000-0000-0000-0000-000000000040','a1000000-0000-0000-0000-000000000041',repeat('f',64),current_setting('phase10.customer')::jsonb,current_setting('phase10.items')::jsonb,'',null,false,'a1000000-0000-0000-0000-000000000001')$$,'verified active account accepted');
+reset role;
+select is((select q.customer_id from public.quotes q join public.catalog_checkout_operations op on op.quote_id=q.id where op.id='a1000000-0000-0000-0000-000000000041'),'phase10-linked-customer','authenticated checkout retains account customer');
+reset role;
+select set_config('request.jwt.claims','{"sub":"a1000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select lives_ok($$select public.catalog_command('reorder',jsonb_build_object('items',(select jsonb_agg(jsonb_build_object('id',id,'updated_at',updated_at,'position',-900)) from public.products where id='phase10-p')))$$,'ordering derives position from array, not arbitrary position');
+select is((select catalog_sort_order from public.products where id='phase10-p'),0,'editorial position normalized');
+select throws_ok($$select public.catalog_command('reorder','{"items":[{"id":"phase10-p","updated_at":null}]}')$$,'40001','Recarregue os produtos: houve outra alteração.','reorder requires latest product version');
+select throws_ok($$select public.catalog_command('reorder',jsonb_build_object('items',(select jsonb_agg(jsonb_build_object('id',id,'updated_at',updated_at)) from public.products where id='phase10-p-b')))$$,'P0001','Invalid product order','RLS cannot supply foreign product order');
+reset role;
+insert into public.role_permissions(company_id,path,roles) values(current_setting('phase10.a'),'/orders','{}') on conflict(company_id,path) do update set roles='{}';
+select set_config('request.jwt.claims','{"sub":"a1000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select throws_ok($$select public.catalog_source(current_date,current_date,'orders')$$,'42501','Order access denied','Catalog does not bypass Orders permission');
+reset role;
+insert into public.role_permissions(company_id,path,roles) values(current_setting('phase10.a'),'/settings','{}') on conflict(company_id,path) do update set roles='{}';
+set local role authenticated;
+select throws_ok($$select public.catalog_source(current_date,current_date)$$,'42501','Catalog access denied','configured empty Catalog roles deny even Admin');
+select throws_ok($$select public.catalog_command('marketing_save','{"revision":1,"config":{}}')$$,'42501','Catalog access denied','configured empty Catalog roles deny writes');
+reset role;
+select set_config('request.jwt.claims','{"sub":"a1000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+set local role authenticated;
+select is((public.catalog_source(current_date,current_date)#>>'{summary,sessions}')::integer,0,'B does not see A sessions');
+select is((public.catalog_source(current_date,current_date)#>>'{summary,orders}')::integer,0,'B does not see A Orders');
+select is((public.catalog_source(current_date,current_date,'coupons')->>'total')::integer,1,'B sees only its coupon');
+reset role;
+select * from finish();
+rollback;

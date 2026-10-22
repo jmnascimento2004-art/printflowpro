@@ -51,6 +51,8 @@ import {
   type ProductConfiguratorCartPayload
 } from '@/components/store/ProductConfiguratorModal';
 import { StoreFavoriteButton } from '@/components/store/StoreFavoriteButton';
+import { useCatalogTracking } from '@/components/store/use-catalog-tracking';
+import { StoreGrowthMarketing } from '@/components/store/store-growth-marketing';
 import {
   getCatalogBenefitCards,
   getContrastingTextColor,
@@ -64,6 +66,7 @@ import {
 } from '@/lib/store/product-permalink';
 
 interface CartItem {
+  pricing_config?: ProductConfiguratorCartPayload['pricing_config'];
   product: Product;
   quantity: number;
   width?: number;
@@ -161,8 +164,13 @@ export default function StorefrontPage() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const { products, categories, orders, addQuote, addCustomer, pickupPoints, banners, company, settings, refreshStoreCatalog } = useDatabase();
+  const { products, categories, orders, pickupPoints, banners, company, settings, refreshStoreCatalog } = useDatabase();
+  const {track,analyticsConsent}=useCatalogTracking(pathname);
+  const checkoutOperation=useRef<{hash:string;id:string}|null>(null);
+  const [couponCode,setCouponCode]=useState('');
+  const [couponPreview,setCouponPreview]=useState<{discount:number;total:number}|null>(null);
   const {
+    session:storeSession,
     isAuthenticated: storeCustomerAuthenticated,
     customer: storeCustomer,
     addresses: storeCustomerAddresses,
@@ -352,6 +360,8 @@ export default function StorefrontPage() {
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  useEffect(()=>{if(cartOpen)track('checkout_started');},[cartOpen,track,analyticsConsent]);
+  useEffect(()=>{const category=searchParams.get('category');if(category&&categories.some(c=>c.id===category&&c.show_in_catalog!==false))setSelectedCategory(category);},[searchParams,categories]);
   const [activeAdvancedConfigProduct, setActiveAdvancedConfigProduct] = useState<Product | null>(null);
   const [whatsAppRequestPending, setWhatsAppRequestPending] = useState(false);
   const [pendingWhatsAppOpen, setPendingWhatsAppOpen] = useState<{ href: string; message: string } | null>(null);
@@ -474,7 +484,7 @@ export default function StorefrontPage() {
     if (!product || product.active === false) return false;
     if (!product || product.catalog_active === false) return false;
     return true;
-  });
+  }).sort((a,b)=>(a.catalog_sort_order||0)-(b.catalog_sort_order||0)||a.name.localeCompare(b.name,'pt-BR'));
   const searchedProducts = searchQuery.trim() !== ''
     ? activeProducts.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -495,6 +505,18 @@ export default function StorefrontPage() {
     if (selectedTagFilter === 'highlight') return product.is_highlight;
     return true;
   });
+
+  useEffect(()=>{
+    if(!searchQuery.trim())return;
+    const timer=window.setTimeout(()=>track('search_performed',{term:searchQuery,results:searchedProducts.length}),800);
+    return ()=>window.clearTimeout(timer);
+  },[searchQuery,searchedProducts.length,track]);
+  useEffect(()=>{if(selectedCategory)track('category_viewed',{categoryId:selectedCategory});},[selectedCategory,track]);
+  useEffect(()=>{
+    const slug=getProductSlugFromStorePath(pathname);
+    const product=slug?products.find(p=>p.slug===slug):null;
+    if(product)track('product_viewed',{productId:product.id});
+  },[pathname,products,track,analyticsConsent]);
 
   useEffect(() => {
     if (!isStoreDebugEnabled()) return;
@@ -590,6 +612,7 @@ export default function StorefrontPage() {
   }, [pathname, products]);
 
   const handleOpenProductConfig = (product: Product) => {
+    track('product_clicked',{productId:product.id});
     setActiveAdvancedConfigProduct(product);
     const path = getPublicProductPath(product.slug);
     if (path && pathname !== path) router.push(path, { scroll: false });
@@ -597,6 +620,7 @@ export default function StorefrontPage() {
 
   const handleAddAdvancedProductToCart = (payload: ProductConfiguratorCartPayload) => {
     const newItem: CartItem = {
+      pricing_config:payload.pricing_config,
       product: payload.product,
       quantity: payload.quantity,
       width: payload.dimensions?.width,
@@ -614,6 +638,8 @@ export default function StorefrontPage() {
     };
 
     setCart(prev => [...prev, newItem]);
+    setCouponPreview(null);
+    track('cart_item_added',{productId:payload.product_id});
     closeProductConfigurator();
   };
 
@@ -667,6 +693,8 @@ export default function StorefrontPage() {
   };
 
   const handleRemoveFromCart = (idx: number) => {
+    if(cart[idx])track('cart_item_removed',{productId:cart[idx].product.id});
+    setCouponPreview(null);
     setCart(prev => prev.filter((_, i) => i !== idx));
   };
 
@@ -677,6 +705,34 @@ export default function StorefrontPage() {
 
   const checkoutMutationRef = useRef(false);
   const [checkoutPending, setCheckoutPending] = useState(false);
+
+  const submitStoreCheckout = async (preview:boolean,customer:Record<string,unknown>={}) => {
+    const items=cart.map(c=>{
+      const config=c.pricing_config;
+      const matrix=config?.customOptions?.variantSelection||c.configuration_snapshot;
+      return {productId:c.product.id,quantity:c.quantity,
+        dimensions:Object.fromEntries(Object.entries({width:c.width,height:c.height,length:c.length}).filter(([,value])=>Number(value)>0)),
+        selectedOptions:(config?.customOptions?.selectedOptions||c.selected_options||[]).map(({name,option_name,group_id,group_name})=>({name:name||option_name,group_id,group_name})),
+        fieldValues:config?.customOptions?.fieldValues||{},
+        configurationSnapshot:matrix?{material:matrix.material,size:matrix.size,colors:matrix.colors,finishing:matrix.finishing}:undefined};
+    });
+    const payload={items,customer,coupon:couponCode.trim().toUpperCase()};
+    const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(payload)));
+    const hash=Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
+    if(!checkoutOperation.current){try{checkoutOperation.current=JSON.parse(sessionStorage.getItem('pf_catalog_checkout_operation')||'null');}catch{/* Storage is optional. */}}
+    if(!checkoutOperation.current||checkoutOperation.current.hash!==hash)checkoutOperation.current={hash,id:crypto.randomUUID()};
+    try{sessionStorage.setItem('pf_catalog_checkout_operation',JSON.stringify(checkoutOperation.current));}catch{/* In-memory retries remain idempotent. */}
+    const response=await fetch('/api/store/checkout',{method:'POST',headers:{'Content-Type':'application/json',...(storeSession?.access_token?{Authorization:`Bearer ${storeSession.access_token}`}:{})},body:JSON.stringify({...payload,operationId:checkoutOperation.current.id,analyticsConsent,preview})});
+    const result=await response.json();if(!response.ok)throw new Error(result.error||'Não foi possível enviar o orçamento.');
+    return result;
+  };
+  const applyCoupon = async () => {
+    if(checkoutMutationRef.current)return;
+    checkoutMutationRef.current=true;setCheckoutPending(true);
+    try {const result=await submitStoreCheckout(true);setCouponPreview(result);if(result.coupon)track('coupon_applied');}
+    catch(error){setCouponPreview(null);showFeedback(getPersistenceErrorMessage(error),'error');}
+    finally {checkoutMutationRef.current=false;setCheckoutPending(false);}
+  };
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -700,90 +756,17 @@ export default function StorefrontPage() {
       ? `${deliveryStreet}, ${deliveryNumber} - ${deliveryNeighborhood}, ${deliveryCity} - ${deliveryState}${deliveryZipCode ? `, CEP ${deliveryZipCode}` : ''}`
       : '';
 
-    // Trigger ERP Quote injection
-    const qItems = cart.map((c, i) => ({
-      id: `qi-store-${i}-${Date.now()}`,
-      product_id: c.product.id,
-      product_name: c.product.name,
-      quantity: c.quantity,
-      unit_price: c.calculatedPrice,
-      total_price: c.quantity * c.calculatedPrice,
-      details: {
-        width: c.width,
-        height: c.height,
-        length: c.length,
-        variant: c.variant,
-        color: c.color,
-        selected_options: c.selected_options,
-        pricing_type: c.pricing_type || c.product.pricing_type,
-        production_days: c.production_days,
-        production_time: c.production_time,
-        production_time_source: c.production_time_source,
-        configuration_summary: c.configuration_summary,
-        configuration_snapshot: c.configuration_snapshot,
-        pricing_snapshot: c.pricing_snapshot,
-        notes: ['Enviado pelo catálogo online', c.variant ? `Variação: ${c.variant}` : '', c.color ? `Cor: ${c.color}` : ''].filter(Boolean).join(' | ')
-      }
-    }));
-
-    const purchaseInterest = cart
-      .map((item, index) => {
-        const dimensions = [
-          item.width ? `largura ${formatMeters(item.width)}` : '',
-          item.height ? `altura ${formatMeters(item.height)}` : '',
-          item.length ? `comprimento ${formatMeters(item.length)}` : '',
-          item.variant ? `variacao ${item.variant}` : '',
-          item.color ? `cor ${item.color}` : '',
-          item.production_time ? `prazo ${item.production_time}` : '',
-          item.configuration_summary ? item.configuration_summary : ''
-        ].filter(Boolean).join(', ');
-        const config = dimensions ? ` (${dimensions})` : '';
-        return `${index + 1}. ${item.product.name} - qtd ${item.quantity}${config} - total ${formatCurrency(item.quantity * item.calculatedPrice)}`;
-      })
-      .join('\n');
-
-    const checkoutNotes = clientNotes.trim() || 'Sem observacoes.';
-
     checkoutMutationRef.current = true;
     setCheckoutPending(true);
     try {
-      const webCustomer = storeCustomerAuthenticated && storeCustomer ? storeCustomer : addCustomer({
-        name: clientName.trim(),
-        document: '',
-        phone: clientPhone.trim(),
-        email: '',
-        address: {
-          street: isMotoboyDelivery ? deliveryStreet : '',
-          number: isMotoboyDelivery ? deliveryNumber : '',
-          neighborhood: isMotoboyDelivery ? deliveryNeighborhood : '',
-          city: isMotoboyDelivery ? deliveryCity : '',
-          state: isMotoboyDelivery ? deliveryState : '',
-          zip_code: isMotoboyDelivery ? deliveryZipCode : ''
-        },
-        tags: ['Catalogo Online'],
-        notes: `Cliente criado pelo catálogo online.\nInteresse de compra:\n${purchaseInterest}\nObs cliente: ${checkoutNotes}`,
-        billing_type: 'imediato',
-        credit_limit: 0,
-        credit_used: 0,
-        payment_terms_days: 0,
-        credit_status: 'aprovado'
+      const nextQuote = await submitStoreCheckout(false, {
+        name:clientName.trim(),phone:clientPhone.trim(),
+        address:{street:deliveryStreet,number:deliveryNumber,neighborhood:deliveryNeighborhood,city:deliveryCity,state:deliveryState,zip_code:deliveryZipCode},
+        notes:clientNotes.trim(),delivery_type:deliveryMethod,delivery_address:deliveryFullAddress,pickup_point:deliveryMethod==='retirada'?selectedPickupPoint:''
       });
-
-      const nextQuote = await addQuote({
-        customer_id: webCustomer.id,
-        customer_name: storeCustomerAuthenticated ? clientName.trim() : `${clientName} (Web)`,
-        status: 'pendente',
-        total_amount: getCartTotal(),
-        discount: 0,
-        valid_until: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        customer_phone: clientPhone,
-        delivery_type: deliveryMethod,
-        delivery_address: isMotoboyDelivery ? deliveryFullAddress : undefined,
-        delivery_fee: 0,
-        notes: `Telefone: ${clientPhone}. Entrega: ${deliveryMethod === 'retirada' ? `Retirada no Balcão - ${selectedPickupPoint}` : `Envio por motoboy - ${deliveryFullAddress}`}. Interesse de compra: ${purchaseInterest.replace(/\n/g, ' | ')}. Obs cliente: ${checkoutNotes}`,
-        items: qItems
-      });
-
+      checkoutOperation.current=null;
+      try{sessionStorage.removeItem('pf_catalog_checkout_operation');}catch{/* Storage is optional. */}
+      setCouponCode('');setCouponPreview(null);
       // Reset Cart
       setCart([]);
       if (typeof window !== 'undefined') window.localStorage.removeItem('printflow_store_cart');
@@ -863,6 +846,7 @@ export default function StorefrontPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200/70 pb-[calc(5.75rem+env(safe-area-inset-bottom))] text-slate-800 antialiased dark:bg-zinc-950 dark:text-zinc-100 md:pb-0 font-sans flex flex-col justify-between">
       <StorePWARegister />
+      <StoreGrowthMarketing checkoutOpen={cartOpen} onBannerClick={()=>track('banner_clicked')} />
       <style dangerouslySetInnerHTML={{ __html: `
         .bg-emerald-600 { background-color: ${primary} !important; }
         .bg-emerald-500 { background-color: ${light} !important; }
@@ -1088,6 +1072,7 @@ export default function StorefrontPage() {
                       {banner.link && (
                         <a
                           href={safeHref(banner.link)}
+                          onClick={()=>track('banner_clicked',{bannerId:banner.id})}
                           target={banner.open_in_new_tab ? '_blank' : undefined}
                           rel={banner.open_in_new_tab ? 'noopener noreferrer' : undefined}
                           className="absolute inset-0 z-10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-white"
@@ -1186,6 +1171,7 @@ export default function StorefrontPage() {
                 <a
                   key={banner.id}
                   href={safeHref(banner.link || '#')}
+                  onClick={()=>track('banner_clicked',{bannerId:banner.id})}
                   target={banner.open_in_new_tab ? '_blank' : undefined}
                   rel={banner.open_in_new_tab ? 'noopener noreferrer' : undefined}
                   className="group block min-h-11 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-zinc-800 dark:bg-zinc-900"
@@ -1733,6 +1719,12 @@ export default function StorefrontPage() {
                     />
                   </div>
 
+                  <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+                    <label className="block text-xs font-bold" htmlFor="store-coupon">Cupom de desconto</label>
+                    <div className="flex gap-2"><input id="store-coupon" maxLength={32} value={couponCode} onChange={e=>{setCouponCode(e.target.value);setCouponPreview(null);}} className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm uppercase"/><button type="button" disabled={checkoutPending||!couponCode.trim()} onClick={()=>void applyCoupon()} className="min-h-11 rounded-lg border px-3 text-xs font-bold disabled:opacity-50">Aplicar</button></div>
+                    {couponPreview&&<p role="status" className="text-xs">Desconto: {formatCurrency(couponPreview.discount)} · Total: {formatCurrency(couponPreview.total)}</p>}
+                    <p className="text-[10px] text-slate-500">Preço e disponibilidade serão confirmados ao enviar.</p>
+                  </div>
                   <button
                     type="submit"
                     className="sticky bottom-0 z-10 w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/10 hover:shadow-lg transition-all flex items-center justify-center gap-1.5 mt-3"

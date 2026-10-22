@@ -20,6 +20,7 @@ import type { Company } from '@/lib/dummy-data';
 import { onlyPhoneDigits, getBrazilianPhoneDisplay, normalizeRichTextHtml } from '@/lib/utils';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { CatalogBannerManager } from '@/components/catalog/catalog-banner-manager';
+import { CatalogGrowth } from '@/components/catalog/catalog-growth';
 import { CatalogNavigationSettings } from '@/components/settings/catalog-navigation-settings';
 import {
   CATALOG_BENEFIT_ICON_OPTIONS,
@@ -28,9 +29,10 @@ import {
   type CatalogBenefitCard
 } from '@/lib/store/catalog-visual-settings';
 
-type CatalogTab = 'overview' | 'banners' | 'navigation' | 'merchandising' | 'benefits' | 'appearance' | 'footer' | 'policies';
+type CatalogTab = 'growth' | 'overview' | 'banners' | 'navigation' | 'merchandising' | 'benefits' | 'appearance' | 'footer' | 'policies';
 
 const TABS: Array<{ id: CatalogTab; label: string; icon: typeof LayoutDashboard }> = [
+  { id: 'growth', label: 'Growth & Conversão', icon: LayoutDashboard },
   { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
   { id: 'banners', label: 'Banners', icon: ImageIcon },
   { id: 'navigation', label: 'Navegação & Mega Menu', icon: Menu },
@@ -84,7 +86,7 @@ export function CatalogAdmin() {
     deleteBanner,
     updateCategoryCatalogPresentation
   } = useDatabase();
-  const [activeTab, setActiveTab] = useState<CatalogTab>('overview');
+  const [activeTab, setActiveTab] = useState<CatalogTab>('growth');
   const [notification, setNotification] = useState<string | null>(null);
   const [settingsDraft, setSettingsDraft] = useState(() => ({
     topBarHours: settings.top_bar_hours || '',
@@ -221,6 +223,8 @@ export function CatalogAdmin() {
       <nav className="flex gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-2 scrollbar-none" aria-label="Seções do Catálogo">
         {TABS.map((tab) => { const Icon = tab.icon; const active = activeTab === tab.id; return <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-bold transition ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`} aria-current={active ? 'page' : undefined}><Icon className="h-4 w-4" />{tab.label}</button>; })}
       </nav>
+
+      {activeTab === 'growth' && <CatalogGrowth />}
 
       {activeTab === 'overview' && (
         <div className="space-y-5" data-testid="catalog-overview">

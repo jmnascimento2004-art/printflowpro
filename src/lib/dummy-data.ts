@@ -311,6 +311,7 @@ export interface ProductColorOption {
 }
 
 export interface Product {
+  catalog_sort_order?: number;
   id: string;
   company_id: string;
   slug?: string;

@@ -51,7 +51,7 @@ const CATEGORY_FIELDS = [
 const PRODUCT_FIELDS = [
   'id', 'slug', 'category_id', 'name', 'description', 'sku', 'pricing_type', 'sales_price', 'active',
   'catalog_active', 'pricing_details', 'image_url', 'volume_pricing',
-  'variant_options', 'color_options', 'is_promo', 'is_highlight'
+  'variant_options', 'color_options', 'is_promo', 'is_highlight', 'catalog_sort_order'
 ].join(',');
 const PICKUP_POINT_FIELDS = [
   'id', 'name', 'street', 'number', 'neighborhood', 'city', 'state', 'hours_week', 'hours_sat',

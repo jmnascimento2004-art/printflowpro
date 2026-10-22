@@ -103,7 +103,7 @@ test('WhatsApp side effects wait for quote persistence and stop on failure',asyn
 });
 test('all seven callers use await or the guarded awaited delete handler; forms expose busy state',async()=>{
   const q=await readFile(new URL('../src/app/(dashboard)/quotes/page.tsx',import.meta.url),'utf8');const o=await readFile(new URL('../src/app/(dashboard)/orders/page.tsx',import.meta.url),'utf8');const s=await readFile(new URL('../src/app/store/page.tsx',import.meta.url),'utf8');
-  assert.equal((q.match(/await updateQuote\(/g)||[]).length,2);assert.equal((q.match(/await addQuote\(/g)||[]).length,1);assert.equal((q.match(/handleDeleteQuote\(quote.id\)/g)||[]).length,2);assert.match(o,/await updateOrder\(/);assert.match(s,/await addQuote\(/);for(const source of [q,o,s])assert.match(source,/<fieldset disabled=\{\w+Pending\} aria-busy=/);
+  assert.equal((q.match(/await updateQuote\(/g)||[]).length,2);assert.equal((q.match(/await addQuote\(/g)||[]).length,1);assert.equal((q.match(/handleDeleteQuote\(quote.id\)/g)||[]).length,2);assert.match(o,/await updateOrder\(/);assert.match(s,/await submitStoreCheckout\(/);for(const source of [q,o,s])assert.match(source,/<fieldset disabled=\{\w+Pending\} aria-busy=/);
 });
 
 for (const outcome of ['success','failure','conflict']) test(`order editor ${outcome}: await, double submit, close only on confirmation`,async()=>{
@@ -122,7 +122,7 @@ for(const outcome of ['success','failure'])test(`Store checkout ${outcome}: cart
   const setters=Object.fromEntries(['setCart','setClientName','setClientPhone','setClientNotes','setDeliveryZipCode','setDeliveryStreet','setDeliveryNumber','setDeliveryNeighborhood','setDeliveryCity','setDeliveryState','setCartOpen','setOrderCompleted'].map(name=>[name,value=>events.push([name,value])]));
   const api=await declarations('../src/app/store/page.tsx',['handleCheckout'],{
     ...setters,checkoutMutationRef:{current:false},setCheckoutPending:value=>events.push(['pending',value]),cart:[{product:{id:'p1',name:'Fixture'},quantity:1,calculatedPrice:10}],clientName:'Fixture',clientPhone:'71999999999',deliveryMethod:'retirada',clientNotes:'typed',storeCustomerAuthenticated:true,storeCustomer:{id:'c1'},selectedPickupPoint:'fixture',getCartTotal:()=>10,formatCurrency:String,
-    addQuote:()=>{count++;return wait.promise;},showFeedback:msg=>events.push(['error',msg]),getPersistenceErrorMessage
+    deliveryStreet:'',deliveryNumber:'',deliveryNeighborhood:'',deliveryCity:'',deliveryState:'',deliveryZipCode:'',submitStoreCheckout:()=>{count++;return wait.promise;},checkoutOperation:{current:{id:'operation'}},sessionStorage:{removeItem(){}},setCouponCode(){},setCouponPreview(){},showFeedback:msg=>events.push(['error',msg]),getPersistenceErrorMessage
   });
   const pending=api.handleCheckout({preventDefault(){}});await api.handleCheckout({preventDefault(){}});assert.equal(count,1);assert.deepEqual(events,[['pending',true]]);
   if(outcome==='success')wait.resolve({...quote,number:9009});else wait.reject(new Error('network SQL details'));
