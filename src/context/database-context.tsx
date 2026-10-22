@@ -1,5 +1,6 @@
 'use client';
 import { feedbackMessage } from '@/lib/feedback.mjs';
+import { FeedbackToast } from '@/components/feedback-toast';
 
 import { DEFAULT_ROLE_PERMISSIONS } from '@/lib/module-permissions';
 import { replaceShipment, mergeShipmentSnapshot } from '@/lib/shipment-state';
@@ -2475,8 +2476,6 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const canRenderCurrentScope = isPublicStoreRoute() || (
     !isAuthLoading && loadedSessionScopeKeyRef.current === sessionScopeKey
   );
-  const toastColor = { success: '16,185,129', error: '239,68,68', warning: '245,158,11', info: '96,165,250' }[toast?.type || 'info'];
-
   if (!initialized || !canRenderCurrentScope) {
   return null;
   }
@@ -2555,72 +2554,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
-      {toast && (
-        <>
-          <style>{`
-            @keyframes toast-slide-in {
-              from {
-                transform: translateX(120%) scale(0.9);
-                opacity: 0;
-              }
-              to {
-                transform: translateX(0) scale(1);
-                opacity: 1;
-              }
-            }
-            .animate-toast-in {
-              animation: toast-slide-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-            }
-          `}</style>
-          <div 
-            role={toast.type === 'error' ? 'alert' : 'status'} aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
-            className="fixed bottom-20 right-4 z-[99999] animate-toast-in flex max-w-[calc(100vw-2rem)] items-center gap-3 border p-4 shadow-2xl transition-all sm:bottom-5 sm:right-5"
-            style={{
-              borderRadius: '10px',
-              backgroundColor: 'rgba(15, 23, 42, 0.95)',
-              borderColor: `rgba(${toastColor},0.3)`,
-              boxShadow: `0 20px 25px -5px rgba(0,0,0,0.2), 0 0 15px rgba(${toastColor},0.15)`,
-              backdropFilter: 'blur(12px)',
-            }}
-          >
-            {/* Icon */}
-            <div aria-hidden="true" className="flex items-center justify-center rounded-lg p-2" style={{ backgroundColor: `rgba(${toastColor},0.1)`, color: `rgb(${toastColor})` }}>
-              {toast.type === 'success' ? (
-                <svg className="w-5 h-5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-              )}
-            </div>
-
-            {/* Content */}
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-slate-100">
-                {{ success: 'Sucesso', error: 'Erro', warning: 'Atenção', info: 'Informação' }[toast.type]}
-              </span>
-              <span className="text-xs text-slate-400 pr-4 mt-0.5 max-w-[250px]">
-                {toast.message}
-              </span>
-            </div>
-
-            {/* Close Button */}
-            <button 
-              type="button" aria-label="Fechar aviso" onClick={() => setToast(null)}
-              className="ml-auto p-1 text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-        </>
-      )}
+      {toast && <FeedbackToast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </DatabaseContext.Provider>
   );
 }
