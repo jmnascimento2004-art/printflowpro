@@ -19,14 +19,27 @@ const operating=(r:FinancialTransaction)=>!r.economic_kind||r.economic_kind==='o
 export function validateFinanceWindow(from:string,to:string) {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||new Date(`${from}T12:00Z`).toISOString().slice(0,10)!==from||new Date(`${to}T12:00Z`).toISOString().slice(0,10)!==to||to<from||Date.parse(to)-Date.parse(from)>366*86400000) throw new Error('Selecione um período válido de até 366 dias.');
 }
+export function buildReceivableRows(source:Pick<FinanceSource,'orders'|'customers'|'transactions'>,filters:Pick<FinanceFilters,'account'|'method'>={},now=new Date()) {
+ const today=commercialDate(now);
+ const byId=new Map(source.orders.map(o=>[o.id,o]));
+ const byNumber=new Map(source.orders.map(o=>[formatOrderDisplayNumber(o.number).toLowerCase(),o]));
+ const byOrder=new Map<string,FinancialTransaction[]>();
+ for(const r of source.transactions){const o=r.order_id?byId.get(r.order_id):byNumber.get(formatOrderDisplayNumber(r.order_number).toLowerCase());if(o){const group=byOrder.get(o.id)||[];group.push(r);byOrder.set(o.id,group);}}
+ return source.orders.filter(isFinanciallyActiveOrder).map(o=>{
+  const customer=findCustomerForOrder(o,source.customers),orderTransactions=byOrder.get(o.id)||[],related=orderTransactions.filter(r=>!r.cancelled_at);
+  const terms=customer?.payment_terms_days||30;
+  const fallback=new Date(`${commercialDate(o.created_at)}T12:00Z`);fallback.setUTCDate(fallback.getUTCDate()+terms);
+  const due=related.filter(r=>r.status==='pendente'&&r.type==='receita').map(r=>r.due_date).sort()[0]||(customer?.billing_type==='faturado'?commercialDate(fallback):commercialDate(o.created_at));
+  const amount=calculateOrderBalance(o,orderTransactions),paid=Math.max(Number(o.paid_amount),calculateOrderPaidAmount(o,orderTransactions));
+  return {matchesAccountMethod:(!filters.account&&!filters.method)||related.some(r=>(!filters.account||r.account_id===filters.account)&&(!filters.method||r.payment_method===filters.method)),id:o.id,number:formatOrderDisplayNumber(o.number),customer:o.customer_name,amount,paid,total:Number(o.total_amount),date:commercialDate(o.created_at),due_date:due,overdue:amount>0&&due<today,status:amount<=0?'pago':paid>0?'parcial':'pendente',b2b:customer?.billing_type==='faturado',updated_at:o.updated_at};
+ });
+}
 export function buildFinanceModel(source:FinanceSource,filters:FinanceFilters,now=new Date()) {
  validateFinanceWindow(filters.from,filters.to);
  const today=commercialDate(now),monthStart=`${today.slice(0,7)}-01`;
  const transactions=source.transactions,byId=new Map(source.orders.map(o=>[o.id,o]));
  const byNumber=new Map(source.orders.map(o=>[formatOrderDisplayNumber(o.number).toLowerCase(),o]));
  const orderFor=(r:FinancialTransaction)=>r.order_id?byId.get(r.order_id):r.order_number?byNumber.get(formatOrderDisplayNumber(r.order_number).toLowerCase()):undefined;
- const byOrder=new Map<string,FinancialTransaction[]>();
- for(const transaction of transactions){const order=orderFor(transaction);if(order){const group=byOrder.get(order.id)||[];group.push(transaction);byOrder.set(order.id,group);}}
  const dateOf=(r:FinancialTransaction)=>commercialDate(r.paid_at||r.due_date||r.created_at);
  const within=(date:string)=>date>=filters.from&&date<=filters.to;
  const effective=transactions.filter(r=>!r.cancelled_at);
@@ -35,14 +48,7 @@ export function buildFinanceModel(source:FinanceSource,filters:FinanceFilters,no
  // Reversals retain the original flow and compensate in the reversal's cash period.
  const income=(r:FinancialTransaction)=>operating(r)&&(!orderFor(r)||isFinanciallyActiveOrder(orderFor(r)))&&((!r.reversal_of&&r.type==='receita')||(!!r.reversal_of&&r.type==='despesa'))?signed(r):0;
  const expense=(r:FinancialTransaction)=>operating(r)&&((!r.reversal_of&&r.type==='despesa')||(!!r.reversal_of&&r.type==='receita'))?-signed(r):0;
- const receivables=source.orders.filter(isFinanciallyActiveOrder).map(o=>{
-  const customer=findCustomerForOrder(o,source.customers),orderTransactions=byOrder.get(o.id)||[],related=orderTransactions.filter(r=>!r.cancelled_at);
-  const terms=customer?.payment_terms_days||30;
-  const fallback=new Date(`${commercialDate(o.created_at)}T12:00Z`);fallback.setUTCDate(fallback.getUTCDate()+terms);
-  const due=related.filter(r=>r.status==='pendente'&&r.type==='receita').map(r=>r.due_date).sort()[0]||(customer?.billing_type==='faturado'?commercialDate(fallback):commercialDate(o.created_at));
-  const amount=calculateOrderBalance(o,orderTransactions),paid=Math.max(Number(o.paid_amount),calculateOrderPaidAmount(o,orderTransactions));
-  return {matchesAccountMethod:(!filters.account&&!filters.method)||related.some(r=>(!filters.account||r.account_id===filters.account)&&(!filters.method||r.payment_method===filters.method)),id:o.id,number:formatOrderDisplayNumber(o.number),customer:o.customer_name,amount,paid,total:Number(o.total_amount),date:commercialDate(o.created_at),due_date:due,overdue:amount>0&&due<today,status:amount<=0?'pago':paid>0?'parcial':'pendente',b2b:customer?.billing_type==='faturado',updated_at:o.updated_at};
- });
+ const receivables=buildReceivableRows(source,filters,now);
  const payables=transactions.filter(r=>r.type==='despesa'&&!r.payable_id&&!r.reversal_of&&operating(r)).map(r=>({...r,overdue:r.status==='pendente'&&!r.cancelled_at&&r.due_date<today,displayStatus:r.cancelled_at?'cancelado':r.status}));
  const accountRows=source.accounts.map(a=>({...a,balance:sum(cash.filter(r=>r.account_id===a.id),signed)}));
  const methods=Object.entries(FINANCE_METHODS).map(([id,name])=>{
