@@ -56,14 +56,18 @@ Migrations aditivas e target-only; sem repair, reset ou include-all. Validar loc
 
 ## Evidências
 
-- Node completo: 689/689; focados Growth: 17/17, repetidos pelo revisor independente.
-- pgTAP completo: 22 arquivos, incluindo 72 verificações Growth; todos passaram.
+- Node completo: 690/690; focados Growth: 18/18 (inclui consentimento, revogação e StrictMode).
+- pgTAP completo: 22 arquivos; Growth ampliado para 75 verificações aprovadas.
 - Concorrência real local: duas requisições da mesma operação criam uma Quote/um uso;
   disputa pelo último uso tem um vencedor; primeiro save de Marketing tem um vencedor e um conflito CAS.
 - Typecheck e build aprovados; lint sem erros, 20 avisos preexistentes de imagens; diff check limpo.
 - Revisão independente: zero BLOCKER/HIGH/MEDIUM/LOW acionáveis em código.
 - Migration remota aplicada isoladamente por MCP: `20261022234153_phase10_catalog_growth.sql`.
   O nome local foi alinhado à versão realmente registrada pelo serviço; sem repair ou replay do histórico.
+- Complemento `20261022235140_phase10_catalog_growth_preview_refinements.sql`: KPI explícito de cliques
+  sobre eventos existentes, sem modificar preços, grants ou os documentos canônicos.
+- Preview da branch usa `STORE_PREVIEW_CANONICAL_HOST=store.cibeleprint.com.br`, restrito à branch
+  `feat/phase10-catalog-growth`; não altera Production nem permite escolher empresa no browser.
 - Seis tabelas Growth com RLS; sem grants de navegação/checkout ao browser. RPCs públicas de Store
   só executáveis pelo serviço; RPCs Admin autenticadas checam perfil, tenant e permissões.
 - Advisors: nenhum FK Growth sem índice. RLS sem policies é intencional nas tabelas service-only.

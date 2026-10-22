@@ -167,6 +167,9 @@ export default function StorefrontPage() {
   const { products, categories, orders, pickupPoints, banners, company, settings, refreshStoreCatalog } = useDatabase();
   const {track,analyticsConsent}=useCatalogTracking(pathname);
   const checkoutOperation=useRef<{hash:string;id:string}|null>(null);
+  const lastViewedProduct=useRef<string|null>(null);
+  const trackedCheckoutOpen=useRef(false);
+  const lastTrackedCategory=useRef<string|null>(null);
   const [couponCode,setCouponCode]=useState('');
   const [couponPreview,setCouponPreview]=useState<{discount:number;total:number}|null>(null);
   const {
@@ -360,7 +363,7 @@ export default function StorefrontPage() {
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
-  useEffect(()=>{if(cartOpen)track('checkout_started');},[cartOpen,track,analyticsConsent]);
+  useEffect(()=>{if(!analyticsConsent){trackedCheckoutOpen.current=false;return;}if(cartOpen&&!trackedCheckoutOpen.current)track('checkout_started');trackedCheckoutOpen.current=cartOpen;},[cartOpen,track,analyticsConsent]);
   useEffect(()=>{const category=searchParams.get('category');if(category&&categories.some(c=>c.id===category&&c.show_in_catalog!==false))setSelectedCategory(category);},[searchParams,categories]);
   const [activeAdvancedConfigProduct, setActiveAdvancedConfigProduct] = useState<Product | null>(null);
   const [whatsAppRequestPending, setWhatsAppRequestPending] = useState(false);
@@ -511,11 +514,13 @@ export default function StorefrontPage() {
     const timer=window.setTimeout(()=>track('search_performed',{term:searchQuery,results:searchedProducts.length}),800);
     return ()=>window.clearTimeout(timer);
   },[searchQuery,searchedProducts.length,track]);
-  useEffect(()=>{if(selectedCategory)track('category_viewed',{categoryId:selectedCategory});},[selectedCategory,track]);
+  useEffect(()=>{if(!analyticsConsent){lastTrackedCategory.current=null;return;}if(selectedCategory&&lastTrackedCategory.current!==selectedCategory)track('category_viewed',{categoryId:selectedCategory});lastTrackedCategory.current=selectedCategory||null;},[selectedCategory,track,analyticsConsent]);
   useEffect(()=>{
+    if(!analyticsConsent){lastViewedProduct.current=null;return;}
     const slug=getProductSlugFromStorePath(pathname);
     const product=slug?products.find(p=>p.slug===slug):null;
-    if(product)track('product_viewed',{productId:product.id});
+    if(!product){lastViewedProduct.current=null;return;}
+    if(lastViewedProduct.current!==product.id){lastViewedProduct.current=product.id;track('product_viewed',{productId:product.id});}
   },[pathname,products,track,analyticsConsent]);
 
   useEffect(() => {
