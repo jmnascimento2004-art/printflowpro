@@ -4,6 +4,8 @@ import {isActiveOrder} from '../order-status';
 import {validateFinanceWindow} from '../finance/finance-model';
 
 export const REPORT_MODES={finance:'Financeiro',sales:'Vendas',products:'Produtos',customers:'Clientes'};
+export const REPORT_ORIGINS:Record<string,string>={order_payment:'Pagamento de Pedido',manual:'Manual',accounts_payable:'Conta a pagar',pdv:'PDV',legacy:'Histórico',transfer:'Transferência',opening:'Abertura',reversal:'Reversão'};
+export const REPORT_STATUSES:Record<string,string>={orcamento:'Orçamento',aguardando_aprovacao:'Aguardando aprovação',aguardando_pagamento:'Aguardando pagamento',producao:'Produção',impressao:'Impressão',acabamento:'Acabamento',expedicao:'Expedição',entregue:'Entregue',finalizado:'Finalizado',cancelado:'Cancelado'};
 export type ReportMode=keyof typeof REPORT_MODES;
 export type ReportFilters={from:string;to:string;account:string;category:string;method:string;origin:string;type:string;customer:string;supplier:string;status:string};
 export type ReportRow=Record<string,string|number|null>;

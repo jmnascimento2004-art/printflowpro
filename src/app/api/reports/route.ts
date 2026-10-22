@@ -1,9 +1,9 @@
 import {NextResponse} from 'next/server';
 import {authenticatePdfRequest,getAuthenticatedPdfClient} from '@/lib/pdf/pdf-server-auth';
 import {canAccessModule} from '@/lib/module-permissions';
-import {validateFinanceWindow,buildReceivableRows,type FinanceSource} from '@/lib/finance/finance-model';
+import {validateFinanceWindow,buildReceivableRows,FINANCE_METHODS,type FinanceSource} from '@/lib/finance/finance-model';
 import {commercialDate} from '@/lib/commercial-intelligence';
-import {REPORT_COLUMNS,REPORT_MODES,buildCommercialReport,cashIndicators,comparison,exportCsv,previousWindow,type ReportMode,type CashReport,type CommercialSource,type ReportRow} from '@/lib/reports/report-model';
+import {REPORT_COLUMNS,REPORT_MODES,REPORT_ORIGINS,buildCommercialReport,cashIndicators,comparison,exportCsv,previousWindow,type ReportMode,type CashReport,type CommercialSource,type ReportRow} from '@/lib/reports/report-model';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'};
 export async function GET(request:Request){
@@ -51,7 +51,10 @@ export async function GET(request:Request){
   }
   if(format==='pdf'){
    const {renderReportPdf}=await import('@/lib/reports/report-pdf');
-   const buffer=await renderReportPdf({from,to,summary:(current as CashReport).summary,filters});
+   const cash=current as CashReport;
+   const dimensionLabel=(dimension:string,key:string)=>cash.groups.find(g=>g.dimension===dimension&&g.key===key)?.label;
+   const displayFilters={...filters,account:filters.account?(cash.options.accounts.find(a=>a.id===filters.account)?.name||'Conta selecionada'):'',category:filters.category?(dimensionLabel('category',filters.category)||cash.options.categories.find(c=>c.id===filters.category)?.name||'Categoria selecionada'):'',customer:filters.customer?(dimensionLabel('customer',filters.customer)||'Cliente selecionado'):'',supplier:filters.supplier?(dimensionLabel('supplier',filters.supplier)||'Fornecedor selecionado'):'',method:FINANCE_METHODS[filters.method as keyof typeof FINANCE_METHODS]||filters.method,origin:REPORT_ORIGINS[filters.origin]||filters.origin,type:filters.type==='receita'?'Receita':filters.type==='despesa'?'Despesa':filters.type};
+   const buffer=await renderReportPdf({from,to,summary:cash.summary,filters:displayFilters});
    return new Response(new Uint8Array(buffer),{headers:{...headers,'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="printflow-dre-${from}-${to}.pdf"`}});
   }
   return NextResponse.json({...model,mode,modes,from,to,previous,page,timezone:'America/Bahia'}, {headers});
