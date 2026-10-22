@@ -16,7 +16,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const renderedPdf = await renderOrderPdf(id, {
       access,
       supabase: getAuthenticatedPdfClient(request)
-    });
+    }, searchParams.get('signature') === '1');
 
     if (!renderedPdf) {
       return NextResponse.json({ error: 'Pedido nao encontrado.' }, { status: 404 });

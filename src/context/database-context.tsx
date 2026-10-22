@@ -182,7 +182,7 @@ interface DatabaseContextType {
   // Orders
   addOrder: (order: Omit<Order, 'id' | 'company_id' | 'number' | 'created_at'>) => Promise<Order | null>;
   updateOrder: (order: Order) => Promise<Order>;
-  updateOrderStatus: (id: string, status: Order['status']) => void;
+  updateOrderStatus: (id: string, status: Order['status']) => Promise<void>;
   payOrder: (
     id: string,
     amount: number,
@@ -1869,12 +1869,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return await saveOrderWithItems(order, 'atualizado');
   };
 
-  const updateOrderStatus = (id: string, status: Order['status']) => {
+  const updateOrderStatus = async (id: string, status: Order['status']) => {
     const current = orders.find((order) => order.id === id);
     if (!current || current.status === status) return;
     const optimistic = { ...current, status };
     setOrders((items) => items.map((item) => item.id === id ? optimistic : item));
-    void transitionOrderStatus<Order, Shipment>({
+    await transitionOrderStatus<Order, Shipment>({
       orderId: id,
       status,
       expectedUpdatedAt: current.updated_at

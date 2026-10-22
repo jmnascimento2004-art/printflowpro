@@ -6,6 +6,7 @@ import { loadOrderPdfData, loadQuotePdfData, loadReceiptPdfData } from '@/lib/pd
 import { OrderPdfDocument } from '@/lib/pdf/order-pdf';
 import { QuotePdfDocument } from '@/lib/pdf/quote-pdf';
 import { ReceiptPdfDocument } from '@/lib/pdf/receipt-pdf';
+import { OrderOperationalDocument, type OperationalDocumentKind } from './order-operational-pdf';
 import type { PdfRequestContext } from '@/lib/pdf/pdf-server-auth';
 
 export type RenderedPdf = {
@@ -13,17 +14,25 @@ export type RenderedPdf = {
   filename: string;
 };
 
-export async function renderOrderPdf(id: string, context: PdfRequestContext): Promise<RenderedPdf | null> {
+export async function renderOrderPdf(id: string, context: PdfRequestContext, signature = false): Promise<RenderedPdf | null> {
   const data = await loadOrderPdfData(id, context);
 
   if (!data) return null;
 
-  const pdfDocument = React.createElement(OrderPdfDocument, { data }) as unknown as Parameters<typeof renderToBuffer>[0];
+  const pdfDocument = React.createElement(OrderPdfDocument, { data, signature }) as unknown as Parameters<typeof renderToBuffer>[0];
   const buffer = await renderToBuffer(pdfDocument);
-  const customerName = data.customer?.name || data.order.customer_name || 'cliente';
-  const filename = getPdfSafeFilename(`${formatOrderDisplayNumber(data.order.number)}-${customerName}.pdf`);
+  const filename = getPdfSafeFilename(`PEDIDO-${formatOrderDisplayNumber(data.order.number)}.pdf`);
 
   return { buffer, filename };
+}
+
+export async function renderOrderOperationalPdf(id: string, context: PdfRequestContext, kind: OperationalDocumentKind, copies: 1 | 2): Promise<RenderedPdf | null> {
+  const data = await loadOrderPdfData(id, context, kind);
+  if (!data) return null;
+  const document = React.createElement(OrderOperationalDocument, { data, kind, copies }) as unknown as Parameters<typeof renderToBuffer>[0];
+  const buffer = await renderToBuffer(document);
+  const prefix = { production: 'OP', label: 'ETIQUETA', protocol: 'PROTOCOLO' }[kind];
+  return { buffer, filename: getPdfSafeFilename(`${prefix}-${formatOrderDisplayNumber(data.order.number)}.pdf`) };
 }
 
 export async function renderQuotePdf(id: string, context: PdfRequestContext): Promise<RenderedPdf | null> {

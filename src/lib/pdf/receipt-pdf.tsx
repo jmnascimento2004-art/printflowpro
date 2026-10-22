@@ -1,4 +1,5 @@
 import React from 'react';
+import { DocumentFooter } from './document-primitives';
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import type { ReceiptPdfData } from '@/lib/pdf/pdf-data';
 import { formatOrderDisplayNumber, replaceOrderNumbersForDisplay } from '@/lib/order-number';
@@ -7,7 +8,6 @@ import {
   formatPdfCurrency,
   formatPdfDate,
   getAdditionalServicesTotal,
-  getPdfFooterText,
   getPdfLogoUrl,
   normalizePdfText
 } from '@/lib/pdf/pdf-formatters';
@@ -214,7 +214,7 @@ export function ReceiptPdfDocument({ data }: { data: ReceiptPdfData }) {
           Declaramos para os devidos fins que o valor acima foi recebido e registrado em nosso sistema.
         </Text>
 
-        <Text style={styles.footer}>{getPdfFooterText(data.company)}</Text>
+        <DocumentFooter data={data} />
       </Page>
     </Document>
   );

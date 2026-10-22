@@ -135,8 +135,8 @@ test('keeps rows indivisible across multiple pages', async () => {
   }
 });
 
-test('quote, order and receipt use the same non-wrapping table component', async () => {
-  const files = ['quote-pdf.tsx', 'order-pdf.tsx', 'receipt-pdf.tsx'];
+test('quote and receipt preserve the legacy non-wrapping product table', async () => {
+  const files = ['quote-pdf.tsx', 'receipt-pdf.tsx'];
   for (const file of files) {
     const source = await readFile(new URL(`../src/lib/pdf/${file}`, import.meta.url), 'utf8');
     assert.match(source, /import \{ PdfProductTable \}/);
