@@ -88,7 +88,7 @@ test('conflict refetch failure rejects without claiming current state was loaded
 async function quoteUI(update=false) {
   const events=[],wait=deferred(),lock={current:false};let count=0;
   const deps={quoteMutationRef:lock,setQuotePending:v=>events.push(['pending',v]),customers:[{id:'c1',name:'Fixture'}],customerId:'c1',items:[item],getSubtotal:()=>10,getServicesTotal:()=>0,deliveryFee:0,discountInput:'0',discountMode:'fixed',calculateQuoteDiscount:()=>0,calculateQuoteNetTotal:()=>10,editingQuoteId:update?'q1':null,quotes:[{...quote,updated_at:'v2'}],company:{id:'a'},editingQuoteVersion:'v1',validUntil:'2026-12-01',notes:'typed',additionalServices:[],deliveryType:'retirada',deliveryAddress:'',deliveryDistanceKm:0,
-    addQuote:async()=>{count++;return wait.promise;},updateQuote:async value=>{events.push(['version',value.updated_at]);count++;return wait.promise;},alert:msg=>events.push(['alert',msg]),resetForm:()=>events.push(['close']),handleStartEdit:latest=>events.push(['reload',latest]),PersistenceMutationError,getPersistenceErrorMessage};
+    addQuote:async()=>{count++;return wait.promise;},updateQuote:async value=>{events.push(['version',value.updated_at]);count++;return wait.promise;},showFeedback:msg=>events.push(['alert',msg]),resetForm:()=>events.push(['close']),handleStartEdit:latest=>events.push(['reload',latest]),PersistenceMutationError,getPersistenceErrorMessage};
   const api=await declarations('../src/app/(dashboard)/quotes/page.tsx',['handleSaveQuote'],deps);return {api,events,wait,get count(){return count;}};
 }
 for(const update of [false,true])for(const outcome of ['success','failure','conflict'])test(`quote UI ${update?'edit':'create'} ${outcome}: timing, double click, recovery`,async()=>{
@@ -98,7 +98,7 @@ for(const update of [false,true])for(const outcome of ['success','failure','conf
   if(outcome==='failure')assert.ok(c.events.some(e=>e[0]==='alert'&&!e[1].includes('SQL')));if(outcome==='conflict')assert.ok(c.events.some(e=>e[0]==='reload'));
 });
 test('WhatsApp side effects wait for quote persistence and stop on failure',async()=>{
-  const events=[],wait=deferred();const api=await declarations('../src/app/(dashboard)/quotes/page.tsx',['sendQuoteProposalWhatsApp'],{quoteMutationRef:{current:false},setQuotePending(){},updateQuote:()=>wait.promise,resolveOperationalWhatsAppMessage:()=>{events.push('whatsapp');},session:{access_token:'fixture'},getPersistenceErrorMessage,alert:()=>events.push('error')});
+  const events=[],wait=deferred();const api=await declarations('../src/app/(dashboard)/quotes/page.tsx',['sendQuoteProposalWhatsApp'],{quoteMutationRef:{current:false},setQuotePending(){},updateQuote:()=>wait.promise,resolveOperationalWhatsAppMessage:()=>{events.push('whatsapp');},session:{access_token:'fixture'},getPersistenceErrorMessage,showFeedback:()=>events.push('error')});
   const pending=api.sendQuoteProposalWhatsApp({...quote,status:'rascunho'});assert.deepEqual(events,[]);wait.reject(new Error('offline'));await pending;assert.deepEqual(events,['error']);
 });
 test('all seven callers use await or the guarded awaited delete handler; forms expose busy state',async()=>{
@@ -122,7 +122,7 @@ for(const outcome of ['success','failure'])test(`Store checkout ${outcome}: cart
   const setters=Object.fromEntries(['setCart','setClientName','setClientPhone','setClientNotes','setDeliveryZipCode','setDeliveryStreet','setDeliveryNumber','setDeliveryNeighborhood','setDeliveryCity','setDeliveryState','setCartOpen','setOrderCompleted'].map(name=>[name,value=>events.push([name,value])]));
   const api=await declarations('../src/app/store/page.tsx',['handleCheckout'],{
     ...setters,checkoutMutationRef:{current:false},setCheckoutPending:value=>events.push(['pending',value]),cart:[{product:{id:'p1',name:'Fixture'},quantity:1,calculatedPrice:10}],clientName:'Fixture',clientPhone:'71999999999',deliveryMethod:'retirada',clientNotes:'typed',storeCustomerAuthenticated:true,storeCustomer:{id:'c1'},selectedPickupPoint:'fixture',getCartTotal:()=>10,formatCurrency:String,
-    addQuote:()=>{count++;return wait.promise;},alert:msg=>events.push(['error',msg]),getPersistenceErrorMessage
+    addQuote:()=>{count++;return wait.promise;},showFeedback:msg=>events.push(['error',msg]),getPersistenceErrorMessage
   });
   const pending=api.handleCheckout({preventDefault(){}});await api.handleCheckout({preventDefault(){}});assert.equal(count,1);assert.deepEqual(events,[['pending',true]]);
   if(outcome==='success')wait.resolve({...quote,number:9009});else wait.reject(new Error('network SQL details'));

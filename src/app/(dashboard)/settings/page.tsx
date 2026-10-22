@@ -1,4 +1,6 @@
 'use client';
+import { useActionDialog } from '@/components/action-dialog-provider';
+import { useFeedback } from '@/context/database-context';
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
@@ -88,6 +90,9 @@ const getModuleIcon = (path: string) => {
 };
 
 export default function SettingsPage() {
+  const showFeedback = useFeedback();
+  const requestAction = useActionDialog();
+
   const { activeProfile, setActiveProfile } = useAuth();
   const { 
     settings, 
@@ -383,7 +388,7 @@ export default function SettingsPage() {
   const handleEmpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!empFormName.trim() || !empFormEmail.trim()) {
-      alert('Nome e E-mail são obrigatórios!');
+      showFeedback('Nome e E-mail são obrigatórios!', 'warning');
       return;
     }
 
@@ -471,11 +476,11 @@ export default function SettingsPage() {
   };
 
   const handleEmpDelete = (id: string, name: string) => {
-    if (confirm(`Tem certeza que deseja excluir o funcionário "${name}"?`)) {
-      deleteProfile(id);
+    void requestAction({ title: `Excluir o funcionário "${name}"?`, description: "O cadastro do funcionário será excluído. Esta ação não poderá ser desfeita.", confirmLabel: "Excluir funcionário", variant: 'danger' }, async () => {
+      if (!await deleteProfile(id)) return false;
       setNotification('Funcionário excluído com sucesso!');
       setTimeout(() => setNotification(null), 3000);
-    }
+    });
   };
 
   // CRUD handlers for Pickup Points
@@ -563,11 +568,11 @@ export default function SettingsPage() {
   };
 
   const handleDeletePoint = (id: string) => {
-    if (confirm('Tem certeza que deseja remover este ponto de coleta?')) {
-      deletePickupPoint(id);
+    void requestAction({ title: 'Remover este ponto de coleta?', description: "O ponto de coleta será removido das opções disponíveis.", confirmLabel: "Remover ponto de coleta", variant: 'danger' }, async () => {
+      if (!await deletePickupPoint(id)) return false;
       setNotification('Ponto de coleta removido com sucesso!');
       setTimeout(() => setNotification(null), 3000);
-    }
+    });
   };
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -576,14 +581,14 @@ export default function SettingsPage() {
     const cleanCNPJ = compDocument.replace(/\D/g, '');
     if (cleanCNPJ && !validateCNPJ(cleanCNPJ)) {
       setCnpjError(true);
-      alert('CNPJ inválido! Verifique o número digitado.');
+      showFeedback('CNPJ inválido! Verifique o número digitado.', 'warning');
       return;
     }
 
     const cleanCEP = compCEP.replace(/\D/g, '');
     if (cleanCEP && !validateCEP(cleanCEP)) {
       setCepError(true);
-      alert('CEP inválido! Verifique o número de CEP.');
+      showFeedback('CEP inválido! Verifique o número de CEP.', 'warning');
       return;
     }
 
@@ -2089,9 +2094,9 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm('Deseja realmente apagar todos os registros do sistema (clientes, produtos, categorias, orçamentos, pedidos, etc.)? Isso deixará a sua plataforma vazia para uso real. Esta ação não poderá ser desfeita.')) {
-                    resetDatabase();
-                  }
+                  void requestAction({ title: 'Apagar registros operacionais?', description: "Os registros operacionais serão apagados permanentemente. Esta ação não poderá ser desfeita. Configurações da empresa e colaboradores serão mantidos.", confirmLabel: "Apagar registros", variant: 'danger' }, async () => {
+                    if (!await resetDatabase()) return false;
+                  });
                 }}
                 className="px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-600 dark:text-rose-400 text-xs font-semibold transition-all shadow-md shadow-rose-500/5"
               >

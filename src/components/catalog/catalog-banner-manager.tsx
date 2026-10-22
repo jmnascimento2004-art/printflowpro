@@ -1,4 +1,5 @@
 'use client';
+import { useActionDialog } from '@/components/action-dialog-provider';
 
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -34,7 +35,7 @@ interface Props {
   products: Product[];
   addBanner: (banner: Omit<StoreBanner, 'id'>) => StoreBanner;
   updateBanner: (id: string, patch: Partial<Omit<StoreBanner, 'id'>>) => void;
-  deleteBanner: (id: string) => void;
+  deleteBanner: (id: string) => Promise<boolean>;
   notify: (message: string) => void;
 }
 interface BannerDraft {
@@ -200,6 +201,7 @@ function BannerList({
   deleteBanner,
   notify
 }: Props & { title: string; description: string; placement: BannerPlacement }) {
+  const requestAction = useActionDialog();
   const filtered = useMemo(() => banners
     .filter((banner) => (banner.placement || 'hero') === placement)
     .sort((left, right) => (left.sort_order || 0) - (right.sort_order || 0)), [banners, placement]);
@@ -285,9 +287,10 @@ function BannerList({
   };
 
   const remove = (banner: StoreBanner) => {
-    if (!window.confirm(`Excluir o banner “${banner.title || 'Sem título'}”?`)) return;
-    deleteBanner(banner.id);
-    notify('Banner excluído.');
+    void requestAction({ title: `Excluir o banner “${banner.title || 'Sem título'}”?`, description: 'O banner será removido do catálogo. Esta ação não poderá ser desfeita.', confirmLabel: 'Excluir banner', variant: 'danger' }, async () => {
+      if (!await deleteBanner(banner.id)) return false;
+      notify('Banner excluído.');
+    });
   };
 
   return (

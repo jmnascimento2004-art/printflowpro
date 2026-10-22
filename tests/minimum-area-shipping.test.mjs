@@ -78,7 +78,7 @@ test('quote cannot insert a product whose required configuration is unresolved',
     isManualQuoteItem: false, products: [requiredProduct], selectedProductId: 'p', requiresTierSelection: false,
     getProductVolumeTiers: () => [], itemQty: 1, itemWidth: 0.2, itemHeight: 1,
     getProductPriceInfo: () => ({ price: 0, volumeTier: null }), hasVariantPricingMatrix: false,
-    resolveProductPrice: pricing.resolveProductPrice, alert: value => alerts.push(value), setItems: () => { inserted = true; }
+    resolveProductPrice: pricing.resolveProductPrice, showFeedback: value => alerts.push(value), setItems: () => { inserted = true; }
   });
   handleAddItem();
   assert.equal(inserted, false);

@@ -1,4 +1,6 @@
 'use client';
+import { useActionDialog } from '@/components/action-dialog-provider';
+import { useFeedback } from '@/context/database-context';
 import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
 
 import React, { useRef, useState } from 'react';
@@ -19,6 +21,9 @@ import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSear
 import { resolveOperationalWhatsAppMessage } from '@/lib/whatsapp/service';
 
 export default function ProductionPage() {
+  const showFeedback = useFeedback();
+  const requestAction = useActionDialog();
+
   const agendaFocus = useAgendaSourceFocus();
   const { session } = useAuth();
   const { 
@@ -69,20 +74,17 @@ export default function ProductionPage() {
         'production_status_changed',
         item.id
       );
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível preparar a atualização no WhatsApp.');
+    } catch {
+      showFeedback('Não foi possível preparar a atualização no WhatsApp.', 'error');
       return;
     }
     if (!resolved.active) {
-      alert('Este modelo está inativo na Central de WhatsApp.');
+      showFeedback('Este modelo está inativo na Central de WhatsApp.', 'warning');
       return;
     }
-    if (resolved.confirmBeforeOpen && !window.confirm('Abrir o WhatsApp com a atualização de produção preparada?')) return;
-
-    const opened = window.open(resolved.href, '_blank', 'noopener,noreferrer');
-    if (!opened) {
-      alert("Cliente sem telefone válido para WhatsApp.");
-    }
+    const openUpdate = () => { window.open(resolved.href, '_blank', 'noopener,noreferrer'); };
+    if (resolved.confirmBeforeOpen) await requestAction({ title: 'Abrir atualização de produção?', description: 'A mensagem preparada será aberta no WhatsApp para sua conferência. Nada será enviado automaticamente.', confirmLabel: 'Abrir WhatsApp' }, openUpdate);
+    else openUpdate();
   };
 
   // Dynamic list of tech profiles to assign

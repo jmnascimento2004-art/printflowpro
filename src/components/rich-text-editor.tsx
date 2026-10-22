@@ -1,4 +1,5 @@
 'use client';
+import { useActionDialog } from '@/components/action-dialog-provider';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -186,6 +187,7 @@ export function RichTextEditor({
   placeholder = 'Digite aqui...',
   minHeightClass = 'min-h-[136px]'
 }: RichTextEditorProps) {
+  const requestAction = useActionDialog();
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
   const lastEmittedHtmlRef = useRef('');
@@ -271,19 +273,19 @@ export function RichTextEditor({
     rememberSelection();
   };
 
-  const createLink = () => {
+  const createLink = async () => {
     const range = savedRangeRef.current;
     if (!rangeHasSelectedText(range)) {
       setEditorMessage('Selecione o texto que receberá o link.');
       return;
     }
-    const requestedUrl = window.prompt('Informe a URL do link');
-    if (!requestedUrl) return;
-    const safeUrl = normalizeRichTextUrl(requestedUrl, { assumeHttps: true });
-    if (!safeUrl) {
-      setEditorMessage('Use um link http, https, mailto ou tel válido.');
-      return;
-    }
+    let safeUrl = '';
+    const confirmed = await requestAction({ title: 'Adicionar link', description: 'Informe o endereço para o texto selecionado.', confirmLabel: 'Adicionar link', input: { label: 'Endereço do link', required: true }, errorMessage: 'Use um link http, https, mailto ou tel válido.' }, requestedUrl => {
+      safeUrl = normalizeRichTextUrl(requestedUrl, { assumeHttps: true });
+      if (!safeUrl) throw new Error('Invalid URL');
+    });
+    if (!confirmed) return;
+    savedRangeRef.current = range;
     runCommand('createLink', safeUrl);
     editorRef.current?.querySelectorAll('a').forEach((anchor) => {
       const href = normalizeRichTextUrl(anchor.getAttribute('href'));
