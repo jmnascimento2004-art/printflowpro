@@ -4,7 +4,7 @@ import { isActiveOrder, isFinanciallyActiveOrder, normalizeStatus } from '@/lib/
 
 export type InvoicedReceivableRow = FinancialTransaction & {
   is_virtual?: true;
-  source?: 'order_receivable';
+  source?: string;
 };
 
 type TransactionLike = Partial<FinancialTransaction> & {
@@ -131,6 +131,9 @@ export const isActivePaymentTransaction = (
   order?: Order | null
 ): boolean =>
   isActiveFinancialTransaction(transaction, order) &&
+  transaction?.entry_role !== 'payable' &&
+  (!transaction?.economic_kind || transaction.economic_kind === 'operating') &&
+  !transaction?.reversal_of &&
   INCOME_TRANSACTION_MARKERS.has(normalizeFinanceStatus(transaction?.type)) &&
   PAID_TRANSACTION_MARKERS.has(normalizeFinanceStatus(transaction?.status));
 
@@ -139,6 +142,8 @@ export const isExpenseTransaction = (
   order?: Order | null
 ): boolean =>
   isActiveFinancialTransaction(transaction, order) &&
+  transaction?.entry_role !== 'payable' &&
+  (!transaction?.economic_kind || transaction.economic_kind === 'operating') &&
   normalizeFinanceStatus(transaction?.type) === 'despesa';
 
 const buildFallbackTransactionKey = (transaction: TransactionLike) => [
@@ -166,15 +171,8 @@ export const dedupeTransactionsById = <T extends TransactionLike>(transactions: 
 };
 
 export const dedupeFinancialTransactions = <T extends TransactionLike>(transactions: T[]): T[] => {
-  const seen = new Set<string>();
-
-  return dedupeTransactionsById(transactions).filter((transaction, index) => {
-    const key = buildFallbackTransactionKey(transaction) || `index:${index}`;
-
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Distinct persisted IDs are distinct receipts, even when their contents match.
+  return dedupeTransactionsById(transactions);
 };
 
 export const getActivePaymentTransactions = <T extends TransactionLike>(
@@ -188,16 +186,19 @@ export const getActivePaymentTransactions = <T extends TransactionLike>(
 type FindOrderForTransaction = (transaction: FinancialTransaction) => Order | undefined;
 type PeriodPredicate = (transaction: FinancialTransaction) => boolean;
 
+const isBookCashTransaction = (transaction: FinancialTransaction) =>
+  transaction.entry_role !== 'payable' && transaction.status === 'pago' && !transaction.cancelled_at && Number(transaction.amount) > 0;
+const isOperatingCashTransaction = (transaction: FinancialTransaction) =>
+  isBookCashTransaction(transaction) && (!transaction.economic_kind || transaction.economic_kind === 'operating');
+
 export const calculateActiveCashBalance = (
   transactions: FinancialTransaction[],
   findOrderForTransaction: FindOrderForTransaction
 ): number =>
   dedupeFinancialTransactions(transactions).reduce((sum, transaction) => {
-    const order = findOrderForTransaction(transaction);
-    if (isActivePaymentTransaction(transaction, order)) return sum + Number(transaction.amount || 0);
-    if (isExpenseTransaction(transaction, order) && normalizeFinanceStatus(transaction.status) === 'pago') {
-      return sum - Number(transaction.amount || 0);
-    }
+    // The book retains actual cash, including compensation and transfers.
+    void findOrderForTransaction;
+    if (isBookCashTransaction(transaction)) return sum + (transaction.type === 'receita' ? 1 : -1) * Number(transaction.amount);
     return sum;
   }, 0);
 
@@ -208,8 +209,8 @@ export const calculatePeriodRevenue = (
 ): number =>
   dedupeFinancialTransactions(transactions)
     .filter(isInPeriod)
-    .filter((transaction) => isActivePaymentTransaction(transaction, findOrderForTransaction(transaction)))
-    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+    .filter(transaction => isOperatingCashTransaction(transaction) && (!findOrderForTransaction(transaction) || isFinanciallyActiveOrder(findOrderForTransaction(transaction))))
+    .reduce((sum, transaction) => sum + (transaction.reversal_of ? (transaction.type === 'despesa' ? -Number(transaction.amount) : 0) : (transaction.type === 'receita' ? Number(transaction.amount) : 0)), 0);
 
 export const calculatePeriodExpenses = (
   transactions: FinancialTransaction[],
@@ -218,11 +219,8 @@ export const calculatePeriodExpenses = (
 ): number =>
   dedupeFinancialTransactions(transactions)
     .filter(isInPeriod)
-    .filter((transaction) =>
-      isExpenseTransaction(transaction, findOrderForTransaction(transaction)) &&
-      normalizeFinanceStatus(transaction.status) === 'pago'
-    )
-    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+    .filter(transaction => isOperatingCashTransaction(transaction) && (!findOrderForTransaction(transaction) || isFinanciallyActiveOrder(findOrderForTransaction(transaction))))
+    .reduce((sum, transaction) => sum + (transaction.reversal_of ? (transaction.type === 'receita' ? -Number(transaction.amount) : 0) : (transaction.type === 'despesa' ? Number(transaction.amount) : 0)), 0);
 
 export const calculateAccountsReceivable = (
   activeOrders: Order[],
@@ -239,7 +237,7 @@ export const getActivePaymentsForOrder = (
   order?: Order | null
 ): FinancialTransaction[] =>
   getActivePaymentTransactions(transactions, order).filter((transaction) =>
-    transaction.order_id === orderId || areOrderNumbersEquivalent(transaction.order_number, orderNumber)
+    transaction.order_id === orderId || (!transaction.order_id && areOrderNumbersEquivalent(transaction.order_number, orderNumber))
   );
 
 export const calculateOrderPaidAmount = (
@@ -265,11 +263,10 @@ export const getOrderReceivableBalance = (
   transactions: FinancialTransaction[]
 ): number => calculateOrderBalance(order, transactions);
 
-const findCustomerForOrder = (order: Order, customers: Customer[]): Customer | undefined =>
-  customers.find((customer) =>
-    customer.id === order.customer_id ||
-    normalizeFinanceStatus(customer.name) === normalizeFinanceStatus(order.customer_name)
-  );
+export const findCustomerForOrder = (order: Order, customers: Customer[]): Customer | undefined =>
+  customers.find((customer) => customer.id === order.customer_id) ||
+  customers.find((customer) => Boolean(order.customer_name) &&
+    normalizeFinanceStatus(customer.name) === normalizeFinanceStatus(order.customer_name));
 
 const hasPendingInvoicedTransaction = (
   order: Order,
