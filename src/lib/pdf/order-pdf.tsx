@@ -23,7 +23,7 @@ export function OrderPdfDocument({ data, signature = false }: { data: OrderPdfDa
       <View style={{ ...s.row, backgroundColor: '#f1f5f9', padding: 10, marginTop: 4 }}><Text style={{ flex: 1, fontWeight: 700 }}>TOTAL DO PEDIDO</Text><Text style={{ fontWeight: 700, fontSize: 13 }}>{formatPdfCurrency(totals.total)}</Text></View>
       {paid > 0 && <><View style={s.row}><Text style={{ flex: 1 }}>Total pago</Text><Text>{formatPdfCurrency(paid)}</Text></View><View style={s.row}><Text style={{ flex: 1 }}>Saldo</Text><Text>{formatPdfCurrency(Math.max(0, totals.total - paid))}</Text></View></>}
     </View>
-    <View style={{ marginTop: 16 }} wrap={false}><Text style={s.heading}>Entrega e pagamento</Text>
+    <View wrap={false}><View style={{ marginTop: 16 }} wrap={false}><Text style={s.heading}>Entrega e pagamento</Text>
       {data.order.deadline && <Text>Prazo: {documentDate(data.order.deadline)}</Text>}
       {deliveryTime.isComplete && <Text>Prazo de entrega: {deliveryTime.label}</Text>}
       {data.order.delivery_type && <Text>{data.order.delivery_type === 'retirada' ? 'Retirada na empresa' : `Entrega: ${data.order.delivery_type}`}</Text>}
@@ -31,6 +31,6 @@ export function OrderPdfDocument({ data, signature = false }: { data: OrderPdfDa
       <Text>{paid >= totals.total && paid > 0 ? 'Pagamento confirmado' : paid > 0 ? 'Pagamento parcial' : 'Pagamento pendente'}</Text>
       {data.invoicedTransaction?.due_date && <Text>Vencimento do faturamento: {documentDate(data.invoicedTransaction.due_date)}</Text>}
     </View>
-    {signature && <SignatureBlock label="Ciência do cliente (opcional)" />}<DocumentFooter data={data} />
+    {signature && <SignatureBlock label="Ciência do cliente (opcional)" acknowledgment />}</View><DocumentFooter data={data} />
   </Page></Document>;
 }

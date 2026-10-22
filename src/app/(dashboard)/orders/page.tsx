@@ -1,5 +1,6 @@
 'use client';
 
+import { useActionDialog } from '@/components/action-dialog-provider';
 import { ProductConfiguratorModal } from '@/components/store/ProductConfiguratorModal';
 import { createPOSCartItem } from '@/lib/pos-cart';
 
@@ -92,8 +93,10 @@ export default function OrdersPage() {
     company,
     financial,
     updateOrder,
-    products, production, shipments, rolePermissions, quotes
+    products, production, shipments, rolePermissions, quotes, showToast
   } = useDatabase();
+  const requestAction = useActionDialog();
+  const pixPreparing = useRef(false);
   const allowed = (path: string) => canAccessModule(activeProfile.role, path, rolePermissions);
 
   const orderMutationRef = useRef(false);
@@ -450,12 +453,11 @@ export default function OrdersPage() {
 
   const handleRemoveEditItem = (itemId: string) => {
     if (editItems.length <= 1) {
-      alert('O pedido precisa ter pelo menos um item.');
+      showToast('O pedido precisa ter pelo menos um item.', 'error');
       return;
     }
 
-    if (!confirm('Tem certeza que deseja remover este item do pedido?')) return;
-    setEditItems((current) => current.filter((item) => item.id !== itemId));
+    void requestAction({ title: 'Remover item do pedido?', description: 'O item será removido desta edição. A alteração só será persistida ao salvar o pedido.', confirmLabel: 'Remover item', variant: 'danger' }, () => { setEditItems(current => current.filter(item => item.id !== itemId)); });
   };
 
   useEffect(() => {
@@ -524,9 +526,7 @@ export default function OrdersPage() {
   const handleOpenCancelOrder = (order: Order) => {
     if (order.status === 'cancelado') return;
 
-    if (confirm(`Cancelar o pedido ${formatOrderDisplayNumber(order.number)}?`)) {
-      updateOrderStatus(order.id, 'cancelado');
-    }
+    void requestAction({ title: `Cancelar o pedido ${formatOrderDisplayNumber(order.number)}?`, description: 'O status deste pedido será alterado para Cancelado. Produção e Expedição mantêm seus próprios ciclos.', confirmLabel: 'Cancelar pedido', variant: 'danger' }, () => updateOrderStatus(order.id, 'cancelado'));
   };
 
   const handleSaveEditOrder = async (e: React.FormEvent) => {
@@ -546,12 +546,12 @@ export default function OrdersPage() {
       return type === 'linear' && !(Number(details.length ?? details.width) > 0);
     });
     if (invalidMeasure) {
-      alert('Informe medidas em metros maiores que zero.');
+      showToast('Informe medidas em metros maiores que zero.', 'error');
       return;
     }
 
     if (editItems.length === 0) {
-      alert('O pedido precisa ter pelo menos um item.');
+      showToast('O pedido precisa ter pelo menos um item.', 'error');
       return;
     }
 
@@ -560,7 +560,7 @@ export default function OrdersPage() {
     const grossTotal = productsTotal + servicesTotal + editShipping;
     const safeDiscount = Math.min(Math.max(0, editDiscount), grossTotal);
     if (safeDiscount > 0 && !editDiscountReason.trim()) {
-      alert('Informe o motivo do desconto para manter o histórico comercial do pedido.');
+      showToast('Informe o motivo do desconto para manter o histórico comercial do pedido.', 'error');
       return;
     }
     const nextTotal = Math.max(0, grossTotal - safeDiscount);
@@ -591,7 +591,7 @@ export default function OrdersPage() {
       if (error instanceof PersistenceMutationError && error.code === 'CONFLICT' && error.latest) {
         handleOpenEditOrder(error.latest as Order);
       }
-      alert(getPersistenceErrorMessage(error));
+      showToast(getPersistenceErrorMessage(error), 'error');
     } finally {
       orderMutationRef.current = false;
       setOrderPending(false);
@@ -610,7 +610,7 @@ export default function OrdersPage() {
       if (process.env.NODE_ENV === 'development') {
         console.warn('Erro ao baixar PDF do pedido:', err);
       }
-      alert('Não foi possível baixar o PDF. Tente novamente.');
+      showToast('Não foi possível baixar o PDF. Tente novamente.', 'error');
     }
   };
 
@@ -630,7 +630,7 @@ export default function OrdersPage() {
     const transaction = getLatestPaidOrderTransaction(order);
 
     if (!transaction) {
-      alert('Nenhum pagamento confirmado encontrado para gerar recibo.');
+      showToast('Nenhum pagamento confirmado encontrado para gerar recibo.', 'error');
       return;
     }
 
@@ -715,7 +715,7 @@ export default function OrdersPage() {
     const currentPaidBeforePayment = Math.max(Number(selectedOrder.paid_amount || 0), confirmedPaidBeforePayment);
     const currentBalance = Math.max(0, selectedOrder.total_amount - currentPaidBeforePayment);
     if (paymentAmount > currentBalance) {
-      alert(`O valor recebido não pode ser maior que o saldo pendente (${formatCurrency(currentBalance)}).`);
+      showToast(`O valor recebido não pode ser maior que o saldo pendente (${formatCurrency(currentBalance)}).`, 'error');
       return;
     }
 
@@ -727,17 +727,17 @@ export default function OrdersPage() {
     if (paymentMethod === 'faturado') {
       const existingInvoice = getOpenInvoicedTransaction(selectedOrder);
       if (existingInvoice) {
-        alert(`Este pedido ja possui faturamento B2B em aberto com vencimento em ${new Date(existingInvoice.due_date).toLocaleDateString('pt-BR')}. Registre a baixa usando PIX, cartao, dinheiro ou boleto.`);
+        showToast(`Este pedido ja possui faturamento B2B em aberto com vencimento em ${new Date(existingInvoice.due_date).toLocaleDateString('pt-BR')}. Registre a baixa usando PIX, cartao, dinheiro ou boleto.`, 'error');
         return;
       }
 
       const client = customers.find(c => c.name === selectedOrder.customer_name);
       if (!client || client.billing_type !== 'faturado') {
-        alert('Este cliente não possui permissão de faturamento corporativo!');
+        showToast('Este cliente não possui permissão de faturamento corporativo!', 'error');
         return;
       }
       if (client.credit_status !== 'aprovado') {
-        alert('O crédito corporativo deste cliente não está APROVADO!');
+        showToast('O crédito corporativo deste cliente não está APROVADO!', 'error');
         return;
       }
       const openB2BForClient = activeOrders
@@ -750,7 +750,7 @@ export default function OrdersPage() {
         }, 0);
       const creditAvailable = (client.credit_limit || 0) - openB2BForClient;
       if (creditAvailable < paymentAmount) {
-        alert(`Crédito indisponível! Limite disponível: ${formatCurrency(creditAvailable)}`);
+        showToast(`Crédito indisponível! Limite disponível: ${formatCurrency(creditAvailable)}`, 'error');
         return;
       }
     }
@@ -1004,27 +1004,20 @@ export default function OrdersPage() {
   };
 
   const sendPixWhatsApp = async (order: Order) => {
-    let resolved;
+    if (pixPreparing.current) return;
+    pixPreparing.current = true;
     try {
-      resolved = await resolveOperationalWhatsAppMessage(
-        session?.access_token,
-        'order_payment_pending',
-        order.id
-      );
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Não foi possível preparar a cobrança no WhatsApp.');
-      return;
-    }
-    if (!resolved.active) {
-      alert('Este modelo está inativo na Central de WhatsApp.');
-      return;
-    }
-    if (resolved.confirmBeforeOpen && !window.confirm('Abrir o WhatsApp com a cobrança preparada?')) return;
-
-    const opened = window.open(resolved.href, '_blank', 'noopener,noreferrer');
-    if (!opened) {
-      alert("Cliente sem telefone válido para WhatsApp.");
-    }
+      const resolved = await resolveOperationalWhatsAppMessage(session?.access_token, 'order_payment_pending', order.id);
+      if (!resolved.active) { showToast('Este modelo está inativo na Central de WhatsApp.', 'error'); return; }
+      const openWhatsApp = () => { window.open(resolved.href, '_blank', 'noopener,noreferrer'); };
+      if (!resolved.confirmBeforeOpen) { openWhatsApp(); return; }
+      await requestAction({
+        title: 'Enviar cobrança PIX', description: 'A cobrança está pronta para ser enviada pelo WhatsApp. A mensagem será aberta para sua conferência; nada será enviado automaticamente.', confirmLabel: 'Abrir WhatsApp',
+        summary: [['Cliente', order.customer_name], ['Pedido', formatOrderDisplayNumber(order.number)], ['Saldo pendente', formatCurrency(Math.max(0, order.total_amount - getConfirmedPaidAmountForOrder(order)))], ['Destino', 'WhatsApp do cliente']],
+        errorMessage: 'Não foi possível abrir o WhatsApp. Tente novamente.'
+      }, openWhatsApp);
+    } catch { showToast('Não foi possível preparar a cobrança no WhatsApp. Tente novamente.', 'error'); }
+    finally { pixPreparing.current = false; }
   };
 
   // Stats Calculations

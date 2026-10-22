@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import React from 'react';
+import { renderToBuffer } from '@react-pdf/renderer';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { loadTypescript } from './helpers/load-typescript.mjs';
+const { OrderPdfDocument } = loadTypescript('src/lib/pdf/order-pdf.tsx');
+for (const count of [1,10,50]) test(`A4 manual acknowledgment: ${count} items, spacing and ending together`, async()=>{
+  const data={company:{id:'fixture',name:'Gráfica de validação'},settings:{},customer:{name:'Cliente de validação'},order:{id:'fixture',number:'PED-0035',customer_name:'Cliente de validação',status:'orcamento',created_at:'2026-10-22',deadline:'2026-10-24',delivery_type:'retirada',total_amount:count*100,paid_amount:0,items:Array.from({length:count},(_,i)=>({id:`i${i}`,product_name:`Produto ${i+1}`,quantity:1,unit_price:100,total_price:100,details:{}}))}};
+  const bytes=await renderToBuffer(React.createElement(OrderPdfDocument,{data,signature:true}));
+  const task=getDocument({data:new Uint8Array(bytes),useSystemFonts:true});const pdf=await task.promise;
+  if(count===1)assert.equal(pdf.numPages,1);
+  const page=await pdf.getPage(pdf.numPages), view=page.getViewport({scale:1}); assert.ok(Math.abs(view.width-595.28)<1&&Math.abs(view.height-841.89)<1);
+  const content=(await page.getTextContent()).items.filter(x=>x.str.trim());
+  const find=text=>content.find(x=>x.str.includes(text));
+  for(const label of ['Entrega e pagamento','Ciência do cliente','Nome legível:','Documento:','Data:','Hora:','Assinatura do cliente'])assert.ok(find(label),label);
+  assert.ok(find('Ciência do cliente').transform[5]-find('Nome legível:').transform[5]>=14);
+  assert.ok(find('Nome legível:').transform[5]-find('Documento:').transform[5]>=24);
+  assert.ok(find('Documento:').transform[5]-find('Data:').transform[5]>=20);
+  assert.ok(find('Hora:').transform[4]-find('Data:').transform[4]>120);
+  assert.ok(find('Data:').transform[5]-find('Assinatura do cliente').transform[5]>=30);
+  for(const item of content)assert.ok(item.transform[5]>=15&&item.transform[5]<825);
+  await mkdir('.local-backup/order-acknowledgment',{recursive:true});await writeFile(`.local-backup/order-acknowledgment/order-${count}.pdf`,bytes);await task.destroy();
+});

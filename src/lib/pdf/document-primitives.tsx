@@ -49,7 +49,14 @@ export function DocumentItemsTable({ data, commercial = false, internal = false 
       </View>; })}</>;
 }
 
-export function SignatureBlock({ label = 'Recebido por / assinatura' }: { label?: string }) {
+export function SignatureBlock({ label = 'Recebido por / assinatura', acknowledgment = false }: { label?: string; acknowledgment?: boolean }) {
+  if (acknowledgment) return <View wrap={false} style={{ marginTop: 18, color: '#64748b', fontSize: 8 }}>
+    <Text style={{ fontWeight: 700, marginBottom: 14 }}>{label}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginBottom: 14 }}><Text>Nome legível: </Text><View style={{ flex: 1, marginLeft: 6, borderBottomWidth: 0.5, borderColor: '#94a3b8', height: 13 }} /></View>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginBottom: 14 }}><Text>Documento: </Text><View style={{ width: 250, marginLeft: 6, borderBottomWidth: 0.5, borderColor: '#94a3b8', height: 13 }} /></View>
+    <View style={{ flexDirection: 'row', gap: 32 }}><Text>Data: ____/____/________</Text><Text>Hora: ____:____</Text></View>
+    <View style={{ marginTop: 28, width: '70%', alignSelf: 'center', borderTopWidth: 0.5, borderColor: '#94a3b8', paddingTop: 6, textAlign: 'center' }}><Text>Assinatura do cliente</Text></View>
+  </View>;
   return <View style={documentStyles.signature} wrap={false}><Text>{label}</Text><Text>Nome legível: ____________________________________</Text><Text>Documento: __________________  Data/hora: ____/____/______  ____:____</Text></View>;
 }
 

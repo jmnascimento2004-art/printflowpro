@@ -11,6 +11,7 @@ import { PWAInstallProvider } from "@/components/pwa-install-provider";
 import { StoreCustomerProvider } from "@/context/store-customer-context";
 import { StorePrivacyProvider } from "@/context/store-privacy-context";
 import { StoreCookieBanner } from "@/components/store/StoreCookieBanner";
+import { ActionDialogProvider } from "@/components/action-dialog-provider";
 
 const companyHeadBootScript = `
 (function () {
@@ -160,7 +161,7 @@ export default function RootLayout({
           <BrowserProtocolGuard />
           <ThemeProvider>
             <AuthProvider>
-              <DatabaseProvider>
+              <ActionDialogProvider><DatabaseProvider>
                 <StoreCustomerProvider>
                   <StorePrivacyProvider>
                     <CompanyThemeSync />
@@ -169,7 +170,7 @@ export default function RootLayout({
                     <StoreCookieBanner />
                   </StorePrivacyProvider>
                 </StoreCustomerProvider>
-              </DatabaseProvider>
+              </DatabaseProvider></ActionDialogProvider>
             </AuthProvider>
           </ThemeProvider>
         </PWAInstallProvider>
