@@ -7,11 +7,11 @@ const dialogPath = new URL('../src/components/pdf/pdf-preview-dialog.tsx', impor
 
 test('close control is a separate accessible 40px header action', async () => {
   const source = await readFile(viewerPath, 'utf8');
-  const closeButton = source.slice(source.indexOf('{onClose && ('), source.indexOf('</button>', source.indexOf('{onClose && (')) + 9);
+  const closeButton = source.slice(source.indexOf('{onClose && <button'), source.indexOf('</button>', source.indexOf('{onClose && <button')) + 9);
 
   assert.match(closeButton, /type="button"/);
   assert.match(closeButton, /onClick=\{onClose\}/);
-  assert.match(closeButton, /aria-label="Fechar visualização do PDF"/);
+  assert.match(closeButton, /aria-label="Fechar documento"/);
   assert.match(closeButton, /title="Fechar"/);
   assert.match(closeButton, /h-10 w-10/);
   assert.match(closeButton, /shrink-0/);
@@ -23,13 +23,13 @@ test('header keeps title, wrapping actions and close control in distinct areas',
   const source = await readFile(viewerPath, 'utf8');
   const titleIndex = source.indexOf('min-w-0 flex-1');
   const actionsIndex = source.indexOf('flex min-w-0 flex-1 flex-wrap items-center gap-2');
-  const closeIndex = source.indexOf('{onClose && (');
+  const closeIndex = source.indexOf('{onClose && <button');
 
   assert.ok(titleIndex > -1);
   assert.ok(actionsIndex > titleIndex);
-  assert.ok(closeIndex > actionsIndex);
+  assert.ok(closeIndex > titleIndex && closeIndex < actionsIndex);
   assert.match(source, /whitespace-nowrap[^"]*rounded-xl/);
-  assert.match(source, /flex w-full items-start gap-2 sm:w-auto sm:items-center/);
+  assert.match(source, /flex w-full flex-wrap items-center gap-2/);
 });
 
 test('dialog closes on Escape and restores focus after unmount', async () => {

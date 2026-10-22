@@ -28,6 +28,19 @@ export function hasPdfSignature(data) {
     && data[4] === 0x2d;
 }
 
+// Scoped to one mounted viewer: resizing reuses bytes; retry/options load a new PDF.
+export function createPdfAssetCache() {
+  let current = null;
+  return {
+    load(source, revision, fetchDocument) {
+      if (!current || current.source !== source || current.revision !== revision) {
+        current = { source, revision, promise: fetchDocument(source) };
+      }
+      return current.promise;
+    }
+  };
+}
+
 export function createPdfPreviewRunController() {
   let generation = 0;
   let loadingTask = null;

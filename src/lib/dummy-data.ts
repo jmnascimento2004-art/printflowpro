@@ -473,6 +473,7 @@ export interface OrderItem {
 }
 
 export interface Order {
+  source_quote_id?: string | null;
   id: string;
   company_id: string;
   customer_id: string;

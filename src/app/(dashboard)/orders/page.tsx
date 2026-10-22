@@ -3,6 +3,10 @@
 import { ProductConfiguratorModal } from '@/components/store/ProductConfiguratorModal';
 import { createPOSCartItem } from '@/lib/pos-cart';
 
+import { OrderDocumentDialog } from '@/components/pdf/order-document-dialog';
+import { OrderProductionSummary, OrderAnalysis } from '@/components/commercial/order-insights';
+import { canAccessModule } from '@/lib/module-permissions';
+import { commercialSummary, documentDate, documentItem, ORDER_STATUS_LABELS } from '@/lib/order-document-model';
 import { MetricInput } from '@/components/MetricInput';
 import { formatMeters } from '@/lib/metric.mjs';
 
@@ -14,7 +18,6 @@ import {
   X, 
   Check, 
   AlertCircle,
-  Printer,
   Ban,
   Download,
   Eye,
@@ -79,7 +82,7 @@ const buildOrderNotesWithDiscount = (notes: string, discount: number, reason: st
 };
 
 export default function OrdersPage() {
-  const { session } = useAuth();
+  const { session, activeProfile } = useAuth();
   const { 
     orders, 
     updateOrderStatus, 
@@ -89,14 +92,21 @@ export default function OrdersPage() {
     company,
     financial,
     updateOrder,
-    products
+    products, production, shipments, rolePermissions, quotes
   } = useDatabase();
+  const allowed = (path: string) => canAccessModule(activeProfile.role, path, rolePermissions);
 
   const orderMutationRef = useRef(false);
   const [orderPending, setOrderPending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [detailTab, setDetailTab] = useState('items');
+  const [documentKind, setDocumentKind] = useState<'order' | 'production' | 'label' | 'protocol' | null>(null);
+  const [documentOrder, setDocumentOrder] = useState<Order | null>(null);
+  useEffect(() => { setDetailTab('items'); setIsAddingPayment(false); }, [selectedOrder?.id]);
+  useEffect(() => { setSelectedOrder(current => current ? orders.find(order => order.id === current.id) || current : null); }, [orders]);
+  const closeOrderDocument = useCallback(() => { setDocumentKind(null); setDocumentOrder(null); }, []);
   const openedLinkRef = useRef('');
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('orderId');
@@ -588,13 +598,9 @@ export default function OrdersPage() {
     }
   };
 
-  const handlePrintOrderPdf = (order: Order) => {
-    setSelectedPdfPreview({
-      title: `Pedido ${formatOrderDisplayNumber(order.number)}`,
-      previewDataUrl: `/api/pdf/order/${order.id}`,
-      downloadUrl: `/api/pdf/order/${order.id}?download=1`,
-      directPdfUrl: `/api/pdf/order/${order.id}`
-    });
+  const handleViewOrderDocument = (order: Order) => {
+    setDocumentOrder(order);
+    setDocumentKind('order');
   };
 
   const handleDownloadOrderPdf = async (order: Order) => {
@@ -610,7 +616,7 @@ export default function OrdersPage() {
 
   const getLatestPaidOrderTransaction = (order: Order) => {
     return getActivePaymentTransactions(
-      financial.filter((transaction) => transaction.order_id === order.id || areOrderNumbersEquivalent(transaction.order_number, order.number)),
+      financial.filter((transaction) => transaction.order_id === order.id || (!transaction.order_id && areOrderNumbersEquivalent(transaction.order_number, order.number))),
       order
     )
       .sort((a, b) => {
@@ -661,7 +667,7 @@ export default function OrdersPage() {
       transaction.payment_method === 'faturado' &&
       transaction.status === 'pendente' &&
       !isCancelledOrder(order) &&
-      (transaction.order_id === order.id || areOrderNumbersEquivalent(transaction.order_number, order.number))
+      (transaction.order_id === order.id || (!transaction.order_id && areOrderNumbersEquivalent(transaction.order_number, order.number)))
     );
   };
 
@@ -984,28 +990,11 @@ export default function OrdersPage() {
 
   const getConfirmedPaidAmountForOrder = (order: Order) => {
     const confirmedTotal = getActivePaymentTransactions(
-      financial.filter((transaction) => transaction.order_id === order.id || areOrderNumbersEquivalent(transaction.order_number, order.number)),
+      financial.filter((transaction) => transaction.order_id === order.id || (!transaction.order_id && areOrderNumbersEquivalent(transaction.order_number, order.number))),
       order
     ).reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
 
     return confirmedTotal > 0 ? confirmedTotal : Number(order.paid_amount || 0);
-  };
-
-  const getOrderItemConfigurationLines = (item: Order['items'][number]) => {
-    const snapshot = item.details?.configuration_snapshot;
-    if (!snapshot) return item.details?.configuration_summary ? {
-      options: item.details.configuration_summary,
-      quantity: `${item.quantity} un`,
-      unit: `${formatUnitCurrency(item.unit_price)}/un`,
-      total: formatCurrency(item.total_price)
-    } : null;
-
-    return {
-      options: [snapshot.material, snapshot.size, snapshot.colors, snapshot.finishing].filter(Boolean).join(' • '),
-      quantity: `${snapshot.quantity_tier || item.quantity} un`,
-      unit: `${formatUnitCurrency(snapshot.unit_price || item.unit_price)}/un`,
-      total: formatCurrency(snapshot.total_price || item.total_price)
-    };
   };
 
   const isOverdue = (dateStr: string, status: string) => {
@@ -1066,15 +1055,17 @@ export default function OrdersPage() {
 
   const selectedOrderTransactions = selectedOrder
     ? financial.filter((transaction) => {
-        const matchesOrder = transaction.order_id === selectedOrder.id || areOrderNumbersEquivalent(transaction.order_number, selectedOrder.number);
+        const matchesOrder = transaction.order_id === selectedOrder.id || (!transaction.order_id && areOrderNumbersEquivalent(transaction.order_number, selectedOrder.number));
         if (!matchesOrder || transaction.type !== 'receita') return false;
         if (transaction.payment_method === 'faturado' && transaction.status === 'pendente') return !isCancelledOrder(selectedOrder);
         return getActivePaymentTransactions([transaction], selectedOrder).length > 0;
       })
     : [];
   
+  const documentTarget = documentOrder || selectedOrder;
   return (
     <div className="space-y-6">
+      {documentKind && documentTarget && <OrderDocumentDialog id={documentTarget.id} number={formatOrderDisplayNumber(documentTarget.number)} kind={documentKind} onClose={closeOrderDocument} />}
       {selectedPdfPreview && (
         <PdfPreviewDialog
           open={Boolean(selectedPdfPreview)}
@@ -1698,7 +1689,7 @@ export default function OrdersPage() {
 
               {/* Notes */}
               <div className="md:col-span-2 space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Observações / Detalhes</label>
+                <label className="text-xs font-semibold text-muted-foreground">Observações internas (não impressas na via comercial)</label>
                 <textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
@@ -1925,11 +1916,11 @@ export default function OrdersPage() {
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          handlePrintOrderPdf(order);
+                          handleViewOrderDocument(order);
                         }}
                         className="rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary hover:bg-primary/15"
-                        title="Visualizar pedido"
-                        aria-label="Visualizar pedido"
+                        title="Via do Pedido"
+                        aria-label={`Via do Pedido ${formatOrderDisplayNumber(order.number)}`}
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </button>
@@ -2071,12 +2062,12 @@ export default function OrdersPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handlePrintOrderPdf(order)}
+                                onClick={() => handleViewOrderDocument(order)}
                                 className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/15 text-primary border border-primary/20"
-                                title="Visualizar PDF"
-                                aria-label={`Visualizar PDF do pedido ${formatOrderDisplayNumber(order.number)}`}
+                                title="Via do Pedido"
+                                aria-label={`Via do Pedido ${formatOrderDisplayNumber(order.number)}`}
                               >
-                                <Printer className="h-3.5 w-3.5" />
+                                <Eye className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 type="button"
@@ -2132,35 +2123,33 @@ export default function OrdersPage() {
                   <span className="text-[10px] font-black uppercase tracking-wider text-primary">Pedido comercial</span>
                   <h3 className="mt-1 text-xl font-black text-foreground">{formatOrderDisplayNumber(selectedOrder.number)}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Cliente: <strong className="text-foreground">{selectedOrder.customer_name}</strong> • Data: {new Date(selectedOrder.created_at).toLocaleDateString('pt-BR')}
+                    Cliente: <strong className="text-foreground">{selectedOrder.customer_name}</strong> • Data: {documentDate(selectedOrder.created_at)}{selectedOrder.deadline && ` • Prazo: ${documentDate(selectedOrder.deadline)}`}
                   </p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">Origem: {selectedOrder.source_quote_id && quotes.find(quote => quote.id === selectedOrder.source_quote_id) ? `Orçamento #${quotes.find(quote => quote.id === selectedOrder.source_quote_id)?.number}` : 'Não registrada'}</p>
                 </div>
               </div>
 
-              <div className="grid w-full gap-2 sm:grid-cols-2 xl:max-w-xl xl:grid-cols-4">
-                <div className="rounded-xl border border-border bg-card p-3">
-                  <span className="block text-[10px] font-bold uppercase text-muted-foreground">Status</span>
-                  <span className="mt-1 block text-xs font-black text-foreground">
-                    {getOrderStatusBadge(selectedOrder.status)}
-                  </span>
-                </div>
-                <div className="rounded-xl border border-border bg-card p-3">
-                  <span className="block text-[10px] font-bold uppercase text-muted-foreground">Financeiro</span>
-                  <div className="mt-1">{getPaymentStatusBadge(selectedOrder.payment_status, selectedOrder)}</div>
-                </div>
-                <div className="rounded-xl border border-border bg-card p-3">
-                  <span className="block text-[10px] font-bold uppercase text-muted-foreground">Total</span>
-                  <span className="mt-1 block text-sm font-black text-foreground">{formatCurrency(selectedOrder.total_amount)}</span>
-                </div>
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
-                  <span className="block text-[10px] font-bold uppercase text-amber-600">Saldo</span>
-                  <span className="mt-1 block text-sm font-black text-amber-600">{formatCurrency(Math.max(0, selectedOrder.total_amount - selectedOrder.paid_amount))}</span>
-                </div>
+              <div className="flex flex-wrap items-start gap-5 text-xs xl:justify-end">
+                <label className="space-y-1"><span className="block text-muted-foreground">Status do Pedido</span><select aria-label="Status do Pedido" value={selectedOrder.status} disabled={orderPending || !allowed('/orders')} onChange={async event => {
+                  if (orderMutationRef.current) return;
+                  orderMutationRef.current = true; setOrderPending(true);
+                  try { await updateOrderStatus(selectedOrder.id, event.target.value as Order['status']); }
+                  finally { orderMutationRef.current = false; setOrderPending(false); }
+                }} className="rounded-lg border border-border bg-card py-2 pl-3 text-xs font-bold">
+                  {(['orcamento', 'aguardando_pagamento', 'producao', 'impressao', 'acabamento', 'expedicao', 'entregue', 'finalizado', 'cancelado'] as Order['status'][]).map(status => <option key={status} value={status}>{ORDER_STATUS_LABELS[status]}</option>)}
+                  {selectedOrder.status === 'aguardando_aprovacao' && <option value="aguardando_aprovacao">Aguardando aprovação</option>}
+                </select></label>
+                <div><span className="block text-muted-foreground">Total</span><strong className="mt-2 block text-base">{formatCurrency(selectedOrder.total_amount)}</strong></div>
+                <div><span className="block text-muted-foreground">Saldo</span><strong className="mt-2 block text-base text-primary">{formatCurrency(selectedOrderPendingAmount)}</strong></div>
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              {selectedOrder.payment_status !== 'pago' && (
+              {selectedOrder.source_quote_id && allowed('/quotes') && quotes.some(quote => quote.id === selectedOrder.source_quote_id) && <button onClick={() => setSelectedPdfPreview({ title: 'Orçamento de origem', previewDataUrl: `/api/pdf/quote/${selectedOrder.source_quote_id}`, downloadUrl: `/api/pdf/quote/${selectedOrder.source_quote_id}?download=1`, directPdfUrl: `/api/pdf/quote/${selectedOrder.source_quote_id}` })} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Orçamento #{quotes.find(quote => quote.id === selectedOrder.source_quote_id)?.number}</button>}
+              {allowed('/production') && <button onClick={() => setDocumentKind('production')} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Ordem de Produção</button>}
+              {allowed('/shipment') && <><button onClick={() => setDocumentKind('label')} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Etiqueta</button><button onClick={() => setDocumentKind('protocol')} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Protocolo</button></>}
+
+              {allowed('/financial') && selectedOrderPendingAmount > 0 && (
                 <button
                   onClick={() => sendPixWhatsApp(selectedOrder)}
                   className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow shadow-emerald-600/25"
@@ -2173,28 +2162,20 @@ export default function OrdersPage() {
                 </button>
               )}
               <button
-                onClick={() => handlePrintOrderPdf(selectedOrder)}
+                onClick={() => setDocumentKind('order')}
                 className="px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary/15 text-primary text-xs font-semibold flex items-center gap-1.5 border border-primary/20"
-                title="Visualizar PDF"
-                aria-label={`Visualizar PDF do pedido ${formatOrderDisplayNumber(selectedOrder.number)}`}
+                title="Via do Pedido"
+                aria-label={`Via do Pedido ${formatOrderDisplayNumber(selectedOrder.number)}`}
               >
-                <Printer className="h-4 w-4" /> Visualizar PDF
+                <Eye className="h-4 w-4" /> Via do Pedido
               </button>
-              <button
-                onClick={() => handleDownloadOrderPdf(selectedOrder)}
-                className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-1.5 border border-border"
-                title="Baixar PDF"
-                aria-label={`Baixar PDF do pedido ${formatOrderDisplayNumber(selectedOrder.number)}`}
-              >
-                <Download className="h-4 w-4" /> Baixar PDF
-              </button>
-              <button
+              {allowed('/financial') && getLatestPaidOrderTransaction(selectedOrder) && <button
                 onClick={() => handlePreviewReceipt(selectedOrder)}
                 className="px-3.5 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold flex items-center gap-1.5 shadow shadow-primary/25"
                 title="Visualizar recibo de pagamento"
               >
                 <Eye className="h-4 w-4" /> Recibo de Pagamento
-              </button>
+              </button>}
               <button
                 onClick={() => handleOpenEditOrder(selectedOrder)}
                 className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-1 border border-border"
@@ -2205,6 +2186,12 @@ export default function OrdersPage() {
             </div>
           </div>
 
+          <nav aria-label="Abas do pedido" className="flex gap-1 overflow-x-auto border-b border-border pb-2">
+            {[['items', 'Itens do Pedido'], ...(allowed('/financial') ? [['finance', 'Financeiro']] : []), ['production', 'Produção'], ['analysis', 'Análise']].map(([key, label]) => <button key={key} type="button" aria-pressed={detailTab === key} onClick={() => setDetailTab(key)} className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold ${detailTab === key ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>{label}</button>)}
+          </nav>
+          {detailTab === 'production' && <OrderProductionSummary order={selectedOrder} production={production} shipments={shipments} canProduction={allowed('/production')} canShipment={allowed('/shipment')} />}
+          {detailTab === 'analysis' && <OrderAnalysis order={selectedOrder} paid={selectedOrderPaidAmount} />}
+          {detailTab === 'items' && <>
           {/* Informações de Entrega */}
           <div className="p-4 bg-secondary/20 border border-border rounded-xl space-y-2.5 text-xs">
             <h4 className="text-[10px] font-bold text-foreground uppercase tracking-wider">Informações de Entrega e Frete</h4>
@@ -2239,46 +2226,7 @@ export default function OrdersPage() {
             )}
           </div>
 
-          {/* Items List */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider block">Itens Relacionados</h4>
-            <div className="divide-y divide-border border border-border rounded-xl bg-secondary/10">
-              {selectedOrder.items.map((item) => (
-                <div key={item.id} className="p-3.5 text-xs flex justify-between items-start">
-                  <div>
-                    <div className="font-semibold text-foreground">{item.product_name}</div>
-                    {(() => {
-                      const configLines = getOrderItemConfigurationLines(item);
-                      if (!configLines) return null;
-                      return (
-                        <div className="mt-1 rounded-lg border border-primary/10 bg-primary/5 px-2 py-1 text-[10px] leading-relaxed text-muted-foreground">
-                          <span className="block font-bold text-foreground">Configuração: {configLines.options}</span>
-                          <span className="block">
-                            Tiragem: {configLines.quantity} • Unitário: {configLines.unit} • Total: {configLines.total}
-                          </span>
-                        </div>
-                      );
-                    })()}
-                    {item.details && (item.details.width || item.details.height) && (
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Medidas: {formatMeters(item.details.width || 0)} {item.details.height ? `x ${formatMeters(item.details.height)}` : 'linear'}
-                      </div>
-                    )}
-                    {item.outsourced && (
-                      <span className="mt-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[9px] font-semibold border border-amber-500/10 block w-max">
-                        Terceirizado: {item.supplier_name}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="font-bold text-foreground">{item.quantity}x</span>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{formatUnitCurrency(item.unit_price)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
+          <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full text-left text-xs"><thead className="bg-secondary"><tr>{['Produto / configuração / medidas', 'Qtd', 'Unitário', 'Subtotal'].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead><tbody>{selectedOrder.items.map(item => { const row = documentItem(item); return <tr key={item.id} className="border-t border-border"><td className="min-w-48 p-3"><p className="font-bold">{row.name}</p><p className="mt-1 text-muted-foreground">{row.configuration}</p><p className="mt-1 text-muted-foreground">{row.measures}</p></td><td className="p-3">{row.quantity}</td><td className="whitespace-nowrap p-3">{formatUnitCurrency(row.unit)}</td><td className="whitespace-nowrap p-3 font-bold">{formatCurrency(row.total)}</td></tr>; })}</tbody></table></div>
           {(selectedOrder.additional_services || []).length > 0 && (
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-foreground uppercase tracking-wider block">Serviços Adicionais</h4>
@@ -2302,19 +2250,23 @@ export default function OrdersPage() {
             </div>
           )}
 
+          {(() => { const totals = commercialSummary(selectedOrder); return <dl className="ml-auto grid max-w-lg grid-cols-2 gap-2 rounded-xl border border-border p-4 text-xs">{[['Subtotal dos itens', totals.items], ['Serviços', totals.services], ['Desconto', totals.discount ? -totals.discount : 0], ['Frete', totals.freight], ...(totals.adjustment ? [['Ajuste registrado', totals.adjustment]] : []), ['Total final', totals.total]].map(([label, value]) => <React.Fragment key={String(label)}><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-bold">{formatCurrency(Number(value))}</dd></React.Fragment>)}</dl>; })()}
+          {selectedOrder.notes && <section className="rounded-xl border border-border p-4 text-xs"><h4 className="font-bold">Observações internas</h4><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{selectedOrder.notes}</p><p className="mt-2 text-[10px] text-muted-foreground">Não são impressas na via comercial.</p></section>}
+          </>}
+          {detailTab === 'finance' && allowed('/financial') && <>
           {/* Payment Section Panel */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-border pt-4">
             <div className="md:col-span-2 space-y-4">
               <div className="flex justify-between items-center text-xs">
-                <h4 className="font-bold text-foreground uppercase tracking-wider">Histórico de Quitação</h4>
+                <h4 className="font-bold text-foreground uppercase tracking-wider">Financeiro <span className="ml-2 rounded bg-primary/10 px-2 py-1 text-primary">{selectedOrderPaidAmount >= selectedOrder.total_amount && selectedOrder.total_amount > 0 ? 'PAGO' : selectedOrderPaidAmount > 0 ? 'PARCIAL' : 'PENDENTE'}</span></h4>
                 <span className="text-muted-foreground font-semibold">Saldo Devedor: <span className="font-bold text-foreground">{formatCurrency(selectedOrderPendingAmount)}</span></span>
               </div>
               
               <div className="p-4 rounded-xl bg-secondary/20 border border-border text-xs space-y-2.5">
                 <div className={`grid grid-cols-1 gap-2 ${selectedOrderDiscount > 0 ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
                   <div className="rounded-lg border border-border bg-card p-2">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Total bruto</span>
-                    <p className="mt-1 font-black text-foreground">{formatCurrency(selectedOrderGrossTotal)}</p>
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Total do pedido</span>
+                    <p className="mt-1 font-black text-foreground">{formatCurrency(selectedOrder.total_amount)}</p>
                   </div>
                   {selectedOrderDiscount > 0 && (
                     <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-2">
@@ -2480,8 +2432,9 @@ export default function OrdersPage() {
                             <div className="shrink-0 text-right">
                               <p className="text-xs font-black text-emerald-500">{formatCurrency(transaction.amount)}</p>
                               <p className="text-[10px] text-muted-foreground">
-                                {new Date(transaction.paid_at || transaction.due_date || transaction.created_at).toLocaleDateString('pt-BR')}
+                                {documentDate(transaction.paid_at || transaction.due_date || transaction.created_at)}
                               </p>
+                              {getActivePaymentTransactions([transaction], selectedOrder).length > 0 && <button onClick={() => setSelectedPdfPreview({ title: 'Recibo de pagamento', previewDataUrl: `/api/pdf/receipt/${transaction.id}`, downloadUrl: `/api/pdf/receipt/${transaction.id}?download=1`, directPdfUrl: `/api/pdf/receipt/${transaction.id}` })} className="mt-1 text-[10px] font-bold text-primary">Emitir recibo</button>}
                             </div>
                           </div>
                         </div>
@@ -2596,6 +2549,7 @@ export default function OrdersPage() {
               })()}
             </div>
           </div>
+          </>}
         </div>
       )}
 

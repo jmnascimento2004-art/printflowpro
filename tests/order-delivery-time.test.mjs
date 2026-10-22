@@ -119,26 +119,8 @@ test('order PDF reads item snapshots and does not query the current product', ()
 });
 
 test('renders the contracted delivery time in a local PDF', async () => {
-  const { OrderPdfDocument } = await compile('../src/lib/pdf/order-pdf.tsx', {
-    react: React,
-    '@react-pdf/renderer': { Document, Page, Text, View, Image: () => null, StyleSheet: { create: (styles) => styles } },
-    '@/lib/order-number': { formatOrderDisplayNumber: () => 'PED-001' },
-    '@/lib/order-status': { normalizeOrderOperationalStatus: () => 'producao' },
-    '@/lib/order-delivery-time.mjs': { resolveOrderDeliveryTime },
-    '@/lib/pdf/pdf-formatters': {
-      buildVisibleCompanyAddress: () => '',
-      buildCustomerAddress: () => '',
-      formatPdfCurrency: (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`,
-      formatPdfDate: () => '11/08/2026',
-      getAdditionalServicesTotal: () => 0,
-      getPdfFooterText: () => 'PrintFlowPRO',
-      getPdfLogoUrl: () => '',
-      normalizePdfText: (value) => String(value || '')
-    },
-    '@/lib/pdf/pdf-product-table.mjs': {
-      PdfProductTable: ({ items }) => React.createElement(View, null, items.map((item, index) => React.createElement(Text, { key: index }, item.product_name)))
-    }
-  });
+  const { loadTypescript } = await import('./helpers/load-typescript.mjs');
+  const { OrderPdfDocument } = loadTypescript('src/lib/pdf/order-pdf.tsx');
 
   const buffer = await renderToBuffer(React.createElement(OrderPdfDocument, {
     data: {
@@ -180,5 +162,5 @@ test('renders the contracted delivery time in a local PDF', async () => {
   await task.destroy();
 
   assert.match(text, /Prazo de entrega:\s+5 dias úteis/);
-  assert.doesNotMatch(text, /Prazo: 16\/08\/2026/);
+  assert.match(text, /Prazo:\s+16\/08\/2026/); // Recorded deadline and contracted item estimate are distinct facts.
 });
