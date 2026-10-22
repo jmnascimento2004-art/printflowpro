@@ -7,6 +7,8 @@ export const fieldClass='w-full min-w-0 rounded-lg border border-border bg-backg
 export function EventForm({event,date,onClose,onSaved}:{event?:ManualEvent;date:string;onClose:()=>void;onSaved:()=>void}) {
   const {session,activeProfile}=useAuth();
   const [search,setSearch]=useState('');
+  const [responsible,setResponsible]=useState(event?.responsible_profile_id||activeProfile.id);
+  const [customer,setCustomer]=useState(event?.customer_id||'');
   const options=useAgenda<AgendaOptions>(`mode=options&q=${encodeURIComponent(search)}`);
   const [recurrence,setRecurrence]=useState(event?.recurrence||'none');
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -32,11 +34,11 @@ export function EventForm({event,date,onClose,onSaved}:{event?:ManualEvent;date:
       <label className="block text-sm">Título<input autoFocus required maxLength={160} name="title" defaultValue={event?.title} className={fieldClass}/></label>
       <div className="grid grid-cols-2 gap-3"><label className="text-sm">Data<input required type="date" name="date" defaultValue={event?agendaDate(event.start_at):date} className={fieldClass}/></label><label className="text-sm">Hora início<input required type="time" name="time" defaultValue={event?agendaTime(event.start_at):'09:00'} className={fieldClass}/></label>
       <label className="text-sm">Data fim<input type="date" name="end_date" defaultValue={event?.end_at?agendaDate(event.end_at):date} className={fieldClass}/></label><label className="text-sm">Hora fim (opcional)<input type="time" name="end" defaultValue={event?.end_at?agendaTime(event.end_at):''} className={fieldClass}/></label></div>
-      <label className="block text-sm">Responsável<select required name="responsible" defaultValue={event?.responsible_profile_id||activeProfile.id} className={fieldClass}>
+      <label className="block text-sm">Responsável<select required name="responsible" value={responsible} onChange={e=>setResponsible(e.target.value)} className={fieldClass}>
         <option value="">Selecione</option>{event&&!options.data?.profiles.some(p=>p.id===event.responsible_profile_id)&&<option value={event.responsible_profile_id}>Responsável atual (confirme disponibilidade)</option>}{options.data?.profiles.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
       </select></label>
       <label className="block text-sm">Buscar cliente<input value={search} onChange={e=>setSearch(e.target.value)} className={fieldClass} placeholder="Nome do cliente"/></label>
-      <label className="block text-sm">Cliente (opcional)<select name="customer" defaultValue={event?.customer_id||''} className={fieldClass}><option value="">Sem cliente</option>{event?.customer_id&&!options.data?.customers.some(c=>c.id===event.customer_id)&&<option value={event.customer_id}>Cliente vinculado</option>}{options.data?.customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+      <label className="block text-sm">Cliente (opcional)<select name="customer" value={customer} onChange={e=>setCustomer(e.target.value)} className={fieldClass}><option value="">Sem cliente</option>{customer&&!options.data?.customers.some(c=>c.id===customer)&&<option value={customer}>Cliente vinculado</option>}{options.data?.customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
       <div className="grid grid-cols-2 gap-3"><label className="text-sm">Tipo<select name="event_type" defaultValue={event?.event_type||'compromisso'} className={fieldClass}>{Object.entries(AGENDA_TYPES).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
       <label className="text-sm">Status<select name="status" defaultValue={event?.status||'agendado'} className={fieldClass}><option value="agendado">Agendado</option><option value="concluido">Concluído</option><option value="cancelado">Cancelado</option></select></label></div>
       <label className="block text-sm">Observação<textarea name="description" maxLength={4000} defaultValue={event?.description} className={fieldClass} rows={3}/></label>
