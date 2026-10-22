@@ -51,6 +51,7 @@ type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' |
 type SettingsTab = 'empresa' | 'financas' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema';
 
 const SYSTEM_MODULES = [
+  { path: '/agenda', label: 'Agenda', desc: 'Compromissos, lembretes e prazos dos módulos autorizados.' },
   { path: '/dashboard', label: 'Dashboard', desc: 'Resumo geral, estatísticas de vendas, status de produção e fluxo financeiro simplificado.' },
   { path: '/pos', label: 'PDV / Caixa', desc: 'Vendas rápidas presenciais, abertura e fechamento de caixa, sangrias e suprimentos.' },
   { path: '/crm', label: 'Clientes', desc: 'Cadastro de clientes, histórico de compras e contatos.' },

@@ -1,4 +1,5 @@
 'use client';
+import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
 
 import React, { useRef, useState } from 'react';
 import { 
@@ -18,6 +19,7 @@ import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSear
 import { resolveOperationalWhatsAppMessage } from '@/lib/whatsapp/service';
 
 export default function ProductionPage() {
+  const agendaFocus = useAgendaSourceFocus();
   const { session } = useAuth();
   const { 
     production, 
@@ -100,7 +102,7 @@ export default function ProductionPage() {
   };
 
   // 1. Filter production queue based on search
-  const filteredQueue = activeProductionQueue.filter(p =>
+  const filteredQueue = activeProductionQueue.filter(p => !agendaFocus.id || p.id === agendaFocus.id).filter(p =>
     p.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     getOrderNumberSearchText(p.order_number).includes(searchQuery.toLowerCase())
   );
@@ -191,6 +193,7 @@ export default function ProductionPage() {
 
   return (
     <div className="space-y-6">
+      {agendaFocus.banner}
       {/* 1. Header Filter Controls */}
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between no-print">
         <div className="relative w-full sm:max-w-md">

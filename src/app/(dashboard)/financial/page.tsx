@@ -1,4 +1,5 @@
 'use client';
+import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
 
 import React, { useState } from 'react';
 import { 
@@ -37,6 +38,7 @@ import { areOrderNumbersEquivalent, formatOrderDisplayNumber, getOrderNumberSear
 import { formatCurrencyInput, parseCurrencyInputToNumber } from '@/lib/utils';
 
 export default function FinancialPage() {
+  const agendaFocus = useAgendaSourceFocus();
   const { financial, orders, customers, addTransaction, updateTransactionStatus } = useDatabase();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'todos' | 'receita' | 'despesa'>('todos');
@@ -183,6 +185,7 @@ export default function FinancialPage() {
 
   // 2. Filter list
   const filteredTransactions = visibleTransactions.filter(f => {
+    if (agendaFocus.id) return f.id === agendaFocus.id;
     const relatedOrder = findTransactionOrder(f);
     const relatedCustomer = relatedOrder
       ? customers.find((customer) => customer.id === relatedOrder.customer_id || customer.name === relatedOrder.customer_name)
@@ -240,6 +243,7 @@ export default function FinancialPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      {agendaFocus.banner}
       <div className={`space-y-6 ${isAddingTransaction ? 'hidden' : ''}`}>
         {/* 1. Metric Indicators Banner Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

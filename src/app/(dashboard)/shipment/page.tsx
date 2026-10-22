@@ -1,4 +1,5 @@
 'use client';
+import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
 
 import React, { useRef, useState } from 'react';
 import { 
@@ -15,6 +16,7 @@ import { Shipment } from '@/lib/dummy-data';
 import { formatOrderDisplayNumber, getOrderNumberSearchText } from '@/lib/order-number';
 
 export default function ShipmentPage() {
+  const agendaFocus = useAgendaSourceFocus();
   const { shipments, updateShipmentStatus } = useDatabase();
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -43,7 +45,7 @@ export default function ShipmentPage() {
   };
 
   // Filter shipments
-  const filteredShipments = shipments.filter(s => 
+  const filteredShipments = shipments.filter(s => !agendaFocus.id || s.id === agendaFocus.id).filter(s =>
     s.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     getOrderNumberSearchText(s.order_number).includes(searchQuery.toLowerCase())
   );
@@ -85,6 +87,7 @@ export default function ShipmentPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      {agendaFocus.banner}
       {mutationError && <p role="alert" className="text-sm text-red-500">{mutationError}</p>}
       <div className={`space-y-6 ${selectedShipment ? 'hidden' : ''}`}>
         {/* Search and general indicators */}

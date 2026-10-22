@@ -1,0 +1,48 @@
+begin;
+select plan(20);
+insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
+('57000000-0000-0000-0000-000000000001','authenticated','authenticated','phase7-a@example.test','',now(),'{}','{"name":"Phase7 A","company_name":"Phase7 A"}',now(),now()),
+('57000000-0000-0000-0000-000000000002','authenticated','authenticated','phase7-b@example.test','',now(),'{}','{"name":"Phase7 B","company_name":"Phase7 B"}',now(),now());
+insert into public.customers(id,company_id,name,document) values('phase7-customer-b',(select company_id from public.profiles where auth_user_id='57000000-0000-0000-0000-000000000002'),'Other tenant','');
+select set_config('request.jwt.claims','{"sub":"57000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+insert into public.agenda_events(id,company_id,title,event_type,start_at,end_at,responsible_profile_id,created_by,reminder_minutes,recurrence,recurrence_until)
+select '57000000-0000-0000-0000-000000000010',company_id,'Meeting','reuniao','2026-10-21T12:00Z','2026-10-21T13:00Z',id,'57000000-0000-0000-0000-000000000002',30,'weekly','2026-11-21' from public.profiles where auth_user_id=auth.uid();
+select is((select count(*)::integer from public.agenda_events),1,'own manual event created');
+select is((select created_by::text from public.agenda_events),'57000000-0000-0000-0000-000000000001','database sets real actor');
+select is((select count(*)::integer from public.audit_logs where action='agenda.event_created'),1,'one creation audit');
+select throws_ok($$update public.agenda_events set customer_id='phase7-customer-b'$$,'23514','Invalid agenda customer','foreign tenant customer rejected');
+reset role;
+select set_config('phase7.foreign_profile',(select id from public.profiles where auth_user_id='57000000-0000-0000-0000-000000000002'),true);
+set local role authenticated;
+select throws_ok($$update public.agenda_events set responsible_profile_id=current_setting('phase7.foreign_profile')$$,'23514','Invalid agenda responsible','foreign responsible rejected');
+select lives_ok($$update public.agenda_events set title='Updated meeting'$$,'manual update works');
+select is((select count(*)::integer from public.audit_logs where action='agenda.event_updated'),1,'one update audit');
+update public.agenda_events set status='concluido',completed_by='57000000-0000-0000-0000-000000000002';
+select is((select completed_by::text from public.agenda_events),'57000000-0000-0000-0000-000000000001','completion uses authenticated actor');
+select ok((select completed_at is not null from public.agenda_events),'completion timestamp recorded');
+select is((select count(*)::integer from public.audit_logs where action='agenda.event_completed'),1,'one completion audit');
+update public.agenda_events set status='cancelado';
+select is((select count(*)::integer from public.audit_logs where action='agenda.event_cancelled'),1,'one cancel audit');
+select ok((select completed_at is null and completed_by is null from public.agenda_events),'cancel clears completion');
+insert into public.agenda_reminder_acks(event_id,occurrence_at) values('57000000-0000-0000-0000-000000000010','2026-10-21T12:00Z');
+select is((select count(*)::integer from public.agenda_reminder_acks),1,'ack persists per occurrence/user');
+select throws_ok($$insert into public.agenda_reminder_acks(event_id,occurrence_at) values('57000000-0000-0000-0000-000000000010','2026-10-21T12:00Z')$$,'23505',null,'duplicate ack prevented');
+update public.agenda_events set title='stale overwrite' where updated_at='2000-01-01';
+select is((select title from public.agenda_events),'Updated meeting','CAS stale update has no effect');
+reset role;
+select set_config('request.jwt.claims','{"sub":"57000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+set local role authenticated;
+select is((select count(*)::integer from public.agenda_events),0,'other tenant cannot read');
+select is((select count(*)::integer from public.agenda_reminder_acks),0,'other tenant cannot read ack');
+reset role;
+select set_config('request.jwt.claims','{"sub":"57000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+insert into public.role_permissions(company_id,path,roles) select company_id,'/agenda',array[]::text[] from public.profiles where auth_user_id='57000000-0000-0000-0000-000000000001';
+select set_config('request.jwt.claims','{"sub":"57000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select is((select count(*)::integer from public.agenda_events),0,'configured denial applies even to admin');
+reset role;
+select ok(not has_table_privilege('anon','public.agenda_events','select'),'anonymous cannot read');
+select ok(not has_table_privilege('authenticated','public.agenda_events','delete'),'physical deletion unavailable');
+select * from finish();
+rollback;
