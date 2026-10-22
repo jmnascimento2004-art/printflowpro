@@ -57,6 +57,14 @@ export function EventForm({event,date,onClose,onSaved}:{event?:ManualEvent;date:
   if (typeof document === 'undefined') return null;
   return createPortal(<dialog ref={dialog} role="dialog" aria-modal="true" aria-labelledby="agenda-form-title" aria-describedby="agenda-form-description"
     onCancel={e => { e.preventDefault(); if (!submitting.current) onClose(); }}
+    onKeyDown={e => {
+      if (e.key !== 'Tab') return;
+      const controls = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled):not([tabindex="-1"]), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled)'));
+      const first = controls[0], last = controls.at(-1);
+      if (!first) { e.preventDefault(); return; }
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }}
     className="m-auto max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-3xl overflow-hidden rounded-2xl border border-border bg-card p-0 text-foreground shadow-2xl backdrop:bg-slate-950/65 backdrop:backdrop-blur-sm sm:max-h-[calc(100dvh-3rem)] sm:w-[calc(100%-3rem)]">
     <form onSubmit={save} className="flex max-h-[calc(100dvh-1rem-2px)] flex-col sm:max-h-[calc(100dvh-3rem-2px)]">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3.5 sm:px-6">

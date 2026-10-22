@@ -105,6 +105,14 @@ test('modal lifecycle locks background scroll, focuses title and restores opener
   const cleanup = h.h.effects[0](); assert.equal(opened, true); assert.equal(titleFocused, true); assert.equal(main.style.overflow, 'hidden');
   cleanup(); assert.equal(opened, false); assert.equal(returned, true); assert.equal(root.style.overflow, 'auto'); assert.equal(body.style.overflow, ''); assert.equal(main.style.overflow, 'scroll');
 });
+test('Tab and Shift+Tab wrap at the modal boundaries and stay contained while saving', async t => {
+  const h = await formHarness(t), tree = h.render(); let focused, prevented = 0;
+  const first = { focus() { focused = 'first'; } }, last = { focus() { focused = 'last'; } };
+  const event = { key: 'Tab', shiftKey: false, preventDefault() { prevented++; }, currentTarget: { querySelectorAll: () => [first, last] } };
+  globalThis.document.activeElement = last; tree.props.onKeyDown(event); assert.equal(focused, 'first');
+  globalThis.document.activeElement = first; tree.props.onKeyDown({ ...event, shiftKey: true }); assert.equal(focused, 'last');
+  tree.props.onKeyDown({ ...event, currentTarget: { querySelectorAll: () => [] } }); assert.equal(prevented, 3);
+});
 test('searchable customer keeps canonical ID while typing, selects by keyboard and clears', async () => {
   const h = hooks(); const { CustomerPicker } = await compile('../src/components/agenda/customer-picker.tsx', { react: h.react });
   const props = { value: 'c1', onChange: value => { props.value = value; }, query: '', onQuery: value => { props.query = value; }, options: [{ id: 'c1', name: 'Ana' }, { id: 'c2', name: 'Bia' }], loading: false, inputClass: '' };
