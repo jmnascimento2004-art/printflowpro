@@ -1,4 +1,5 @@
 'use client';
+import { useFeedback } from '@/context/database-context';
 
 import { formatMeters } from '@/lib/metric.mjs';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -155,6 +156,8 @@ const CATALOG_BENEFIT_ICONS: Record<CatalogBenefitIcon, React.ComponentType<{ cl
 };
 
 export default function StorefrontPage() {
+  const showFeedback = useFeedback();
+
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -648,15 +651,15 @@ export default function StorefrontPage() {
         const result = await response.json() as StoreWhatsAppRequestResult;
         if (!response.ok) throw new Error(result.error || 'Não foi possível preparar a mensagem.');
         if (result.eventKey !== 'store_product_request' || !result.active) {
-          alert('As solicitações por WhatsApp estão temporariamente indisponíveis.');
+          showFeedback('As solicitações por WhatsApp estão temporariamente indisponíveis.', 'warning');
           return;
         }
         const message = result.href ? getWhatsAppMessageFromHref(result.href) : '';
         if (!result.href || !message) throw new Error('Não foi possível preparar a mensagem.');
         if (result.confirmBeforeOpen) setPendingWhatsAppOpen({ href: result.href, message });
         else window.open(result.href, '_blank', 'noopener,noreferrer');
-      } catch (error) {
-        alert(error instanceof Error ? error.message : 'Não foi possível preparar a mensagem agora.');
+      } catch {
+        showFeedback('Não foi possível preparar a mensagem agora.', 'error');
       } finally {
         setWhatsAppRequestPending(false);
       }
@@ -689,7 +692,7 @@ export default function StorefrontPage() {
         !deliveryCity.trim() ||
         !deliveryState.trim())
     ) {
-      alert('Preencha o endereço completo para entrega por motoboy.');
+      showFeedback('Preencha o endereço completo para entrega por motoboy.', 'warning');
       return;
     }
 
@@ -796,7 +799,7 @@ export default function StorefrontPage() {
       setCartOpen(false);
       setOrderCompleted(nextQuote.number.toString());
     } catch (error) {
-      alert(getPersistenceErrorMessage(error));
+      showFeedback(getPersistenceErrorMessage(error), 'error');
     } finally {
       checkoutMutationRef.current = false;
       setCheckoutPending(false);

@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { createActionDialogController } from '@/lib/action-dialog.mjs';
 
@@ -72,7 +72,12 @@ function ActionDialog({ state, onCancel, onConfirm }: { state: DialogState; onCa
 
 export function ActionDialogProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<DialogState | null>(null);
-  const [controller] = useState(() => createActionDialogController(setState));
+  // Resolve input requests only after the modal has released the background
+  // and restored focus (editors must not apply a selection while it is inert).
+  const [controller] = useState(() => createActionDialogController((next: DialogState | null) => {
+    if (next) setState(next);
+    else flushSync(() => setState(null));
+  }));
   useEffect(() => () => controller.dispose(), [controller]);
   return <ActionDialogContext.Provider value={controller.request}>{children}{state && <ActionDialog state={state} onCancel={controller.cancel} onConfirm={controller.confirm} />}</ActionDialogContext.Provider>;
 }

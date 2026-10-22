@@ -1,4 +1,6 @@
 'use client';
+import { useActionDialog } from '@/components/action-dialog-provider';
+import { useFeedback } from '@/context/database-context';
 import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
 
 import { ProductFieldInputs } from '@/components/products/ProductCustomFields';
@@ -157,6 +159,9 @@ const getItemConfigurationSummaryLines = (item: Pick<QuoteItem, 'details' | 'qua
 };
 
 export default function QuotesPage() {
+  const showFeedback = useFeedback();
+  const requestAction = useActionDialog();
+
   const agendaFocus = useAgendaSourceFocus();
   const { session, activeProfile } = useAuth();
   const { 
@@ -175,17 +180,13 @@ export default function QuotesPage() {
   const [quotePending, setQuotePending] = useState(false);
   const [editingQuoteVersion, setEditingQuoteVersion] = useState<string | undefined>();
   const handleDeleteQuote = async (id: string) => {
-    if (quoteMutationRef.current || !confirm('Excluir este orçamento?')) return;
-    quoteMutationRef.current = true;
-    setQuotePending(true);
-    try {
-      await deleteQuote(id);
-    } catch (error) {
-      alert(getPersistenceErrorMessage(error));
-    } finally {
-      quoteMutationRef.current = false;
-      setQuotePending(false);
-    }
+    if (quoteMutationRef.current) return;
+    await requestAction({ title: 'Excluir este orçamento?', description: 'O orçamento será excluído. Esta ação não poderá ser desfeita.', confirmLabel: 'Excluir orçamento', variant: 'danger' }, async () => {
+      if (quoteMutationRef.current) return false;
+      quoteMutationRef.current = true; setQuotePending(true);
+      try { await deleteQuote(id); }
+      finally { quoteMutationRef.current = false; setQuotePending(false); }
+    });
   };
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,7 +205,7 @@ export default function QuotesPage() {
     if (approvingQuoteId) return;
     setApprovingQuoteId(quoteId);
     try {
-      await approveQuote(quoteId);
+      return Boolean(await approveQuote(quoteId));
     } finally {
       setApprovingQuoteId(null);
     }
@@ -264,7 +265,7 @@ export default function QuotesPage() {
 
   const handleStartEdit = (quote: Quote) => {
     if (quote.status === 'aprovado') {
-      alert('Este orçamento já foi convertido em pedido e não pode mais ser editado. Faça os ajustes no pedido correspondente.');
+      showFeedback('Este orçamento já foi convertido em pedido e não pode mais ser editado. Faça os ajustes no pedido correspondente.', 'warning');
       return;
     }
     const resolvedQuote = withResolvedCustomer(quote);
@@ -314,7 +315,7 @@ export default function QuotesPage() {
       if (quote.status === 'rascunho') quoteForSending = await updateQuote({ ...quote, status: 'pendente' });
       resolved = await resolveOperationalWhatsAppMessage(session?.access_token, 'quote_proposal', quoteForSending.id);
     } catch (error) {
-      alert(getPersistenceErrorMessage(error));
+      showFeedback(getPersistenceErrorMessage(error), 'error');
       return;
     } finally {
       quoteMutationRef.current = false;
@@ -323,25 +324,20 @@ export default function QuotesPage() {
 
     if (typeof window !== 'undefined') {
       void openPdfFromUrl(`/api/pdf/quote/${quoteForSending.id}`).catch(() => {
-        alert('Não foi possível abrir o PDF. Verifique se o navegador bloqueou a nova guia.');
+        showFeedback('Não foi possível abrir o PDF. Verifique se o navegador bloqueou a nova guia.', 'error');
       });
     }
 
     if (!resolved.active) {
-      alert('Este modelo está inativo na Central de WhatsApp.');
+      showFeedback('Este modelo está inativo na Central de WhatsApp.', 'warning');
       return;
     }
-    if (resolved.confirmBeforeOpen && !window.confirm('Abrir o WhatsApp com a proposta preparada?')) return;
-
-    if (typeof window === 'undefined') return;
-    window.setTimeout(() => {
-      const opened = window.open(resolved.href, '_blank', 'noopener,noreferrer');
-      if (!opened) {
-        alert('Não foi possível abrir o WhatsApp. Verifique o telefone do cliente.');
-        return;
-      }
-      alert('O WhatsApp foi aberto com a mensagem pronta. Anexe manualmente o PDF gerado/impresso do orçamento na conversa.');
-    }, 250);
+    const openProposal = () => {
+      window.open(resolved.href, '_blank', 'noopener,noreferrer');
+      showFeedback('Anexe o PDF do orçamento à conversa antes de enviar.', 'info');
+    };
+    if (resolved.confirmBeforeOpen) await requestAction({ title: 'Abrir proposta no WhatsApp?', description: 'A mensagem preparada será aberta para sua conferência. Anexe o PDF do orçamento antes de enviar.', confirmLabel: 'Abrir WhatsApp' }, openProposal);
+    else openProposal();
   };
 
   // Form State
@@ -748,22 +744,22 @@ export default function QuotesPage() {
       const unitPrice = manualItemUnitPrice;
 
       if (!description) {
-        alert('Informe a descrição do item avulso/manual.');
+        showFeedback('Informe a descrição do item avulso/manual.', 'warning');
         return;
       }
 
       if (unitPrice <= 0) {
-        alert('Informe o preço unitário do item avulso/manual.');
+        showFeedback('Informe o preço unitário do item avulso/manual.', 'warning');
         return;
       }
 
       if (manualPricingType === 'm2' && (manualItemWidth <= 0 || manualItemHeight <= 0)) {
-        alert('Informe largura e altura maiores que zero para o item por metro quadrado.');
+        showFeedback('Informe largura e altura maiores que zero para o item por metro quadrado.', 'warning');
         return;
       }
 
       if (manualPricingType === 'linear' && manualItemLinearMeters <= 0) {
-        alert('Informe o comprimento em centímetros para o item por metro linear.');
+        showFeedback('Informe o comprimento em centímetros para o item por metro linear.', 'warning');
         return;
       }
 
@@ -820,12 +816,12 @@ export default function QuotesPage() {
 
     if ((prod.pricing_type === 'm2' || prod.pricing_type === 'linear') &&
       (!(itemWidth > 0) || ((prod.pricing_type === 'm2' || Number(prod.pricing_details?.configurator_options?.max_width) > 0) && !(itemHeight > 0)))) {
-      alert('Informe medidas em metros maiores que zero.');
+      showFeedback('Informe medidas em metros maiores que zero.', 'warning');
       return;
     }
 
     const customFields = resolveProductFields(prod.pricing_details?.configurator_options?.custom_fields, productFieldValues);
-    if (customFields.errors.length) { alert(customFields.errors.join(' ')); return; }
+    if (customFields.errors.length) { showFeedback(customFields.errors.join(' '), 'warning'); return; }
     const volumeTiers = requiresTierSelection ? effectiveQuantityTiers : getProductVolumeTiers(selectedProductId);
     const minAllowedQty = volumeTiers[0]?.min_qty || 1;
     const configuredTier = requiresTierSelection ? selectedQuantityTier : null;
@@ -862,7 +858,7 @@ export default function QuotesPage() {
     });
     const productionTime = volumeTier?.productionTime || priceResolution.productionTime;
     if (!priceResolution.canPurchase) {
-      alert(priceResolution.warningMessage || 'Complete a configuração do produto antes de adicionar.');
+      showFeedback(priceResolution.warningMessage || 'Complete a configuração do produto antes de adicionar.', 'warning');
       return;
     }
     const price = priceResolution.unitPrice;
@@ -1013,11 +1009,11 @@ export default function QuotesPage() {
     if (quoteMutationRef.current) return;
     const client = customers.find(c => c.id === customerId);
     if (!client) {
-      alert('Por favor, selecione o cliente.');
+      showFeedback('Por favor, selecione o cliente.', 'warning');
       return;
     }
     if (items.length === 0) {
-      alert('Adicione pelo menos um item ao orçamento.');
+      showFeedback('Adicione pelo menos um item ao orçamento.', 'warning');
       return;
     }
 
@@ -1080,14 +1076,14 @@ export default function QuotesPage() {
         });
       }
 
-      alert(successMessage);
+      showFeedback(successMessage, 'success');
       resetForm();
     } catch (error) {
       if (error instanceof PersistenceMutationError && error.code === 'CONFLICT' && error.latest) {
         quoteMutationRef.current = false;
         handleStartEdit(error.latest as Quote);
       }
-      alert(getPersistenceErrorMessage(error));
+      showFeedback(getPersistenceErrorMessage(error), 'error');
     } finally {
       quoteMutationRef.current = false;
       setQuotePending(false);
@@ -1114,7 +1110,7 @@ export default function QuotesPage() {
       if (process.env.NODE_ENV === 'development') {
         console.warn('Erro ao baixar PDF do orcamento:', err);
       }
-      alert('Não foi possível baixar o PDF. Tente novamente.');
+      showFeedback('Não foi possível baixar o PDF. Tente novamente.', 'error');
     }
   };
 
@@ -1507,9 +1503,9 @@ export default function QuotesPage() {
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            if (confirm('Aprovar este orçamento e gerar o Pedido?')) {
-                              void handleApproveQuote(quote.id);
-                            }
+                            void requestAction({ title: 'Aprovar este orçamento e gerar o Pedido?', description: "O orçamento será aprovado e um pedido será criado com os valores registrados.", confirmLabel: "Aprovar e gerar pedido", variant: 'default' }, async () => {
+                              return await handleApproveQuote(quote.id);
+                            });
                           }}
                           disabled={approvingQuoteId !== null}
                           className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-1.5 text-emerald-500 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1615,9 +1611,9 @@ export default function QuotesPage() {
                             <button
                               type="button"
                               onClick={() => {
-                                if (confirm('Aprovar este orçamento e gerar o Pedido?')) {
-                                  void handleApproveQuote(quote.id);
-                                }
+                                void requestAction({ title: 'Aprovar este orçamento e gerar o Pedido?', description: "O orçamento será aprovado e um pedido será criado com os valores registrados.", confirmLabel: "Aprovar e gerar pedido", variant: 'default' }, async () => {
+                                  return await handleApproveQuote(quote.id);
+                                });
                               }}
                               disabled={approvingQuoteId !== null}
                               className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/25 border border-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"

@@ -1,4 +1,6 @@
 'use client';
+import { useActionDialog } from '@/components/action-dialog-provider';
+import { useFeedback } from '@/context/database-context';
 
 import { ProductPricingPreview } from '@/components/products/ProductPricingPreview';
 import { ProductFieldsEditor } from '@/components/products/ProductCustomFields';
@@ -557,6 +559,9 @@ type MatrixRowDraft = {
 };
 
 export default function ProductsCRUDPage() {
+  const showFeedback = useFeedback();
+  const requestAction = useActionDialog();
+
   const { 
     products, 
     categories,
@@ -841,15 +846,15 @@ export default function ProductsCRUDPage() {
     const unitPrice = parsedMatrixUnitPrice;
 
     if (!material || !size || !colors || !finishing) {
-      alert('Informe material, tamanho, cores e acabamento para a combinação.');
+      showFeedback('Informe material, tamanho, cores e acabamento para a combinação.', 'warning');
       return;
     }
     if (quantity < 1) {
-      alert('A quantidade da faixa deve ser maior que zero.');
+      showFeedback('A quantidade da faixa deve ser maior que zero.', 'warning');
       return;
     }
     if (unitPrice <= 0) {
-      alert('Informe um preço unitário maior que zero.');
+      showFeedback('Informe um preço unitário maior que zero.', 'warning');
       return;
     }
 
@@ -861,7 +866,7 @@ export default function ProductsCRUDPage() {
     ));
 
     if (existingMatrixRow?.tiers.some((tier) => tier.quantity === quantity)) {
-      alert('Já existe uma faixa com esta quantidade para esta combinação.');
+      showFeedback('Já existe uma faixa com esta quantidade para esta combinação.', 'warning');
       return;
     }
 
@@ -1070,7 +1075,7 @@ export default function ProductsCRUDPage() {
     const finishing = matrixEditDraft.finishing.trim();
 
     if (!material || !size || !colors || !finishing) {
-      alert('Informe material, tamanho, cores e acabamento para a combinação.');
+      showFeedback('Informe material, tamanho, cores e acabamento para a combinação.', 'warning');
       return;
     }
 
@@ -1083,7 +1088,7 @@ export default function ProductsCRUDPage() {
     ));
 
     if (duplicateRow) {
-      alert('Já existe uma combinação com este material, tamanho, cores e acabamento.');
+      showFeedback('Já existe uma combinação com este material, tamanho, cores e acabamento.', 'warning');
       return;
     }
 
@@ -1092,13 +1097,13 @@ export default function ProductsCRUDPage() {
     const normalizedTiers = tierSerialization.tiers;
 
     if (normalizedTiers.length === 0 || normalizedTiers.some((tier) => tier.quantity <= 0 || tier.unit_price < 0 || tier.total_price < 0)) {
-      alert('Revise as faixas: a quantidade deve ser maior que zero e os valores não podem ser negativos.');
+      showFeedback('Revise as faixas: a quantidade deve ser maior que zero e os valores não podem ser negativos.', 'warning');
       return;
     }
 
     const tierQuantities = normalizedTiers.map((tier) => tier.quantity);
     if (new Set(tierQuantities).size !== tierQuantities.length) {
-      alert('Existem faixas duplicadas com a mesma quantidade.');
+      showFeedback('Existem faixas duplicadas com a mesma quantidade.', 'warning');
       return;
     }
 
@@ -1155,14 +1160,14 @@ export default function ProductsCRUDPage() {
 
     const limitValidation = validateProductGalleryLimit(galleryImages.length, files.length);
     if (!limitValidation.valid) {
-      alert(limitValidation.message);
+      showFeedback(limitValidation.message, 'warning');
       e.target.value = '';
       return;
     }
 
     const invalidValidation = files.map(validateProductImage).find((validation) => !validation.valid);
     if (invalidValidation && !invalidValidation.valid) {
-      alert(invalidValidation.message);
+      showFeedback(invalidValidation.message, 'warning');
       e.target.value = '';
       return;
     }
@@ -1190,7 +1195,7 @@ export default function ProductsCRUDPage() {
       ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : `Não foi possível enviar a imagem para o bucket ${PRODUCT_IMAGE_BUCKET}.`;
-      alert(message);
+      showFeedback(message, 'warning');
     } finally {
       e.target.value = '';
     }
@@ -1212,15 +1217,15 @@ export default function ProductsCRUDPage() {
     const qty = parsedTempMinQty;
     const unitPrice = parsedTempUnitPrice;
     if (qty < 1) {
-      alert("A quantidade mínima deve ser pelo menos 1.");
+      showFeedback("A quantidade mínima deve ser pelo menos 1.", 'warning');
       return;
     }
     if (unitPrice <= 0) {
-      alert("O preço deve ser maior que zero.");
+      showFeedback("O preço deve ser maior que zero.", 'warning');
       return;
     }
     if (volumePricing.some(tier => tier.min_qty === qty)) {
-      alert("Já existe uma faixa configurada para esta quantidade mínima.");
+      showFeedback("Já existe uma faixa configurada para esta quantidade mínima.", 'warning');
       return;
     }
 
@@ -1240,7 +1245,7 @@ export default function ProductsCRUDPage() {
     const value = tempVariantName.trim();
     if (!value) return;
     if (variantOptions.some(option => option.name.toLowerCase() === value.toLowerCase())) {
-      alert('Esta variacao ja foi adicionada.');
+      showFeedback('Esta variacao ja foi adicionada.', 'warning');
       return;
     }
     setVariantOptions(prev => [...prev, { name: value }]);
@@ -1251,7 +1256,7 @@ export default function ProductsCRUDPage() {
     const value = tempColorName.trim();
     if (!value) return;
     if (colorOptions.some(option => option.name.toLowerCase() === value.toLowerCase())) {
-      alert('Esta cor ja foi adicionada.');
+      showFeedback('Esta cor ja foi adicionada.', 'warning');
       return;
     }
     setColorOptions(prev => [...prev, { name: value, hex: tempColorHex }]);
@@ -1306,7 +1311,7 @@ export default function ProductsCRUDPage() {
     const value = customSizeName.trim();
     if (!value) return;
     if (sizeOptions.some(option => option.name.toLowerCase() === value.toLowerCase())) {
-      alert('Este tamanho ja foi adicionado.');
+      showFeedback('Este tamanho ja foi adicionado.', 'warning');
       return;
     }
     setSizeOptions(prev => [...prev, { ...buildEmptyConfiguratorOption(), name: value }]);
@@ -1587,7 +1592,7 @@ export default function ProductsCRUDPage() {
     });
 
     handleOpenEdit(duplicated);
-    } catch (error) { alert(error instanceof Error ? error.message : 'Não foi possível duplicar.'); }
+    } catch { showFeedback('Não foi possível duplicar.', 'error'); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1597,7 +1602,7 @@ export default function ProductsCRUDPage() {
     if (hasInvalidMoneyDraft) return;
     const tierErrors = volumePricing.some(tier => !Number.isInteger(tier.min_qty) || tier.min_qty < 1 || !Number.isFinite(tier.price) || tier.price < 0) || new Set(volumePricing.map(tier => tier.min_qty)).size !== volumePricing.length;
     const costErrors = [...validateCostComposition(costComposition), ...validateProductFields(customFields), ...(tierErrors ? ['Faixas inconsistentes: informe quantidades únicas e preços válidos.'] : [])];
-    if (costErrors.length) { alert(costErrors.join(' ')); return; }
+    if (costErrors.length) { showFeedback(costErrors.join(' '), 'warning'); return; }
     const usesRequiredVolumePricing = saleMode === 'volume';
     const productVolumePricing = volumePricing.length > 0 ? volumePricing : undefined;
     const hasMatrixPricingRows = normalizeVariantMatrixRows(variantPricingMatrix)
@@ -1605,7 +1610,7 @@ export default function ProductsCRUDPage() {
     const cleanDeliveryTime = deliveryTime.trim();
 
     if (usesRequiredVolumePricing && volumePricing.length === 0 && !hasMatrixPricingRows) {
-      alert('Adicione pelo menos uma opção de quantidade ou uma combinação na Matriz Inteligente para produtos vendidos por quantidade/lote.');
+      showFeedback('Adicione pelo menos uma opção de quantidade ou uma combinação na Matriz Inteligente para produtos vendidos por quantidade/lote.', 'warning');
       return;
     }
     const cleanDescription = sanitizeRichTextHtml(description);
@@ -2257,9 +2262,9 @@ export default function ProductsCRUDPage() {
                                   </button>
                                   <button
                                     onClick={() => {
-                                      if (confirm(`Excluir o produto "${prod.name}" do catálogo do ERP?`)) {
-                                        deleteProduct(prod.id);
-                                      }
+                                      void requestAction({ title: `Excluir o produto "${prod.name}" do catálogo do ERP?`, description: "O produto será excluído do catálogo do ERP. Esta ação não poderá ser desfeita.", confirmLabel: "Excluir produto", variant: 'danger' }, async () => {
+                                        if (!await deleteProduct(prod.id)) return false;
+                                      });
                                     }}
                                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"
                                     title="Excluir Produto"
@@ -2301,7 +2306,7 @@ export default function ProductsCRUDPage() {
                             <td className={`px-4 py-2.5 font-bold ${stockInfo.textClass}`}>{stockInfo.label}</td>
                             <td className="px-4 py-2.5 font-mono text-[10px] text-muted-foreground">{prod.sku || '-'}</td>
                             <td className="whitespace-nowrap px-4 py-2.5 text-right font-black text-foreground">{getProductPriceLabel(prod)}</td>
-                            <td className="px-4 py-2.5"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => handleOpenEdit(prod)} className="rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary hover:bg-primary/15" title="Editar produto" aria-label={`Editar ${prod.name}`}><Edit3 className="h-3.5 w-3.5" /></button><button type="button" onClick={() => handleDuplicateProduct(prod)} className="rounded-lg border border-border bg-background p-1.5 text-muted-foreground hover:bg-secondary" title="Duplicar produto" aria-label={`Duplicar ${prod.name}`}><Copy className="h-3.5 w-3.5" /></button><button type="button" onClick={() => { if (confirm(`Excluir o produto "${prod.name}" do catálogo do ERP?`)) deleteProduct(prod.id); }} className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20" title="Excluir produto" aria-label={`Excluir ${prod.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div></td>
+                            <td className="px-4 py-2.5"><div className="flex justify-end gap-1.5"><button type="button" onClick={() => handleOpenEdit(prod)} className="rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary hover:bg-primary/15" title="Editar produto" aria-label={`Editar ${prod.name}`}><Edit3 className="h-3.5 w-3.5" /></button><button type="button" onClick={() => handleDuplicateProduct(prod)} className="rounded-lg border border-border bg-background p-1.5 text-muted-foreground hover:bg-secondary" title="Duplicar produto" aria-label={`Duplicar ${prod.name}`}><Copy className="h-3.5 w-3.5" /></button><button type="button" onClick={() => { void requestAction({ title: `Excluir o produto "${prod.name}" do catálogo do ERP?`, description: "O produto será excluído do catálogo do ERP. Esta ação não poderá ser desfeita.", confirmLabel: "Excluir produto", variant: 'danger' }, async () => {if (!await deleteProduct(prod.id)) return false;}); }} className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-1.5 text-rose-500 hover:bg-rose-500/20" title="Excluir produto" aria-label={`Excluir ${prod.name}`}><Trash2 className="h-3.5 w-3.5" /></button></div></td>
                           </tr>
                         );
                       }) : <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">Nenhum produto encontrado.</td></tr>}
@@ -2461,11 +2466,11 @@ export default function ProductsCRUDPage() {
                                     onClick={() => {
                                       const count = getProductCount(parent.id);
                                       if (count > 0) {
-                                        alert(`Não é possível excluir a categoria "${parent.name}" porque ela possui ${count} produto(s) associado(s).`);
+                                        showFeedback(`Não é possível excluir a categoria "${parent.name}" porque ela possui ${count} produto(s) associado(s).`, 'warning');
                                         return;
                                       }
-                                      if (confirm(`Deseja realmente excluir a categoria "${parent.name}"?`)) {
-                                        deleteCategory(parent.id);
+                                      void requestAction({ title: `Excluir a categoria "${parent.name}"?`, description: "A categoria sem produtos será excluída. Esta ação não poderá ser desfeita.", confirmLabel: "Excluir categoria", variant: 'danger' }, async () => {
+                                        if (!await deleteCategory(parent.id)) return false;
                                         if (selectedCatId === parent.id) {
                                           setIsCategoryEditing(false);
                                           setCatName('');
@@ -2474,7 +2479,7 @@ export default function ProductsCRUDPage() {
                                           setCatShowInCatalog(true);
                                           setSelectedCatId('');
                                         }
-                                      }
+                                      });
                                     }}
                                     className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/25 border border-rose-500/20"
                                     title="Excluir Categoria"
@@ -2523,11 +2528,11 @@ export default function ProductsCRUDPage() {
                                       onClick={() => {
                                         const count = products.filter(p => p.category_id === child.id).length;
                                         if (count > 0) {
-                                          alert(`Não é possível excluir a categoria "${child.name}" porque ela possui ${count} produto(s) associado(s).`);
+                                          showFeedback(`Não é possível excluir a categoria "${child.name}" porque ela possui ${count} produto(s) associado(s).`, 'warning');
                                           return;
                                         }
-                                        if (confirm(`Deseja realmente excluir a categoria "${child.name}"?`)) {
-                                          deleteCategory(child.id);
+                                        void requestAction({ title: `Excluir a categoria "${child.name}"?`, description: "A categoria sem produtos será excluída. Esta ação não poderá ser desfeita.", confirmLabel: "Excluir categoria", variant: 'danger' }, async () => {
+                                          if (!await deleteCategory(child.id)) return false;
                                           if (selectedCatId === child.id) {
                                             setIsCategoryEditing(false);
                                             setCatName('');
@@ -2536,7 +2541,7 @@ export default function ProductsCRUDPage() {
                                             setCatShowInCatalog(true);
                                             setSelectedCatId('');
                                           }
-                                        }
+                                        });
                                       }}
                                       className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/25 border border-rose-500/20"
                                       title="Excluir Categoria"
@@ -2587,11 +2592,11 @@ export default function ProductsCRUDPage() {
                                     onClick={() => {
                                       const count = products.filter(p => p.category_id === child.id).length;
                                       if (count > 0) {
-                                        alert(`Não é possível excluir a categoria "${child.name}" porque ela possui ${count} produto(s) associado(s).`);
+                                        showFeedback(`Não é possível excluir a categoria "${child.name}" porque ela possui ${count} produto(s) associado(s).`, 'warning');
                                         return;
                                       }
-                                      if (confirm(`Deseja realmente excluir a categoria "${child.name}"?`)) {
-                                        deleteCategory(child.id);
+                                      void requestAction({ title: `Excluir a categoria "${child.name}"?`, description: "A categoria sem produtos será excluída. Esta ação não poderá ser desfeita.", confirmLabel: "Excluir categoria", variant: 'danger' }, async () => {
+                                        if (!await deleteCategory(child.id)) return false;
                                         if (selectedCatId === child.id) {
                                           setIsCategoryEditing(false);
                                           setCatName('');
@@ -2600,7 +2605,7 @@ export default function ProductsCRUDPage() {
                                           setCatShowInCatalog(true);
                                           setSelectedCatId('');
                                         }
-                                      }
+                                      });
                                     }}
                                     className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/25 border border-rose-500/20"
                                     title="Excluir Categoria"

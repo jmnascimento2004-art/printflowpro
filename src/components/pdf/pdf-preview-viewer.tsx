@@ -221,7 +221,7 @@ export function PdfPreviewViewer({
     try {
       await openPdfFromUrl(url);
     } catch {
-      alert('Não foi possível abrir o PDF. Verifique se o navegador bloqueou a nova guia.');
+      setActionError('Não foi possível abrir o PDF. Verifique se o navegador bloqueou a nova guia.');
     }
   };
 

@@ -101,3 +101,36 @@ Auditoria inicial da macroetapa em main3652bc9, com Pedidos já em refinamento n
 ## Plano de entrega
 
 PR1: área de ciência, popups de Pedidos e primitive global. PR2 imediatamente seguinte: substituição global dos locais inventariados, formulário de link do editor, toast compartilhado, confirmações assíncronas e teste de bloqueio por AST. Nenhuma mudança de schema ou regras de negócio.
+
+## Resultado da remoção global
+
+PR1 integrado como PR45, main d2c9a84. As 87 ocorrências remanescentes acima foram substituídas por dialog, formulário de link, toast ou erro inline conforme a classificação. Confirmações destrutivas aguardam o resultado da persistência e mantêm o modal aberto na falha; Cancelar não chama a operação. Toast existente ampliado para success/error/warning/info, com anúncio acessível e largura limitada no mobile. Validações existentes preservadas.
+
+O teste tests/native-popups.test.mjs percorre o código de aplicação por AST e bloqueia chamadas diretas, qualificadas e aliases das APIs alert/confirm/prompt. A busca final retorna zero UX nativa. Permanecem apenas as exceções técnicas documentadas acima; a API PWA não é um prompt de entrada de dados.
+
+A limpeza operacional preexistente continua sendo uma operação de múltiplas tabelas sem transação única. O dialog agora detecta respostas de falha e não recarrega nem anuncia sucesso nesses casos; não foi criada uma nova operação de banco. Não executar essa ação destrutiva em dados reais como teste visual.
+
+## Complemento: ocorrências de Pedidos removidas no PR45
+
+Referência exata: main3652bc9 antes do refinamento. 18 ocorrências neste módulo.
+
+| Arquivo:linha | API | Classe | Conteúdo |
+|---|---|---|---|
+| src/app/(dashboard)/orders/page.tsx:453 | alert | C — erro/validação | 'O pedido precisa ter pelo menos um item.' |
+| src/app/(dashboard)/orders/page.tsx:457 | confirm | E — destrutiva | 'Tem certeza que deseja remover este item do pedido?' |
+| src/app/(dashboard)/orders/page.tsx:527 | confirm | E — destrutiva | `Cancelar o pedido ${formatOrderDisplayNumber(order.number)}?` |
+| src/app/(dashboard)/orders/page.tsx:549 | alert | C — erro/validação | 'Informe medidas em metros maiores que zero.' |
+| src/app/(dashboard)/orders/page.tsx:554 | alert | C — erro/validação | 'O pedido precisa ter pelo menos um item.' |
+| src/app/(dashboard)/orders/page.tsx:563 | alert | C — erro/validação | 'Informe o motivo do desconto para manter o histórico comercial do pedido.' |
+| src/app/(dashboard)/orders/page.tsx:594 | alert | C — erro/validação | getPersistenceErrorMessage(error) |
+| src/app/(dashboard)/orders/page.tsx:613 | alert | C — erro/validação | 'Não foi possível baixar o PDF. Tente novamente.' |
+| src/app/(dashboard)/orders/page.tsx:633 | alert | C — erro/validação | 'Nenhum pagamento confirmado encontrado para gerar recibo.' |
+| src/app/(dashboard)/orders/page.tsx:718 | alert | C — erro/validação | `O valor recebido não pode ser maior que o saldo pendente (${formatCurrency(currentBalance)}).` |
+| src/app/(dashboard)/orders/page.tsx:730 | alert | C — erro/validação | `Este pedido ja possui faturamento B2B em aberto com vencimento em ${new Date(existingInvoice.due_date).toLocaleDateString('pt-BR')}. Registre a baixa usando PIX, cartao, dinheiro ou boleto.` |
+| src/app/(dashboard)/orders/page.tsx:736 | alert | C — erro/validação | 'Este cliente não possui permissão de faturamento corporativo!' |
+| src/app/(dashboard)/orders/page.tsx:740 | alert | C — erro/validação | 'O crédito corporativo deste cliente não está APROVADO!' |
+| src/app/(dashboard)/orders/page.tsx:753 | alert | C — erro/validação | `Crédito indisponível! Limite disponível: ${formatCurrency(creditAvailable)}` |
+| src/app/(dashboard)/orders/page.tsx:1015 | alert | C — erro/validação | error instanceof Error ? error.message : 'Não foi possível preparar a cobrança no WhatsApp.' |
+| src/app/(dashboard)/orders/page.tsx:1019 | alert | C — erro/validação | 'Este modelo está inativo na Central de WhatsApp.' |
+| src/app/(dashboard)/orders/page.tsx:1022 | confirm | A — confirmação | 'Abrir o WhatsApp com a cobrança preparada?' |
+| src/app/(dashboard)/orders/page.tsx:1026 | alert | C — erro/validação | "Cliente sem telefone válido para WhatsApp." |

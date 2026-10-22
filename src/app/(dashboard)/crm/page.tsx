@@ -1,4 +1,6 @@
 'use client';
+import { useActionDialog } from '@/components/action-dialog-provider';
+import { useFeedback } from '@/context/database-context';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -88,6 +90,9 @@ const validateCustomerCPF = (cpf: string) => {
 };
 
 export default function CustomersPage() {
+  const showFeedback = useFeedback();
+  const requestAction = useActionDialog();
+
   const { customers, saveCustomer, updateCustomer, deleteCustomer, orders, quotes, rolePermissions } = useDatabase();
   const { activeProfile } = useAuth();
   const canViewRanking = canAccessModule(activeProfile.role, '/orders', rolePermissions);
@@ -259,15 +264,15 @@ export default function CustomersPage() {
     const customerQuotes = getCustomerQuotes(customer);
 
     if (customerOrders.length > 0 || customerQuotes.length > 0) {
-      alert('Este cliente possui pedidos ou orçamentos vinculados. Para preservar o histórico comercial, ele não será excluído. Use Bloquear se precisar impedir novos atendimentos.');
+      showFeedback('Este cliente possui pedidos ou orçamentos vinculados. Para preservar o histórico comercial, ele não será excluído. Use Bloquear se precisar impedir novos atendimentos.', 'warning');
       return;
     }
 
-    if (confirm('Tem certeza de que deseja excluir este cliente? Esta ação não poderá ser desfeita.')) {
-      deleteCustomer(customer.id);
+    void requestAction({ title: 'Excluir este cliente?', description: "O cadastro do cliente será excluído. Esta ação não poderá ser desfeita.", confirmLabel: "Excluir cliente", variant: 'danger' }, async () => {
+      if (!await deleteCustomer(customer.id)) return false;
       if (detailsCustomer?.id === customer.id) setDetailsCustomer(null);
       if (selectedCustomer?.id === customer.id) setSelectedCustomer(null);
-    }
+    });
   };
 
   const handleNewQuoteForCustomer = (customer: Customer) => {
@@ -377,23 +382,23 @@ export default function CustomersPage() {
 
     const rawDocument = document.replace(/\D/g, '');
     if (personType === 'fisica' && rawDocument && !validateCustomerCPF(rawDocument)) {
-      alert('CPF invalido. Verifique os digitos e tente novamente.');
+      showFeedback('CPF invalido. Verifique os digitos e tente novamente.', 'warning');
       return;
     }
 
     if (personType === 'juridica' && !rawDocument) {
-      alert('Informe o CNPJ da empresa.');
+      showFeedback('Informe o CNPJ da empresa.', 'warning');
       return;
     }
 
     if (personType === 'juridica' && !validateCNPJ(rawDocument)) {
-      alert('CNPJ invalido. Verifique os digitos e tente novamente.');
+      showFeedback('CNPJ invalido. Verifique os digitos e tente novamente.', 'warning');
       return;
     }
 
     const rawCEP = zipCode.replace(/\D/g, '');
     if (rawCEP && !validateCEP(rawCEP)) {
-      alert('CEP invalido. O CEP deve conter exatamente 8 digitos.');
+      showFeedback('CEP invalido. O CEP deve conter exatamente 8 digitos.', 'warning');
       return;
     }
 
@@ -403,7 +408,7 @@ export default function CustomersPage() {
     );
 
     if (duplicateDocument) {
-      alert('Ja existe um cliente cadastrado com este CPF/CNPJ.');
+      showFeedback('Ja existe um cliente cadastrado com este CPF/CNPJ.', 'warning');
       return;
     }
 
@@ -948,10 +953,7 @@ export default function CustomersPage() {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Excluir o cliente ${selectedCustomer.name}?`)) {
-                          deleteCustomer(selectedCustomer.id);
-                          setSelectedCustomer(null);
-                        }
+                        handleDeleteCustomer(selectedCustomer);
                       }}
                       className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-black text-rose-500 transition-all hover:bg-rose-50"
                     >
@@ -1050,10 +1052,7 @@ export default function CustomersPage() {
                 </button>
                 <button
                   onClick={() => {
-                    if (confirm(`Excluir o cliente ${selectedCustomer.name}?`)) {
-                      deleteCustomer(selectedCustomer.id);
-                      setSelectedCustomer(null);
-                    }
+                    handleDeleteCustomer(selectedCustomer);
                   }}
                   className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-400 transition-all hover:bg-rose-500/20"
                 >

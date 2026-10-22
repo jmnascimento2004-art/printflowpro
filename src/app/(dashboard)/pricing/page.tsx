@@ -1,4 +1,5 @@
 'use client';
+import { useFeedback } from '@/context/database-context';
 
 import { suggestProductPrice } from '@/lib/product-costs';
 
@@ -158,6 +159,8 @@ function MoneyInput({
 }
 
 export default function PricingPage() {
+  const showFeedback = useFeedback();
+
   const { saveProduct, categories, settings } = useDatabase();
 
   // Pricing Parameters
@@ -295,7 +298,7 @@ export default function PricingPage() {
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert('Por favor, informe o nome do produto.');
+      showFeedback('Por favor, informe o nome do produto.', 'warning');
       return;
     }
     const productPricingType = pricingType === 'linear_width'

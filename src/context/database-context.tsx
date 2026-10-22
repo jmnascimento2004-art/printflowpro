@@ -1,4 +1,5 @@
 'use client';
+import { feedbackMessage } from '@/lib/feedback.mjs';
 
 import { DEFAULT_ROLE_PERMISSIONS } from '@/lib/module-permissions';
 import { replaceShipment, mergeShipmentSnapshot } from '@/lib/shipment-state';
@@ -155,21 +156,21 @@ interface DatabaseContextType {
   addCustomer: (cust: NewCustomerInput) => Customer;
   updateCustomer: (cust: Customer) => void;
   saveCustomer: (cust: NewCustomerInput, previous?: Customer) => Promise<Customer>;
-  deleteCustomer: (id: string) => void;
+  deleteCustomer: (id: string) => Promise<boolean>;
 
   // Suppliers & Categories
   addSupplier: (sup: Omit<Supplier, 'id' | 'company_id' | 'created_at'>) => Supplier;
   addCategory: (name: string, description: string, parent_id?: string | null, show_in_catalog?: boolean) => Category;
   updateCategory: (id: string, name: string, description: string, parent_id?: string | null, show_in_catalog?: boolean) => void;
   updateCategoryCatalogPresentation: (id: string, patch: CategoryCatalogPresentationPatch) => Promise<void>;
-  deleteCategory: (id: string) => void;
+  deleteCategory: (id: string) => Promise<boolean>;
 
   // Products
   initializeProductStock: (product: Product, quantity: number) => Promise<void>;
   saveProduct: (prod: Omit<Product, 'id' | 'company_id' | 'created_at' | 'current_stock'>, previous?: Product) => Promise<Product>;
   addProduct: (prod: Omit<Product, 'id' | 'company_id' | 'created_at' | 'current_stock'>) => Product;
   updateProduct: (prod: Product) => void;
-  deleteProduct: (id: string) => void;
+  deleteProduct: (id: string) => Promise<boolean>;
   adjustStock: (productId: string, quantity: number, reason: string, type: 'entrada' | 'saida', cost?: number) => void;
   stockMovements: StockMovement[];
 
@@ -211,19 +212,19 @@ interface DatabaseContextType {
   // Pickup Points CRUD
   addPickupPoint: (point: Omit<PickupPoint, 'id' | 'company_id'>) => PickupPoint;
   updatePickupPoint: (point: PickupPoint) => void;
-  deletePickupPoint: (id: string) => void;
+  deletePickupPoint: (id: string) => Promise<boolean>;
   
   // Store banners
   banners: StoreBanner[];
   addBanner: (banner: Omit<StoreBanner, 'id'>) => StoreBanner;
   updateBanner: (id: string, patch: Partial<Omit<StoreBanner, 'id'>>) => void;
-  deleteBanner: (id: string) => void;
+  deleteBanner: (id: string) => Promise<boolean>;
 
   // Employees CRUD
   profiles: UserProfile[];
   addProfile: (profile: Omit<UserProfile, 'id' | 'company_id'>) => UserProfile;
   updateProfile: (profile: UserProfile) => Promise<UserProfile>;
-  deleteProfile: (id: string) => void;
+  deleteProfile: (id: string) => Promise<boolean>;
 
   // Permissions
   rolePermissions: Record<string, string[]>;
@@ -231,8 +232,8 @@ interface DatabaseContextType {
 
   // Helpers
   refreshStoreCatalog: () => Promise<void>;
-  resetDatabase: () => void;
-  showToast: (message: string, type?: 'success' | 'error') => void;
+  resetDatabase: () => Promise<boolean>;
+  showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 export interface StoreBanner {
@@ -449,13 +450,13 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [isTenantReady, setIsTenantReady] = useState(false);
   const [isSessionSwitching, setIsSessionSwitching] = useState(true);
   const [canShowToast, setCanShowToast] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const loadGenerationRef = useRef(0);
   const loadedSessionScopeKeyRef = useRef('');
   const tenantPersistenceArmedRef = useRef(false);
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ message, type });
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
+    setToast({ message: feedbackMessage(message), type });
   };
 
   useEffect(() => {
@@ -1213,13 +1214,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     updateFavicons();
   }, [company?.favicon, initialized]);
  
-  const resetDatabase = () => {
-    if (!isBrowser()) return;
-
-    clearOperationalDemoSnapshots();
+  const resetDatabase = async () => {
+    if (!isBrowser()) return false;
     
     // Clear Supabase operational tables but KEEP companies, settings, profiles, and role_permissions
-    Promise.all([
+    return await Promise.all([
       deleteAllCustomers(),
       supabase.from('suppliers').delete().not('id', 'is', null),
       supabase.from('categories').delete().not('id', 'is', null),
@@ -1236,11 +1235,14 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       supabase.from('store_banners').delete().not('id', 'is', null),
       supabase.from('cash_register_sessions').delete().not('id', 'is', null),
       supabase.from('cash_register_transactions').delete().not('id', 'is', null)
-    ]).then(() => {
+    ]).then(results => {
+      if (results.some(result => result && 'error' in result && result.error)) return false;
+      clearOperationalDemoSnapshots();
       window.location.reload();
+      return true;
     }).catch(err => {
       warnCaught('Erro capturado:', err);
-      window.location.reload();
+      return false;
     });
   };
 
@@ -1288,16 +1290,17 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const deleteCustomer = (id: string) => {
+  const deleteCustomer = async (id: string) => {
     const current = customers.find((customer) => customer.id === id);
-    if (!current) return;
+    if (!current) return false;
     const nextCustomers = customers.filter(c => c.id !== id);
     setCustomers(nextCustomers);
     persistDemoSnapshot('customers', nextCustomers);
-    deleteCustomerRecord(current).catch((error) => {
+    return await deleteCustomerRecord(current).then(() => true).catch((error) => {
       setCustomers((items) => items.some((item) => item.id === id) ? items : [...items, current]);
       warnCaught('Erro ao excluir cliente no Supabase:', error);
       if (canShowToast) showToast(error instanceof Error ? error.message : 'Erro ao excluir cliente no Supabase!', 'error');
+      return false;
     });
   };
 
@@ -1386,14 +1389,15 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     setCategories((items) => items.map((category) => category.id === id ? saved : category));
   };
 
-  const deleteCategory = (id: string) => {
+  const deleteCategory = async (id: string) => {
     const current = categories.find((category) => category.id === id);
-    if (!current) return;
+    if (!current) return false;
     setCategories(prev => prev.filter(c => c.id !== id));
-    void deleteTenantRecord('categories', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).catch((error) => {
+    return await deleteTenantRecord('categories', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).then(() => true).catch((error) => {
       setCategories((items) => items.some((item) => item.id === id) ? items : [...items, current]);
       warnCaught('Erro ao excluir categoria no Supabase:', error);
       showToast(error instanceof Error ? error.message : 'Não foi possível excluir a categoria.', 'error');
+      return false;
     });
   };
 
@@ -1502,14 +1506,15 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     });
 };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string) => {
     const current = products.find((item) => item.id === id);
-    if (!current) return;
+    if (!current) return false;
     setProducts(prev => prev.filter(p => p.id !== id));
-    void deleteTenantRecord('products', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).catch((error) => {
+    return await deleteTenantRecord('products', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).then(() => true).catch((error) => {
       setProducts((items) => items.some((item) => item.id === id) ? items : [...items, current]);
       warnCaught('Erro ao excluir produto no Supabase:', error);
       showToast(error instanceof Error ? error.message : 'Não foi possível excluir o produto.', 'error');
+      return false;
     });
   };
 
@@ -2175,14 +2180,15 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       });
   };
 
-  const deletePickupPoint = (id: string) => {
+  const deletePickupPoint = async (id: string) => {
     const current = pickupPoints.find((item) => item.id === id);
-    if (!current) return;
+    if (!current) return false;
     setPickupPoints(prev => prev.filter(p => p.id !== id));
-    void deleteTenantRecord('pickup_points', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).catch((error) => {
+    return await deleteTenantRecord('pickup_points', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).then(() => true).catch((error) => {
       setPickupPoints((items) => items.some((item) => item.id === id) ? items : [...items, current]);
       warnCaught('Erro ao excluir ponto de coleta no Supabase:', error);
       showToast(error instanceof Error ? error.message : 'Não foi possível excluir o ponto de coleta.', 'error');
+      return false;
     });
   };
 
@@ -2350,14 +2356,15 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const deleteBanner = (id: string) => {
+  const deleteBanner = async (id: string) => {
     const current = banners.find((banner) => banner.id === id);
-    if (!current) return;
+    if (!current) return false;
     setBanners(prev => prev.filter(b => b.id !== id));
-    void deleteTenantRecord('store_banners', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).catch((error) => {
+    return await deleteTenantRecord('store_banners', id, currentCompanyId, { expectedUpdatedAt: current.updated_at }).then(() => true).catch((error) => {
       setBanners((items) => items.some((item) => item.id === id) ? items : [...items, current]);
       warnCaught('Erro ao excluir banner no Supabase:', error);
       showToast(error instanceof Error ? error.message : 'Não foi possível excluir o banner.', 'error');
+      return false;
     });
   };
 
@@ -2418,11 +2425,19 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     return persistedProfile;
   };
 
-  const deleteProfile = (id: string) => {
-    setProfiles(prev => prev.filter(p => p.id !== id));
-    supabase.from('profiles').delete().eq('id', id).then(({ error }) => {
-      if (error) warnCaught('Erro ao excluir funcionário no Supabase:', error);
-    });
+  const deleteProfile = async (id: string) => {
+    const previous = profiles.find(profile => profile.id === id);
+    if (!previous) return false;
+    setProfiles(items => items.filter(profile => profile.id !== id));
+    try {
+      const { data, error } = await supabase.from('profiles').delete().eq('id', id).select('id').maybeSingle();
+      if (error || !data) throw error || new Error('Deletion not confirmed');
+      return true;
+    } catch (error) {
+      setProfiles(items => items.some(profile => profile.id === id) ? items : [...items, previous]);
+      warnCaught('Erro ao excluir funcionário:', error);
+      return false;
+    }
   };
 
   const updateRolePermissions = (permissions: Record<string, string[]>) => {
@@ -2460,6 +2475,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const canRenderCurrentScope = isPublicStoreRoute() || (
     !isAuthLoading && loadedSessionScopeKeyRef.current === sessionScopeKey
   );
+  const toastColor = { success: '16,185,129', error: '239,68,68', warning: '245,158,11', info: '96,165,250' }[toast?.type || 'info'];
 
   if (!initialized || !canRenderCurrentScope) {
   return null;
@@ -2557,21 +2573,18 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             }
           `}</style>
           <div 
-            className="fixed bottom-5 right-5 z-[99999] animate-toast-in flex items-center gap-3 p-4 shadow-2xl transition-all border"
+            role={toast.type === 'error' ? 'alert' : 'status'} aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+            className="fixed bottom-20 right-4 z-[99999] animate-toast-in flex max-w-[calc(100vw-2rem)] items-center gap-3 border p-4 shadow-2xl transition-all sm:bottom-5 sm:right-5"
             style={{
               borderRadius: '10px',
-              backgroundColor: toast.type === 'success' ? 'rgba(15, 23, 42, 0.95)' : 'rgba(24, 24, 27, 0.95)',
-              borderColor: toast.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-              boxShadow: toast.type === 'success' 
-                ? '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(16, 185, 129, 0.05), 0 0 15px 0px rgba(16, 185, 129, 0.15)' 
-                : '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(239, 68, 68, 0.05), 0 0 15px 0px rgba(239, 68, 68, 0.15)',
+              backgroundColor: 'rgba(15, 23, 42, 0.95)',
+              borderColor: `rgba(${toastColor},0.3)`,
+              boxShadow: `0 20px 25px -5px rgba(0,0,0,0.2), 0 0 15px rgba(${toastColor},0.15)`,
               backdropFilter: 'blur(12px)',
             }}
           >
             {/* Icon */}
-            <div className={`p-2 rounded-lg flex items-center justify-center ${
-              toast.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-            }`}>
+            <div aria-hidden="true" className="flex items-center justify-center rounded-lg p-2" style={{ backgroundColor: `rgba(${toastColor},0.1)`, color: `rgb(${toastColor})` }}>
               {toast.type === 'success' ? (
                 <svg className="w-5 h-5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <polyline points="20 6 9 17 4 12" />
@@ -2588,7 +2601,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
             {/* Content */}
             <div className="flex flex-col">
               <span className="text-sm font-semibold text-slate-100">
-                {toast.type === 'success' ? 'Sucesso' : 'Erro'}
+                {{ success: 'Sucesso', error: 'Erro', warning: 'Atenção', info: 'Informação' }[toast.type]}
               </span>
               <span className="text-xs text-slate-400 pr-4 mt-0.5 max-w-[250px]">
                 {toast.message}
@@ -2597,7 +2610,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
             {/* Close Button */}
             <button 
-              onClick={() => setToast(null)}
+              type="button" aria-label="Fechar aviso" onClick={() => setToast(null)}
               className="ml-auto p-1 text-slate-500 hover:text-slate-300 transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2618,4 +2631,8 @@ export function useDatabase() {
     throw new Error('useDatabase must be used within a DatabaseProvider');
   }
   return context;
+}
+
+export function useFeedback() {
+  return useDatabase().showToast;
 }

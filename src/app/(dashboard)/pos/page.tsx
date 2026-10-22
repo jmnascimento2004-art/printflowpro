@@ -1,4 +1,5 @@
 'use client';
+import { useFeedback } from '@/context/database-context';
 
 import { ProductConfiguratorModal, type ProductConfiguratorCartPayload } from '@/components/store/ProductConfiguratorModal';
 import { createPOSCartItem, changePOSItemQuantity, posCheckoutItems, type POSCartItem } from '@/lib/pos-cart';
@@ -39,6 +40,8 @@ type POSCustomer = Pick<Customer, 'id' | 'name' | 'document' | 'phone' | 'email'
 type CartItem = POSCartItem;
 
 export default function POSPage() {
+  const showFeedback = useFeedback();
+
   const {
     products,
     customers,
@@ -141,7 +144,7 @@ export default function POSPage() {
     try {
       const item = createPOSCartItem(product, { quantity: 1 });
       setCart(previous => [...previous, item]);
-    } catch (error) { alert(error instanceof Error ? error.message : 'Produto indisponível.'); }
+    } catch { showFeedback('Produto indisponível.', 'error'); }
   };
 
   const addConfiguredItem = (payload: ProductConfiguratorCartPayload) => {
@@ -154,17 +157,17 @@ export default function POSPage() {
       });
       setCart(previous => [...previous, item]);
       setConfiguringProduct(null);
-    } catch (error) { alert(error instanceof Error ? error.message : 'Configuração indisponível.'); }
+    } catch { showFeedback('Configuração indisponível.', 'error'); }
   };
 
   const changeQuantity = (index: number, direction: -1 | 1) => {
     const item = cart[index];
     const product = products.find(product => product.id === item.product_id);
-    if (!product) { alert('Produto não está mais disponível.'); return; }
+    if (!product) { showFeedback('Produto não está mais disponível.', 'warning'); return; }
     try {
       const updated = changePOSItemQuantity(product, item, direction);
       setCart(previous => previous.map((entry, i) => i === index ? updated : entry));
-    } catch (error) { alert(error instanceof Error ? error.message : 'Quantidade indisponível.'); }
+    } catch { showFeedback('Quantidade indisponível.', 'error'); }
   };
 
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
@@ -178,20 +181,20 @@ export default function POSPage() {
 
     if (paymentMethod === 'faturado') {
       if (customer.id === 'guest') {
-        alert('Venda Faturada (Crédito) não pode ser registrada para Consumidor Final!');
+        showFeedback('Venda Faturada (Crédito) não pode ser registrada para Consumidor Final!', 'warning');
         return;
       }
       if (customer.billing_type !== 'faturado') {
-        alert('Este cliente não está habilitado para faturamento corporativo!');
+        showFeedback('Este cliente não está habilitado para faturamento corporativo!', 'warning');
         return;
       }
       if (customer.credit_status !== 'aprovado') {
-        alert('O crédito corporativo deste cliente não está Aprovado!');
+        showFeedback('O crédito corporativo deste cliente não está Aprovado!', 'warning');
         return;
       }
       const available = (customer.credit_limit || 0) - (customer.credit_used || 0);
       if (available < total) {
-        alert(`Crédito Insuficiente! Limite disponível: ${formatCurrency(available)}`);
+        showFeedback(`Crédito Insuficiente! Limite disponível: ${formatCurrency(available)}`, 'warning');
         return;
       }
     }
@@ -231,7 +234,7 @@ export default function POSPage() {
 
     const rawDoc = newCustDoc.replace(/\D/g, '');
     if (rawDoc && rawDoc.length > 11 && !validateCNPJ(rawDoc)) {
-      alert('Documento CNPJ inválido! Verifique os dígitos e tente novamente.');
+      showFeedback('Documento CNPJ inválido! Verifique os dígitos e tente novamente.', 'warning');
       return;
     }
 
