@@ -1,4 +1,5 @@
 'use client';
+import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
 
 import { ProductFieldInputs } from '@/components/products/ProductCustomFields';
 import { resolveProductFields, productFieldsSummary, type ProductFieldValues } from '@/lib/product-custom-fields';
@@ -156,6 +157,7 @@ const getItemConfigurationSummaryLines = (item: Pick<QuoteItem, 'details' | 'qua
 };
 
 export default function QuotesPage() {
+  const agendaFocus = useAgendaSourceFocus();
   const { session, activeProfile } = useAuth();
   const { 
     quotes, 
@@ -707,6 +709,7 @@ export default function QuotesPage() {
 
   // 1. Filter Quotes
   const filteredQuotes = [...quotes]
+    .filter(q => !agendaFocus.id || q.id === agendaFocus.id)
     .filter(q =>
       q.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.number.toString().includes(searchQuery) ||
@@ -1140,6 +1143,7 @@ export default function QuotesPage() {
 
   return (
     <div className="space-y-6">
+      {agendaFocus.banner}
       {!isCreating && canUseAssistant && <button type="button" onClick={() => setShowAssistant(value => !value)} className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">Assistente de Orçamentos</button>}
       {showAssistant && !isCreating && canUseAssistant && <QuoteTextAssistant key={activeProfile.company_id} products={products.filter(product => product.company_id === activeProfile.company_id)} customers={canAccessModule(activeProfile.role, '/crm', rolePermissions) ? customers : []} onClose={() => setShowAssistant(false)} onDraft={(id, draftItems) => {
         resetForm(); setCustomerId(id); setItems(draftItems);

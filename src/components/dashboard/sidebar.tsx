@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
-  Home, 
+  Home, CalendarDays,
   Users, 
   FileText, 
   Calculator, 
@@ -68,6 +68,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'Precificação', path: '/pricing', icon: Calculator },
     { name: 'Pedidos', path: '/orders', icon: LayoutGrid },
     { name: 'Fila Produção', path: '/production', icon: Wrench },
+    { name: 'Agenda', path: '/agenda', icon: CalendarDays },
     { name: 'Financeiro', path: '/financial', icon: DollarSign },
     { name: 'Estoque / Insumos', path: '/stock', icon: Layers },
     { name: 'Expedição', path: '/shipment', icon: Truck },

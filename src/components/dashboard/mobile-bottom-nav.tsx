@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Calculator,
+  Calculator, CalendarDays,
   DollarSign,
   ExternalLink,
   FileText,
@@ -34,6 +34,7 @@ const NAV_ITEMS = [
   { name: 'Precificação', path: '/pricing', icon: Calculator },
   { name: 'Pedidos', path: '/orders', icon: LayoutGrid },
   { name: 'Produção', path: '/production', icon: Wrench },
+  { name: 'Agenda', path: '/agenda', icon: CalendarDays },
   { name: 'Financeiro', path: '/financial', icon: DollarSign },
   { name: 'Estoque', path: '/stock', icon: Layers },
   { name: 'Expedição', path: '/shipment', icon: Truck },

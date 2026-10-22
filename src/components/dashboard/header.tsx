@@ -8,6 +8,7 @@ import { Bell, ChevronLeft, ChevronRight, FileText, Moon, Sun } from 'lucide-rea
 import { useTheme } from '@/context/theme-context';
 import { useDatabase } from '@/context/database-context';
 import { UserProfile } from '@/lib/dummy-data';
+import { AgendaReminders } from '@/components/agenda/reminders';
 
 const CATALOG_INTERESTS_READ_KEY = 'printflow_catalog_interests_read_ids';
 const CATALOG_INTERESTS_READ_EVENT = 'printflow_catalog_interests_read_change';
@@ -207,6 +208,7 @@ export default function Header({
                 onClick={() => setNotificationsOpen(false)}
               />
               <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-card border border-border shadow-lg z-50 animate-in fade-in slide-in-from-top-2 duration-150 overflow-hidden">
+                <AgendaReminders />
                 <div className="px-4 py-3 border-b border-border">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-black uppercase tracking-wide text-foreground">Interesses do catalogo</span>
