@@ -182,7 +182,7 @@ interface DatabaseContextType {
   // Orders
   addOrder: (order: Omit<Order, 'id' | 'company_id' | 'number' | 'created_at'>) => Promise<Order | null>;
   updateOrder: (order: Order) => Promise<Order>;
-  updateOrderStatus: (id: string, status: Order['status']) => Promise<void>;
+  updateOrderStatus: (id: string, status: Order['status']) => Promise<boolean>;
   payOrder: (
     id: string,
     amount: number,
@@ -1871,10 +1871,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   const updateOrderStatus = async (id: string, status: Order['status']) => {
     const current = orders.find((order) => order.id === id);
-    if (!current || current.status === status) return;
+    if (!current) return false;
+    if (current.status === status) return true;
     const optimistic = { ...current, status };
     setOrders((items) => items.map((item) => item.id === id ? optimistic : item));
-    await transitionOrderStatus<Order, Shipment>({
+    return await transitionOrderStatus<Order, Shipment>({
       orderId: id,
       status,
       expectedUpdatedAt: current.updated_at
@@ -1884,11 +1885,13 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         setShipments((items) => replaceShipment(items, shipment));
       }
       applyProductionQueueInsertions({ ...savedOrder, items: current.items }, insertedProduction as ProductionItem[]);
+      return true;
     }).catch((error) => {
       const latest = error instanceof PersistenceMutationError ? error.latest as Order | undefined : undefined;
       setOrders((items) => items.map((item) => item.id === id ? { ...(latest || current), items: item.items } : item));
       warnCaught('Erro ao atualizar status do pedido:', error);
       showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o pedido.', 'error');
+      return false;
     });
   };
 

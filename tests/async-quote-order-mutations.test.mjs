@@ -85,7 +85,6 @@ test('deleteQuote: lost response reconciles confirmed absence without success',a
 test('conflict refetch failure rejects without claiming current state was loaded',async()=>{
   const c=await context({response:Promise.resolve({data:{result_status:'CONFLICT'}}),refetchError:{message:'offline'}});await assert.rejects(c.api.updateQuote(quote),/Não foi possível carregar/);assert.deepEqual(c.events,[]);
 });
-
 async function quoteUI(update=false) {
   const events=[],wait=deferred(),lock={current:false};let count=0;
   const deps={quoteMutationRef:lock,setQuotePending:v=>events.push(['pending',v]),customers:[{id:'c1',name:'Fixture'}],customerId:'c1',items:[item],getSubtotal:()=>10,getServicesTotal:()=>0,deliveryFee:0,discountInput:'0',discountMode:'fixed',calculateQuoteDiscount:()=>0,calculateQuoteNetTotal:()=>10,editingQuoteId:update?'q1':null,quotes:[{...quote,updated_at:'v2'}],company:{id:'a'},editingQuoteVersion:'v1',validUntil:'2026-12-01',notes:'typed',additionalServices:[],deliveryType:'retirada',deliveryAddress:'',deliveryDistanceKm:0,
@@ -111,7 +110,7 @@ for (const outcome of ['success','failure','conflict']) test(`order editor ${out
   const wait=deferred(),events=[];let count=0;
   const api=await declarations('../src/app/(dashboard)/orders/page.tsx',['handleSaveEditOrder'],{
     orderMutationRef:{current:false},setOrderPending:v=>events.push(['pending',v]),editingOrder:order,editItems:[item],editAdditionalServices:[],getAdditionalServicesTotal:()=>0,editShipping:0,editDiscount:0,editDiscountReason:'',editPaid:0,editDeliveryDistanceInput:'0',parseDecimalBR:()=>0,editStatus:'orcamento',editDeadline:'2026-12-01',editNotes:'typed',sanitizeDisplayText:v=>v,buildOrderNotesWithDiscount:v=>v,getPaymentStatusForTotal:()=> 'pendente',recalculateOrderItem:v=>v,editDeliveryType:'retirada',editDeliveryAddress:'',
-    updateOrder:value=>{count++;assert.equal(value.updated_at,'v1');return wait.promise;},setEditingOrder:()=>events.push(['close']),handleOpenEditOrder:latest=>events.push(['reload',latest]),alert:msg=>events.push(['error',msg]),PersistenceMutationError,getPersistenceErrorMessage
+    updateOrder:value=>{count++;assert.equal(value.updated_at,'v1');return wait.promise;},setEditingOrder:()=>events.push(['close']),handleOpenEditOrder:latest=>events.push(['reload',latest]),showToast:msg=>events.push(['error',msg]),PersistenceMutationError,getPersistenceErrorMessage
   });
   const pending=api.handleSaveEditOrder({preventDefault(){}});await api.handleSaveEditOrder({preventDefault(){}});assert.equal(count,1);assert.deepEqual(events,[['pending',true]]);
   if(outcome==='success')wait.resolve(order);else wait.reject(outcome==='conflict'?new PersistenceMutationError('CONFLICT','Conflito',{...order,updated_at:'v2'}):new Error('private SQL'));
@@ -128,4 +127,20 @@ for(const outcome of ['success','failure'])test(`Store checkout ${outcome}: cart
   const pending=api.handleCheckout({preventDefault(){}});await api.handleCheckout({preventDefault(){}});assert.equal(count,1);assert.deepEqual(events,[['pending',true]]);
   if(outcome==='success')wait.resolve({...quote,number:9009});else wait.reject(new Error('network SQL details'));
   await pending;assert.equal(events.some(e=>e[0]==='setCart'),outcome==='success');assert.equal(events.some(e=>e[0]==='setOrderCompleted'&&e[1]==='9009'),outcome==='success');assert.deepEqual(events.at(-1),['pending',false]);
+});
+
+for (const mode of ['cancel','confirm','direct','error','inactive']) test(`PIX canonical href: ${mode}`, async()=>{
+  const events=[], guard={current:false}; let resolverCalls=0;
+  const api=await declarations('../src/app/(dashboard)/orders/page.tsx',['sendPixWhatsApp'],{
+    pixPreparing:guard,session:{access_token:'fixture'},
+    resolveOperationalWhatsAppMessage:async()=>{resolverCalls++; if(mode==='error')throw new Error('SQL private'); return {active:mode!=='inactive',confirmBeforeOpen:mode!=='direct',href:'https://wa.me/5571999999999?text=canonical'};},
+    showToast:message=>events.push(['toast',message]),
+    requestAction:async(options,action)=>{events.push(['dialog',options]);if(mode==='confirm'){action();return true;}return false;},
+    window:{open:(...args)=>events.push(['open',...args])},formatOrderDisplayNumber:v=>v,formatCurrency:v=>String(v),getConfirmedPaidAmountForOrder:()=>20
+  });
+  const pending=api.sendPixWhatsApp({...order,customer_name:'Cliente real',number:'PED-0035',total_amount:100});await api.sendPixWhatsApp(order);await pending;
+  assert.equal(resolverCalls,1);assert.equal(guard.current,false);
+  assert.equal(events.filter(e=>e[0]==='open').length,['confirm','direct'].includes(mode)?1:0);
+  if(mode==='confirm'){const options=events.find(e=>e[0]==='dialog')[1];assert.deepEqual(options.summary,[['Cliente','Cliente real'],['Pedido','PED-0035'],['Saldo pendente','80'],['Destino','WhatsApp do cliente']]);assert.equal(events.find(e=>e[0]==='open')[1],'https://wa.me/5571999999999?text=canonical');}
+  if(mode==='error')assert.ok(!JSON.stringify(events).includes('SQL'));
 });
