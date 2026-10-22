@@ -2,19 +2,32 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { downloadPdfDocument, printPdfDocument } from '../src/lib/pdf/pdf-document-actions.mjs';
+import { loadTypescript } from './helpers/load-typescript.mjs';
 
 function browserFixture() {
   const calls = []; const events = new Map(); const timers = [];
   const anchor = { click() { calls.push(['download', this.download, this.href]); }, remove() {} };
-  const popup = { opener: 'parent', addEventListener(type, cb) { events.set(type, cb); }, focus() {}, print() { calls.push(['print']); }, location: { replace(url) { calls.push(['navigate', url]); } } };
+  const frame = { style: {}, setAttribute() {}, remove() { calls.push(['remove-frame']); }, contentWindow: { addEventListener(type, cb) { events.set(type, cb); }, focus() {}, print() { calls.push(['print']); } } };
   const browser = {
     URL: { createObjectURL(blob) { calls.push(['blob', blob]); return 'blob:loaded-pdf'; }, revokeObjectURL(url) { calls.push(['revoke', url]); } },
-    document: { createElement() { return anchor; }, body: { appendChild() {} } },
-    open(...args) { calls.push(['open', ...args]); return popup; },
-    setTimeout(cb) { timers.push(cb); }
+    document: { createElement(tag) { return tag === 'iframe' ? frame : anchor; }, body: { appendChild() {} } },
+    open() { throw new Error('Printing must not open a new tab'); },
+    setTimeout(cb) { timers.push(cb); return timers.length; }, clearTimeout() {}
   };
-  return { browser, calls, events, timers, popup };
+  return { browser, calls, events, timers, frame };
 }
+
+test('initial shell CSP supports authenticated Blob printing after SPA navigation', async () => {
+  const config = loadTypescript('next.config.ts').default;
+  const headers = await config.headers();
+  const shell = headers.find(rule => rule.source === '/:path*');
+  const csp = shell.headers.find(header => header.key === 'Content-Security-Policy').value;
+  const frames = csp.split(';').find(directive => directive.trim().startsWith('frame-src '));
+  assert.match(frames, /\bblob:/);
+  assert.match(csp, /object-src 'none'/);
+  assert.match(csp, /frame-ancestors 'self'/);
+  assert.match(csp, /form-action 'self'/);
+});
 
 test('download uses the exact preview Blob and filename without opening or printing', () => {
   const f = browserFixture(); const blob = new Blob(['%PDF-exact-viewed-bytes']);
@@ -25,20 +38,32 @@ test('download uses the exact preview Blob and filename without opening or print
   f.timers[0](); assert.deepEqual(f.calls.at(-1), ['revoke', 'blob:loaded-pdf']);
 });
 
-test('explicit print action opens the viewed PDF and prints only after its load', () => {
+test('explicit print action embeds the viewed PDF and prints only after its load', async () => {
   const f = browserFixture(); const blob = new Blob(['%PDF-exact-print-bytes']);
-  printPdfDocument({ blob }, f.browser);
+  const ready = printPdfDocument({ blob }, f.browser);
   assert.equal(f.calls.find(call => call[0] === 'blob')[1], blob);
-  assert.equal(f.popup.opener, null);
+  assert.equal(f.frame.src, 'blob:loaded-pdf');
   assert.equal(f.calls.some(call => call[0] === 'print'), false);
-  f.events.get('load')(); assert.deepEqual(f.calls.at(-1), ['print']);
-  f.timers[0](); assert.deepEqual(f.calls.at(-1), ['revoke', 'blob:loaded-pdf']);
+  f.frame.onload(); await ready; assert.deepEqual(f.calls.at(-1), ['print']);
+  f.events.get('afterprint')(); assert.deepEqual(f.calls.at(-1), ['revoke', 'blob:loaded-pdf']);
+  f.events.get('afterprint')(); assert.equal(f.calls.filter(call => call[0] === 'revoke').length, 1);
 });
 
-test('blocked print popup gives a recoverable error and creates no object URL', () => {
-  const f = browserFixture(); f.browser.open = () => null;
-  assert.throws(() => printPdfDocument({ blob: new Blob() }, f.browser), /blocked/);
-  assert.equal(f.calls.length, 0);
+test('unavailable print frame gives a recoverable error and releases the PDF', async () => {
+  const f = browserFixture(); f.frame.contentWindow = null;
+  const ready = printPdfDocument({ blob: new Blob() }, f.browser);
+  f.frame.onload(); await assert.rejects(ready, /unavailable/);
+  assert.deepEqual(f.calls.at(-1), ['revoke', 'blob:loaded-pdf']);
+});
+
+test('print load failure and timeout clean up without printing', async () => {
+  for (const failure of ['error', 'timeout']) {
+    const f = browserFixture(); const ready = printPdfDocument({ blob: new Blob() }, f.browser);
+    if (failure === 'error') f.frame.onerror(); else f.timers[0]();
+    await assert.rejects(ready);
+    assert.equal(f.calls.some(call => call[0] === 'print'), false);
+    assert.equal(f.calls.filter(call => call[0] === 'revoke').length, 1);
+  }
 });
 
 test('all order view entry points use the internal dialog and no automatic print', async () => {
@@ -51,7 +76,7 @@ test('all order view entry points use the internal dialog and no automatic print
   assert.doesNotMatch(dialog, /fetchAuthenticatedPdf/);
   assert.match(viewer, /onClick=\{handlePrint\}/);
   assert.match(viewer, /downloadPdfDocument\(currentDocument\)/);
-  assert.match(viewer, /printPdfDocument\(currentDocument\)/);
+  assert.match(viewer, /await printPdfDocument\(currentDocument\)/);
   assert.match(viewer, /Carregando documento/);
   assert.match(viewer, /Não foi possível carregar o documento/);
   assert.match(viewer, /Tentar novamente/);

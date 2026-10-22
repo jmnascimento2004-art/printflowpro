@@ -11,14 +11,34 @@ export function downloadPdfDocument({ blob, filename }, browser = window) {
 }
 
 export function printPdfDocument({ blob }, browser = window) {
-  const popup = browser.open('about:blank', '_blank');
-  if (!popup) throw new Error('Print window blocked');
-  popup.opener = null;
   const href = browser.URL.createObjectURL(blob);
-  popup.addEventListener('load', () => {
-    popup.focus();
-    popup.print();
-  }, { once: true });
-  popup.location.replace(href);
-  browser.setTimeout(() => browser.URL.revokeObjectURL(href), 60_000);
+  const frame = browser.document.createElement('iframe');
+  frame.title = 'Impressão do documento';
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:1px;height:1px;border:0';
+  let timer;
+  let disposed = false;
+  const cleanup = () => {
+    if (disposed) return;
+    disposed = true;
+    browser.clearTimeout(timer);
+    frame.remove();
+    browser.URL.revokeObjectURL(href);
+  };
+  const ready = new Promise((resolve, reject) => {
+    frame.onload = () => {
+      try {
+        if (!frame.contentWindow) throw new Error('Print frame unavailable');
+        frame.contentWindow.addEventListener('afterprint', cleanup, { once: true });
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        resolve();
+      } catch (error) { cleanup(); reject(error); }
+    };
+    frame.onerror = () => { cleanup(); reject(new Error('Print PDF unavailable')); };
+    timer = browser.setTimeout(() => { cleanup(); reject(new Error('Print PDF timed out')); }, 60_000);
+    frame.src = href;
+    browser.document.body.appendChild(frame);
+  });
+  return ready;
 }

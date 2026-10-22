@@ -75,6 +75,7 @@ export function PdfPreviewViewer({
   const [reloadKey, setReloadKey] = useState(0);
   const [loaded, setLoaded] = useState<(LoadedPdfDocument & { source: string; revision: number }) | null>(null);
   const [actionError, setActionError] = useState('');
+  const [isPrinting, setIsPrinting] = useState(false);
   const [renderWidth, setRenderWidth] = useState(0);
   const currentDocument = loaded?.source === previewDataUrl && loaded.revision === reloadKey ? loaded : null;
 
@@ -207,11 +208,13 @@ export function PdfPreviewViewer({
     }
   };
 
-  const handlePrint = () => {
-    if (!currentDocument) return;
+  const handlePrint = async () => {
+    if (!currentDocument || isPrinting) return;
+    setIsPrinting(true);
     setActionError('');
-    try { printPdfDocument(currentDocument); }
-    catch { setActionError('Não foi possível abrir a impressão. Permita a janela de impressão e tente novamente.'); }
+    try { await printPdfDocument(currentDocument); }
+    catch { setActionError('Não foi possível iniciar a impressão. Tente novamente.'); }
+    finally { setIsPrinting(false); }
   };
 
   const handleOpenPdf = async (url: string) => {
@@ -251,7 +254,7 @@ export function PdfPreviewViewer({
                   <Download className="h-4 w-4" />
                   {downloadLabel}
                 </button>
-                {allowPrint && <button type="button" disabled={!currentDocument} onClick={handlePrint} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-bold text-foreground hover:bg-secondary/80 disabled:opacity-50"><Printer className="h-4 w-4" />Imprimir</button>}
+                {allowPrint && <button type="button" disabled={!currentDocument || isPrinting} onClick={handlePrint} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-bold text-foreground hover:bg-secondary/80 disabled:opacity-50"><Printer className="h-4 w-4" />{isPrinting ? 'Preparando impressão…' : 'Imprimir'}</button>}
                 {extraActions?.(currentDocument)}
                 {resolvedDirectPdfUrl && (
                   <button
