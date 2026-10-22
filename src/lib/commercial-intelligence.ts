@@ -67,6 +67,10 @@ export type CommercialOverview = ReturnType<typeof buildCommercialOverview>;
 
 export function buildCustomerRanking(customers: Customer[], orders: Order[], period: string, now = new Date()) {
   const start = periodStart(period, now), today = commercialDate(now);
+  return buildCustomerRankingWindow(customers,orders,start,today);
+}
+// The reporting center shares the same ranking, including ties and tags, for custom periods.
+export function buildCustomerRankingWindow(customers: Customer[], orders: Order[], start: string, today: string) {
   const grouped = new Map<string, Order[]>();
   orders.filter(order => isActiveOrder(order) && commercialDate(order.created_at) >= start && commercialDate(order.created_at) <= today).forEach(order => { const group = grouped.get(order.customer_id) || []; group.push(order); grouped.set(order.customer_id, group); });
   return customers.map(customer => {

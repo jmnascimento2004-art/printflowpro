@@ -70,6 +70,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'Fila Produção', path: '/production', icon: Wrench },
     { name: 'Agenda', path: '/agenda', icon: CalendarDays },
     { name: 'Financeiro', path: '/financial', icon: DollarSign },
+    { name: 'Relatórios', path: '/reports', icon: FileText },
     { name: 'Estoque / Insumos', path: '/stock', icon: Layers },
     { name: 'Expedição', path: '/shipment', icon: Truck },
     { name: 'Revenda', path: '/resale', icon: ExternalLink },

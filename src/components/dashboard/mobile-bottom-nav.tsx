@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   { name: 'Produção', path: '/production', icon: Wrench },
   { name: 'Agenda', path: '/agenda', icon: CalendarDays },
   { name: 'Financeiro', path: '/financial', icon: DollarSign },
+  { name: 'Relatórios', path: '/reports', icon: FileText },
   { name: 'Estoque', path: '/stock', icon: Layers },
   { name: 'Expedição', path: '/shipment', icon: Truck },
   { name: 'Revenda', path: '/resale', icon: ExternalLink },
