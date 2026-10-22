@@ -18,7 +18,6 @@ import {
   X, 
   Check, 
   AlertCircle,
-  Printer,
   Ban,
   Download,
   Eye,
@@ -104,9 +103,10 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [detailTab, setDetailTab] = useState('items');
   const [documentKind, setDocumentKind] = useState<'order' | 'production' | 'label' | 'protocol' | null>(null);
+  const [documentOrder, setDocumentOrder] = useState<Order | null>(null);
   useEffect(() => { setDetailTab('items'); setIsAddingPayment(false); }, [selectedOrder?.id]);
   useEffect(() => { setSelectedOrder(current => current ? orders.find(order => order.id === current.id) || current : null); }, [orders]);
-  const closeOrderDocument = useCallback(() => setDocumentKind(null), []);
+  const closeOrderDocument = useCallback(() => { setDocumentKind(null); setDocumentOrder(null); }, []);
   const openedLinkRef = useRef('');
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('orderId');
@@ -598,13 +598,9 @@ export default function OrdersPage() {
     }
   };
 
-  const handlePrintOrderPdf = (order: Order) => {
-    setSelectedPdfPreview({
-      title: `Pedido ${formatOrderDisplayNumber(order.number)}`,
-      previewDataUrl: `/api/pdf/order/${order.id}`,
-      downloadUrl: `/api/pdf/order/${order.id}?download=1`,
-      directPdfUrl: `/api/pdf/order/${order.id}`
-    });
+  const handleViewOrderDocument = (order: Order) => {
+    setDocumentOrder(order);
+    setDocumentKind('order');
   };
 
   const handleDownloadOrderPdf = async (order: Order) => {
@@ -1066,9 +1062,10 @@ export default function OrdersPage() {
       })
     : [];
   
+  const documentTarget = documentOrder || selectedOrder;
   return (
     <div className="space-y-6">
-      {documentKind && selectedOrder && <OrderDocumentDialog id={selectedOrder.id} kind={documentKind} onClose={closeOrderDocument} />}
+      {documentKind && documentTarget && <OrderDocumentDialog id={documentTarget.id} number={formatOrderDisplayNumber(documentTarget.number)} kind={documentKind} onClose={closeOrderDocument} />}
       {selectedPdfPreview && (
         <PdfPreviewDialog
           open={Boolean(selectedPdfPreview)}
@@ -1919,11 +1916,11 @@ export default function OrdersPage() {
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          handlePrintOrderPdf(order);
+                          handleViewOrderDocument(order);
                         }}
                         className="rounded-lg border border-primary/20 bg-primary/10 p-1.5 text-primary hover:bg-primary/15"
-                        title="Visualizar pedido"
-                        aria-label="Visualizar pedido"
+                        title="Via do Pedido"
+                        aria-label={`Via do Pedido ${formatOrderDisplayNumber(order.number)}`}
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </button>
@@ -2065,12 +2062,12 @@ export default function OrdersPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handlePrintOrderPdf(order)}
+                                onClick={() => handleViewOrderDocument(order)}
                                 className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/15 text-primary border border-primary/20"
-                                title="Visualizar PDF"
-                                aria-label={`Visualizar PDF do pedido ${formatOrderDisplayNumber(order.number)}`}
+                                title="Via do Pedido"
+                                aria-label={`Via do Pedido ${formatOrderDisplayNumber(order.number)}`}
                               >
-                                <Printer className="h-3.5 w-3.5" />
+                                <Eye className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 type="button"
@@ -2167,18 +2164,10 @@ export default function OrdersPage() {
               <button
                 onClick={() => setDocumentKind('order')}
                 className="px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary/15 text-primary text-xs font-semibold flex items-center gap-1.5 border border-primary/20"
-                title="Visualizar PDF"
-                aria-label={`Visualizar PDF do pedido ${formatOrderDisplayNumber(selectedOrder.number)}`}
+                title="Via do Pedido"
+                aria-label={`Via do Pedido ${formatOrderDisplayNumber(selectedOrder.number)}`}
               >
-                <Printer className="h-4 w-4" /> Visualizar PDF
-              </button>
-              <button
-                onClick={() => handleDownloadOrderPdf(selectedOrder)}
-                className="px-3.5 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-1.5 border border-border"
-                title="Baixar PDF"
-                aria-label={`Baixar PDF do pedido ${formatOrderDisplayNumber(selectedOrder.number)}`}
-              >
-                <Download className="h-4 w-4" /> Baixar PDF
+                <Eye className="h-4 w-4" /> Via do Pedido
               </button>
               {allowed('/financial') && getLatestPaidOrderTransaction(selectedOrder) && <button
                 onClick={() => handlePreviewReceipt(selectedOrder)}
