@@ -190,7 +190,8 @@
 /* Shared dropdown geometry stays above page padding utilities in specificity.
    Keep native select semantics; listboxes/multiple selects have no disclosure arrow. */
 select:not([multiple]):is(:not([size]), [size="0"], [size="1"]),
-input[role="combobox"] {
+input[role="combobox"],
+input[list] {
   appearance: none;
   padding-left: var(--pf-space-3);
   padding-right: var(--pf-select-text-reserve);
@@ -220,18 +221,24 @@ input[list] {
 }
 
 input[list]::-webkit-calendar-picker-indicator {
-  appearance: none;
-  background: var(--pf-select-chevron) center / var(--pf-select-icon-size) no-repeat;
   width: var(--pf-select-icon-size);
   height: var(--pf-select-icon-size);
+  padding: 0;
+  margin: 0;
   margin-inline-start: var(--pf-space-3);
-  opacity: 1;
+  /* Invisible native button remains clickable over the shared background icon. */
+  opacity: 0;
 }
 
 @media (forced-colors: active) {
-  select:not([multiple]):is(:not([size]), [size="0"], [size="1"]) {
+  select:not([multiple]):is(:not([size]), [size="0"], [size="1"]),
+  input[list] {
     appearance: auto;
     background-image: none;
+  }
+
+  input[list]::-webkit-calendar-picker-indicator {
+    opacity: 1;
   }
 }
 
