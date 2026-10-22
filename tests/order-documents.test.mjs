@@ -23,6 +23,8 @@ test('document configuration keeps metric units and excludes technical JSON / in
   assert.match(result.measures, /0,96 m²/); assert.match(result.configuration, /Cor: Azul/);
   assert.doesNotMatch(JSON.stringify(result), /SEGREDO|secret|\[object/);
   const linear = item(); linear.details = { length: 3.5 }; assert.match(documentItem(linear).measures, /3,50\s+m/);
+  const legacy = item(); legacy.details.configuration_summary = 'Metro quadrado (m²) - 108cm x 202cm - 2 un - 4.36 m²'; delete legacy.details.configuration_snapshot; delete legacy.details.pricing_snapshot;
+  assert.equal(documentItem(legacy).configuration, 'Metro quadrado (m²)');
 });
 test('persisted totals reconcile discounts/freight/services without repricing', () => {
   const data = fixture(1); data.order.additional_services = [{ total_price: 30 }];

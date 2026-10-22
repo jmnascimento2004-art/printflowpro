@@ -2261,7 +2261,7 @@ export default function OrdersPage() {
             </div>
           )}
 
-          {(() => { const totals = commercialSummary(selectedOrder); return <dl className="ml-auto grid max-w-lg grid-cols-2 gap-2 rounded-xl border border-border p-4 text-xs">{[['Subtotal dos itens', totals.items], ['Serviços', totals.services], ['Desconto', -totals.discount], ['Frete', totals.freight], ...(totals.adjustment ? [['Ajuste registrado', totals.adjustment]] : []), ['Total final', totals.total]].map(([label, value]) => <React.Fragment key={String(label)}><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-bold">{formatCurrency(Number(value))}</dd></React.Fragment>)}</dl>; })()}
+          {(() => { const totals = commercialSummary(selectedOrder); return <dl className="ml-auto grid max-w-lg grid-cols-2 gap-2 rounded-xl border border-border p-4 text-xs">{[['Subtotal dos itens', totals.items], ['Serviços', totals.services], ['Desconto', totals.discount ? -totals.discount : 0], ['Frete', totals.freight], ...(totals.adjustment ? [['Ajuste registrado', totals.adjustment]] : []), ['Total final', totals.total]].map(([label, value]) => <React.Fragment key={String(label)}><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-bold">{formatCurrency(Number(value))}</dd></React.Fragment>)}</dl>; })()}
           {selectedOrder.notes && <section className="rounded-xl border border-border p-4 text-xs"><h4 className="font-bold">Observações internas</h4><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{selectedOrder.notes}</p><p className="mt-2 text-[10px] text-muted-foreground">Não são impressas na via comercial.</p></section>}
           </>}
           {detailTab === 'finance' && allowed('/financial') && <>
