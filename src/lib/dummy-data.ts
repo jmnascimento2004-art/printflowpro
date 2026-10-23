@@ -229,6 +229,7 @@ export interface PricingDetails {
   delivery_time?: string;
   configurator_options?: ProductConfiguratorSettings;
   gallery_images?: ProductGalleryImage[];
+  video_url?: string;
 }
 
 export type ProductSaleMode = 'unidade' | 'volume' | 'm2' | 'linear' | 'width_height' | 'pacote' | 'kit' | 'size_grid' | 'custom';

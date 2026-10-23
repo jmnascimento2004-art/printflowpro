@@ -1,9 +1,11 @@
 'use client';
+import { ProductGallery } from '@/components/store/product-gallery';
+import { ProductReviews } from '@/components/store/product-reviews';
 
 import { MetricInput } from '@/components/MetricInput';
 import { formatMeters, legacyStoreConfiguredMeters } from '@/lib/metric.mjs';
 
-/* eslint-disable @next/next/no-img-element */
+
 import { ProductFieldInputs } from '@/components/products/ProductCustomFields';
 import { resolveProductFields, productFieldsSummary, type ProductFieldValues } from '@/lib/product-custom-fields';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -13,7 +15,6 @@ import {
   Layers3,
   PackageCheck,
   Ruler,
-  ShoppingBag,
   ShoppingCart,
   Tag,
   MessageCircle,
@@ -39,7 +40,7 @@ import {
   type PricingSelectedOption,
   type VariantPricingSelection
 } from '@/lib/pricing';
-import { getPrimaryProductImage, normalizeProductGallery } from '@/lib/product-images';
+
 import { sanitizeProductDescription, stripRichTextHtml } from '@/lib/utils';
 import { StoreFavoriteButton } from '@/components/store/StoreFavoriteButton';
 
@@ -192,7 +193,7 @@ export function ProductConfiguratorModal({
   const optionGroups = useMemo(() => configurator?.option_groups || [], [configurator]);
   const sizeOptions = useMemo(() => configurator?.size_options || [], [configurator]);
   const shouldShowSizeGrid = saleMode === 'size_grid' || hasRealSizeConfiguration(sizeOptions);
-  const productGallery = useMemo(() => (product ? normalizeProductGallery(product) : []), [product]);
+
   const hasVariantPricingMatrix = variantPricingRows.length > 0;
   const linearWidthMaxMeters = toPositiveNumber(configurator?.max_width, 0);
   const isLinearWidthMode = product?.pricing_type === 'linear' && linearWidthMaxMeters > 0;
@@ -210,7 +211,7 @@ export function ProductConfiguratorModal({
   const [selectedMatrixSize, setSelectedMatrixSize] = useState('');
   const [selectedMatrixColors, setSelectedMatrixColors] = useState('');
   const [selectedFinishing, setSelectedFinishing] = useState('');
-  const [activeImageUrl, setActiveImageUrl] = useState('');
+
   const [shareComplete, setShareComplete] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -308,7 +309,6 @@ export function ProductConfiguratorModal({
     setSelectedMatrixSize(initialMatrix?.size || '');
     setSelectedMatrixColors(initialMatrix?.colors || '');
     setSelectedFinishing(initialMatrix?.finishing || '');
-    setActiveImageUrl(getPrimaryProductImage(product));
   }, [isOpen, product, configurator, optionGroups, sizeOptions, shouldShowSizeGrid, initialVolumeTier, saleMode, variantPricingRows, isLinearWidthMode, maxWidthMeters, initialConfig]);
 
   const matrixSelection = useMemo(() => ({
@@ -683,40 +683,8 @@ export function ProductConfiguratorModal({
 
         <div className={`grid max-h-[calc(100dvh-5.5rem)] grid-cols-1 overflow-y-auto ${compact ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : 'lg:grid-cols-[320px_minmax(0,1fr)_320px]'}`}>
           {!compact && <aside className="border-b border-slate-200 bg-slate-50 lg:border-b-0 lg:border-r">
-            <div className="aspect-square w-full overflow-hidden bg-white">
-              {activeImageUrl ? (
-                <img
-                  src={activeImageUrl}
-                  alt={product.name}
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <div className="h-full w-full flex flex-col items-center justify-center gap-2 text-slate-300">
-                  <ShoppingBag className="h-16 w-16 stroke-[1.2]" />
-                  <span className="text-xs font-black uppercase tracking-wider">Sem imagem</span>
-                </div>
-              )}
-            </div>
-
-            {productGallery.length > 1 && (
-              <div className="border-b border-slate-200 bg-white px-3 py-3">
-                <div className="flex gap-2 overflow-x-auto">
-                  {productGallery.map((image, index) => (
-                    <button
-                      key={`${image.url}-${index}`}
-                      type="button"
-                      onClick={() => setActiveImageUrl(image.url)}
-                      className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border bg-white ${
-                        activeImageUrl === image.url ? 'border-emerald-600 ring-2 ring-emerald-600/15' : 'border-slate-200 hover:border-emerald-300'
-                      }`}
-                      aria-label={`Ver imagem ${index + 1}`}
-                    >
-                      <img src={image.url} alt={image.alt || `${product.name} ${index + 1}`} className="h-full w-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <ProductGallery key={product.id} product={product} />
+            <ProductReviews key={product.id+'-reviews'} productId={product.id}/>
 
             <div className="space-y-3 p-4">
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">

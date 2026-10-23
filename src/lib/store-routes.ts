@@ -54,7 +54,8 @@ export const sanitizeStoreRedirect = (value?: string | null) => {
 
   const [pathname, query = ''] = trimmed.split('?');
   const isOrderDetail = /^\/store\/conta\/pedidos\/[^/?#]+$/.test(pathname);
-  if (!isOrderDetail && !ALLOWED_STORE_REDIRECTS.includes(pathname) && !ALLOWED_STORE_REDIRECTS.includes(trimmed)) return '';
+  const isReviewInvitation = /^\/store\/review\/[a-f0-9]{64}$/.test(pathname);
+  if (!isOrderDetail && !isReviewInvitation && !ALLOWED_STORE_REDIRECTS.includes(pathname) && !ALLOWED_STORE_REDIRECTS.includes(trimmed)) return '';
   if (query && trimmed !== '/store?checkout=1') return '';
   return trimmed;
 };

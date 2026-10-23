@@ -1,3 +1,4 @@
+import { uploadManagedImage } from '@/lib/media-upload-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Product, ProductGalleryImage } from '@/lib/dummy-data';
 
@@ -11,25 +12,6 @@ const isValidImage = (image: ProductGalleryImage | null | undefined): image is P
   return typeof image?.url === 'string' && image.url.trim().length > 0;
 };
 
-const slugifyPathSegment = (value: string) => {
-  const normalized = value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  return normalized || 'produto';
-};
-
-const getImageExtension = (file: File) => {
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  if (extension && ['png', 'jpg', 'jpeg', 'webp'].includes(extension)) return extension;
-  if (file.type === 'image/png') return 'png';
-  if (file.type === 'image/webp') return 'webp';
-  return 'jpg';
-};
-
 export function isDataImageUrl(url: string) {
   return /^data:image\/(png|jpe?g|webp);base64,/i.test(url.trim());
 }
@@ -39,27 +21,7 @@ export function isStorageProductImageUrl(url: string) {
   return cleanUrl.includes('/storage/v1/object/public/product-images/');
 }
 
-const isLightweightImageUrl = (url: string) => {
-  return !isDataImageUrl(url);
-};
-
-const getPreferredPrimaryIndex = (images: ProductGalleryImage[]) => {
-  const markedStorageIndex = images.findIndex((image) => image.is_primary && isStorageProductImageUrl(image.url));
-  if (markedStorageIndex >= 0) return markedStorageIndex;
-
-  const markedLightweightIndex = images.findIndex((image) => image.is_primary && isLightweightImageUrl(image.url));
-  if (markedLightweightIndex >= 0) return markedLightweightIndex;
-
-  const firstStorageIndex = images.findIndex((image) => isStorageProductImageUrl(image.url));
-  if (firstStorageIndex >= 0) return firstStorageIndex;
-
-  const firstLightweightIndex = images.findIndex((image) => isLightweightImageUrl(image.url));
-  if (firstLightweightIndex >= 0) return firstLightweightIndex;
-
-  return images.findIndex((image) => image.is_primary) >= 0
-    ? images.findIndex((image) => image.is_primary)
-    : 0;
-};
+const getPreferredPrimaryIndex = (images: ProductGalleryImage[]) => Math.max(0, images.findIndex(image => image.is_primary));
 
 export function validateProductGalleryLimit(currentCount: number, incomingCount: number) {
   if (currentCount + incomingCount <= MAX_PRODUCT_GALLERY_IMAGES) {
@@ -84,48 +46,9 @@ export function validateProductImage(file: File) {
   return { valid: true as const };
 }
 
-export async function uploadProductImage(
-  supabaseClient: SupabaseClient,
-  file: File,
-  options: {
-    companyId?: string | null;
-    productId?: string | null;
-    productName?: string | null;
-  } = {}
-) {
-  const validation = validateProductImage(file);
-  if (!validation.valid) {
-    throw new Error(validation.message);
-  }
-
-  const companyPath = slugifyPathSegment(options.companyId || 'sem-empresa');
-  const productPath = slugifyPathSegment(options.productId || 'temp');
-  const baseName = slugifyPathSegment(options.productName || file.name.replace(/\.[^.]+$/, ''));
-  const extension = getImageExtension(file);
-  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const storagePath = `${companyPath}/products/${productPath}/${baseName}-${uniqueSuffix}.${extension}`;
-
-  const { error } = await supabaseClient.storage
-    .from(PRODUCT_IMAGE_BUCKET)
-    .upload(storagePath, file, {
-      cacheControl: '31536000',
-      contentType: file.type,
-      upsert: false
-    });
-
-  if (error) {
-    throw new Error(`Não foi possível enviar a imagem para o bucket ${PRODUCT_IMAGE_BUCKET}: ${error.message}`);
-  }
-
-  const { data } = supabaseClient.storage
-    .from(PRODUCT_IMAGE_BUCKET)
-    .getPublicUrl(storagePath);
-
-  if (!data.publicUrl) {
-    throw new Error('Não foi possível gerar a URL pública da imagem enviada.');
-  }
-
-  return data.publicUrl;
+export async function uploadProductImage(client: SupabaseClient,file:File,options:{companyId?:string|null;productId?:string|null;productName?:string|null}={}) {
+ const validation=validateProductImage(file);if(!validation.valid)throw new Error(validation.message);
+ return (await uploadManagedImage(client,file,'products',options.productId||'draft')).url;
 }
 
 export function normalizeProductGallery(product: Pick<Product, 'image_url' | 'name' | 'pricing_details'>): ProductGalleryImage[] {
@@ -188,11 +111,7 @@ export function prepareProductGallery(images: ProductGalleryImage[], fallbackAlt
       return gallery;
     }, []);
 
-  const hasLightweightImages = cleanImages.some((image) => isLightweightImageUrl(image.url));
-  const imagesToPersist = hasLightweightImages
-    ? cleanImages.filter((image) => isLightweightImageUrl(image.url))
-    : cleanImages;
-  const limitedImages = imagesToPersist.slice(0, MAX_PRODUCT_GALLERY_IMAGES);
+  const limitedImages = cleanImages.slice(0, MAX_PRODUCT_GALLERY_IMAGES);
 
   const primaryIndex = getPreferredPrimaryIndex(limitedImages);
   return limitedImages.map((image, index) => ({

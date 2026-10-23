@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useStorePrivacy } from '@/context/store-privacy-context';
 import { sanitizeCatalogSearch, type CatalogEvent, type CatalogEventType } from '@/lib/catalog-growth';
 
-export function useCatalogTracking(pathname:string) {
+export function useCatalogTracking(pathname:string,pageView=true) {
  const {cookiePreferences,hasCookieChoice}=useStorePrivacy();
  const enabled=hasCookieChoice&&cookiePreferences.analytics;
  const enabledRef=useRef(enabled);enabledRef.current=enabled;
@@ -19,8 +19,9 @@ export function useCatalogTracking(pathname:string) {
   });
  },[]);
  useEffect(()=>{
+  if(!pageView)return;
   if(enabled){if(lastPage.current!==pathname){lastPage.current=pathname;track('page_viewed');}}
   else {lastPage.current=null;chain.current=chain.current.catch(()=>{}).then(()=>fetch('/api/store/events',{method:'DELETE'}).catch(()=>{}));}
- },[enabled,pathname,track]);
+ },[enabled,pathname,track,pageView]);
  return {track,analyticsConsent:enabled};
 }

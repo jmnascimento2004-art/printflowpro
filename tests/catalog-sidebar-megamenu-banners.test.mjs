@@ -51,11 +51,12 @@ test('Store renders featured categories, collapsed accordions, mega menu and res
 });
 
 test('ADMIN exposes complete tenant presentation controls and reuses the product image bucket', async () => {
-  const [page, banners, navigation, uploader] = await Promise.all([
+  const [page, banners, navigation, uploader, server] = await Promise.all([
     read('../src/components/catalog/catalog-admin.tsx'),
     read('../src/components/catalog/catalog-banner-manager.tsx'),
     read('../src/components/settings/catalog-navigation-settings.tsx'),
-    read('../src/lib/catalog-images.ts')
+    read('../src/lib/catalog-images.ts'),
+    read('../src/app/api/products/media/route.ts')
   ]);
   assert.match(page, /CatalogNavigationSettings/);
   assert.match(page, /updateCategoryCatalogPresentation/);
@@ -67,7 +68,9 @@ test('ADMIN exposes complete tenant presentation controls and reuses the product
   assert.match(navigation, /Categoria em destaque/);
   assert.match(navigation, /Mega Menu ativo/);
   assert.match(navigation, /Salvar apresentação/);
-  assert.match(uploader, /PRODUCT_IMAGE_BUCKET/);
-  assert.match(uploader, /upsert:\s*false/);
+  assert.match(uploader, /uploadManagedImage/);
+  assert.doesNotMatch(uploader, /\.storage\.from/);
+  assert.match(server, /product-images/);
+  assert.match(server, /upsert:\s*false/);
   assert.doesNotMatch(page + banners + navigation + uploader, /SUPABASE_SERVICE_ROLE|service_role/i);
 });

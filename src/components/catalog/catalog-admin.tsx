@@ -1,4 +1,5 @@
 'use client';
+import { ProductReviewsAdmin } from '@/components/catalog/product-reviews-admin';
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -29,9 +30,10 @@ import {
   type CatalogBenefitCard
 } from '@/lib/store/catalog-visual-settings';
 
-type CatalogTab = 'growth' | 'overview' | 'banners' | 'navigation' | 'merchandising' | 'benefits' | 'appearance' | 'footer' | 'policies';
+type CatalogTab = 'reviews' | 'growth' | 'overview' | 'banners' | 'navigation' | 'merchandising' | 'benefits' | 'appearance' | 'footer' | 'policies';
 
 const TABS: Array<{ id: CatalogTab; label: string; icon: typeof LayoutDashboard }> = [
+  { id: 'reviews', label: 'Avaliações', icon: BadgeCheck },
   { id: 'growth', label: 'Growth & Conversão', icon: LayoutDashboard },
   { id: 'overview', label: 'Visão geral', icon: LayoutDashboard },
   { id: 'banners', label: 'Banners', icon: ImageIcon },
@@ -226,6 +228,7 @@ export function CatalogAdmin() {
 
       {activeTab === 'growth' && <CatalogGrowth />}
 
+      {activeTab === 'reviews' && <ProductReviewsAdmin />}
       {activeTab === 'overview' && (
         <div className="space-y-5" data-testid="catalog-overview">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{overviewCards.map((card) => <article key={card.label} className="rounded-2xl border border-border bg-card p-4 shadow-sm"><span className="text-[10px] font-black uppercase text-muted-foreground">{card.label}</span><strong className="mt-2 block text-2xl font-black text-foreground">{card.value}</strong><span className="mt-1 block text-[10px] text-muted-foreground">{card.help}</span></article>)}</div>

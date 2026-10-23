@@ -72,6 +72,7 @@ function sanitizeProduct(row: PublicProductRow) {
     ? {
         configurator_options: pricingDetails.configurator_options,
         gallery_images: pricingDetails.gallery_images,
+        video_url: pricingDetails.video_url,
         delivery_time: pricingDetails.delivery_time
       }
     : undefined;
