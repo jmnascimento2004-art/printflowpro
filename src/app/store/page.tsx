@@ -4,7 +4,7 @@ import { useFeedback } from '@/context/database-context';
 import { formatMeters } from '@/lib/metric.mjs';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { getPersistenceErrorMessage } from '@/lib/persistence/persistence-service';
+import { getPersistenceErrorMessage, PersistenceMutationError } from '@/lib/persistence/persistence-service';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { 
@@ -53,6 +53,7 @@ import {
 import { StoreFavoriteButton } from '@/components/store/StoreFavoriteButton';
 import { useCatalogTracking } from '@/components/store/use-catalog-tracking';
 import { StoreGrowthMarketing } from '@/components/store/store-growth-marketing';
+import { catalogCheckoutFeedback, compareCatalogEditorialProducts } from '@/lib/catalog-growth';
 import {
   getCatalogBenefitCards,
   getContrastingTextColor,
@@ -487,7 +488,7 @@ export default function StorefrontPage() {
     if (!product || product.active === false) return false;
     if (!product || product.catalog_active === false) return false;
     return true;
-  }).sort((a,b)=>(a.catalog_sort_order||0)-(b.catalog_sort_order||0)||a.name.localeCompare(b.name,'pt-BR'));
+  }).sort(compareCatalogEditorialProducts);
   const searchedProducts = searchQuery.trim() !== ''
     ? activeProducts.filter(p => 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -728,7 +729,7 @@ export default function StorefrontPage() {
     if(!checkoutOperation.current||checkoutOperation.current.hash!==hash)checkoutOperation.current={hash,id:crypto.randomUUID()};
     try{sessionStorage.setItem('pf_catalog_checkout_operation',JSON.stringify(checkoutOperation.current));}catch{/* In-memory retries remain idempotent. */}
     const response=await fetch('/api/store/checkout',{method:'POST',headers:{'Content-Type':'application/json',...(storeSession?.access_token?{Authorization:`Bearer ${storeSession.access_token}`}:{})},body:JSON.stringify({...payload,operationId:checkoutOperation.current.id,analyticsConsent,preview})});
-    const result=await response.json();if(!response.ok)throw new Error(result.error||'Não foi possível enviar o orçamento.');
+    const result=await response.json();if(!response.ok)throw new PersistenceMutationError('INVALID_INPUT',catalogCheckoutFeedback(result.error));
     return result;
   };
   const applyCoupon = async () => {

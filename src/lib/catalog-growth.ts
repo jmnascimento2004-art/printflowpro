@@ -6,6 +6,23 @@ export const CATALOG_EVENTS = ['session_started','page_viewed','product_viewed',
 export type CatalogEventType = typeof CATALOG_EVENTS[number];
 export type CatalogEvent = { id: string; type: CatalogEventType; productId?: string; categoryId?: string; bannerId?: string; term?: string; results?: number };
 export const catalogRate = (count: number, base: number) => base > 0 ? Math.round(count / base * 10000) / 100 : null;
+export function catalogCheckoutFeedback(message:unknown) {
+ return typeof message==='string' && message.length<=300 && /^(Cupom |Limite |Preencha |Produto indisponível|Revise a configuração|Operação já usada)/.test(message)
+  ? message : 'Não foi possível enviar. Revise o carrinho e tente novamente.';
+}
+export function catalogDateTimeInput(value:string) {
+ const date=new Date(value);if(!value||!Number.isFinite(date.getTime()))return '';
+ return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);
+}
+export function catalogDateTimeIso(value:string) {
+ if(!value)return '';
+ if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value))throw new Error('Data inválida.');
+ const date=new Date(value);if(!Number.isFinite(date.getTime())||catalogDateTimeInput(date.toISOString())!==value)throw new Error('Data inválida.');
+ return date.toISOString();
+}
+export function compareCatalogEditorialProducts(left:Pick<Product,'id'|'name'|'catalog_sort_order'>,right:Pick<Product,'id'|'name'|'catalog_sort_order'>) {
+ return (left.catalog_sort_order||0)-(right.catalog_sort_order||0)||left.name.localeCompare(right.name,'pt-BR')||left.id.localeCompare(right.id);
+}
 /** Reject rather than retain accidentally entered contact/document/sensitive content. */
 export function sanitizeCatalogSearch(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > 60 || !/^[\p{L}\d -]{2,60}$/u.test(value) || /\d{5}/.test(value) || (value.match(/\d/g)||[]).length>=8) return null;
