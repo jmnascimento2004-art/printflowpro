@@ -102,7 +102,7 @@ Seletor de atribuições limita aos 1.000 Orders mais recentes; históricos de c
 
 ## Evidências em desenvolvimento
 
-- 61 verificações pgTAP focadas: cálculo, desconto, frete, fixo, override, quitação, rounding,
+- 66 verificações pgTAP focadas: cálculo, desconto, frete, fixo, override, quitação, rounding,
   fechamento/retry/snapshot, edição agregada, ajuste, rollback, ledger, cancelamento, reversão,
   reabertura/histórico, isolamento e permissões.
 - Node: 12 focados, 706 completos aprovados.
@@ -114,5 +114,29 @@ Seletor de atribuições limita aos 1.000 Orders mais recentes; históricos de c
 
 Não declarar PASS antes de migration target-only, Preview, checks, merge, Production e smoke.
 Não iniciar 11B automaticamente.
+
+## Preview e encerramento da fixture
+
+Preview do PR #48 validado em 1440×1000, 768×1024 e 390×844, sem overflow da página.
+Modais com rolagem interna, footer acessível, trap de Tab/Shift+Tab, Escape e restauração do foco.
+Regra 5%, vendedor explicitamente habilitado e atribuição manual geraram base 100/comissão 5.
+Fechamento congelou o snapshot; regra futura 10% não alterou os 5 históricos; padrão restaurado a 5%.
+Ajustes +2 e −1 resultaram em 6; aprovação e pagamento criaram uma única despesa 6.
+Reversão criou receita compensatória 6 na mesma conta, mantendo o pagamento no histórico.
+Reabertura criou ciclo 2; snapshots, ajustes e pagamento revertido do ciclo 1 permaneceram visíveis.
+CSV por vendedor e detalhado foram baixados e seus conteúdos conferidos com base 100/comissão 5.
+
+Fixture identificada, competência janeiro/2000, sem usuário Auth, produto, cliente ou banco real.
+Pedido cancelado e recebimento sintético compensado; ciclo 2 recebeu ajuste automático único −5.
+Saldo líquido da conta = 0; nenhum pagamento ativo. Regra global desativada, regra do vendedor,
+perfil sem login e conta sintética inativos. Histórico preservado; nenhuma exclusão permanente.
+O período residual da fixture permanece em Revisão necessária, com saldo de comissão zero.
+
+Durante a limpeza, o helper de auditoria sem JWT revelou incompatibilidade com a identidade SYSTEM.
+A migration aditiva `20261023015416_phase11a_commission_system_audit.sql` corrige o contrato existente:
+manutenção sem JWT silenciosa, serviço SYSTEM/system, usuário com perfil ativo do tenant obrigatório.
+Cinco testes novos cobrem esses ramos; 66 focados e todos os 23 arquivos pgTAP aprovados após a correção.
+Migration original preservada; ambas aplicadas target-only, com versões locais iguais ao ledger remoto.
+Revisão independente da implementação e da correção: zero BLOCKER/HIGH/MEDIUM/LOW acionáveis.
 
 Migration remota aplicada target-only: 20261023013215_phase11a_commissions.sql. O nome local foi alinhado à versão registrada no ledger pelo serviço; sem repair/replay/reset/include-all. Seis tabelas públicas com RLS; baseline de regras/períodos/pagamentos vazia. Advisors: nenhum novo FK sem índice; RLS sem policy é intencional em private.commission_commands. As duas RPCs autenticadas SECURITY DEFINER são intencionais, com identidade/tenant/permissões verificados; avisos antigos de search_path e proteção de senha permanecem fora deste escopo.
