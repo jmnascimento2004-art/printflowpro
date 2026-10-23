@@ -1,4 +1,6 @@
 begin;
+-- Fixtures use current_date; align it with the application's civil reporting day.
+set local timezone='America/Bahia';
 select no_plan();
 insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('a1000000-0000-0000-0000-000000000001','authenticated','authenticated','phase10-a@example.test','',now(),'{}','{"name":"Phase10 A","company_name":"Phase10 A"}',now(),now()),

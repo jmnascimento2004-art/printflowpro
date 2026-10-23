@@ -1,4 +1,6 @@
 begin;
+-- Default cash dates are in Bahia, including the three hours after UTC midnight.
+set local timezone='America/Bahia';
 select no_plan();
 insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('59000000-0000-0000-0000-000000000001','authenticated','authenticated','phase9-a@example.test','',now(),'{}','{"name":"Phase9 A","company_name":"Phase9 A"}',now(),now()),
