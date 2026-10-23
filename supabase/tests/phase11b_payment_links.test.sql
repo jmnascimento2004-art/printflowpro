@@ -5,7 +5,7 @@ insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,r
 ('b1200000-0000-0000-0000-000000000002','authenticated','authenticated','p12b@example.test','',now(),'{}','{"name":"Payment B","company_name":"Payment B"}',now(),now());
 select set_config('request.jwt.claims','{"sub":"b1200000-0000-0000-0000-000000000001","role":"authenticated"}',true);
 select set_config('p12.company',private.current_company_id(),true);
-update public.companies set store_domain='payment-a.example.test' where id=current_setting('p12.company');
+update public.companies set store_domain='payment-a.example.test',logo_url='',logo_light='https://payment-a.example.test/logo-light.png' where id=current_setting('p12.company');
 select set_config('p12.bank',public.finance_command(gen_random_uuid(),'account_create','{"name":"Payment QA bank","kind":"bank","amount":0}')#>>'{account,id}',true);
 insert into public.orders(id,company_id,customer_name,number,status,total_amount,paid_amount,created_at) select 'p12-'||v,current_setting('p12.company'),'Synthetic payment customer','PED-12'||n,'finalizado',100,0,'2000-01-10T12:00Z' from (values('good','01'),('partial','02'),('real','03'),('specific','04'),('legacy','05'),('expired','06'),('cancel','07'),('changed','08'),('race','09')) x(v,n);
 insert into private.payment_qa_fixtures(company_id,order_id,account_id,paid_at) select company_id,id,current_setting('p12.bank')::uuid,'2000-01-20T12:00Z' from public.orders where company_id=current_setting('p12.company') and id like 'p12-%' and id<>'p12-real';
@@ -48,6 +48,7 @@ select is((select token_hash from public.payment_links where id=current_setting(
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select is(public.payment_public_source(current_setting('p12.token'),'payment-a.example.test')->>'status','active','valid public token and matching host');
+select is(public.payment_public_source(current_setting('p12.token'),'payment-a.example.test')->>'logo','https://payment-a.example.test/logo-light.png','public branding uses light logo when legacy logo_url is empty');
 select is(public.payment_public_source(current_setting('p12.token'),'payment-a.example.test')->>'expires_on',(now() at time zone 'America/Bahia')::date::text,'public expiry displays selected civil date');
 select is(public.payment_public_source(current_setting('p12.token'),'other.example.test'),null::jsonb,'token cannot cross tenant hostname');
 select is(public.payment_public_source(repeat('0',64),'payment-a.example.test'),null::jsonb,'enumeration misses are uniform');

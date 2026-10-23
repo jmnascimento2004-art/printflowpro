@@ -104,3 +104,17 @@ Não houve repair/reset/include-all ou replay. Baseline remota de links e fixtur
 Advisors pós-migration: nenhum novo FK sem índice; RLS sem policies no privado é intencional e sem grants.
 As duas RPCs authenticated SECURITY DEFINER são intencionais e têm tenant/permissão/identidade verificados.
 Avisos preexistentes de search_path e proteção de senha não foram ampliados.
+
+## Evidência de Preview e ajuste de branding
+
+Preview do PR #49 autenticado: criação real negada; fixtures QA históricas receberam 40 + 60 no mesmo
+Order (paid_amount=100, pago), e um recebível específico de 50 foi liquidado na própria linha.
+Cancelamento e expiração lógica, detalhe, foco/Shift+Tab/Escape, rascunho WhatsApp sem envio,
+filtro de pagos, histórico verificado e CSV com cinco links conferidos. Webhook remoto sem assinatura: 401.
+Diálogos e página pública conferidos em 1440, 768 e 390 px; tabelas usam rolagem local, sem overflow no body.
+Migration aditiva `20261023171921` aplicada pelo conector: fallback logo_light/logo_url/logo_dark.
+O logo existente é PNG data URI; a página aceita HTTPS ou raster base64 estritamente tipado, sem SVG.
+pgTAP focado atualizado: 56 checks; revisão independente do resolver: 0 B/H/M/L.
+Fixtures usam conta sintética e janeiro/2000. A compensação preserva os movimentos históricos brutos,
+mesmo com saldo líquido zero; não representa qualquer cobrança externa. Limpeza e smoke final devem ser
+confirmados antes do gate.
