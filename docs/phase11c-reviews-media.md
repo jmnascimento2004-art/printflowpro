@@ -33,3 +33,7 @@ O contrato `20261023185520_phase11c_media_server_only.sql` deve remover `phase11
 
 Esta evidência ainda não declara PASS: Preview, contrato, merge e smoke de Production permanecem necessários.
 
+
+## Ajustes encontrados no Preview
+
+A branch recebeu `STORE_PREVIEW_CANONICAL_HOST=store.cibeleprint.com.br` somente no ambiente Preview para reutilizar o allowlist de host existente. O player YouTube exige identificação da origem: seu iframe usa `strict-origin-when-cross-origin`, que envia apenas a origem entre domínios. Formulário/token permanecem no-referrer. Referência oficial: https://developers.google.com/youtube/terms/required-minimum-functionality#embedded-player-api-client-identity
