@@ -1,6 +1,6 @@
 # Fase 10 — Growth do Catálogo
 
-Estado: implementação e revisão de código concluídas; Preview e Production pendentes.
+Implementação da Fase 10. Estados de publicação e smoke são registrados no PR #47 e no relatório de entrega.
 
 ## Auditoria e decisões
 
@@ -79,4 +79,4 @@ Migrations aditivas e target-only; sem repair, reset ou include-all. Validar loc
 `order_created` é derivado da criação real de Order com origem Store na aprovação canônica;
 o browser não pode publicar uma compra. Nenhuma duplicação de evento via trigger e frontend.
 
-Não declarar PASS antes de Preview, checks, merge, Production e smoke.
+Preview validado em 1440×1000, 768×1024 e 390×844: Dashboard/períodos, qualidade e deep link, rankings/buscas, cupons, marketing/expiração/CTA, ordem e Orders Store. Cupom calculou R$ 35,00 − R$ 5,00 = R$ 30,00 sem envio de Quote ou consumo. Marketing e ordem visual restaurados; carrinho esvaziado e opt-in analytics revogado. Cupom QA-PH10-20261022 permanece inativo e expirado, com zero usos. Analytics de validação permanece identificado pelos termos de teste, sem PII. Não declarar PASS antes de checks, merge, Production e smoke.
