@@ -20,11 +20,11 @@ Produtos, banners/catálogo e avatars usam `/api/products/media`, sessão valida
 
 A expansão `20261023184108_phase11c_reviews_media.sql` foi aplicada exclusivamente em `dyqqhhywiubjraxyebgr`. Substitui as policies amplas do bucket por INSERT temporário com tenant + escopo + permissão; DELETE temporário apenas de avatar autorizado. Sem UPDATE. Isso mantém o uploader da versão de Production anterior durante a validação do Preview. Objetos legados sob tenant/products continuam reconhecidos depois do contrato.
 
-O contrato deve remover `phase11c_legacy_insert` e `phase11c_legacy_avatar_delete` somente após Production READY e smoke dos três uploaders. Não executar db push indiscriminado antes dessa etapa. Após o contrato, abas antigas devem ser atualizadas; rollback para código anterior exige restaurar as policies estreitas da expansão, nunca as policies globais antigas. Leituras públicas de imagens permanecem intencionais.
+O contrato `20261023185520_phase11c_media_server_only.sql` deve remover `phase11c_legacy_insert` e `phase11c_legacy_avatar_delete` somente após Production READY e smoke dos três uploaders. Não executar db push indiscriminado antes dessa etapa. Após o contrato, abas antigas devem ser atualizadas; rollback para código anterior exige restaurar as policies estreitas da expansão, nunca as policies globais antigas. Leituras públicas de imagens permanecem intencionais.
 
 ## Verificação antes do Preview
 
-- Node completo: 726/726; três testes de endpoint adicionados depois também passaram (focados 12/12).
+- Node completo: 729/729 (incluindo os três testes HTTP de upload); focados 12/12.
 - pgTAP: todos os 25 arquivos passaram; focado ampliado 57/57.
 - Concorrência real: rotação invalida token em espera; dois envios simultâneos criam exatamente uma pending; fixture local removida.
 - Typecheck/build sem erros; lint sem erros, 19 avisos preexistentes; diff check passou.
@@ -32,3 +32,4 @@ O contrato deve remover `phase11c_legacy_insert` e `phase11c_legacy_avatar_delet
 - Next/eslint-config-next 15.5.28, Sharp 0.35.5 e parser CSS 7.1.6 corrigem advisories recém-publicados; npm sem vulnerabilidades.
 
 Esta evidência ainda não declara PASS: Preview, contrato, merge e smoke de Production permanecem necessários.
+

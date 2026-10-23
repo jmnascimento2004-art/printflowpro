@@ -1,0 +1,15 @@
+begin;
+select no_plan();
+select ok(not exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname in ('Authenticated upload product images','Authenticated update product images','Authenticated delete product images','phase11c_legacy_insert','phase11c_legacy_avatar_delete')),'contract removes direct browser writes');
+select ok(not has_function_privilege('authenticated','private.product_media_legacy_write(text)','execute'),'legacy compatibility helper no longer callable');
+select ok(not has_function_privilege('authenticated','public.product_media_register(text,uuid,text,text,text,integer)','execute'),'asset registration remains server-only');
+insert into storage.buckets(id,name,public) values('product-images','product-images',true) on conflict do nothing;
+select set_config('request.jwt.claims','{"sub":"c1100000-0000-4000-8000-000000000099","role":"authenticated"}',true);
+set local role authenticated;
+select throws_ok($$insert into storage.objects(bucket_id,name) values('product-images','contract-qa/products/x/a.png')$$,'42501',null,'browser cannot bypass image decoder for product upload');
+select throws_ok($$insert into storage.objects(bucket_id,name) values('product-images','contract-qa/catalog/x/a.png')$$,'42501',null,'catalog also uses server upload');
+select throws_ok($$insert into storage.objects(bucket_id,name) values('product-images','contract-qa/avatars/x/a.png')$$,'42501',null,'avatar also uses server upload');
+reset role;
+select is((select count(*)::integer from storage.objects where name like 'contract-qa/%'),0,'failed writes leave no objects');
+select * from finish();
+rollback;
