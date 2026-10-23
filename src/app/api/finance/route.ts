@@ -8,6 +8,7 @@ function failure(error:unknown) {
  const e=error as {code?:string;status?:number;message?:string};
  const status=e.status===401?401:e.code==='42501'?403:e.code==='40001'?409:e.code==='P0002'?404:['22023','23514','23503','23502','23505','22P02','22007','22008'].includes(e.code||'')?400:500;
  const message=status===401?'Entre novamente para continuar.':status===403?'Sem permissão para o Financeiro.':status===409?'O registro mudou. Atualize os dados antes de tentar novamente.':status===404?'Registro indisponível para sua empresa.':status===400?'Confira os campos, a conta ativa e o estado atual do lançamento.':'Não foi possível concluir a operação financeira.';
+ if(e.code==='42501'&&e.message==='Use Comissões para reverter este pagamento')return NextResponse.json({error:e.message},{status:403,headers});
  const cashSessionMessage='Caixa físico com sessão aberta: use o PDV ou encerre a sessão antes de movimentar pelo Financeiro.';
  return NextResponse.json({error:e.code==='22023'&&e.message===cashSessionMessage?cashSessionMessage:message},{status,headers});
 }
