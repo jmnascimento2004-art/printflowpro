@@ -28,6 +28,9 @@ export function middleware(request: NextRequest) {
   }
 
   if (isInternalPath(pathname)) return NextResponse.next();
+  if (pathname.startsWith('/pay/')) {
+    const response=NextResponse.next();response.headers.set('Referrer-Policy','no-referrer');response.headers.set('X-Robots-Tag','noindex, nofollow');response.headers.set('Cache-Control','private, no-store');return response;
+  }
 
   const hostname = normalizeHostname(request.headers.get('host') || '');
   const isAdminDomain = hostname.startsWith('admin.');

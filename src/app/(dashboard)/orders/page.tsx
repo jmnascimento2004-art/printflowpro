@@ -1,5 +1,6 @@
 'use client';
 
+import { PaymentLinksCenter } from '@/components/payments/payment-links-center';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { ProductConfiguratorModal } from '@/components/store/ProductConfiguratorModal';
 import { createPOSCartItem } from '@/lib/pos-cart';
@@ -2247,6 +2248,7 @@ export default function OrdersPage() {
           {selectedOrder.notes && <section className="rounded-xl border border-border p-4 text-xs"><h4 className="font-bold">Observações internas</h4><p className="mt-2 whitespace-pre-wrap text-muted-foreground">{selectedOrder.notes}</p><p className="mt-2 text-[10px] text-muted-foreground">Não são impressas na via comercial.</p></section>}
           </>}
           {detailTab === 'finance' && allowed('/financial') && <>
+          <PaymentLinksCenter key={selectedOrder.id} orderId={selectedOrder.id} embedded />
           {/* Payment Section Panel */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-border pt-4">
             <div className="md:col-span-2 space-y-4">
