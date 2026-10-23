@@ -1,0 +1,4 @@
+export const PAYMENT_LINK_STATUS:Record<string,string>={active:'Ativo',processing:'Processando',paid:'Pago — QA',expired:'Expirado',cancelled:'Cancelado',divergent:'Divergente',refunded:'Estornado'};
+export type PaymentLink={id:string;order_id:string;receivable_id:string|null;number:string;customer:string;amount:number;status:string;provider:string;expires_at:string;expires_on:string;created_at:string;paid_at:string|null;revision:number;url:string;divergence:string|null;transaction_id:string|null};
+export type PaymentReceivable={order_id:string;number:string;customer:string;balance:number;qa:boolean;pending:{id:string;amount:number;due_date:string}[]};
+export type PaymentLinksModel={provider:string;liveConfigured:boolean;canReconcile:boolean;rows:PaymentLink[];receivables:PaymentReceivable[];history:{id:string;link_id:string;state:string;result:string;created_at:string}[]};
