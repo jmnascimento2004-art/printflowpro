@@ -11,6 +11,7 @@ import { MetricInput } from '@/components/MetricInput';
 import { configuredMeters, metricConfigurationForSave } from '@/lib/metric.mjs';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { 
   Plus,
   Search,
@@ -559,6 +560,9 @@ type MatrixRowDraft = {
 };
 
 export default function ProductsCRUDPage() {
+  const catalogSearch=useSearchParams();
+  const openedCatalogProduct=useRef<string|null>(null);
+  const catalogEditHandler=useRef<((product:Product)=>void)|null>(null);
   const showFeedback = useFeedback();
   const requestAction = useActionDialog();
 
@@ -1564,6 +1568,14 @@ export default function ProductsCRUDPage() {
     setIsEditing(true);
     setIsFormOpen(true);
   };
+
+  catalogEditHandler.current=handleOpenEdit;
+  useEffect(()=>{
+    const id=catalogSearch.get('productId');
+    if(!id||openedCatalogProduct.current===id)return;
+    const product=products.find(p=>p.id===id);
+    if(product){openedCatalogProduct.current=id;catalogEditHandler.current?.(product);}
+  },[catalogSearch,products]);
 
   const handleDuplicateProduct = async (prod: Product) => {
     try {

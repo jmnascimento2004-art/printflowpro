@@ -112,7 +112,7 @@ test('configurator exposes one accessible Copy/Share action', () => {
 });
 
 test('one searchable destination picker serves banner slider, commercial banners and Mega Menu', () => {
-  assert.match(picker, /type DestinationType = 'none' \| 'product' \| 'url' \| 'whatsapp'/);
+  assert.match(picker, /type DestinationType = 'none' \| 'product' \| 'category' \| 'url' \| 'whatsapp'/);
   assert.match(picker, /Buscar por produto ou SKU/);
   assert.match(picker, /getPublicProductPath\(event\.target\.value\)/);
   assert.match(banners, /<CatalogLinkTargetPicker products=\{products\}/);

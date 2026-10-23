@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import type { Product } from '@/lib/dummy-data';
+import { useEffect,useMemo, useState } from 'react';
+import type { Product, Category } from '@/lib/dummy-data';
 import { getProductSlugFromStorePath, getPublicProductPath } from '@/lib/store/product-permalink';
 
-type DestinationType = 'none' | 'product' | 'url' | 'whatsapp';
+type DestinationType = 'none' | 'product' | 'category' | 'url' | 'whatsapp';
 
 interface Props {
+  categories?: Category[];
   products: Product[];
   value: string;
   onChange: (value: string) => void;
@@ -17,15 +18,18 @@ const fieldClass = 'min-h-11 w-full rounded-lg border border-border bg-backgroun
 
 function inferType(value: string): DestinationType {
   if (!value.trim()) return 'none';
+  if (/^\/store\?category=/.test(value.trim())) return 'category';
   if (getProductSlugFromStorePath(value.trim())) return 'product';
   if (/^(?:https?:\/\/)?(?:wa\.me|api\.whatsapp\.com|web\.whatsapp\.com)\//i.test(value.trim())) return 'whatsapp';
   return 'url';
 }
 
-export function CatalogLinkTargetPicker({ products, value, onChange, label = 'Destino' }: Props) {
+export function CatalogLinkTargetPicker({ products, categories = [], value, onChange, label = 'Destino' }: Props) {
   const [type, setType] = useState<DestinationType>(() => inferType(value));
   const [search, setSearch] = useState('');
   const selectedSlug = getProductSlugFromStorePath(value);
+  const selectedCategory=value.startsWith('/store?')?new URLSearchParams(value.slice('/store?'.length)).get('category')||'':'';
+  useEffect(()=>{if(value)setType(inferType(value));},[value]);
   const availableProducts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('pt-BR');
     return products
@@ -47,9 +51,12 @@ export function CatalogLinkTargetPicker({ products, value, onChange, label = 'De
       <select value={type} onChange={(event) => changeType(event.target.value as DestinationType)} className={fieldClass} aria-label={`${label}: tipo`}>
         <option value="none">Sem destino</option>
         <option value="product">Produto do catálogo</option>
+        {(categories.length>0||type==='category')&&<option value="category">Categoria do catálogo</option>}
         <option value="url">URL</option>
         <option value="whatsapp">WhatsApp</option>
       </select>
+
+      {type === 'category' && <select className={fieldClass} aria-label="Categoria de destino" value={selectedCategory} onChange={event=>onChange(event.target.value?`/store?category=${encodeURIComponent(event.target.value)}`:'')}><option value="">Selecione uma categoria</option>{categories.filter(c=>c.show_in_catalog!==false).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>}
 
       {type === 'product' && (
         <div className="space-y-2">

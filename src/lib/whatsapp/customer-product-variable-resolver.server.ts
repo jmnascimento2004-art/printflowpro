@@ -230,7 +230,7 @@ function boundedPositiveInteger(value: unknown): number | undefined {
   return Number.isInteger(number) && number > 0 && number <= 100000 ? number : undefined;
 }
 
-function rehydrateSizeGridPricingConfig(
+export function rehydrateSizeGridPricingConfig(
   product: Parameters<typeof getProductConfigurator>[0],
   pricingConfig: PricingConfig
 ): { pricingConfig: PricingConfig; isSizeGrid: boolean; selectionRehydrated: boolean } {
