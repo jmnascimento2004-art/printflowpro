@@ -22,18 +22,26 @@ A expansão `20261023184108_phase11c_reviews_media.sql` foi aplicada exclusivame
 
 O contrato `20261023185520_phase11c_media_server_only.sql` deve remover `phase11c_legacy_insert` e `phase11c_legacy_avatar_delete` somente após Production READY e smoke dos três uploaders. Não executar db push indiscriminado antes dessa etapa. Após o contrato, abas antigas devem ser atualizadas; rollback para código anterior exige restaurar as policies estreitas da expansão, nunca as policies globais antigas. Leituras públicas de imagens permanecem intencionais.
 
-## Verificação antes do Preview
+## Verificação consolidada do Preview
 
 - Node completo: 729/729 (incluindo os três testes HTTP de upload); focados 12/12.
-- pgTAP: todos os 25 arquivos passaram; focado ampliado 57/57.
+- pgTAP: todos os 26 arquivos passaram; expansão 57/57 e contrato 7/7.
 - Concorrência real: rotação invalida token em espera; dois envios simultâneos criam exatamente uma pending; fixture local removida.
 - Typecheck/build sem erros; lint sem erros, 19 avisos preexistentes; diff check passou.
-- Revisão independente read-only: 0 B/H/M nesta etapa; Preview e revisão final ainda pendentes.
+- Revisão independente final read-only em 8b39c35: 0 B/H/M e nenhum LOW novo; focados 12/12 repetidos pelo revisor.
 - Next/eslint-config-next 15.5.28, Sharp 0.35.5 e parser CSS 7.1.6 corrigem advisories recém-publicados; npm sem vulnerabilidades.
 
-Esta evidência ainda não declara PASS: Preview, contrato, merge e smoke de Production permanecem necessários.
+Preview funcional aprovado; esta evidência ainda não declara PASS: contrato, merge e smoke de Production permanecem necessários.
 
 
 ## Ajustes encontrados no Preview
 
 A branch recebeu `STORE_PREVIEW_CANONICAL_HOST=store.cibeleprint.com.br` somente no ambiente Preview para reutilizar o allowlist de host existente. O player YouTube exige identificação da origem: seu iframe usa `strict-origin-when-cross-origin`, que envia apenas a origem entre domínios. Formulário/token permanecem no-referrer. Referência oficial: https://developers.google.com/youtube/terms/required-minimum-functionality#embedded-player-api-client-identity
+
+## Evidência funcional no Preview
+
+Formulário e Store verificados em 1440, 768 e 390 px; sem overflow da página no mobile. Galeria com três imagens e capa explícita, botões/teclado e drag-and-drop, remoção com Dialog/fallback, persistência e deduplicação: três objetos após reenvio. Submit com conta existente; pendente fora da Store; aprovar/publicar (5/5, 1 avaliação, J***), ocultar, restaurar, rejeitar, restaurar e aprovar novamente. Sete registros de histórico e seis Audit Logs de moderação preservam o comentário. Filtros status/nota/produto/período/verificada passaram. Sem movimentos financeiros nem alteração de paid_amount.
+
+O player corrigido carregou o vídeo QA estável Big Buck Bunny, sem autoplay; clicar Assistir iniciou a reprodução e Voltar às imagens removeu o iframe. Os quatro novos eventos foram observados no analytics canônico, sem novo pipeline. Upload de banner testado em draft cancelado; avatar testado em perfil QA suspenso, sem auth_user_id e sem criação de usuário Auth. Os três consumidores usam o endpoint validado.
+
+Fixture `qa-phase11c-product-20261023` e respectivo Order/review estão claramente QA, sem cobrança. Após o smoke de Production serão ocultados/cancelados e o perfil QA removido. Arquivos registrados seguem a política de retenção. Nenhuma mensagem foi enviada a clientes. Fase 11D permanece fora do escopo.
