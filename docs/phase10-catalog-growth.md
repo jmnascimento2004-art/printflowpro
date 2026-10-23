@@ -56,7 +56,7 @@ Migrations aditivas e target-only; sem repair, reset ou include-all. Validar loc
 
 ## Evidências
 
-- Node completo: 690/690; focados Growth: 18/18 (inclui consentimento, revogação e StrictMode).
+- Node completo: 694/694; focados Growth: 22/22 (inclui consentimento, revogação e StrictMode).
 - pgTAP completo: 22 arquivos; Growth ampliado para 75 verificações aprovadas.
 - Concorrência real local: duas requisições da mesma operação criam uma Quote/um uso;
   disputa pelo último uso tem um vencedor; primeiro save de Marketing tem um vencedor e um conflito CAS.

@@ -16,7 +16,7 @@ import type { Product } from '@/lib/dummy-data';
 type Tab='dashboard'|'quality'|'products'|'searches'|'coupons'|'marketing'|'merchandising'|'orders'|'opportunities';
 const tabs:Array<[Tab,string]>=[['dashboard','Dashboard'],['quality','Qualidade'],['products','Top produtos'],['searches','Buscas'],['coupons','Cupons'],['marketing','Marketing'],['merchandising','Ordenação'],['orders','Pedidos Store'],['opportunities','Oportunidades']];
 const field='min-h-11 w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50';
-const button='inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-bold hover:bg-secondary disabled:opacity-50';
+const button='inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-bold hover:border-primary/50 disabled:opacity-50';
 type ProductMetric={id:string;name:string;views:number;view_sessions:number;cart:number;orders:number;revenue:number;converted_sessions:number};
 type Dashboard={summary:Record<string,number>;funnel:Record<string,number>;daily:Array<{date:string;sessions:number;orders:number;revenue:number;converted_sessions:number}>;products:ProductMetric[];searches:Array<{term:string;searches:number;no_results:number;results:number}>};
 type Coupon={id?:string;revision?:number;code:string;name:string;description:string;kind:'percent'|'fixed';amount:number;active:boolean;starts_at:string;ends_at:string;minimum:number;global_limit:number|null;session_limit:number|null;product_ids:string[];category_ids:string[];uses?:number};
