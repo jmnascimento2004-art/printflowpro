@@ -1,4 +1,6 @@
 'use client';
+import { ProductMediaEditor } from '@/components/products/product-media-editor';
+import { parseProductVideo } from '@/lib/product-media.mjs';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { useFeedback } from '@/context/database-context';
 
@@ -61,16 +63,10 @@ import {
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { ProductBarcode } from '@/components/products/ProductBarcode';
 import { ProductLabelPreview, ProductLabelSize, productLabelSizes } from '@/components/products/ProductLabelPreview';
-import { supabase } from '@/lib/supabaseClient';
 import {
-  MAX_PRODUCT_GALLERY_IMAGES,
-  PRODUCT_IMAGE_BUCKET,
   getPrimaryProductImage,
   normalizeProductGallery,
-  prepareProductGallery,
-  uploadProductImage,
-  validateProductGalleryLimit,
-  validateProductImage
+  prepareProductGallery
 } from '@/lib/product-images';
 import { getPublicProductUrl } from '@/lib/store/product-permalink';
 
@@ -655,6 +651,8 @@ export default function ProductsCRUDPage() {
   // Advanced States
   const [imageUrl, setImageUrl] = useState('');
   const [galleryImages, setGalleryImages] = useState<ProductGalleryImage[]>([]);
+  const [videoUrl,setVideoUrl]=useState('');
+  const [mediaBusy,setMediaBusy]=useState(false);
   const [volumePricing, setVolumePricing] = useState<VolumePriceTier[]>([]);
   const [tempMinQty, setTempMinQty] = useState('');
   const [tempUnitPriceInput, setTempUnitPriceInput] = useState('');
@@ -1157,65 +1155,6 @@ export default function ProductsCRUDPage() {
     setImageUrl(normalized.find((image) => image.is_primary)?.url || normalized[0]?.url || '');
   };
 
-  // Image upload
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    const limitValidation = validateProductGalleryLimit(galleryImages.length, files.length);
-    if (!limitValidation.valid) {
-      showFeedback(limitValidation.message, 'warning');
-      e.target.value = '';
-      return;
-    }
-
-    const invalidValidation = files.map(validateProductImage).find((validation) => !validation.valid);
-    if (invalidValidation && !invalidValidation.valid) {
-      showFeedback(invalidValidation.message, 'warning');
-      e.target.value = '';
-      return;
-    }
-
-    try {
-      const uploadedImages = await Promise.all(files.map(async (file) => {
-        const url = await uploadProductImage(supabase, file, {
-          companyId: company?.id,
-          productId: selectedProduct?.id,
-          productName: name.trim() || file.name
-        });
-
-        return {
-          url,
-          alt: name.trim() || file.name
-        };
-      }));
-
-      syncGallery([
-        ...galleryImages,
-        ...uploadedImages.map((image, index) => ({
-          ...image,
-          is_primary: galleryImages.length === 0 && index === 0
-        }))
-      ]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : `Não foi possível enviar a imagem para o bucket ${PRODUCT_IMAGE_BUCKET}.`;
-      showFeedback(message, 'warning');
-    } finally {
-      e.target.value = '';
-    }
-  };
-
-  const handleSetPrimaryImage = (imageUrlToPromote: string) => {
-    syncGallery(galleryImages.map((image) => ({
-      ...image,
-      is_primary: image.url === imageUrlToPromote
-    })));
-  };
-
-  const handleRemoveGalleryImage = (imageUrlToRemove: string) => {
-    syncGallery(galleryImages.filter((image) => image.url !== imageUrlToRemove));
-  };
-
   // Volume pricing helpers
   const addVolumeTier = () => {
     const qty = parsedTempMinQty;
@@ -1444,6 +1383,8 @@ export default function ProductsCRUDPage() {
     setDeliveryTime('');
     setImageUrl('');
     setGalleryImages([]);
+    setVideoUrl('');
+    setMediaBusy(false);
     setVolumePricing([]);
     setVariantOptions([]);
     setColorOptions([]);
@@ -1513,6 +1454,8 @@ export default function ProductsCRUDPage() {
     setDeliveryTime(prod.delivery_time || prod.pricing_details?.delivery_time || '');
     setImageUrl(productGallery.find((image) => image.is_primary)?.url || productGallery[0]?.url || prod.image_url || '');
     setGalleryImages(productGallery);
+    setVideoUrl(prod.pricing_details?.video_url||'');
+    setMediaBusy(false);
     setVolumePricing(prod.volume_pricing || []);
     setVariantOptions(prod.variant_options || []);
     setColorOptions(prod.color_options || []);
@@ -1628,6 +1571,8 @@ export default function ProductsCRUDPage() {
     const cleanDescription = sanitizeRichTextHtml(description);
     const configuratorOptions = buildConfiguratorOptions();
     const normalizedMatrixRows = configuratorOptions.variant_pricing_matrix;
+    if(mediaBusy)return;
+    let cleanVideo='';try{cleanVideo=parseProductVideo(videoUrl)?.url||'';}catch{showFeedback('Use uma URL válida do YouTube ou Vimeo.','warning');return;}
     const normalizedGallery = prepareProductGallery(galleryImages, name.trim() || 'Produto');
     const primaryImageUrl = normalizedGallery.find((image) => image.is_primary)?.url || normalizedGallery[0]?.url || '';
     const pricingDetails = {
@@ -1646,7 +1591,8 @@ export default function ProductsCRUDPage() {
       delivery_time: cleanDeliveryTime || undefined,
       configurator_options: configuratorOptions,
       variant_pricing_matrix: normalizedMatrixRows.length > 0 ? normalizedMatrixRows : undefined,
-      gallery_images: normalizedGallery.length > 0 ? normalizedGallery : undefined
+      gallery_images: normalizedGallery,
+      video_url: cleanVideo || undefined
     };
 
     setSavingProduct(true);
@@ -2817,7 +2763,7 @@ export default function ProductsCRUDPage() {
         <div className="max-w-5xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
           <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
             {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
-            <fieldset disabled={savingProduct} className="contents">
+            <fieldset disabled={savingProduct||mediaBusy} className="contents">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <h3 className="font-bold text-foreground text-sm uppercase flex items-center gap-1.5">
                 <Package className="h-4.5 w-4.5 text-primary" /> 
@@ -3405,79 +3351,13 @@ export default function ProductsCRUDPage() {
 
               <details className="order-6 rounded-2xl border border-border bg-white p-4 shadow-sm space-y-4">
                 <summary className="cursor-pointer list-none border-b border-border/60 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wide text-primary">{mediaSectionNumber}. Imagem e descrição completa</span>
+                  <span className="text-xs font-black uppercase tracking-wide text-primary">{mediaSectionNumber}. Mídia e descrição completa</span>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                     Opcional: imagem, prévia visual e detalhes completos para produção e apresentação.
                   </p>
                 </summary>
 
-              {/* Product Image Attachment */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground block">Imagens do Produto</label>
-                <div className="flex flex-col gap-3 mt-1.5">
-                  <div className="flex flex-wrap items-center gap-3">
-                    {galleryImages.length > 0 ? (
-                      galleryImages.map((image, index) => (
-                        <div
-                          key={`${image.url}-${index}`}
-                          className={`relative h-20 w-20 rounded-xl border overflow-hidden bg-background shrink-0 ${
-                            image.is_primary ? 'border-primary ring-2 ring-primary/20' : 'border-border'
-                          }`}
-                        >
-                          <img src={image.url} alt={image.alt || `Imagem ${index + 1}`} className="h-full w-full object-cover" />
-                          {image.is_primary && (
-                            <span className="absolute bottom-1 left-1 rounded bg-primary px-1.5 py-0.5 text-[8px] font-black uppercase text-primary-foreground">
-                              Capa
-                            </span>
-                          )}
-                          <div className="absolute right-1 top-1 flex gap-1">
-                            {!image.is_primary && (
-                              <button
-                                type="button"
-                                onClick={() => handleSetPrimaryImage(image.url)}
-                                className="rounded bg-white/90 p-1 text-primary shadow-sm hover:bg-white"
-                                title="Definir como capa"
-                              >
-                                <Check className="h-3 w-3" />
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveGalleryImage(image.url)}
-                              className="rounded bg-rose-600 p-1 text-white shadow-sm hover:bg-rose-500"
-                              title="Remover imagem"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="h-20 w-20 rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground shrink-0 bg-secondary/20">
-                        <Package className="h-6 w-6 stroke-[1.5]" />
-                      </div>
-                    )}
-
-                    <div className="space-y-1">
-                      <input
-                        type="file"
-                        id="product-image-upload"
-                        accept="image/png,image/jpeg,image/webp"
-                        multiple
-                        onChange={handleImageChange}
-                        className="hidden"
-                      />
-                      <label
-                        htmlFor="product-image-upload"
-                        className="px-3 py-1.5 bg-secondary border border-border hover:bg-secondary/80 text-foreground font-bold rounded-lg text-xs cursor-pointer inline-block transition-all"
-                      >
-                        Escolher imagens
-                      </label>
-                      <span className="text-[9px] text-muted-foreground block">PNG, JPG ou WEBP de até 2MB cada. Máximo de {MAX_PRODUCT_GALLERY_IMAGES} imagens; a capa aparece no card do catálogo.</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ProductMediaEditor key={selectedProduct?.id||'draft'} productId={selectedProduct?.id} images={galleryImages} onChange={syncGallery} video={videoUrl} onVideo={setVideoUrl} onBusy={setMediaBusy}/>
 
               {/* Description */}
               <div className="space-y-1">

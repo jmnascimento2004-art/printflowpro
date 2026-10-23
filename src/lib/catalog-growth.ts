@@ -2,7 +2,7 @@ import type { Product, Category } from './dummy-data';
 import { getNormalizedVariantPricingMatrix, getNormalizedVolumePricing, getProductConfigurator,resolveProductPrice } from './pricing';
 import { normalizePublicProductSlug } from './store/product-permalink';
 
-export const CATALOG_EVENTS = ['session_started','page_viewed','product_viewed','product_clicked','cart_item_added','cart_item_removed','checkout_started','search_performed','category_viewed','banner_clicked','coupon_applied'] as const;
+export const CATALOG_EVENTS = ['session_started','page_viewed','product_viewed','product_clicked','cart_item_added','cart_item_removed','checkout_started','search_performed','category_viewed','banner_clicked','coupon_applied','review_viewed','review_submitted','media_viewed','video_opened'] as const;
 export type CatalogEventType = typeof CATALOG_EVENTS[number];
 export type CatalogEvent = { id: string; type: CatalogEventType; productId?: string; categoryId?: string; bannerId?: string; term?: string; results?: number };
 export const catalogRate = (count: number, base: number) => base > 0 ? Math.round(count / base * 10000) / 100 : null;
