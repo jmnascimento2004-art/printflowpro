@@ -31,7 +31,7 @@ export function StoreChatWidget({hidden=false,productId,orderId}:{hidden?:boolea
  if(!allowed||hidden)return null;
  const primary=({emerald:'#5b3df4',blue:'#2563eb',violet:'#5b3df4',amber:'#d97706',rose:'#e11d48'} as Record<string,string>)[company.theme_color||'']||(/^#[a-f0-9]{6}$/i.test(company.theme_color||'')?company.theme_color:'#5b3df4');
  return <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-[45] font-sans md:bottom-6" style={{color:'var(--foreground)'}}>
- {!open?<button type="button" onClick={()=>setOpen(true)} style={{backgroundColor:primary}} className="flex min-h-12 items-center gap-2 rounded-full px-4 text-sm font-bold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4" aria-label="Abrir atendimento da loja"><MessageCircle className="h-5 w-5"/><span>Atendimento</span></button>:
+ {!open?<button type="button" onClick={()=>setOpen(true)} style={{backgroundColor:primary}} className="flex min-h-12 items-center gap-2 rounded-full px-4 text-sm font-bold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4" aria-label="Abrir atendimento da loja"><MessageCircle className="h-5 w-5"/><span className="hidden sm:inline">Atendimento</span></button>:
  <section role="dialog" aria-modal="false" aria-labelledby="store-chat-title" className="flex h-[min(560px,calc(100dvh-9rem))] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-2xl">
  <header style={{backgroundColor:primary}} className="flex items-center gap-3 p-4 text-white">{company.logo_url&&
  // eslint-disable-next-line @next/next/no-img-element
