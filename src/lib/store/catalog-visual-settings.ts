@@ -84,6 +84,16 @@ export function getContrastingTextColor(hex: string) {
   const red = Number.parseInt(full.slice(0, 2), 16);
   const green = Number.parseInt(full.slice(2, 4), 16);
   const blue = Number.parseInt(full.slice(4, 6), 16);
-  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-  return luminance > 0.56 ? '#0f172a' : '#ffffff';
+  const linear = (channel: number) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = (r: number, g: number, b: number) => 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+  const background = luminance(red, green, blue);
+  const contrast = (foreground: number) => (Math.max(background, foreground) + 0.05) / (Math.min(background, foreground) + 0.05);
+  // Retain the global slate foreground when it meets AA; use black in the narrow
+  // mid-tone range where neither slate nor white reaches 4.5:1.
+  const darkContrast = contrast(luminance(15, 23, 42));
+  const whiteContrast = contrast(1);
+  return darkContrast >= 4.55 && darkContrast >= whiteContrast ? '#0f172a' : whiteContrast >= 4.55 ? '#ffffff' : '#000000';
 }
