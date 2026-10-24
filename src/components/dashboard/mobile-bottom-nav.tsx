@@ -12,7 +12,7 @@ import {
   Home,
   LayoutGrid,
   Layers,
-  MoreHorizontal,
+  MoreHorizontal, MessageCircle,
   Package,
   Settings,
   ShoppingBag,
@@ -25,6 +25,7 @@ import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-contex
 import { useAuth } from '@/context/auth-context';
 
 const NAV_ITEMS = [
+  { name: 'Atendimento', path: '/attendance', icon: MessageCircle },
   { name: 'Dashboard', path: '/dashboard', icon: Home, primary: true },
   { name: 'PDV', path: '/pos', icon: ShoppingBag, primary: true },
   { name: 'Clientes', path: '/crm', icon: Users, primary: true },

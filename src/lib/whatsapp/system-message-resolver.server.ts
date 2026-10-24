@@ -39,6 +39,23 @@ import type {
 
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdminClient>;
 
+/** Additional Store entry point into the same company resolver, settings and URL runtime.
+ * Caller must first authorize the conversation. No transcript or customer contact is loaded.
+ */
+export async function resolveStoreChatWhatsAppHandoff(trustedCompanyId:string,conversationId:string){
+  if(!trustedCompanyId||! /^[0-9a-f-]{36}$/i.test(conversationId))throw controlledError('CONTEXT_INVALID');
+  const client=getSupabaseAdminClient();
+  const [company,settings]=await Promise.all([
+    resolveWhatsAppCompanyVariables({companyId:trustedCompanyId,trustedCompanyId,eventKey:'store_product_request'},createSupabaseWhatsAppVariableDataSource(client)),
+    createSupabaseWhatsAppSystemMessageDataSource(client).getWhatsAppSettings(trustedCompanyId)
+  ]);
+  const renderSettings=normalizeRenderSettings(trustedCompanyId,settings);
+  const recipient=company.metadataSanitized.effectiveBusinessPhone;
+  if(!recipient)throw controlledError('RECIPIENT_MISSING');
+  const content=`Olá! Gostaria de continuar o atendimento da loja. Referência: ${conversationId.slice(0,8).toUpperCase()}.`;
+  return {href:buildWhatsAppUrl(recipient,content,renderSettings),confirmBeforeOpen:renderSettings.confirm_before_open};
+}
+
 export interface WhatsAppQuoteContextRow {
   id: string;
   company_id: string;

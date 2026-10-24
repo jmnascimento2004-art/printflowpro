@@ -1,0 +1,7 @@
+export type ChatMessage={id:string;seq:number;sender_type:'visitor'|'customer'|'agent'|'system';content:string;created_at:string};
+export type ChatConversation={id:string;status:'open'|'waiting'|'in_progress'|'closed';message_seq:number;product_id:string|null;order_id:string|null;customer_id?:string|null;customer_name?:string;phone?:string;email?:string;product_name?:string;order_number?:string;assigned_profile_id?:string|null;agent_name?:string;last_message?:string;last_message_at?:string;unread?:number;quote_conversions?:number};
+export type ChatPublic={conversation:ChatConversation|null;messages:ChatMessage[]};
+export type ChatReply={id:string;title:string;content:string;active:boolean;revision:number};
+export type ChatInbox={profile_id:string;can_manage:boolean;can_transfer:boolean;can_quote:boolean;can_order:boolean;conversations:ChatConversation[];messages:ChatMessage[];agents:{id:string;name:string}[];quick_replies:ChatReply[];settings:{greeting:string;away_message:string;revision:number};metrics:{new:number;served:number;closed:number;first_response_seconds:number|null;handling_seconds:number|null;quotes:number;whatsapp:number}};
+export const chatStatus={open:'Nova',waiting:'Aguardando',in_progress:'Em atendimento',closed:'Encerrada'};
+export function mergeChatMessages(previous:ChatMessage[],incoming:ChatMessage[]){return Array.from(new Map([...previous,...incoming].map(m=>[m.id,m])).values()).sort((a,b)=>a.seq-b.seq);}

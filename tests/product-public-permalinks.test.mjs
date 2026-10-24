@@ -93,7 +93,7 @@ test('Store opens the same configurator from URL and keeps history coherent', ()
   assert.match(store, /products\.find\(\(product\) => product\.slug === slug/);
   assert.match(store, /router\.push\(path, \{ scroll: false \}\)/);
   assert.match(store, /router\.replace\('\/store', \{ scroll: false \}\)/);
-  assert.match(store, /\}, \[pathname, products\]\)/);
+  assert.match(store, /\}, \[pathname, products, chatProductId\]\)/);
   assert.doesNotMatch(store, /history\.(?:pushState|replaceState)|addEventListener\('popstate'/);
   assert.match(store, /<ProductConfiguratorModal[\s\S]*?productUrl=\{getPublicProductUrl/);
 });

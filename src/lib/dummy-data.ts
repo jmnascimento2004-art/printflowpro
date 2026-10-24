@@ -400,6 +400,7 @@ export interface AdditionalService {
 }
 
 export interface Quote {
+  chat_conversation_id?: string;
   id: string;
   company_id: string;
   customer_id: string;

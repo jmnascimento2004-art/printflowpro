@@ -89,7 +89,7 @@ test('conflict refetch failure rejects without claiming current state was loaded
 async function quoteUI(update=false) {
   const events=[],wait=deferred(),lock={current:false};let count=0;
   const deps={quoteMutationRef:lock,setQuotePending:v=>events.push(['pending',v]),customers:[{id:'c1',name:'Fixture'}],customerId:'c1',items:[item],getSubtotal:()=>10,getServicesTotal:()=>0,deliveryFee:0,discountInput:'0',discountMode:'fixed',calculateQuoteDiscount:()=>0,calculateQuoteNetTotal:()=>10,editingQuoteId:update?'q1':null,quotes:[{...quote,updated_at:'v2'}],company:{id:'a'},editingQuoteVersion:'v1',validUntil:'2026-12-01',notes:'typed',additionalServices:[],deliveryType:'retirada',deliveryAddress:'',deliveryDistanceKm:0,
-    addQuote:async()=>{count++;return wait.promise;},updateQuote:async value=>{events.push(['version',value.updated_at]);count++;return wait.promise;},showFeedback:msg=>events.push(['alert',msg]),resetForm:()=>events.push(['close']),handleStartEdit:latest=>events.push(['reload',latest]),PersistenceMutationError,getPersistenceErrorMessage};
+    chatConversationId:undefined,addQuote:async()=>{count++;return wait.promise;},updateQuote:async value=>{events.push(['version',value.updated_at]);count++;return wait.promise;},showFeedback:msg=>events.push(['alert',msg]),resetForm:()=>events.push(['close']),handleStartEdit:latest=>events.push(['reload',latest]),PersistenceMutationError,getPersistenceErrorMessage};
   const api=await declarations('../src/app/(dashboard)/quotes/page.tsx',['handleSaveQuote'],deps);return {api,events,wait,get count(){return count;}};
 }
 for(const update of [false,true])for(const outcome of ['success','failure','conflict'])test(`quote UI ${update?'edit':'create'} ${outcome}: timing, double click, recovery`,async()=>{

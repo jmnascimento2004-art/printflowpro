@@ -1,4 +1,5 @@
 'use client';
+import {chatFetch} from '@/lib/chat/client';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { useFeedback } from '@/context/database-context';
 import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
@@ -342,6 +343,8 @@ export default function QuotesPage() {
 
   // Form State
   const [customerId, setCustomerId] = useState('');
+  const [chatConversationId,setChatConversationId]=useState<string>();
+  const [chatDraftContext,setChatDraftContext]=useState<{product_id:string|null;initial_message:string|null}|null>(null);
   const [discountInput, setDiscountInput] = useState('0,00');
   const [discountMode, setDiscountMode] = useState<'fixed' | 'percentage'>('fixed');
   const [validUntil, setValidUntil] = useState('');
@@ -394,6 +397,14 @@ export default function QuotesPage() {
     const params = new URLSearchParams(window.location.search);
     const nextCustomerId = params.get('customerId')?.trim() || '';
     if (params.get('new') === '1') setIsCreating(true);
+    const chatId=params.get('chatConversation');
+    if(chatId&&/^[0-9a-f-]{36}$/i.test(chatId)){
+      chatFetch<{customer_id:string|null;product_id:string|null;initial_message:string|null}>('/api/chat',{action:'quote_context',conversation:chatId}).then(context=>{
+        setChatConversationId(chatId);setChatDraftContext(context);setIsCreating(true);
+        if(context.customer_id)setRequestedCustomerId(context.customer_id);
+        setNotes(`Atendimento #${chatId.slice(0,8).toUpperCase()}. ${context.initial_message||''}`.slice(0,2000));
+      }).catch(()=>setCustomerPrefillMessage('Não foi possível recuperar o atendimento. Revise os dados antes de salvar.'));
+    }
     if (params.get('assistant') === '1') setShowAssistant(true);
     if (nextCustomerId) {
       setRequestedCustomerId(nextCustomerId);
@@ -968,6 +979,7 @@ export default function QuotesPage() {
     : '';
 
   const resetForm = () => {
+    setChatConversationId(undefined);setChatDraftContext(null);
     setEditingQuoteVersion(undefined);
     setIsCreating(false);
     setEditingQuoteId(null);
@@ -1060,6 +1072,7 @@ export default function QuotesPage() {
         });
       } else {
         await addQuote({
+          chat_conversation_id:chatConversationId,
           customer_id: client.id,
           customer_name: client.name,
           status,
@@ -1140,6 +1153,7 @@ export default function QuotesPage() {
   return (
     <div className="space-y-6">
       {agendaFocus.banner}
+      {isCreating&&chatDraftContext&&<aside className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"><p className="font-semibold">Rascunho preparado a partir do Atendimento</p><p className="mt-1 whitespace-pre-wrap break-words">{chatDraftContext.initial_message}</p>{chatDraftContext.product_id&&<p className="mt-1">Produto de origem: {products.find(p=>p.id===chatDraftContext.product_id)?.name||'Produto indisponível'}. Selecione e configure o item antes de salvar.</p>}<p className="mt-1 text-xs">Revise o cliente, os itens e os valores. A conversão só será registrada ao salvar.</p></aside>}
       {!isCreating && canUseAssistant && <button type="button" onClick={() => setShowAssistant(value => !value)} className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">Assistente de Orçamentos</button>}
       {showAssistant && !isCreating && canUseAssistant && <QuoteTextAssistant key={activeProfile.company_id} products={products.filter(product => product.company_id === activeProfile.company_id)} customers={canAccessModule(activeProfile.role, '/crm', rolePermissions) ? customers : []} onClose={() => setShowAssistant(false)} onDraft={(id, draftItems) => {
         resetForm(); setCustomerId(id); setItems(draftItems);
