@@ -1,5 +1,7 @@
 'use client';
 import { FiscalEntitySection } from '@/components/fiscal/fiscal-center';
+import Link from 'next/link';
+import {billingErrorMessage} from '@/lib/billing/errors.mjs';
 import { ProductMediaEditor } from '@/components/products/product-media-editor';
 import { parseProductVideo } from '@/lib/product-media.mjs';
 import { useActionDialog } from '@/components/action-dialog-provider';
@@ -2764,7 +2766,7 @@ export default function ProductsCRUDPage() {
         <div className="max-w-5xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
           <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
             {isEditing && selectedProduct && <FiscalEntitySection kind="product" id={selectedProduct.id} />}
-            {saveError && <p role="alert" className="text-sm text-red-600">{saveError}</p>}
+            {saveError && <div role="alert" className="space-y-2 text-sm text-red-600"><p>{saveError}</p>{billingErrorMessage({code:'42501',message:saveError})&&<Link className="inline-flex min-h-11 items-center font-semibold underline" href="/settings/subscription">Ver planos e assinatura</Link>}</div>}
             <fieldset disabled={savingProduct||mediaBusy} className="contents">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <h3 className="font-bold text-foreground text-sm uppercase flex items-center gap-1.5">

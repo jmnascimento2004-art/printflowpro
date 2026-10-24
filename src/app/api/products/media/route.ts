@@ -12,6 +12,8 @@ export async function POST(request:Request){try{
  const raw=await boundedBody(request,MAX_IMAGE_BYTES+100000);const form=await new Request(request.url,{method:'POST',headers:{'content-type':request.headers.get('content-type')||''},body:raw}).formData();
  if([...form.keys()].some(k=>!['file','productId','scope'].includes(k)))throw new Error('Upload inválido.');
  const file=form.get('file'),productId=String(form.get('productId')||'draft'),scope=String(form.get('scope')||'products');
+ const gate=await getAuthenticatedPdfClient(request).rpc('saas_billing_assert',{p_feature:scope==='products'?'advanced_media':scope==='catalog'?'catalog':null});
+ if(gate.error)return NextResponse.json({error:'Assinatura sem acesso à gravação desta mídia. Consulte Plano e Assinatura.'},{status:403,headers:reviewHeaders});
  const {data:company,error:denied}=await getAuthenticatedPdfClient(request).rpc('product_media_access',{p_scope:scope});if(denied||company!==access.companyId)return NextResponse.json({error:'Acesso não autorizado.'},{status:403,headers:reviewHeaders});
  if(!(file instanceof File)||file.size===0||file.size>MAX_IMAGE_BYTES||!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Use JPG, PNG ou WEBP de até 2 MB.');
  if(!/^[a-zA-Z0-9_-]{1,128}$/.test(productId))throw new Error('Produto inválido.');

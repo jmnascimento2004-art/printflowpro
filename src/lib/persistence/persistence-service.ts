@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import { billingErrorMessage } from '@/lib/billing/errors.mjs';
 
 export type PersistenceErrorCode =
   | 'CONFLICT'
@@ -43,6 +44,8 @@ const STATUS_MESSAGES: Record<string, string> = {
 };
 
 function mapClientError(error: { code?: string; message?: string } | null | undefined) {
+  const billingMessage = billingErrorMessage(error);
+  if (billingMessage) return new PersistenceMutationError(error?.code === '40001' ? 'CONFLICT' : 'NOT_AUTHORIZED', billingMessage);
   if (error?.code === '42501') {
     return new PersistenceMutationError('NOT_AUTHORIZED', STATUS_MESSAGES.NOT_AUTHORIZED);
   }

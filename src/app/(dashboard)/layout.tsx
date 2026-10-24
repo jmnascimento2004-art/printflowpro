@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Sidebar from '@/components/dashboard/sidebar';
 import Header from '@/components/dashboard/header';
 import MobileBottomNav from '@/components/dashboard/mobile-bottom-nav';
+import {BillingBoundary} from '@/components/billing/billing-boundary';
 import { BrandLogo, BrandMark } from '@/components/brand';
 import { useAuth } from '@/context/auth-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
@@ -91,7 +92,7 @@ export default function DashboardLayout({
 
         <main className="flex-1 w-full max-w-7xl min-w-0 mx-auto animate-in fade-in duration-300 flex flex-col overflow-x-hidden px-3 py-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-4 md:p-6">
           {hasAccess ? (
-            children
+            <BillingBoundary key={activeProfile.company_id} companyId={activeProfile.company_id || ''}>{children}</BillingBoundary>
           ) : (
             <div className="flex-1 flex items-center justify-center py-12">
               <div className="max-w-md w-full bg-card border border-border p-8 rounded-3xl text-center space-y-6 shadow-2xl relative overflow-hidden">
