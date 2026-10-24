@@ -1471,7 +1471,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     }).catch((error) => {
       setProducts((items) => items.filter((item) => item.id !== newProd.id));
       warnCaught('Erro ao salvar produto no Supabase:', error);
-      showToast('Não foi possível salvar o produto.', 'error');
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o produto.', 'error');
     });
 
   return newProd;

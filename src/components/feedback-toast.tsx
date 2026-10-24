@@ -1,5 +1,7 @@
 'use client';
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
+import Link from 'next/link';
+import {billingErrorMessage} from '@/lib/billing/errors.mjs';
 
 export type FeedbackKind = 'success' | 'error' | 'warning' | 'info';
 const appearance = {
@@ -18,7 +20,7 @@ export function FeedbackToast({ message, type, onClose }: { message: string; typ
       className="fixed bottom-20 right-4 z-[99999] flex w-[420px] max-w-[calc(100vw-2rem)] items-start gap-3 rounded-xl border bg-slate-950/95 p-4 text-slate-100 shadow-2xl backdrop-blur-md animate-toast-in sm:bottom-5 sm:right-5"
       style={{ borderColor: `rgba(${color},.3)` }}>
       <span aria-hidden="true" className="shrink-0 rounded-lg p-2" style={{ backgroundColor: `rgba(${color},.1)`, color: `rgb(${color})` }}><Icon className="h-5 w-5" /></span>
-      <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{title}</p><p className="mt-1 break-words text-xs leading-5 text-slate-300">{message}</p></div>
+      <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{title}</p><p className="mt-1 break-words text-xs leading-5 text-slate-300">{message}</p>{billingErrorMessage({code:'42501',message})&&<Link href="/settings/subscription" className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-white underline" onClick={onClose}>Ver planos e assinatura</Link>}</div>
       <button type="button" aria-label="Fechar aviso" onClick={onClose} className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"><X className="h-4 w-4" /></button>
     </div>
   </>;

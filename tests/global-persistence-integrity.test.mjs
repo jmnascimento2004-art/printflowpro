@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import ts from 'typescript';
+import {billingErrorMessage} from '../src/lib/billing/errors.mjs';
 
 async function compile(path, requireMap = {}) {
   const source = await readFile(new URL(path, import.meta.url), 'utf8');
@@ -14,7 +15,8 @@ async function compile(path, requireMap = {}) {
 }
 
 const service = await compile('../src/lib/persistence/persistence-service.ts', {
-  '@/lib/supabaseClient': { supabase: {} }
+  '@/lib/supabaseClient': { supabase: {} },
+  '@/lib/billing/errors.mjs': {billingErrorMessage}
 });
 
 function rpcClient(response) {

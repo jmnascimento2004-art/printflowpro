@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import ts from 'typescript';
+import {billingErrorMessage} from '../src/lib/billing/errors.mjs';
 
 // Execute the actual handlers/helpers, extracting declarations with the TS AST.
 // No duplicated implementation and no React/browser internals in the harness.
@@ -20,7 +21,7 @@ async function declarations(path, names, dependencies) {
 }
 const serviceSource = await readFile(new URL('../src/lib/persistence/persistence-service.ts', import.meta.url),'utf8');
 const mod = { exports: {} };
-Function('require','exports','module',ts.transpileModule(serviceSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(()=>({supabase:{}}),mod.exports,mod);
+Function('require','exports','module',ts.transpileModule(serviceSource,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>name==='@/lib/billing/errors.mjs'?{billingErrorMessage}:{supabase:{}},mod.exports,mod);
 const { PersistenceMutationError, getPersistenceErrorMessage, deleteTenantRecord } = mod.exports;
 const deferred = () => { let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject}; };
 const item={id:'i1',product_id:'p1',product_name:'Fixture',quantity:1,unit_price:10,total_price:10};

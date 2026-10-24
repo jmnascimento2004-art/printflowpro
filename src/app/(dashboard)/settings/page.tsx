@@ -1,5 +1,6 @@
 'use client';
 import { FiscalConfiguration } from '@/components/fiscal/fiscal-center';
+import { BillingCenter } from '@/components/billing/billing-center';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { useFeedback } from '@/context/database-context';
 
@@ -51,7 +52,7 @@ import {
 import { AuditLogPanel } from '@/components/settings/audit-log-panel';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
-type SettingsTab = 'empresa' | 'financas' | 'fiscal' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema';
+type SettingsTab = 'empresa' | 'financas' | 'fiscal' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema' | 'subscription';
 
 const SYSTEM_MODULES = [
   { path: '/agenda', label: 'Agenda', desc: 'Compromissos, lembretes e prazos dos módulos autorizados.' },
@@ -653,6 +654,7 @@ export default function SettingsPage() {
             { id: 'empresa', label: 'Empresa & Marca', icon: Building2 },
             { id: 'financas', label: 'Finanças & Chave Pix', icon: Coins },
             { id: 'fiscal', label: 'Fiscal', icon: FileText },
+            ...(activeProfile?.role === 'admin' ? [{ id: 'subscription', label: 'Plano & Assinatura', icon: Key }] : []),
             { id: 'coleta', label: 'Balcões de Retirada', icon: MapPin },
             ...(activeProfile?.role === 'admin' ? [{ id: 'funcionarios', label: 'Funcionários & Acessos', icon: Users }] : []),
             ...(activeProfile?.role === 'admin' ? [{ id: 'auditoria', label: 'Logs de Auditoria', icon: FileClock }] : []),
@@ -681,6 +683,7 @@ export default function SettingsPage() {
         {/* Conteúdo da Aba Ativa */}
         <div className="w-full min-w-0 flex-1 space-y-4 sm:space-y-6">
           {activeTab === 'fiscal' && <FiscalConfiguration />}
+          {activeTab === 'subscription' && <BillingCenter />}
 
           {['empresa', 'financas', 'sistema'].includes(activeTab) && (
           <form id="general-settings-form" onSubmit={handleSaveSettings} className="space-y-6">
