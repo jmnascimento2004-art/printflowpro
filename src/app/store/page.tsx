@@ -377,6 +377,14 @@ export default function StorefrontPage() {
     setActiveAdvancedConfigProduct(null);
     if (getProductSlugFromStorePath(pathname)) router.replace('/store', { scroll: false });
   }, [pathname, router]);
+  const handleProductChat = () => {
+    if(!activeAdvancedConfigProduct)return;
+    const productId=activeAdvancedConfigProduct.id;
+    setChatProductId(productId);
+    // Keep the product route: navigating to /store would unmount the newly opened widget.
+    setActiveAdvancedConfigProduct(null);
+    window.dispatchEvent(new CustomEvent('store-chat:open',{detail:{productId}}));
+  };
 
   // Client checkout info
   const [clientName, setClientName] = useState('');
@@ -1390,7 +1398,7 @@ export default function StorefrontPage() {
         onClose={closeProductConfigurator}
         onAddToCart={handleAddAdvancedProductToCart}
         onRequestWhatsApp={handleWhatsAppProductRequest}
-        onChat={()=>{if(!activeAdvancedConfigProduct)return;const productId=activeAdvancedConfigProduct.id;setChatProductId(productId);closeProductConfigurator();window.dispatchEvent(new CustomEvent('store-chat:open',{detail:{productId}}));}}
+        onChat={handleProductChat}
         isWhatsAppRequestPending={whatsAppRequestPending}
         categoryName={
           activeAdvancedConfigProduct

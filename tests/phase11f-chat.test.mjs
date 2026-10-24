@@ -90,3 +90,8 @@ test('actual WhatsApp handoff discards prepared URL after identity changes',asyn
  const handoff=handler('src/components/chat/store-chat-widget.tsx','prepareHandoff',{pending:false,setPending:()=>{},generation,chatFetch:()=>wait.promise,setHandoff:v=>writes.push(v),setError:()=>{}});
  const request=handoff();generation.current++;wait.resolve({href:'old identity URL'});await request;assert.deepEqual(writes,[]);
 });
+test('product chat opens with canonical context without navigating away and unmounting widget',()=>{
+ const events=[];
+ const open=handler('src/app/store/page.tsx','handleProductChat',{activeAdvancedConfigProduct:{id:'canonical-product'},setChatProductId:id=>events.push(['context',id]),setActiveAdvancedConfigProduct:value=>events.push(['modal',value]),window:{dispatchEvent:event=>events.push(['event',event.type,event.detail.productId])},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}}});
+ open();assert.deepEqual(events,[['context','canonical-product'],['modal',null],['event','store-chat:open','canonical-product']]);
+});
