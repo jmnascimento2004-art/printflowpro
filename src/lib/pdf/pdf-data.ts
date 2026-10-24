@@ -4,6 +4,7 @@ import { getActivePaymentTransactions, getActivePaymentsForOrder } from '@/lib/f
 import { requireDocumentPermissions } from './document-permissions';
 import { areOrderNumbersEquivalent, formatOrderDisplayNumber, formatLegacyOrderNumber } from '@/lib/order-number';
 import type { PdfRequestContext } from '@/lib/pdf/pdf-server-auth';
+import {sanitizePdfLogos} from './pdf-logo';
 
 type QuoteItemRow = QuoteItem & { quote_id?: string };
 type OrderItemRow = OrderItem & { order_id?: string };
@@ -212,16 +213,7 @@ export async function loadOrderPdfData(id: string, context: PdfRequestContext, o
   if (customerResult.error) throw customerResult.error;
   if (!companyResult.data) throw new Error('Empresa não encontrada.');
   const company = companyResult.data as Company;
-  // Logos are fetched by the server renderer: only this project's Storage or inline images are trusted.
-  for (const key of ['logo_url', 'logo_light', 'logo_dark'] as const) {
-    const value = company[key];
-    if (!value) continue;
-    try {
-      const url = new URL(value);
-      const storage = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://invalid.local');
-      if (!(url.protocol === 'https:' && url.origin === storage.origin && url.pathname.startsWith('/storage/v1/object/')) && !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(value)) company[key] = undefined;
-    } catch { company[key] = undefined; }
-  }
+  Object.assign(company,sanitizePdfLogos(company));
   const financial = financialResult;
   const matched = financial.filter(row => row.order_id === order.id || (!row.order_id && areOrderNumbersEquivalent(row.order_number, order.number)));
   order.paid_amount = Math.max(order.paid_amount, getActivePaymentsForOrder(order.id, matched, order.number, order).reduce((sum, row) => sum + row.amount, 0));
