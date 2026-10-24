@@ -624,10 +624,11 @@ export default function StorefrontPage() {
       return;
     }
     const matchingProduct = products.find((product) => product.slug === slug && product.active !== false && product.catalog_active !== false);
-    if (matchingProduct) setActiveAdvancedConfigProduct(matchingProduct);
-  }, [pathname, products]);
+    if (matchingProduct && matchingProduct.id !== chatProductId) setActiveAdvancedConfigProduct(matchingProduct);
+  }, [pathname, products, chatProductId]);
 
   const handleOpenProductConfig = (product: Product) => {
+    setChatProductId(undefined);
     track('product_clicked',{productId:product.id});
     setActiveAdvancedConfigProduct(product);
     const path = getPublicProductPath(product.slug);

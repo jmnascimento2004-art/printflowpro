@@ -95,3 +95,11 @@ test('product chat opens with canonical context without navigating away and unmo
  const open=handler('src/app/store/page.tsx','handleProductChat',{activeAdvancedConfigProduct:{id:'canonical-product'},setChatProductId:id=>events.push(['context',id]),setActiveAdvancedConfigProduct:value=>events.push(['modal',value]),window:{dispatchEvent:event=>events.push(['event',event.type,event.detail.productId])},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}}});
  open();assert.deepEqual(events,[['context','canonical-product'],['modal',null],['event','store-chat:open','canonical-product']]);
 });
+test('actual product-route effect does not reopen configurator over chat on background product refresh',()=>{
+ const source=readFileSync(new URL('../src/app/store/page.tsx',import.meta.url),'utf8'),ast=ts.createSourceFile('store.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let effect;
+ function visit(node){if(ts.isCallExpression(node)&&node.expression.getText(ast)==='useEffect'&&node.arguments[0]?.getText(ast).includes('const matchingProduct = products.find'))effect=node.arguments[0].getText(ast);ts.forEachChild(node,visit);}visit(ast);assert.ok(effect);
+ const code=ts.transpileModule(`const effect=${effect};`,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const writes=[],product={id:'p1',slug:'banner',active:true,catalog_active:true};
+ const run=(chatProductId,products)=>Function('getProductSlugFromStorePath','pathname','products','chatProductId','setActiveAdvancedConfigProduct',code+';effect();')(()=> 'banner','/store/product/banner',products,chatProductId,value=>writes.push(value));
+ run('p1',[product]);run('p1',[{...product}]);assert.deepEqual(writes,[]);run(undefined,[product]);assert.deepEqual(writes,[product]);
+});
