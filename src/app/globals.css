@@ -252,15 +252,15 @@ input[list]::-webkit-calendar-picker-indicator {
   }
 
   .pf-input {
-    @apply h-11 w-full rounded-lg border border-input bg-white px-3 text-sm font-normal text-foreground outline-none transition placeholder:text-slate-400 placeholder:font-normal focus:border-primary focus:ring-2 focus:ring-primary/15 dark:bg-card;
+    @apply h-11 w-full rounded-lg border border-input bg-white px-3 text-sm font-normal text-foreground outline-none transition placeholder:text-slate-400 placeholder:font-normal focus:border-primary focus:ring-2 focus:ring-primary/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground dark:bg-card;
   }
 
   .pf-textarea {
-    @apply min-h-24 w-full rounded-lg border border-input bg-white px-3 py-2 text-sm font-normal text-foreground outline-none transition placeholder:text-slate-400 placeholder:font-normal focus:border-primary focus:ring-2 focus:ring-primary/15 dark:bg-card;
+    @apply min-h-24 w-full rounded-lg border border-input bg-white px-3 py-2 text-sm font-normal text-foreground outline-none transition placeholder:text-slate-400 placeholder:font-normal focus:border-primary focus:ring-2 focus:ring-primary/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground dark:bg-card;
   }
 
   .pf-button-primary {
-    @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary/95 disabled:pointer-events-none disabled:opacity-60;
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/20 transition hover:shadow-md hover:shadow-primary/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground disabled:pointer-events-none disabled:opacity-60;
   }
 
   .pf-button-secondary {

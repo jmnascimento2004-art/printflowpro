@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useDatabase } from '@/context/database-context';
+import { getContrastingTextColor } from '@/lib/store/catalog-visual-settings';
 
 const THEME_PRESETS: Record<string, string> = {
   emerald: '#059669',
@@ -66,15 +67,10 @@ function rgbToHsl(r: number, g: number, b: number) {
   }
 
   return {
-    h: Math.round(h * 360),
-    s: Math.round(s * 100),
-    l: Math.round(l * 100)
+    h: Number((h * 360).toFixed(4)),
+    s: Number((s * 100).toFixed(4)),
+    l: Number((l * 100).toFixed(4))
   };
-}
-
-function getReadableForeground(r: number, g: number, b: number) {
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return luminance > 0.62 ? '224 71% 4%' : '210 20% 98%';
 }
 
 function normalizeDomain(value?: string | null) {
@@ -94,8 +90,8 @@ export function CompanyThemeSync() {
   const router = useRouter();
 
   useEffect(() => {
-    const rgb = hexToRgb(normalizeThemeColor(company.theme_color));
-    if (!rgb) return;
+    const color = normalizeThemeColor(company.theme_color);
+    const rgb = hexToRgb(color) || hexToRgb(DEFAULT_THEME_COLOR)!;
 
     const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
     const root = document.documentElement;
@@ -106,7 +102,9 @@ export function CompanyThemeSync() {
     root.style.setProperty('--ring', primary);
     root.style.setProperty('--accent', `${h} ${Math.max(45, s)}% ${accentLightness}%`);
     root.style.setProperty('--accent-foreground', `${h} ${s}% ${Math.max(24, l - 20)}%`);
-    root.style.setProperty('--primary-foreground', getReadableForeground(rgb.r, rgb.g, rgb.b));
+    const foreground = hexToRgb(getContrastingTextColor(color))!;
+    const foregroundHsl = rgbToHsl(foreground.r, foreground.g, foreground.b);
+    root.style.setProperty('--primary-foreground', `${foregroundHsl.h} ${foregroundHsl.s}% ${foregroundHsl.l}%`);
   }, [company.theme_color]);
 
   useEffect(() => {
