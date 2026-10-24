@@ -27,6 +27,15 @@ test('actual product save handler propagates third-product quota without optimis
  await assert.rejects(handler({name:'Third synthetic product'}),error=>error.message===message&&error.code==='NOT_AUTHORIZED');
  assert.equal(successWrites,0);
 });
+test('actual duplicate handler explains billing denial and never opens an unsaved copy',async()=>{
+ const source=await readFile(new URL('../src/app/(dashboard)/products/page.tsx',import.meta.url),'utf8');
+ const ast=ts.createSourceFile('products.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let declaration;
+ function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(ast)==='handleDuplicateProduct')declaration=node.getText(ast);ts.forEachChild(node,visit);}visit(ast);assert.ok(declaration);
+ const code=ts.transpileModule(`const ${declaration};`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+ const message='Billing: Assinatura em modo somente leitura. Seus dados e exportações estão preservados.';const feedback=[];
+ const handler=Function('saveProduct','handleOpenEdit','showFeedback','billingErrorMessage',code+';return handleDuplicateProduct;')(async()=>{throw new Error(message);},()=>assert.fail('must not open an unpersisted copy'),(...args)=>feedback.push(args),billingErrorMessage);
+ await handler({id:'qa-product',name:'QA',sku:'QA'});assert.deepEqual(feedback,[[message,'error']]);
+});
 test('real SaaS billing is hard disabled; every real mode fails',()=>{
  assert.equal(REAL_BILLING_ENABLED,false);assert.doesNotThrow(()=>assertBillingQa({provider:'mock',environment:'qa',real_billing_enabled:false}));
  for(const v of [{provider:'stripe'},{environment:'production'},{real_billing_enabled:true},{real_billing_enabled:'false'},{provider:null}])assert.throws(()=>assertBillingQa(v),/SAAS_REAL_BILLING_REQUIRES_EXPLICIT_AUTHORIZATION/);

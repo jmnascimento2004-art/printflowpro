@@ -48,12 +48,20 @@ HMAC-SHA256 covers timestamp plus raw body with constant-time comparison, a 5-mi
 ## Validation evidence (pre-Preview)
 
 - 90 focused pgTAP checks: lifecycle, time resolution, monthly/annual calendar, quota, cross-tenant RLS, price tampering, real billing refusal, permission AND entitlement, private media/checkout, snapshot conditions, global catalog configuration/audit, duplicate/replay/stale events.
-- Five provider tests; full Node suite: 738 passed.
+- Eight focused Node tests, including the actual product-save and duplicate handlers; full Node suite: 741 passed.
 - Full pgTAP suite, typecheck, lint, build and independent review are release gates. Lint baseline: 19 warnings, zero errors.
 - Two real local database connections reproduced the prior product row/advisory lock conflict and confirmed retryable 40001 without deadlock.
 - Benchmark gap-analysis document remains unchanged (SHA256 `3D66CCB8DBA44A727FE8AC608313CC4087BDCE81C515124139826BB887943D8F`).
 
-Preview responsive/lifecycle evidence, QA tenant identity, migration version, PR/checks and final Production smoke must be recorded before PASS. No PASS is claimed by this document alone.
+## Preview evidence
+
+PR #52; migration `20261024014857`; initial implementation `0440142266f6de3ec0decde64e50ae670afe7a9a`. The user created tenant `d96bf8ab-0fbb-430f-805e-87dad6b851a0`, named `PrintFlow SaaS QA 20261023`, through Preview signup. Its active admin was verified and it had zero products/orders/financial rows before the allowlist entry. No other company was enrolled.
+
+The authenticated Preview confirmed trial, activation, annual upgrade/renewal, failed-payment warning, grace, scheduled cancellation/reversal, downgrade, expiration, portal/history and read-only report/CSV access. Three products were created through the UI in the Complete plan, all hidden from the catalog. Downgrading to Essential preserved all three (`3 de 2`); a fourth UI insertion was denied with a quota message and plan link. Editing an existing product remained allowed. A form opened before expiration was denied on save after expiration, with the original persisted price unchanged. The duplicate handler received the same safe message treatment after a final UI check found its older generic catch.
+
+Desktop 1440×1000, tablet 768×1024 and mobile 390×844 were checked at actual CSS dimensions. No document horizontal overflow; comparison, summary, history and confirmation dialogs remained usable. Evidence is saved under `.local-backup/phase11e-preview-{desktop,tablet,mobile}.png`, `phase11e-product-quota.png`, `phase11e-readonly-write.png`, `phase11e-readonly-reports.png` and `phase11e-feature-gate.png`. An actual CSV download while expired contained the report header and zero movements, matching the empty QA ledger. The real company still had 47 Finance rows; QA Finance remained empty.
+
+Merge and final Production smoke remain release gates. No PASS is claimed by this document alone.
 
 ## Future real activation requirements
 

@@ -1550,7 +1550,10 @@ export default function ProductsCRUDPage() {
     });
 
     handleOpenEdit(duplicated);
-    } catch { showFeedback('Não foi possível duplicar.', 'error'); }
+    } catch (error) {
+      const message = billingErrorMessage({code:'42501',message:error instanceof Error ? error.message : ''});
+      showFeedback(message || 'Não foi possível duplicar.', 'error');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
