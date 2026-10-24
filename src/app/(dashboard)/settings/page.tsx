@@ -1,4 +1,5 @@
 'use client';
+import { FiscalConfiguration } from '@/components/fiscal/fiscal-center';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { useFeedback } from '@/context/database-context';
 
@@ -50,7 +51,7 @@ import {
 import { AuditLogPanel } from '@/components/settings/audit-log-panel';
 
 type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' | 'estoque' | 'arte_finalista';
-type SettingsTab = 'empresa' | 'financas' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema';
+type SettingsTab = 'empresa' | 'financas' | 'fiscal' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema';
 
 const SYSTEM_MODULES = [
   { path: '/agenda', label: 'Agenda', desc: 'Compromissos, lembretes e prazos dos módulos autorizados.' },
@@ -651,6 +652,7 @@ export default function SettingsPage() {
           {[
             { id: 'empresa', label: 'Empresa & Marca', icon: Building2 },
             { id: 'financas', label: 'Finanças & Chave Pix', icon: Coins },
+            { id: 'fiscal', label: 'Fiscal', icon: FileText },
             { id: 'coleta', label: 'Balcões de Retirada', icon: MapPin },
             ...(activeProfile?.role === 'admin' ? [{ id: 'funcionarios', label: 'Funcionários & Acessos', icon: Users }] : []),
             ...(activeProfile?.role === 'admin' ? [{ id: 'auditoria', label: 'Logs de Auditoria', icon: FileClock }] : []),
@@ -678,6 +680,7 @@ export default function SettingsPage() {
 
         {/* Conteúdo da Aba Ativa */}
         <div className="w-full min-w-0 flex-1 space-y-4 sm:space-y-6">
+          {activeTab === 'fiscal' && <FiscalConfiguration />}
 
           {['empresa', 'financas', 'sistema'].includes(activeTab) && (
           <form id="general-settings-form" onSubmit={handleSaveSettings} className="space-y-6">
@@ -1271,14 +1274,15 @@ export default function SettingsPage() {
                     {/* Fiscal Toggle */}
                     <div className="flex items-center justify-between p-3.5 bg-secondary/20 border border-border rounded-xl">
                       <div>
-                        <span className="font-bold text-xs text-foreground block">Emissão de Notas Fiscais (NF-e, NFS-e)</span>
+                        <span className="font-bold text-xs text-foreground block">Emissão fiscal real bloqueada</span>
                         <span className="text-[10px] text-muted-foreground mt-0.5 block max-w-md">
-                          Prepara a API de emissão fiscal automática para prefeituras e receita nacional.
+                          Configure NFS-e em Fiscal. Nesta fase, somente simulação QA; nenhuma emissão real.
                         </span>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setNfeEnabled(!nfeEnabled)}
+                        disabled
+                        aria-label="Emissão fiscal real indisponível"
                         className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${
                           nfeEnabled ? 'bg-primary' : 'bg-secondary border border-border'
                         }`}

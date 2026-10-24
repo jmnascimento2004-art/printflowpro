@@ -1,4 +1,5 @@
 'use client';
+import { FiscalEntitySection } from '@/components/fiscal/fiscal-center';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { useFeedback } from '@/context/database-context';
 
@@ -694,6 +695,7 @@ export default function CustomersPage() {
                 </button>
               </div>
 
+              {selectedCustomer && <FiscalEntitySection kind="customer" id={selectedCustomer.id} />}
               <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-secondary/30 p-1">
                 <button
                   type="button"

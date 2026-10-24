@@ -1,6 +1,7 @@
 'use client';
 
 import { PaymentLinksCenter } from '@/components/payments/payment-links-center';
+import { FiscalCenter } from '@/components/fiscal/fiscal-center';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { ProductConfiguratorModal } from '@/components/store/ProductConfiguratorModal';
 import { createPOSCartItem } from '@/lib/pos-cart';
@@ -2181,10 +2182,11 @@ export default function OrdersPage() {
           </div>
 
           <nav aria-label="Abas do pedido" className="flex gap-1 overflow-x-auto border-b border-border pb-2">
-            {[['items', 'Itens do Pedido'], ...(allowed('/financial') ? [['finance', 'Financeiro']] : []), ['production', 'Produção'], ['analysis', 'Análise']].map(([key, label]) => <button key={key} type="button" aria-pressed={detailTab === key} onClick={() => setDetailTab(key)} className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold ${detailTab === key ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>{label}</button>)}
+            {[['items', 'Itens do Pedido'], ...(allowed('/financial') ? [['finance', 'Financeiro'], ['fiscal', 'Fiscal']] : []), ['production', 'Produção'], ['analysis', 'Análise']].map(([key, label]) => <button key={key} type="button" aria-pressed={detailTab === key} onClick={() => setDetailTab(key)} className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold ${detailTab === key ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>{label}</button>)}
           </nav>
           {detailTab === 'production' && <OrderProductionSummary order={selectedOrder} production={production} shipments={shipments} canProduction={allowed('/production')} canShipment={allowed('/shipment')} />}
           {detailTab === 'analysis' && <OrderAnalysis order={selectedOrder} paid={selectedOrderPaidAmount} />}
+          {detailTab === 'fiscal' && allowed('/financial') && <FiscalCenter key={selectedOrder.id} orderId={selectedOrder.id} />}
           {detailTab === 'items' && <>
           {/* Informações de Entrega */}
           <div className="p-4 bg-secondary/20 border border-border rounded-xl space-y-2.5 text-xs">
