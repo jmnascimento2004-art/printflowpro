@@ -55,6 +55,10 @@ type EmployeeRole = 'admin' | 'gerente' | 'financeiro' | 'vendas' | 'producao' |
 type SettingsTab = 'empresa' | 'financas' | 'fiscal' | 'coleta' | 'funcionarios' | 'auditoria' | 'sistema' | 'subscription';
 
 const SYSTEM_MODULES = [
+  { path: '/suppliers', label: 'Fornecedores', desc: 'Cadastro canônico, contatos, anexos e produtos de fornecedores.' },
+  { path: '/purchases', label: 'Compras', desc: 'Solicitações e pedidos de compra, prazos e relatórios.' },
+  { path: '/purchases/approve', label: 'Compras — aprovação', desc: 'Aprovar solicitações, confirmar e cancelar compras; exige acesso a Compras.' },
+  { path: '/purchases/receive', label: 'Compras — recebimento', desc: 'Receber e reverter recebimentos; exige acesso a Compras e Estoque.' },
   { path: '/attendance', label: 'Atendimento', desc: 'Conversas da Store, atribuição e respostas da equipe.' },
   { path: '/agenda', label: 'Agenda', desc: 'Compromissos, lembretes e prazos dos módulos autorizados.' },
   { path: '/dashboard', label: 'Dashboard', desc: 'Resumo geral, estatísticas de vendas, status de produção e fluxo financeiro simplificado.' },

@@ -1,4 +1,5 @@
 export const AUDIT_MODULE_LABELS: Record<string, string> = {
+  purchases: 'Compras',
   catalog: 'Catálogo',
   categories: 'Categorias',
   customers: 'Clientes',
@@ -16,6 +17,23 @@ export const AUDIT_MODULE_LABELS: Record<string, string> = {
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  'supplier.disabled': 'Fornecedor inativado',
+  'supplier.product_linked': 'Produto vinculado ao fornecedor',
+  'purchase_request.created': 'Solicitação de compra criada',
+  'purchase_request.updated': 'Solicitação de compra atualizada',
+  'purchase_request.requested': 'Solicitação enviada para aprovação',
+  'purchase_request.approved': 'Solicitação de compra aprovada',
+  'purchase_request.rejected': 'Solicitação de compra rejeitada',
+  'purchase_order.created': 'Pedido de compra criado',
+  'purchase_order.updated': 'Pedido de compra atualizado',
+  'purchase_order.issued': 'Pedido de compra emitido',
+  'purchase_order.confirmed': 'Pedido de compra confirmado',
+  'purchase_order.cancelled': 'Pedido de compra cancelado',
+  'purchase.received': 'Recebimento de compra registrado',
+  'purchase.reversed': 'Recebimento de compra revertido',
+  'purchase.payables_generated': 'Contas a pagar da compra geradas',
+  'purchase.invoice_updated': 'Documento do fornecedor atualizado',
+  'purchase.attachment_added': 'Anexo privado de compra registrado',
   'cash_register.balance_changed': 'Saldo do caixa alterado',
   'cash_register.closed': 'Caixa fechado',
   'cash_register.deleted': 'Sessão de caixa removida',

@@ -10,6 +10,7 @@ import {
   History
 } from 'lucide-react';
 import { useDatabase } from '@/context/database-context';
+import {PurchasingStockLink} from '@/components/purchasing/report-link';
 import { formatCurrencyInput, parseCurrencyInputToNumber, stripRichTextHtml } from '@/lib/utils';
 
 export default function StockPage() {
@@ -103,6 +104,7 @@ export default function StockPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="flex justify-end"><PurchasingStockLink/></div>
       <div className={`space-y-6 ${isAdjusting ? 'hidden' : ''}`}>
         {/* Visual Tab Controls and Adjust button */}
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between no-print">
