@@ -24,6 +24,7 @@ import {
 import { useTheme } from '@/context/theme-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { useAuth } from '@/context/auth-context';
+import {ChatUnreadBadge} from '@/components/chat/chat-unread-badge';
 function getCompanyInitials(name: string) {
   const words = name.split(/\s+/).map((word) => word.replace(/[^a-z0-9]/gi, '')).filter(Boolean);
   return (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0]?.slice(0, 2) || 'PF').toUpperCase();
@@ -62,6 +63,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'PDV / Caixa', path: '/pos', icon: ShoppingBag },
     { name: 'Clientes', path: '/crm', icon: Users },
     { name: 'WhatsApp', path: '/whatsapp', icon: MessageCircle },
+    { name: 'Atendimento', path: '/attendance', icon: MessageCircle },
     { name: 'Produtos', path: '/products', icon: Package },
     { name: 'Catálogo', path: '/catalog', permissionPath: '/settings', icon: GalleryHorizontalEnd },
     { name: 'Orçamentos', path: '/quotes', icon: FileText },
@@ -177,6 +179,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
               >
                 <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`} />
                 {isOpen && <span className="truncate">{item.name}</span>}
+                {isOpen&&item.path==='/attendance'&&<ChatUnreadBadge/>}
               </Link>
             );
           })}

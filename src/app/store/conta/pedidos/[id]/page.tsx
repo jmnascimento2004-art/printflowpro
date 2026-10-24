@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { notFound, useParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
+import {StoreChatWidget} from '@/components/chat/store-chat-widget';
 import { StoreAccountShell } from '@/components/store/StoreAccountShell';
 import { useStoreCustomer } from '@/context/store-customer-context';
 import { formatOrderDisplayNumber } from '@/lib/order-number';
@@ -20,6 +21,8 @@ export default function StoreOrderDetailPage() {
     <StoreAccountShell title={order ? `Pedido ${formatOrderDisplayNumber(order.number)}` : 'Pedido'} subtitle="Detalhes do pedido e status atual.">
       {order && (
         <div className="space-y-4">
+          <StoreChatWidget orderId={order.id}/>
+          <button className="pf-button-secondary" onClick={()=>window.dispatchEvent(new CustomEvent('store-chat:open',{detail:{orderId:order.id}}))}>Conversar sobre este pedido</button>
           <Link href="/store/conta/pedidos" className="inline-flex items-center gap-2 text-xs font-black text-slate-500 hover:text-slate-950">
             <ArrowLeft className="h-4 w-4" />
             Voltar aos pedidos

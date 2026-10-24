@@ -1,4 +1,5 @@
 'use client';
+import {StoreChatWidget} from '@/components/chat/store-chat-widget';
 import { useFeedback } from '@/context/database-context';
 
 import { formatMeters } from '@/lib/metric.mjs';
@@ -367,6 +368,7 @@ export default function StorefrontPage() {
   useEffect(()=>{if(!analyticsConsent){trackedCheckoutOpen.current=false;return;}if(cartOpen&&!trackedCheckoutOpen.current)track('checkout_started');trackedCheckoutOpen.current=cartOpen;},[cartOpen,track,analyticsConsent]);
   useEffect(()=>{const category=searchParams.get('category');if(category&&categories.some(c=>c.id===category&&c.show_in_catalog!==false))setSelectedCategory(category);},[searchParams,categories]);
   const [activeAdvancedConfigProduct, setActiveAdvancedConfigProduct] = useState<Product | null>(null);
+  const [chatProductId,setChatProductId]=useState<string>();
   const [whatsAppRequestPending, setWhatsAppRequestPending] = useState(false);
   const [pendingWhatsAppOpen, setPendingWhatsAppOpen] = useState<{ href: string; message: string } | null>(null);
   const whatsAppProductRequestLocksRef = useRef<Set<string>>(new Set());
@@ -1388,6 +1390,7 @@ export default function StorefrontPage() {
         onClose={closeProductConfigurator}
         onAddToCart={handleAddAdvancedProductToCart}
         onRequestWhatsApp={handleWhatsAppProductRequest}
+        onChat={()=>{if(!activeAdvancedConfigProduct)return;const productId=activeAdvancedConfigProduct.id;setChatProductId(productId);closeProductConfigurator();window.dispatchEvent(new CustomEvent('store-chat:open',{detail:{productId}}));}}
         isWhatsAppRequestPending={whatsAppRequestPending}
         categoryName={
           activeAdvancedConfigProduct
@@ -1968,6 +1971,7 @@ export default function StorefrontPage() {
       )}
 
       {/* 10. Footer */}
+      <StoreChatWidget hidden={cartOpen || Boolean(activeAdvancedConfigProduct) || Boolean(orderCompleted) || pickupModalOpen || refundModalOpen || Boolean(pendingWhatsAppOpen)} productId={products.find(p=>p.slug===getProductSlugFromStorePath(pathname))?.id||chatProductId}/>
       <StoreFooter
         company={company}
         settings={settings}

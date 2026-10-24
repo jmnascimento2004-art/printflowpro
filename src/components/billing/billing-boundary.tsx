@@ -5,6 +5,7 @@ import {usePathname} from 'next/navigation';
 import {billingApi,billingFeatures,type BillingAccess} from '@/lib/billing/client';
 function pathFeature(path:string){
  const entries=[['/financial/fiscal','fiscal'],['/financial/payment-links','payment_links'],['/financial/commissions','commissions'],['/financial','finance'],['/reports','reports'],['/catalog','catalog']];
+ if(path==='/attendance')return 'catalog';
  return entries.find(([prefix])=>path===prefix||path.startsWith(prefix+'/'))?.[1];
 }
 export function BillingBoundary({children,companyId}:{children:ReactNode;companyId:string}){

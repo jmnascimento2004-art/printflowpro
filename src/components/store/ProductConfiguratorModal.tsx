@@ -92,6 +92,7 @@ interface ProductConfiguratorModalProps {
   onClose: () => void;
   onAddToCart: (payload: ProductConfiguratorCartPayload) => void;
   onRequestWhatsApp?: (payload: ProductConfiguratorCartPayload) => void;
+  onChat?: () => void;
   isWhatsAppRequestPending?: boolean;
   categoryName?: string;
   isFavorite: boolean;
@@ -162,6 +163,7 @@ export function ProductConfiguratorModal({
   onClose,
   onAddToCart,
   onRequestWhatsApp,
+  onChat,
   isWhatsAppRequestPending = false,
   categoryName,
   isFavorite,
@@ -1196,6 +1198,7 @@ export function ProductConfiguratorModal({
               >
                 Finalizar produto
               </button>
+              {onChat&&<button type="button" onClick={onChat} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"><MessageCircle className="h-4 w-4"/>Tirar dúvida pelo chat</button>}
               {onRequestWhatsApp && <button
                 type="button"
                 onClick={handleWhatsAppRequest}
