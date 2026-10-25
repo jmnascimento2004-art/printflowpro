@@ -312,6 +312,8 @@ export interface ProductColorOption {
 }
 
 export interface Product {
+  structure_type?: 'simple' | 'composite' | 'kit';
+  inventory_unit?: string | null;
   catalog_sort_order?: number;
   id: string;
   company_id: string;
@@ -424,6 +426,7 @@ export interface Quote {
 }
 
 export interface OrderItem {
+  structure_type?: 'simple' | 'composite' | 'kit';
   id: string;
   product_id: string;
   product_name: string;

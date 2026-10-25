@@ -1,5 +1,7 @@
 'use client';
 import { FiscalEntitySection } from '@/components/fiscal/fiscal-center';
+import {ProductCompositionEntry} from '@/components/composition/entry-links';
+import {INVENTORY_UNITS} from '@/lib/composition/model';
 import Link from 'next/link';
 import {billingErrorMessage} from '@/lib/billing/errors.mjs';
 import { ProductMediaEditor } from '@/components/products/product-media-editor';
@@ -642,6 +644,7 @@ export default function ProductsCRUDPage() {
   const [baseCostInput, setBaseCostInput] = useState('0,00');
   const [salesPriceInput, setSalesPriceInput] = useState('0,00');
   const [stockControlled, setStockControlled] = useState(false);
+  const [stockUnit,setStockUnit]=useState('');
   const [minStock, setMinStock] = useState(10);
   const [initialStock, setInitialStock] = useState(0); // For creation only
   const [, setActive] = useState(true);
@@ -1377,6 +1380,7 @@ export default function ProductsCRUDPage() {
     setBaseCostInput(formatPtBrMoneyInput(0));
     setSalesPriceInput(formatPtBrMoneyInput(0));
     setStockControlled(false);
+    setStockUnit('');
     setMinStock(10);
     setInitialStock(0);
     setActive(true);
@@ -1447,6 +1451,7 @@ export default function ProductsCRUDPage() {
     setBaseCostInput(formatPtBrMoneyInput(prod.base_cost));
     setSalesPriceInput(formatPtBrMoneyInput(prod.sales_price));
     setStockControlled(prod.stock_controlled);
+    setStockUnit(prod.inventory_unit||'');
     setMinStock(prod.min_stock);
     setActive(true);
     setCatalogActive(prod.catalog_active ?? true);
@@ -1524,6 +1529,10 @@ export default function ProductsCRUDPage() {
   },[catalogSearch,products]);
 
   const handleDuplicateProduct = async (prod: Product) => {
+    if (prod.structure_type && prod.structure_type !== 'simple') {
+      showFeedback('Crie um cadastro separado e configure seus componentes para preservar a estrutura e o preço de cada produto.', 'info');
+      return;
+    }
     try {
     const duplicated = await saveProduct({
       name: `${prod.name} (Copia)`,
@@ -1534,6 +1543,7 @@ export default function ProductsCRUDPage() {
       base_cost: prod.base_cost,
       sales_price: prod.sales_price,
       stock_controlled: prod.stock_controlled,
+      inventory_unit: prod.inventory_unit || null,
       min_stock: prod.min_stock,
       active: true,
       catalog_active: prod.catalog_active ?? true,
@@ -1616,6 +1626,7 @@ export default function ProductsCRUDPage() {
         base_cost: effectiveCost,
         sales_price: salesPrice,
         stock_controlled: stockControlled,
+        inventory_unit: stockUnit||null,
         min_stock: minStock,
         active: true,
         catalog_active: catalogActive,
@@ -1639,6 +1650,7 @@ export default function ProductsCRUDPage() {
         base_cost: effectiveCost,
         sales_price: salesPrice,
         stock_controlled: stockControlled,
+        inventory_unit: stockUnit||null,
         min_stock: minStock,
         active: true,
         catalog_active: catalogActive,
@@ -3393,17 +3405,18 @@ export default function ProductsCRUDPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2"><ProductCostEditor suppliers={suppliers} value={costComposition} onChange={setCostComposition} manualCost={baseCost} mode={marginMode} multiplier={markupMultiplier} onModeChange={setMarginMode} onMultiplierChange={setMarkupMultiplier} margin={profitMargin} taxes={taxPercent} commission={commissionPercent} finalPrice={salesPrice}
+              <div className="md:col-span-2">{selectedProduct?.structure_type&&selectedProduct.structure_type!=='simple'?<p className="text-sm text-muted-foreground">Custo composto gerenciado na seção Composição e componentes deste formulário.</p>:<ProductCostEditor suppliers={suppliers} value={costComposition} onChange={setCostComposition} manualCost={baseCost} mode={marginMode} multiplier={markupMultiplier} onModeChange={setMarginMode} onMultiplierChange={setMarkupMultiplier} margin={profitMargin} taxes={taxPercent} commission={commissionPercent} finalPrice={salesPrice}
                 onApplyPrice={price => { setSalesPrice(price); setSalesPriceInput(formatPtBrMoneyInput(price)); }}
-                onPreset={id => { const preset = PRODUCT_PRICING_PRESETS.find(item => item.id === id); if (!preset) return; setPricingType(preset.pricingType); setSaleMode(preset.saleMode); setRegistrationType(preset.saleMode === 'volume' ? 'tiered' : preset.pricingType === 'unidade' ? 'simple_unit' : 'measured'); }} /></div>
+                onPreset={id => { const preset = PRODUCT_PRICING_PRESETS.find(item => item.id === id); if (!preset) return; setPricingType(preset.pricingType); setSaleMode(preset.saleMode); setRegistrationType(preset.saleMode === 'volume' ? 'tiered' : preset.pricingType === 'unidade' ? 'simple_unit' : 'measured'); }} />}</div>
               <div className="md:col-span-2"><ProductFieldsEditor fields={customFields} onChange={setCustomFields}/></div>
               <div className="md:col-span-2"><ProductPricingPreview product={{ id: 'preview', company_id: company?.id || '', name, description, sku, category_id: categoryId, pricing_type: pricingType, sales_price: salesPrice, base_cost: effectiveCost, stock_controlled: stockControlled, min_stock: minStock, current_stock: 0, active: true, created_at: '', volume_pricing: volumePricing, pricing_details: { raw_material_cost: baseCost, operating_cost: 0, production_time: 0, markup: profitMargin, commission: commissionPercent, taxes: taxPercent, waste_percent: 0, calculated_price: salesPrice, configurator_options: buildConfiguratorOptions() } }}/></div>
               {/* Cost Price */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Custo de Matéria-Prima / Aquisição (R$)</label>
+                <label className="text-xs font-semibold text-muted-foreground">{selectedProduct?.structure_type&&selectedProduct.structure_type!=='simple'?'Custo da composição (R$)':'Custo de Matéria-Prima / Aquisição (R$)'}</label>
                 <input
                   type="text"
                   value={baseCostInput}
+                  disabled={!!selectedProduct?.structure_type&&selectedProduct.structure_type!=='simple'}
                   onChange={(e) => handleBaseCostChange(e.target.value)}
                   onBlur={() => baseCostDraft.valid && setBaseCostInput(normalizePtBrMoneyInput(baseCostInput, 2))}
                   aria-invalid={!baseCostDraft.valid}
@@ -4312,6 +4325,7 @@ export default function ProductsCRUDPage() {
                 <button
                   type="button"
                   onClick={() => setStockControlled(!stockControlled)}
+                  disabled={!!selectedProduct?.structure_type&&selectedProduct.structure_type!=='simple'}
                   className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${
                     stockControlled ? 'bg-primary' : 'bg-secondary border border-border'
                   }`}
@@ -4329,7 +4343,8 @@ export default function ProductsCRUDPage() {
                     <input
                       type="number"
                       value={minStock}
-                      onChange={(e) => setMinStock(Math.max(0, parseInt(e.target.value) || 0))}
+                      min="0" step="0.000001"
+                      onChange={(e) => setMinStock(Math.max(0, Number(e.target.value) || 0))}
                       className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none text-center font-semibold"
                     />
                   </div>
@@ -4340,7 +4355,8 @@ export default function ProductsCRUDPage() {
                       <input
                         type="number"
                         value={initialStock}
-                        onChange={(e) => setInitialStock(Math.max(0, parseInt(e.target.value) || 0))}
+                        min="0" step="0.000001"
+                        onChange={(e) => setInitialStock(Math.max(0, Number(e.target.value) || 0))}
                         className="w-full px-3 py-1.5 bg-secondary/50 border border-emerald-500/20 rounded-lg text-xs text-foreground focus:outline-none text-center font-bold"
                       />
                     </div>
@@ -4349,7 +4365,12 @@ export default function ProductsCRUDPage() {
               )}
               </details>
               )}
-            </div>
+
+              <div className="order-8">
+            <ProductCompositionEntry product={isEditing?selectedProduct||undefined:undefined}/>
+            <label className="mb-4 block text-sm font-medium">Unidade física de estoque / componente<select className="mt-2 w-full min-w-0 rounded-xl border border-border bg-background px-3 py-2.5 text-sm" value={stockUnit} onChange={e=>setStockUnit(e.target.value)}><option value="">Seguir unidade do cadastro atual</option>{Object.entries(INVENTORY_UNITS).filter(([id])=>!['pacote','kit'].includes(id)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select><span className="mt-1 block text-xs text-muted-foreground">Não converte saldos. Produtos com histórico ou composição vinculada preservam sua unidade.</span></label>
+              </div>
+           </div>
 
             <div className="flex justify-end gap-2 border-t border-border pt-4 mt-2 shrink-0">
               <button

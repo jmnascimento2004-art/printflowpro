@@ -1,4 +1,7 @@
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  '/outsourcing': ['admin', 'gerente', 'financeiro', 'producao', 'estoque'],
+  '/outsourcing/approve': ['admin', 'gerente', 'financeiro', 'producao'],
+  '/outsourcing/receive': ['admin', 'gerente', 'producao', 'estoque'],
   '/suppliers': ['admin', 'gerente', 'financeiro', 'estoque'],
   '/purchases': ['admin', 'gerente', 'financeiro', 'estoque', 'producao'],
   '/purchases/approve': ['admin', 'gerente', 'financeiro'],
