@@ -1,5 +1,7 @@
 begin;
+set local timezone='America/Bahia';
 select no_plan();
+select is(current_setting('TimeZone'),'America/Bahia','fixture dates use the commercial timezone, including after UTC midnight');
 insert into auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('b1100000-0000-4000-8000-000000000001','authenticated','authenticated','purchase-a@example.test','',now(),'{}','{"name":"Purchase QA A","company_name":"Purchase QA A"}',now(),now()),
 ('b1100000-0000-4000-8000-000000000002','authenticated','authenticated','purchase-b@example.test','',now(),'{}','{"name":"Purchase QA B","company_name":"Purchase QA B"}',now(),now()),
