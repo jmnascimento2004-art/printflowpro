@@ -5,7 +5,8 @@ import Sidebar from '@/components/dashboard/sidebar';
 import Header from '@/components/dashboard/header';
 import MobileBottomNav from '@/components/dashboard/mobile-bottom-nav';
 import {BillingBoundary} from '@/components/billing/billing-boundary';
-import { BrandLogo, BrandMark } from '@/components/brand';
+import Image from 'next/image';
+import styles from './login.module.css';
 import { useAuth } from '@/context/auth-context';
 import { useDatabase, DEFAULT_ROLE_PERMISSIONS } from '@/context/database-context';
 import { usePathname, useRouter } from 'next/navigation';
@@ -18,8 +19,6 @@ import {
   Lock,
   LogIn,
   ShieldAlert,
-  ShieldCheck,
-  Sparkles,
   UserPlus
 } from 'lucide-react';
 
@@ -176,7 +175,7 @@ function LoginScreen({
         }
 
         await onSignUp(email, password, name, companyName);
-        setSuccessMessage('Conta criada. Se o Supabase pedir confirmacao, confirme o e-mail e entre novamente.');
+        setSuccessMessage('Conta criada. Confira seu e-mail para verificar se há uma confirmação pendente antes de entrar.');
       } else {
         await onSignIn(email, password);
       }
@@ -188,61 +187,32 @@ function LoginScreen({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200/80 text-slate-900 grid lg:grid-cols-[1.05fr_0.95fr]">
-      <section className="hidden lg:flex flex-col justify-between border-r border-slate-200/80 bg-white/45 px-10 py-9 backdrop-blur">
-        <BrandLogo subtitle="ERP SaaS para graficas e comunicacao visual" />
-
-        <div className="max-w-xl space-y-7">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Acesso protegido com Supabase Auth
-            </div>
-            <h1 className="mt-5 text-2xl font-black leading-tight text-slate-950">
-              Controle produção, vendas e financeiro com uma sessão segura.
-            </h1>
-            <p className="mt-4 text-sm leading-6 text-slate-600">
-              O painel administrativo exige autenticacao real. Cada conta fica vinculada a empresa pelo perfil e pelas politicas RLS do Supabase.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              ['RLS', 'Dados isolados por empresa'],
-              ['Auth', 'Login com sessao real'],
-              ['ERP', 'Operacao protegida']
-            ].map(([title, text]) => (
-              <div key={title} className="pf-card p-4">
-                <p className="text-lg font-black text-primary">{title}</p>
-                <p className="mt-1 text-[11px] leading-4 text-slate-500">{text}</p>
-              </div>
-            ))}
-          </div>
+    <div className={styles.page}>
+      <aside className={styles.presentation}>
+        <a href="https://printflowpro-vendas.vercel.app/" aria-label="Página inicial do PrintFlowPro"><Image src="/brands/printflowpro-white.png" width={1009} height={202} alt="PrintFlowPro" className={styles.logo} priority /></a>
+        <div className={styles.message}>
+          <span className={styles.eyebrow}>SUA GRÁFICA, NO MESMO FLUXO</span>
+          <h2>Boas ideias.<br />Uma rotina<br /><span>mais organizada.</span></h2>
+          <p>Do primeiro orçamento ao pedido aprovado, dê continuidade ao que faz o seu negócio acontecer.</p>
+          <div className={styles.flow}><span>Catálogo</span><ArrowRight size={14} /><span>Orçamentos</span><ArrowRight size={14} /><span>Pedidos</span></div>
         </div>
-
-        <p className="text-xs text-slate-500">© 2026 PrintFlowPRO. Plataforma operacional para alta produtividade.</p>
-      </section>
-
-      <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-        <form onSubmit={submit} className="w-full max-w-[430px] rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-300/30 sm:p-6">
-          <div className="mb-6 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="lg:hidden"><BrandMark className="h-11 w-11" /></div>
-              <div>
-                <h1 className="text-lg font-black text-slate-950 sm:text-xl">
-                  {mode === 'login' ? 'Boas-vindas ao PrintFlowPRO' : 'Criar acesso'}
-                </h1>
-                <p className="text-xs text-slate-500">
-                  {mode === 'login' ? 'Acesse sua conta para continuar.' : 'Crie o primeiro acesso da empresa.'}
-                </p>
-              </div>
-            </div>
-            <Sparkles className="hidden h-5 w-5 text-primary sm:block" />
+        <p className={styles.credit}>PrintFlowPro · Um projeto da Vextro Tecnologia.</p>
+      </aside>
+      <section className={styles.access} aria-label="Acesso ao PrintFlowPro">
+        <a href="https://printflowpro-vendas.vercel.app/" className={styles.back}>← Voltar ao site</a>
+        <div className={styles.formWrap}>
+        <Image src="/brands/printflowpro-blue.png" width={1009} height={202} alt="PrintFlowPro" className={styles.mobileLogo} priority />
+        <form onSubmit={submit} className={styles.form}>
+          <div className={styles.formHeading}>
+            <span className={styles.eyebrow}>BEM-VINDO AO PRINTFLOWPRO</span>
+            <h1>{mode === 'login' ? 'Seu próximo passo começa aqui.' : 'Vamos começar?'}</h1>
+            <p>{mode === 'login' ? 'Entre na sua conta para continuar.' : 'Preencha os dados para criar o acesso da sua empresa.'}</p>
           </div>
 
           <div className="mb-5 grid grid-cols-2 rounded-xl border border-slate-200 bg-slate-100 p-1">
             <button
               type="button"
+              aria-pressed={mode === 'login'}
               onClick={() => {
                 setMode('login');
                 setLocalError(null);
@@ -254,6 +224,7 @@ function LoginScreen({
             </button>
             <button
               type="button"
+              aria-pressed={mode === 'signup'}
               onClick={() => {
                 setMode('signup');
                 setLocalError(null);
@@ -266,13 +237,13 @@ function LoginScreen({
           </div>
 
           {(localError || authError) && (
-            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
+            <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-700">
               {localError || authError}
             </div>
           )}
 
           {successMessage && (
-            <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-xs leading-5 text-teal-700">
+            <div role="status" className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-xs leading-5 text-teal-700">
               {successMessage}
             </div>
           )}
@@ -333,6 +304,7 @@ function LoginScreen({
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:text-slate-900"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                   title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -361,6 +333,7 @@ function LoginScreen({
             Sua operação protegida para você trabalhar com segurança e tranquilidade.
           </p>
         </form>
+        </div>
       </section>
     </div>
   );
