@@ -18,8 +18,25 @@
   .formHeading { margin-bottom:14px; }
   .formHeading h1 { font-size:23px; margin:8px 0; }
   .form input { height:38px; }
-  .form label+label, .form label+div { margin-top:10px; }
+  .page { --pf-control-height:38px; }
+  .fields { gap:10px; }
   .form button[type=submit] { height:40px; margin-top:16px; }
   .form>p { margin-top:10px; line-height:1.5; }
   .mobileLogo { width:154px; margin-bottom:14px; }
+}
+
+.fields { display:grid; gap:16px; }
+.fields>label { min-width:0; margin:0; }
+.signupForm { max-width:460px; }
+.signupFields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.signupFields>label:nth-child(n+3) { grid-column:1 / -1; }
+@media (max-height:760px) {
+  .fields { gap:10px; }
+  .signupForm .formHeading { margin-bottom:10px; }
+  .signupForm { padding-top:16px; padding-bottom:16px; }
+}
+@media (max-width:380px) {
+  .signupForm { padding-left:18px; padding-right:18px; }
+  .signupFields { column-gap:10px; }
+  .signupFields input { padding-left:10px; }
 }
