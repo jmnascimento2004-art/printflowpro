@@ -4,7 +4,8 @@ import test from 'node:test';
 import ts from 'typescript';
 async function compile(path,deps={}){const source=await readFile(new URL(path,import.meta.url),'utf8');const code=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const module={exports:{}};new Function('exports','module','require',code)(module.exports,module,n=>{assert.ok(deps[n],n);return deps[n];});return module.exports;}
 const m=await compile('../src/lib/agenda.ts');
-const server=await compile('../src/lib/agenda-server.ts',{'./agenda':m});
+const fieldModel=await compile('../src/lib/field-services/model.ts');
+const server=await compile('../src/lib/agenda-server.ts',{'./agenda':m,'./field-services/model':fieldModel});
 const base={id:'e1',company_id:'a',title:'Visita',description:'',event_type:'visita',start_at:'2026-10-20T12:00:00Z',end_at:'2026-10-20T13:00:00Z',customer_id:null,responsible_profile_id:'p1',status:'agendado',reminder_minutes:30,recurrence:'none',recurrence_until:null,updated_at:'2026-10-20T01:00Z'};
 test('civil dates and midnight use Bahia consistently',()=>{assert.equal(m.agendaDate('2026-10-21'),'2026-10-21');assert.equal(m.agendaDate('2026-10-21T02:59:59Z'),'2026-10-20');assert.equal(m.agendaDate('2026-10-21T03:00:00Z'),'2026-10-21');assert.equal(m.localInstant('2026-10-21','00:00'),'2026-10-21T03:00:00.000Z');});
 test('windows bounded and calendar week starts Monday',()=>{assert.throws(()=>m.validateWindow('','2026-10-21'));assert.throws(()=>m.validateWindow('2026-10-01','2027-01-01'));assert.throws(()=>m.validateWindow('2026-02-30','2026-03-01'));assert.deepEqual(m.calendarWindow('2026-10-21','week'),{from:'2026-10-19',to:'2026-10-25'});});

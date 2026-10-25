@@ -1,4 +1,9 @@
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  '/field-services':['admin','gerente','financeiro','vendas','producao','estoque'],
+  '/field-services/manage':['admin','gerente'],
+  '/field-services/execute':['admin','gerente','producao','estoque'],
+  '/field-services/reopen':['admin','gerente'],
+  '/field-services/view-all':['admin','gerente','financeiro','vendas','estoque'],
   '/outsourcing': ['admin', 'gerente', 'financeiro', 'producao', 'estoque'],
   '/outsourcing/approve': ['admin', 'gerente', 'financeiro', 'producao'],
   '/outsourcing/receive': ['admin', 'gerente', 'producao', 'estoque'],

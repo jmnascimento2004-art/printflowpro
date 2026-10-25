@@ -1,4 +1,6 @@
 import 'server-only';
+import {fieldWhatsAppText} from '@/lib/field-services/whatsapp-message';
+import type {Service as FieldService} from '@/lib/field-services/model';
 
 import type { FinancialTransaction, Order, ProductionItem } from '@/lib/dummy-data';
 import { calculateOrderBalance, dedupeTransactionsById } from '@/lib/finance-rules';
@@ -38,6 +40,17 @@ import type {
 } from './variable-contract';
 
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdminClient>;
+/** The authenticated caller must authorize this service and management permission first. */
+export async function resolveFieldServiceWhatsAppMessage(trustedCompanyId:string,id:string,status:string){
+ if(!trustedCompanyId||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))throw controlledError('CONTEXT_INVALID');
+ const client=getSupabaseAdminClient(),[{data:service,error},company,settings]=await Promise.all([
+  client.from('field_services').select('*').eq('company_id',trustedCompanyId).eq('id',id).eq('status',status).maybeSingle(),
+  resolveWhatsAppCompanyVariables({companyId:trustedCompanyId,trustedCompanyId,eventKey:'quote_proposal'},createSupabaseWhatsAppVariableDataSource(client)),
+  createSupabaseWhatsAppSystemMessageDataSource(client).getWhatsAppSettings(trustedCompanyId)
+ ]);if(error||!service||!['scheduled','traveling','completed'].includes(status))throw controlledError('CONTEXT_INVALID');
+ const customer=await client.from('customers').select('name,phone').eq('company_id',trustedCompanyId).eq('id',service.customer_id).maybeSingle();if(customer.error||!customer.data?.phone)throw {code:'22023',message:'Serviço: Cliente sem telefone canônico para WhatsApp.'};
+ const text=fieldWhatsAppText({...service,customer_snapshot:{...service.customer_snapshot,name:customer.data.name||service.customer_snapshot.name}} as FieldService,company.variables['empresa.nome']||'empresa'),url=buildWhatsAppUrl(customer.data.phone,text,normalizeRenderSettings(trustedCompanyId,settings));if(!url)throw controlledError('RECIPIENT_MISSING');return {text,url};
+}
 
 /** Purchasing entry point in the canonical server resolver. Caller authorizes the
  * order with the authenticated client before resolving any private snapshot. */

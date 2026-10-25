@@ -1,0 +1,1 @@
+create index field_service_assigned_profile_fk on public.field_services(assigned_profile_id);

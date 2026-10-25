@@ -19,7 +19,7 @@ function failure(error:unknown) { const status=error&&typeof error==='object'&&'
 export async function GET(request:Request) {
   try {
     const {access,client,allowed}=await context(request),p=new URL(request.url).searchParams;
-    const permissions=Object.fromEntries(['/agenda','/orders','/quotes','/production','/shipment','/financial','/crm'].map(path=>[path,allowed(path)]));
+    const permissions=Object.fromEntries(['/agenda','/orders','/quotes','/production','/shipment','/financial','/crm','/field-services'].map(path=>[path,allowed(path)]));
     if(p.get('mode')==='options') {
       const search=(p.get('q')||'').trim().slice(0,80).replace(/[%_]/g,'');
       const [profiles,customers]=await Promise.all([
@@ -41,7 +41,7 @@ export async function GET(request:Request) {
       return NextResponse.json({events:events.slice(0,20),total:events.length},{headers});
     }
     for(const [param,key] of [['source','source_type'],['type','event_type'],['responsible','responsible_profile_id'],['customer','customer_id'],['status','status']] as const) {
-      const value=p.get(param); if(value) events=events.filter(e=>e[key]===value);
+      const value=p.get(param); if(value) events=events.filter(e=>e[key]===value||(param==='responsible'&&e.participant_profile_ids?.includes(value)));
     }
     if(p.get('late')==='1') events=events.filter(e=>e.status==='agendado'&&e.date<today);
     const page=Number(p.get('page')||0); if(!Number.isInteger(page)||page<0||page>10000) throw Object.assign(new Error('Página inválida.'),{status:400});
