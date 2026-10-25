@@ -1,7 +1,42 @@
-.page{--primary:202 100% 45%;min-height:100svh;display:grid;grid-template-columns:1fr 1fr;background:#f7fafc;color:#09263e;padding:20px;gap:20px;color-scheme:light}
-.presentation{background:radial-gradient(ellipse at bottom left,#104b72,transparent 65%),#061e34;border-radius:15px;color:white;padding:40px 48px;display:flex;flex-direction:column;justify-content:space-between;gap:55px;overflow:hidden}
-.logo{width:210px;height:auto}.message{max-width:450px}.eyebrow{font-size:10px;letter-spacing:1.8px;font-weight:600;color:#8ccef3}.message h2{font-size:clamp(36px,3.7vw,58px);line-height:1.1;letter-spacing:-2px;font-weight:600;margin:23px 0}.message h2 span{color:#57bfff}.message>p{font-size:14px;line-height:1.85;color:#b8cede;max-width:350px}.flow{display:flex;align-items:center;gap:13px;border-top:1px solid #ffffff20;margin-top:32px;padding-top:23px;font-size:11px;color:#b8cede}.flow svg{color:#4db6ed}.credit{font-size:10px;color:#8ba9bf}.access{display:flex;flex-direction:column;padding:18px 32px 28px;min-width:0}.back{align-self:flex-end;font-size:12px;color:#597084;padding:8px 0}.back:hover{color:#008fe8}.formWrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 0}.form{width:100%;max-width:410px;background:#fff;border:1px solid #e1eaf1;border-radius:15px;padding:32px;box-shadow:0 12px 40px #09253a04}.formHeading{margin-bottom:25px}.formHeading .eyebrow{font-size:9px;color:#648299;letter-spacing:1.2px}.formHeading h1{font-size:26px;line-height:1.25;letter-spacing:-.8px;font-weight:600;margin:13px 0 10px}.formHeading p{font-size:12px;line-height:1.6;color:#6a8091}.form input{height:44px;border-radius:9px}.form button[type=submit]{height:46px;border-radius:9px;box-shadow:none;font-weight:600}.form button{font-weight:600}.form :focus-visible{outline:2px solid #008fe8;outline-offset:3px}.mobileLogo{display:none;width:182px;height:auto}
+.page{--primary:202 100% 45%;min-height:100dvh;display:grid;grid-template-columns:1fr 1fr;background:#f7fafc;color:#09263e;padding:0;gap:0;color-scheme:light}
+.presentation{background:radial-gradient(ellipse at bottom left,#104b72,transparent 65%),#061e34;border-radius:0;color:white;padding:clamp(24px,4vh,48px) clamp(32px,4vw,64px);display:flex;flex-direction:column;justify-content:space-between;gap:24px;overflow:hidden}
+.logo{width:210px;height:auto}.message{max-width:450px}.eyebrow{font-size:10px;letter-spacing:1.8px;font-weight:600;color:#8ccef3}.message h2{font-size:clamp(36px,3.7vw,58px);line-height:1.1;letter-spacing:-2px;font-weight:600;margin:23px 0}.message h2 span{color:#57bfff}.message>p{font-size:14px;line-height:1.85;color:#b8cede;max-width:350px}.flow{display:flex;align-items:center;gap:13px;border-top:1px solid #ffffff20;margin-top:32px;padding-top:23px;font-size:11px;color:#b8cede}.flow svg{color:#4db6ed}.credit{font-size:10px;color:#8ba9bf}.access{display:flex;flex-direction:column;padding:16px 32px;min-width:0}.back{align-self:flex-end;font-size:12px;color:#597084;padding:8px 0}.back:hover{color:#008fe8}.formWrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 0}.form{width:100%;max-width:410px;background:#fff;border:1px solid #e1eaf1;border-radius:15px;padding:28px;box-shadow:0 12px 40px #09253a04}.formHeading{margin-bottom:20px}.formHeading .eyebrow{font-size:9px;color:#648299;letter-spacing:1.2px}.formHeading h1{font-size:26px;line-height:1.25;letter-spacing:-.8px;font-weight:600;margin:13px 0 10px}.formHeading p{font-size:12px;line-height:1.6;color:#6a8091}.form input{height:44px;border-radius:9px}.form button[type=submit]{height:46px;border-radius:9px;box-shadow:none;font-weight:600}.form button{font-weight:600}.form :focus-visible{outline:2px solid #008fe8;outline-offset:3px}.mobileLogo{display:none;width:182px;height:auto}
 @media(min-width:1500px){.presentation{padding:50px 70px}.form{max-width:430px}}
-@media(max-width:1000px){.page{grid-template-columns:.9fr 1.1fr;padding:14px;gap:8px}.presentation{padding:32px}.access{padding:14px}.form{padding:27px}.message h2{font-size:39px}.flow{gap:8px;font-size:10px}}
-@media(max-width:750px){.page{display:block;padding:0}.presentation{display:none}.access{min-height:100svh;padding:18px 22px}.formWrap{padding:28px 0}.mobileLogo{display:block;margin-bottom:30px}.form{padding:28px;max-width:410px}.formHeading h1{font-size:25px}.back{font-size:11px}}
+@media(max-width:1000px){.page{grid-template-columns:.9fr 1.1fr;padding:0;gap:0}.presentation{padding:32px}.access{padding:14px}.form{padding:27px}.message h2{font-size:39px}.flow{gap:8px;font-size:10px}}
+@media(max-width:750px){.page{display:block;padding:0}.presentation{display:none}.access{min-height:100dvh;padding:18px 22px}.formWrap{padding:16px 0}.mobileLogo{display:block;margin-bottom:20px}.form{padding:28px;max-width:410px}.formHeading h1{font-size:25px}.back{font-size:11px}}
 @media(max-width:360px){.access{padding:14px}.form{padding:22px}.formHeading h1{font-size:23px}}
+
+/* Compact vertical spacing keeps the complete form visible on laptop screens. */
+@media (max-height:760px) {
+  .presentation { padding-top:24px; padding-bottom:24px; gap:18px; }
+  .message h2 { font-size:clamp(32px,3.5vw,48px); margin:16px 0; }
+  .message>p { line-height:1.65; }
+  .flow { margin-top:20px; padding-top:16px; }
+  .access { padding-top:10px; padding-bottom:10px; }
+  .formWrap { padding:8px 0; }
+  .form { padding:20px 26px; }
+  .formHeading { margin-bottom:14px; }
+  .formHeading h1 { font-size:23px; margin:8px 0; }
+  .form input { height:38px; }
+  .page { --pf-control-height:38px; }
+  .fields { gap:10px; }
+  .form button[type=submit] { height:40px; margin-top:16px; }
+  .form>p { margin-top:10px; line-height:1.5; }
+  .mobileLogo { width:154px; margin-bottom:14px; }
+}
+
+.fields { display:grid; gap:16px; }
+.fields>label { min-width:0; margin:0; }
+.signupForm { max-width:460px; }
+.signupFields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.signupFields>label:nth-child(n+3) { grid-column:1 / -1; }
+@media (max-height:760px) {
+  .fields { gap:10px; }
+  .signupForm .formHeading { margin-bottom:10px; }
+  .signupForm { padding-top:16px; padding-bottom:16px; }
+}
+@media (max-width:380px) {
+  .signupForm { padding-left:18px; padding-right:18px; }
+  .signupFields { column-gap:10px; }
+  .signupFields input { padding-left:10px; }
+}

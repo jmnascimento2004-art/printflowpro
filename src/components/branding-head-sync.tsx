@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/auth-context';
 import { useDatabase } from '@/context/database-context';
 import {
   createBrandManifestUrl,
@@ -17,6 +18,14 @@ function ensureLink(rel: string) {
     document.head.appendChild(link);
   }
   return link;
+}
+
+function syncIconLinks(rel: string, href: string) {
+  ensureLink(rel);
+  document.querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`).forEach((link) => {
+    const absoluteHref = new URL(href, window.location.origin).href;
+    if (link.href !== absoluteHref) link.href = absoluteHref;
+  });
 }
 
 function getPublicBrandIconUrl(size: number, version: string) {
@@ -44,6 +53,7 @@ function absoluteUrl(value: string | null) {
 
 export function BrandingHeadSync() {
   const { company, settings } = useDatabase();
+  const { isAuthenticated } = useAuth();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -52,7 +62,9 @@ export function BrandingHeadSync() {
     const isStoreProductPath = pathname.startsWith('/store/product/');
     const appTitle = isStorePath ? `Catálogo - ${branding.appName}` : `Dashboard - ${branding.appName}`;
     const shortTitle = isStorePath ? 'Catálogo' : 'Dashboard';
-    const iconUrl = absoluteUrl(branding.effectiveIconUrl);
+    const isLogin = !isStorePath && !isAuthenticated;
+    const loginIcon = '/brands/printflowpro-favicon.png';
+    const iconUrl = absoluteUrl(isLogin ? loginIcon : branding.effectiveIconUrl);
     const publicIconUrl = getPublicBrandIconUrl(192, branding.brandingVersion);
     const manifestBranding = {
       ...branding,
@@ -66,9 +78,12 @@ export function BrandingHeadSync() {
 
     ensureLink('manifest').href = manifestUrl;
 
-    ensureLink('icon').href = iconUrl || publicIconUrl;
-    ensureLink('shortcut icon').href = iconUrl || publicIconUrl;
-    ensureLink('apple-touch-icon').href = publicIconUrl;
+    const syncIcons = () => {
+      syncIconLinks('icon', iconUrl || publicIconUrl);
+      syncIconLinks('shortcut icon', iconUrl || publicIconUrl);
+      syncIconLinks('apple-touch-icon', isLogin ? loginIcon : publicIconUrl);
+    };
+    syncIcons();
 
     ensureMeta('meta[name="theme-color"]', { name: 'theme-color' }).content = branding.themeColor;
     ensureMeta('meta[name="application-name"]', { name: 'application-name' }).content = appTitle;
@@ -80,7 +95,14 @@ export function BrandingHeadSync() {
       ensureMeta('meta[property="og:image"]', { property: 'og:image' }).content = new URL(getPublicBrandIconUrl(512, branding.brandingVersion), window.location.origin).href;
     }
     ensureMeta('meta[property="og:site_name"]', { property: 'og:site_name' }).content = appTitle;
-  }, [company, settings, pathname]);
+
+    // Next may stream additional metadata links after the login has mounted.
+    if (isLogin) {
+      const observer = new MutationObserver(syncIcons);
+      observer.observe(document.head, { childList: true, subtree: true });
+      return () => observer.disconnect();
+    }
+  }, [company, settings, pathname, isAuthenticated]);
 
   return null;
 }
