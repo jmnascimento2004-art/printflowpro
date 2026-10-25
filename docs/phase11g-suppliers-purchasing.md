@@ -20,6 +20,8 @@ Migration aditiva validada localmente antes de aplicação remota; Node completo
 
 Migration remota 20261024234135, nome phase11g_suppliers_purchasing, aplicada isoladamente no projeto dyqqhhywiubjraxyebgr. Antes/depois: CibelePRINT com 0 fornecedores, 2 movimentos de estoque e 47 lançamentos financeiros. Nenhum pedido de compra criado em empresa real. Bucket purchase-documents privado.
 
-99 cenários pgTAP focados; suíte SQL completa com 30 arquivos; 797 testes Node; duas conexões concorrentes; typecheck; lint sem erros (19 avisos anteriores). Revisão independente do código: 0 B/H/M/L. Preview, revisão visual e publicação ainda são gates pendentes nesta revisão.
+99 cenários pgTAP focados; suíte SQL completa com 30 arquivos; 801 testes Node; duas conexões concorrentes; typecheck; lint sem erros (19 avisos anteriores). Revisão independente do código: 0 B/H/M/L. Preview, revisão visual e publicação ainda são gates pendentes nesta revisão.
 
 Prova A4 sintética renderizada com Poppler e inspecionada; logo protegido pela allowlist canônica de Storage/PNG/JPEG inline, cabeçalhos sem sobreposição, parcelas reconciliadas, rodapé numerado e documento longo sem página vazia/corte. O helper de logo é compartilhado com Pedidos. Três testes PDF novos e 23 regressões de documentos aprovados.
+
+Validação autenticada QA: solicitação editada/enviada/aprovada/convertida; PC-0001 com subtotal140 e total150; estoque0→4→10 em dois movimentos, serviço sem estoque e custo base8 preservado; duas obrigações75 pendentes sem pagamento automático; XML privado registrado; viewer, download e impressão nativa confirmados. Ajustes finais: deep link por transactionId reaproveita foco financeiro da Agenda; timestamps de anexos usam America/Bahia sem deslocar datas civis. Limpeza, revisão visual final e publicação continuam pendentes nesta revisão.

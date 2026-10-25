@@ -1,3 +1,4 @@
+import {commercialDate} from '@/lib/commercial-intelligence';
 export const PURCHASE_STATUS={draft:'Rascunho',issued:'Emitido',confirmed:'Confirmado',partially_received:'Recebido parcialmente',received:'Recebido',cancelled:'Cancelado'} as const;
 export const REQUEST_STATUS={draft:'Rascunho',requested:'Solicitado',approved:'Aprovado',rejected:'Rejeitado',converted:'Convertido'} as const;
 export const PURCHASE_UNITS:Record<string,string>={unidade:'un.',m2:'m²',linear:'m',pacote:'pacote',kit:'kit',servico:'serviço',custom:'personalizado'};
@@ -17,4 +18,4 @@ export type PurchaseAttachment={id:string;supplier_id:string|null;order_id:strin
 export type PurchaseSource={permissions:{suppliers:boolean;purchases:boolean;approve:boolean;receive:boolean;finance:boolean};company:Record<string,string>;suppliers:Supplier[];products:PurchaseProduct[];links:SupplierProduct[];requests:PurchaseRequest[];request_items:RequestItem[];orders:PurchaseOrder[];items:PurchaseItem[];receipts:PurchaseReceipt[];receipt_items:ReceiptItem[];installments:PurchaseInstallment[];attachments:PurchaseAttachment[];events:{id:string;action:string;entity_id:string;actor_name:string;actor_role:string;created_at:string}[];accounts:{id:string;name:string}[];categories:{id:string;name:string}[]};
 export type DraftLine={product_id:string;description:string;unit:string;quantity:string;unit_price:string};
 export function receivedQuantity(source:PurchaseSource,itemId:string){const active=new Set(source.receipts.filter(r=>!r.reversed_at).map(r=>r.id));return source.receipt_items.filter(i=>i.item_id===itemId&&active.has(i.receipt_id)).reduce((n,i)=>n+Number(i.quantity),0);}
-export const dateLabel=(value:string|null)=>value?value.slice(0,10).split('-').reverse().join('/'):'—';
+export function dateLabel(value:string|null){if(!value)return '—';if(/^\d{4}-\d{2}-\d{2}$/.test(value))return value.split('-').reverse().join('/');const date=new Date(value);return Number.isFinite(date.getTime())?commercialDate(date).split('-').reverse().join('/'):'—';}

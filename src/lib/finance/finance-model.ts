@@ -6,6 +6,8 @@ import { commercialDate } from '../commercial-intelligence';
 
 export const FINANCE_METHODS = { pix:'Pix',dinheiro:'Dinheiro',cartao_credito:'Cartão de crédito',cartao_debito:'Cartão de débito',boleto:'Boleto',faturado:'Faturado B2B' };
 export const FINANCE_AREAS = {overview:'Visão Geral',breakEven:'Ponto de Equilíbrio',settings:'Impostos e Taxas',receivables:'Contas a Receber',payments:'Pagamentos',cashflow:'Fluxo de Caixa',payables:'Contas a Pagar',accounts:'Contas Bancárias'};
+export const financialTransactionHref=(id:string)=>`/financial?transactionId=${encodeURIComponent(id)}`;
+export const financialFocusId=(params:Pick<URLSearchParams,'get'>)=>params.get('transactionId')||params.get('agendaId')||'';
 export type Account={id:string;name:string;institution:string;kind:'bank'|'cash'|'clearing';active:boolean;system_key:string|null;notes:string;updated_at:string};
 export type Category={id:string;name:string;type:'receita'|'despesa';active:boolean};
 export type FinanceSettings={updated_at?:string;tax_regime?:string;tax_rate:number;fees?:Record<string,number>;loss_rate?:number;variable_rate?:number;contribution_margin?:number|null;revenue_target?:number;profit_target?:number};
