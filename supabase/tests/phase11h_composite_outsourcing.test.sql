@@ -86,6 +86,9 @@ create function pg_temp.ot(a text,patch jsonb default '{}') returns jsonb langua
 $$;
 grant execute on function pg_temp.ot(text,jsonb) to authenticated;
 select is((select number from public.outsourcing_orders where id=current_setting('composite.ot')::uuid),1::bigint,'tenant-scoped first OT number');
+select throws_ok($$select pg_temp.ot('ot_save',jsonb_build_object('component_id','b1181000-0000-4000-8000-000000000002','supplier_id',current_setting('composite.supplier'),'title','Acabamento sintético','quantity',1,'unit','unidade','due_date',current_date+2,'unit_cost','NaN','freight',2))$$,'23514',null,'non-finite estimated service cost is rejected atomically');
+select throws_ok($$select pg_temp.ot('ot_save',jsonb_build_object('component_id','b1181000-0000-4000-8000-000000000002','supplier_id',current_setting('composite.supplier'),'title','Acabamento sintético','quantity',1,'unit','unidade','due_date',current_date+2,'unit_cost',5,'freight','NaN'))$$,'23514',null,'non-finite freight is rejected atomically');
+do $$begin perform pg_temp.ot('ot_save',jsonb_build_object('component_id','b1181000-0000-4000-8000-000000000002','supplier_id',current_setting('composite.supplier'),'title','Acabamento sintético','quantity',1,'unit','unidade','due_date',current_date+2,'unit_cost',5,'freight',2));end $$;
 select lives_ok($$select pg_temp.ot('ot_transition','{"status":"issued"}')$$,'issue technical OT');
 select lives_ok($$select pg_temp.ot('ot_transition','{"status":"confirmed"}')$$,'confirm technical OT');
 select throws_like($$select public.composite_command(gen_random_uuid(),'ot_save',jsonb_build_object('id',current_setting('composite.ot'),'updated_at',(select updated_at from public.outsourcing_orders where id=current_setting('composite.ot')::uuid)))$$,'%Somente rascunho%','confirmed technical snapshot frozen');
@@ -98,6 +101,7 @@ select is((select status from public.outsourcing_orders where id=current_setting
 select set_config('composite.r2',pg_temp.ot('ot_receive',jsonb_build_object('quantity',0.6,'received_date',current_date,'quality','with_reservations','notes','Conferência final QA'))->>'receipt_id',true);
 select is((select status from public.outsourcing_orders where id=current_setting('composite.ot')::uuid),'received','full outsourced receipt');
 select is((select status from public.production_queue where order_item_id='h-item'),'fila','receipt never synchronizes production status');
+select throws_ok($$select pg_temp.ot('ot_cost','{"actual_cost":"NaN","reason":"Valor não finito não pode gerar obrigação"}')$$,'22023',null,'non-finite actual service cost cannot reach the canonical purchase');
 select lives_ok($$select pg_temp.ot('ot_cost','{"actual_cost":6,"reason":"Valor efetivo sintético da conferência"}')$$,'record actual contracted cost');
 select is((select estimated_cost from public.outsourcing_orders where id=current_setting('composite.ot')::uuid),5::numeric,'estimated cost remains historical');
 select lives_ok($$select pg_temp.ot('ot_purchase',jsonb_build_object('due_date',current_date+10))$$,'OT generates canonical service purchase');
