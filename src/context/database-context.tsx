@@ -1177,7 +1177,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   // Dynamically update DOM favicon when configured
   useEffect(() => {
-    if (!initialized || !isBrowser() || !company?.favicon) return;
+    // The shared head sync owns the public login/store icon.
+    if (!session?.user || !initialized || !isBrowser() || !company?.favicon) return;
 
     // Check if it's a supported browser favicon (not .cdr or other unsupported formats)
     const isSupported = (url: string) => {
@@ -1214,7 +1215,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     };
 
     updateFavicons();
-  }, [company?.favicon, initialized]);
+  }, [company?.favicon, initialized, session?.user]);
  
   const resetDatabase = async () => {
     if (!isBrowser()) return false;

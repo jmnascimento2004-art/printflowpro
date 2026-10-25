@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/auth-context';
 import { useDatabase } from '@/context/database-context';
 import {
   createBrandManifestUrl,
@@ -44,6 +45,7 @@ function absoluteUrl(value: string | null) {
 
 export function BrandingHeadSync() {
   const { company, settings } = useDatabase();
+  const { isAuthenticated } = useAuth();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -52,7 +54,9 @@ export function BrandingHeadSync() {
     const isStoreProductPath = pathname.startsWith('/store/product/');
     const appTitle = isStorePath ? `Catálogo - ${branding.appName}` : `Dashboard - ${branding.appName}`;
     const shortTitle = isStorePath ? 'Catálogo' : 'Dashboard';
-    const iconUrl = absoluteUrl(branding.effectiveIconUrl);
+    const isLogin = !isStorePath && !isAuthenticated;
+    const loginIcon = '/brands/printflowpro-favicon.png';
+    const iconUrl = absoluteUrl(isLogin ? loginIcon : branding.effectiveIconUrl);
     const publicIconUrl = getPublicBrandIconUrl(192, branding.brandingVersion);
     const manifestBranding = {
       ...branding,
@@ -68,7 +72,7 @@ export function BrandingHeadSync() {
 
     ensureLink('icon').href = iconUrl || publicIconUrl;
     ensureLink('shortcut icon').href = iconUrl || publicIconUrl;
-    ensureLink('apple-touch-icon').href = publicIconUrl;
+    ensureLink('apple-touch-icon').href = isLogin ? loginIcon : publicIconUrl;
 
     ensureMeta('meta[name="theme-color"]', { name: 'theme-color' }).content = branding.themeColor;
     ensureMeta('meta[name="application-name"]', { name: 'application-name' }).content = appTitle;
@@ -80,7 +84,7 @@ export function BrandingHeadSync() {
       ensureMeta('meta[property="og:image"]', { property: 'og:image' }).content = new URL(getPublicBrandIconUrl(512, branding.brandingVersion), window.location.origin).href;
     }
     ensureMeta('meta[property="og:site_name"]', { property: 'og:site_name' }).content = appTitle;
-  }, [company, settings, pathname]);
+  }, [company, settings, pathname, isAuthenticated]);
 
   return null;
 }
