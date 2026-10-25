@@ -202,7 +202,7 @@ function LoginScreen({
         <a href="https://printflowpro-vendas.vercel.app/" className={styles.back}>← Voltar ao site</a>
         <div className={styles.formWrap}>
         <Image src="/brands/printflowpro-blue.png" width={1009} height={202} alt="PrintFlowPro" className={styles.mobileLogo} priority />
-        <form onSubmit={submit} className={styles.form}>
+        <form onSubmit={submit} className={`${styles.form} ${mode === 'signup' ? styles.signupForm : ''}`}>
           <div className={styles.formHeading}>
             <span className={styles.eyebrow}>BEM-VINDO AO PRINTFLOWPRO</span>
             <h1>{mode === 'login' ? 'Seu próximo passo começa aqui.' : 'Vamos começar?'}</h1>
@@ -248,7 +248,7 @@ function LoginScreen({
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className={`${styles.fields} ${mode === 'signup' ? styles.signupFields : ''}`}>
             {mode === 'signup' && (
               <>
                 <label className="block space-y-1.5">
