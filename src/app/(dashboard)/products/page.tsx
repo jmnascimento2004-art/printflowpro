@@ -2781,8 +2781,6 @@ export default function ProductsCRUDPage() {
         <div className="max-w-5xl mx-auto bg-card border border-border shadow-md rounded-2xl overflow-hidden p-6 no-print w-full animate-in slide-in-from-bottom duration-300">
           <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
             {isEditing && selectedProduct && <FiscalEntitySection kind="product" id={selectedProduct.id} />}
-            <ProductCompositionEntry product={isEditing?selectedProduct||undefined:undefined}/>
-            <label className="mb-4 block text-sm font-medium">Unidade física de estoque / componente<select className="mt-2 w-full min-w-0 rounded-xl border border-border bg-background px-3 py-2.5 text-sm" value={stockUnit} onChange={e=>setStockUnit(e.target.value)}><option value="">Seguir unidade do cadastro atual</option>{Object.entries(INVENTORY_UNITS).filter(([id])=>!['pacote','kit'].includes(id)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select><span className="mt-1 block text-xs text-muted-foreground">Não converte saldos. Produtos com histórico ou composição vinculada preservam sua unidade.</span></label>
             {saveError && <div role="alert" className="space-y-2 text-sm text-red-600"><p>{saveError}</p>{billingErrorMessage({code:'42501',message:saveError})&&<Link className="inline-flex min-h-11 items-center font-semibold underline" href="/settings/subscription">Ver planos e assinatura</Link>}</div>}
             <fieldset disabled={savingProduct||mediaBusy} className="contents">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
@@ -3407,7 +3405,7 @@ export default function ProductsCRUDPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">{selectedProduct?.structure_type&&selectedProduct.structure_type!=='simple'?<p className="text-sm text-muted-foreground">Custo composto gerenciado na seção Composição e componentes acima.</p>:<ProductCostEditor suppliers={suppliers} value={costComposition} onChange={setCostComposition} manualCost={baseCost} mode={marginMode} multiplier={markupMultiplier} onModeChange={setMarginMode} onMultiplierChange={setMarkupMultiplier} margin={profitMargin} taxes={taxPercent} commission={commissionPercent} finalPrice={salesPrice}
+              <div className="md:col-span-2">{selectedProduct?.structure_type&&selectedProduct.structure_type!=='simple'?<p className="text-sm text-muted-foreground">Custo composto gerenciado na seção Composição e componentes deste formulário.</p>:<ProductCostEditor suppliers={suppliers} value={costComposition} onChange={setCostComposition} manualCost={baseCost} mode={marginMode} multiplier={markupMultiplier} onModeChange={setMarginMode} onMultiplierChange={setMarkupMultiplier} margin={profitMargin} taxes={taxPercent} commission={commissionPercent} finalPrice={salesPrice}
                 onApplyPrice={price => { setSalesPrice(price); setSalesPriceInput(formatPtBrMoneyInput(price)); }}
                 onPreset={id => { const preset = PRODUCT_PRICING_PRESETS.find(item => item.id === id); if (!preset) return; setPricingType(preset.pricingType); setSaleMode(preset.saleMode); setRegistrationType(preset.saleMode === 'volume' ? 'tiered' : preset.pricingType === 'unidade' ? 'simple_unit' : 'measured'); }} />}</div>
               <div className="md:col-span-2"><ProductFieldsEditor fields={customFields} onChange={setCustomFields}/></div>
@@ -4366,7 +4364,12 @@ export default function ProductsCRUDPage() {
               )}
               </details>
               )}
-            </div>
+
+              <div className="order-8">
+            <ProductCompositionEntry product={isEditing?selectedProduct||undefined:undefined}/>
+            <label className="mb-4 block text-sm font-medium">Unidade física de estoque / componente<select className="mt-2 w-full min-w-0 rounded-xl border border-border bg-background px-3 py-2.5 text-sm" value={stockUnit} onChange={e=>setStockUnit(e.target.value)}><option value="">Seguir unidade do cadastro atual</option>{Object.entries(INVENTORY_UNITS).filter(([id])=>!['pacote','kit'].includes(id)).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select><span className="mt-1 block text-xs text-muted-foreground">Não converte saldos. Produtos com histórico ou composição vinculada preservam sua unidade.</span></label>
+              </div>
+           </div>
 
             <div className="flex justify-end gap-2 border-t border-border pt-4 mt-2 shrink-0">
               <button
