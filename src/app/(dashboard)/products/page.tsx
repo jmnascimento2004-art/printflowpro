@@ -3412,10 +3412,11 @@ export default function ProductsCRUDPage() {
               <div className="md:col-span-2"><ProductPricingPreview product={{ id: 'preview', company_id: company?.id || '', name, description, sku, category_id: categoryId, pricing_type: pricingType, sales_price: salesPrice, base_cost: effectiveCost, stock_controlled: stockControlled, min_stock: minStock, current_stock: 0, active: true, created_at: '', volume_pricing: volumePricing, pricing_details: { raw_material_cost: baseCost, operating_cost: 0, production_time: 0, markup: profitMargin, commission: commissionPercent, taxes: taxPercent, waste_percent: 0, calculated_price: salesPrice, configurator_options: buildConfiguratorOptions() } }}/></div>
               {/* Cost Price */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Custo de Matéria-Prima / Aquisição (R$)</label>
+                <label className="text-xs font-semibold text-muted-foreground">{selectedProduct?.structure_type&&selectedProduct.structure_type!=='simple'?'Custo da composição (R$)':'Custo de Matéria-Prima / Aquisição (R$)'}</label>
                 <input
                   type="text"
                   value={baseCostInput}
+                  disabled={!!selectedProduct?.structure_type&&selectedProduct.structure_type!=='simple'}
                   onChange={(e) => handleBaseCostChange(e.target.value)}
                   onBlur={() => baseCostDraft.valid && setBaseCostInput(normalizePtBrMoneyInput(baseCostInput, 2))}
                   aria-invalid={!baseCostDraft.valid}

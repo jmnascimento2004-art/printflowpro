@@ -5,7 +5,7 @@ import {compositeRequest} from '@/lib/composition/client';
 import {createPurchaseLoadState} from '@/lib/purchasing/load-state.mjs';
 import type {Product} from '@/lib/dummy-data';
 import type {CompositeSource} from '@/lib/composition/model';
-export type CompositeCommand=(action:string,payload:Record<string,unknown>)=>Promise<{id?:string;company_id:string;product?:Product;consumption_id?:string;reused?:boolean}>;
+export type CompositeCommand=(action:string,payload:Record<string,unknown>)=>Promise<{id?:string;company_id:string;product?:Product;consumption_id?:string;reused?:boolean;order_updated_at?:string}>;
 export function useComposition(query=''){
  const {applyPurchasingResult}=useDatabase();
  const [source,setSource]=useState<CompositeSource|null>(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');

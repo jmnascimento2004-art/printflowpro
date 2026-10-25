@@ -151,7 +151,7 @@ insert into public.products(id,company_id,name,pricing_type,base_cost,sales_pric
 set local role authenticated;
 select lives_ok($$select pg_temp.bom('h-optional','composite','[{"id":"b1181000-0000-4000-8000-000000000003","component_product_id":"h-unit","component_type":"material","quantity":1,"unit":"unidade","basis":"unit","is_optional":true}]')$$,'optional physical component defined');
 reset role;
-insert into public.orders(id,company_id,customer_name,number,status,total_amount,paid_amount,payment_status,deadline) values('h-optional-order',private.current_company_id(),'Opcional QA','PED-9915','producao',1,0,'pendente',now()+interval '2 days');
+insert into public.orders(id,company_id,customer_name,number,status,total_amount,paid_amount,payment_status,deadline,updated_at) values('h-optional-order',private.current_company_id(),'Opcional QA','PED-9915','producao',1,0,'pendente',now()+interval '2 days','2000-01-01');
 insert into public.order_items(id,order_id,product_id,product_name,quantity,unit_price,total_price,details) values('h-optional-item','h-optional-order','h-optional','Opcional QA',1,1,1,'{}');
 insert into public.role_permissions(company_id,path,roles) values(private.current_company_id(),'/production','{}'),(private.current_company_id(),'/outsourcing','{admin}') on conflict(company_id,path) do update set roles=excluded.roles;
 set local role authenticated;
@@ -159,7 +159,16 @@ select throws_like($$select public.composite_command(gen_random_uuid(),'optional
 reset role;
 update public.role_permissions set roles=case path when '/production' then '{admin}'::text[] else '{}'::text[] end where company_id=private.current_company_id() and path in('/production','/outsourcing');
 set local role authenticated;
-select lives_ok($$select public.composite_command(gen_random_uuid(),'optional_select','{"order_item_id":"h-optional-item","selected":["b1181000-0000-4000-8000-000000000003"]}')$$,'production selects optionals without outsourcing or stock command');
+select set_config('composite.order_before',(select to_jsonb(o)::text from public.orders o where id='h-optional-order'),true);
+select set_config('composite.items_before',(select jsonb_agg(to_jsonb(i))::text from public.order_items i where order_id='h-optional-order'),true);
+select set_config('composite.optional_op',gen_random_uuid()::text,true);
+select set_config('composite.optional_payload',jsonb_build_object('order_item_id','h-optional-item','expected_order_updated_at',current_setting('composite.order_before')::jsonb->>'updated_at','selected',jsonb_build_array('b1181000-0000-4000-8000-000000000003'))::text,true);
+select lives_ok($$select public.composite_command(current_setting('composite.optional_op')::uuid,'optional_select',current_setting('composite.optional_payload')::jsonb)$$,'production selects optionals without outsourcing or stock command');
+select ok((select updated_at from public.orders where id='h-optional-order')>(current_setting('composite.order_before')::jsonb->>'updated_at')::timestamptz,'optional selection advances canonical parent Order version');
+select is(public.save_order_with_items_and_production(current_setting('composite.order_before')::jsonb,current_setting('composite.items_before')::jsonb,(current_setting('composite.order_before')::jsonb->>'updated_at')::timestamptz)->>'result_status','CONFLICT','old aggregate form cannot overwrite optional selection');
+select is((select details->'optional_component_ids' from public.order_items where id='h-optional-item'),jsonb_build_array('b1181000-0000-4000-8000-000000000003'),'rejected stale aggregate preserves physical selection');
+select lives_ok($$select public.composite_command(current_setting('composite.optional_op')::uuid,'optional_select',current_setting('composite.optional_payload')::jsonb)$$,'same nonce retry succeeds before parent CAS check');
+select throws_like($$select public.composite_command(gen_random_uuid(),'optional_select',current_setting('composite.optional_payload')::jsonb)$$,'%Pedido atualizado por outra pessoa%','another optional session with stale version rejected');
 select is((select current_stock from public.products where id='h-unit'),14::numeric,'optional selection never consumes stock');
 select set_config('composite.request',public.composite_command(gen_random_uuid(),'purchase_request','{"order_item_id":"h-short-item","product_id":"h-unit"}')->>'id',true);
 select is(public.composite_command(gen_random_uuid(),'purchase_request','{"order_item_id":"h-short-item","product_id":"h-unit"}')->>'id',current_setting('composite.request'),'different nonce reuses open request for the same item/material shortage');
