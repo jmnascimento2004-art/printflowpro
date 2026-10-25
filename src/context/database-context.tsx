@@ -160,7 +160,8 @@ interface DatabaseContextType {
   deleteCustomer: (id: string) => Promise<boolean>;
 
   // Suppliers & Categories
-  addSupplier: (sup: Omit<Supplier, 'id' | 'company_id' | 'created_at'>) => Supplier;
+  addSupplier: (sup: Omit<Supplier, 'id' | 'company_id' | 'created_at'>) => Promise<Supplier>;
+  applyPurchasingResult: (result: {company_id: string; supplier?: Supplier; products?: Product[]; movements?: StockMovement[]; financial?: FinancialTransaction[]}) => void;
   addCategory: (name: string, description: string, parent_id?: string | null, show_in_catalog?: boolean) => Category;
   updateCategory: (id: string, name: string, description: string, parent_id?: string | null, show_in_catalog?: boolean) => void;
   updateCategoryCatalogPresentation: (id: string, patch: CategoryCatalogPresentationPatch) => Promise<void>;
@@ -1308,22 +1309,27 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   // ----------------------------------------------------
   // SUPPLIERS & CATEGORIES API
   // ----------------------------------------------------
-  const addSupplier = (sup: Omit<Supplier, 'id' | 'company_id' | 'created_at'>) => {
-    const newSup: Supplier = {
-      ...sup,
-      id: `sup-${Date.now()}`,
-      company_id: currentCompanyId,
-      created_at: new Date().toISOString()
+  const applyPurchasingResult = (result: {company_id: string; supplier?: Supplier; products?: Product[]; movements?: StockMovement[]; financial?: FinancialTransaction[]}) => {
+    if (result.company_id !== currentCompanyId || loadedSessionScopeKeyRef.current !== sessionScopeKey) return;
+    const merge = <T extends {id: string; company_id: string; updated_at?: string}>(current: T[], incoming: T[]) => {
+      const rows = new Map(current.map(row => [row.id,row]));
+      for (const row of incoming) {
+        if (row.company_id !== currentCompanyId) continue;
+        const previous = rows.get(row.id);
+        if (!previous || (Date.parse(row.updated_at || '') || 0) > (Date.parse(previous.updated_at || '') || 0) || (!row.updated_at && !previous.updated_at)) rows.set(row.id,row);
+      }
+      return [...rows.values()];
     };
-    setSuppliers(prev => [newSup, ...prev]);
-    void insertTenantRecord<Supplier>('suppliers', newSup).then((saved) => {
-      setSuppliers((current) => current.map((item) => item.id === saved.id ? saved : item));
-    }).catch((error) => {
-      setSuppliers((current) => current.filter((item) => item.id !== newSup.id));
-      warnCaught('Erro ao salvar fornecedor no Supabase:', error);
-      showToast('Não foi possível salvar o fornecedor.', 'error');
-    });
-    return newSup;
+    if (result.supplier) setSuppliers(current => merge(current,[result.supplier!]));
+    if (result.products) setProducts(current => merge(current,result.products!));
+    if (result.movements) setStockMovements(current => merge(current,result.movements!));
+    if (result.financial) setFinancial(current => merge(current,result.financial!));
+  };
+  const addSupplier = async (sup: Omit<Supplier, 'id' | 'company_id' | 'created_at'>) => {
+    const {data,error} = await supabase.rpc('purchase_command',{p_operation_id:crypto.randomUUID(),p_action:'supplier_save',p_payload:sup});
+    if (error) throw error;
+    applyPurchasingResult(data);
+    return data.supplier as Supplier;
   };
 
   const addCategory = (name: string, description: string, parent_id?: string | null, show_in_catalog: boolean = true) => {
@@ -2504,6 +2510,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         saveCustomer,
         deleteCustomer,
         addSupplier,
+        applyPurchasingResult,
         addCategory,
         updateCategory,
         updateCategoryCatalogPresentation,

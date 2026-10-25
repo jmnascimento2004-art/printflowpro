@@ -39,6 +39,25 @@ import type {
 
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdminClient>;
 
+/** Purchasing entry point in the canonical server resolver. Caller authorizes the
+ * order with the authenticated client before resolving any private snapshot. */
+export async function resolvePurchaseWhatsAppMessage(trustedCompanyId:string,orderId:string){
+ if(!trustedCompanyId||! /^[0-9a-f-]{36}$/i.test(orderId))throw controlledError('CONTEXT_INVALID');
+ const client=getSupabaseAdminClient();
+ const [{data:order,error},company,settings]=await Promise.all([
+  client.from('purchase_orders').select('id,number,status,total,expected_date,supplier_snapshot').eq('company_id',trustedCompanyId).eq('id',orderId).maybeSingle(),
+  resolveWhatsAppCompanyVariables({companyId:trustedCompanyId,trustedCompanyId,eventKey:'quote_proposal'},createSupabaseWhatsAppVariableDataSource(client)),
+  createSupabaseWhatsAppSystemMessageDataSource(client).getWhatsAppSettings(trustedCompanyId)
+ ]);
+ if(error||!order||['draft','cancelled'].includes(order.status))throw controlledError('CONTEXT_INVALID');
+ const supplier=order.supplier_snapshot as {name?:string;whatsapp?:string;phone?:string},recipient=supplier.whatsapp||supplier.phone;
+ if(!recipient)throw controlledError('RECIPIENT_MISSING');
+ const renderSettings=normalizeRenderSettings(trustedCompanyId,settings);
+ const content=`Olá, ${supplier.name||'fornecedor'}! Segue o pedido de compra PC-${String(order.number).padStart(4,'0')} da ${company.variables['empresa.nome']||'empresa'}.\nTotal: ${formatCurrency(Number(order.total))}.${order.expected_date?`\nEntrega prevista: ${String(order.expected_date).split('-').reverse().join('/')}.`:''}\nPor segurança do navegador, o PDF deve ser anexado manualmente nesta conversa. Poderia confirmar o recebimento e o prazo?`;
+ const href=buildWhatsAppUrl(recipient,content,renderSettings);if(!href)throw controlledError('RECIPIENT_MISSING');
+ return {href,content,recipient,confirmBeforeOpen:renderSettings.confirm_before_open};
+}
+
 /** Additional Store entry point into the same company resolver, settings and URL runtime.
  * Caller must first authorize the conversation. No transcript or customer contact is loaded.
  */

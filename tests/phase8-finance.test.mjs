@@ -12,6 +12,10 @@ const tx=(id,extra={})=>({id,company_id:'a',account_id:'a',type:'receita',amount
 const order=(id,extra={})=>({id,number:'PED-0001',customer_id:'c',customer_name:'Cliente',total_amount:300,paid_amount:0,status:'producao',created_at:'2026-10-01T12:00Z',...extra});
 const empty={transactions:[],orders:[],customers:[],accounts:[{id:'a',name:'A',active:true},{id:'b',name:'B',active:true}],categories:[],suppliers:[],settings:{tax_rate:0}};
 const build=(extra,filter={})=>m.buildFinanceModel({...empty,...extra},{...filters,...filter},now);
+
+test('transaction links address the canonical obligation without borrowing Agenda context',()=>assert.equal(m.financialTransactionHref('purchase payable/QA'),'/financial?transactionId=purchase%20payable%2FQA'));
+test('canonical finance focus accepts purchase transaction and preserves Agenda fallback',()=>{assert.equal(m.financialFocusId(new URLSearchParams({transactionId:'purchase-qa'})),'purchase-qa');assert.equal(m.financialFocusId(new URLSearchParams({agendaId:'agenda-qa'})),'agenda-qa');assert.equal(m.financialFocusId(new URLSearchParams()),'');});
+test('purchase transaction focus selects one future payable outside default cash window',()=>{const data=build({transactions:[tx('purchase-qa',{type:'despesa',entry_role:'payable',status:'pendente',paid_at:null,source:'accounts_payable',due_date:'2026-12-10'}),tx('other-qa',{type:'despesa',entry_role:'payable',status:'pendente',paid_at:null,source:'accounts_payable',due_date:'2026-12-11'})]},{id:'purchase-qa'});assert.equal(data.focusArea,'payables');assert.equal(data.payables.total,1);assert.equal(data.payables.rows[0].id,'purchase-qa');});
 test('cashflow totals follow the same method and search filters as the table',()=>{
  const data=build({transactions:[tx('pix',{amount:80}),tx('cash',{payment_method:'dinheiro',amount:120})]},{method:'pix',search:'pix'});
  assert.equal(data.cashflow.total,1);assert.equal(data.flow.income,80);assert.equal(data.flow.net,80);assert.equal(data.flow.closing,200);

@@ -74,6 +74,8 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'Financeiro', path: '/financial', icon: DollarSign },
     { name: 'Relatórios', path: '/reports', icon: FileText },
     { name: 'Estoque / Insumos', path: '/stock', icon: Layers },
+    { name: 'Fornecedores', path: '/suppliers', icon: Users },
+    { name: 'Compras', path: '/purchases', icon: ShoppingBag },
     { name: 'Expedição', path: '/shipment', icon: Truck },
     { name: 'Revenda', path: '/resale', icon: ExternalLink },
     { name: 'Configurações', path: '/settings', icon: Settings },

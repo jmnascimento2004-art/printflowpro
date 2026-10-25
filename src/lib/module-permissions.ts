@@ -1,4 +1,8 @@
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  '/suppliers': ['admin', 'gerente', 'financeiro', 'estoque'],
+  '/purchases': ['admin', 'gerente', 'financeiro', 'estoque', 'producao'],
+  '/purchases/approve': ['admin', 'gerente', 'financeiro'],
+  '/purchases/receive': ['admin', 'gerente', 'estoque'],
   '/attendance': ['admin', 'gerente', 'vendas'],
   '/reports': ['admin', 'gerente', 'financeiro', 'vendas', 'producao', 'arte_finalista', 'estoque'],
   '/agenda': ['admin', 'gerente', 'financeiro', 'vendas', 'producao', 'arte_finalista', 'estoque'],

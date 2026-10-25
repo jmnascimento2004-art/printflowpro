@@ -22,9 +22,8 @@ values
 select set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 set local role authenticated;
 
-insert into public.suppliers(id, company_id, name) values
-  ('phase4e-supplier-a', private.current_company_id(), 'Fornecedor A');
-select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4e-supplier-a' and action = 'supplier.created'), 1, 'supplier create appends exactly one event');
+select set_config('phase4e.supplier',public.purchase_command(gen_random_uuid(),'supplier_save','{"name":"Fornecedor A"}')#>>'{supplier,id}',true);
+select is((select count(*)::integer from public.audit_logs where entity_id = current_setting('phase4e.supplier') and action = 'supplier.created'), 1, 'supplier create appends exactly one event');
 
 update public.products set sales_price = 12 where id = 'phase4e-product-a';
 select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4e-product-a' and action = 'product.price_changed'), 1, 'price change has a dedicated event');
@@ -79,11 +78,11 @@ reset role;
 select set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 set local role authenticated;
 select throws_ok(
-  $sql$do $block$ begin update public.suppliers set name = 'Rollback' where id = 'phase4e-supplier-a'; raise exception 'PHASE4E_ROLLBACK'; end $block$;$sql$,
+  $sql$do $block$ begin perform public.purchase_command(gen_random_uuid(),'supplier_save',(select to_jsonb(s)||'{"name":"Rollback"}'::jsonb from public.suppliers s where id=current_setting('phase4e.supplier'))); raise exception 'PHASE4E_ROLLBACK'; end $block$;$sql$,
   'P0001', 'PHASE4E_ROLLBACK', 'failed transaction reports the expected error'
 );
-select is((select name from public.suppliers where id = 'phase4e-supplier-a'), 'Fornecedor A', 'failed transaction rolls back business data');
-select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4e-supplier-a' and new_values ->> 'name' = 'Rollback'), 0, 'failed transaction rolls back the audit event');
+select is((select name from public.suppliers where id = current_setting('phase4e.supplier')), 'Fornecedor A', 'failed transaction rolls back business data');
+select is((select count(*)::integer from public.audit_logs where entity_id = current_setting('phase4e.supplier') and new_values ->> 'name' = 'Rollback'), 0, 'failed transaction rolls back the audit event');
 
 select is((select count(*)::integer from public.audit_logs where entity_id = 'phase4e-product-a' and action = 'product.price_changed'), 1, 'one logical price update creates one event');
 select ok(not exists (select 1 from public.audit_logs where old_values::text ~* 'sensitive-pix-value' or new_values::text ~* 'sensitive-pix-value'), 'sensitive PIX value never reaches audit JSON');
