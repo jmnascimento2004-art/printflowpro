@@ -1,5 +1,5 @@
 'use client';
-import {INVENTORY_UNITS,inventoryUnit} from '@/lib/composition/model';
+import {INVENTORY_UNITS,inventoryUnit,formatPhysicalQuantity} from '@/lib/composition/model';
 
 import React, { useState } from 'react';
 import { 
@@ -184,7 +184,7 @@ export default function StockPage() {
                   <option value="">Selecione o produto...</option>
                   {products.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} (Estoque atual: {p.current_stock} {INVENTORY_UNITS[inventoryUnit(p)]||inventoryUnit(p)})
+                      {p.name} (Estoque atual: {formatPhysicalQuantity(p.current_stock)} {INVENTORY_UNITS[inventoryUnit(p)]||inventoryUnit(p)})
                     </option>
                   ))}
                 </select>
@@ -311,7 +311,7 @@ export default function StockPage() {
                         </div>
                         <div className="rounded-lg border border-border/70 bg-card/80 p-2 text-right">
                           <span className="block font-bold uppercase text-muted-foreground">Qtd. atual</span>
-                          <strong className="mt-0.5 block text-xs text-foreground">{p.stock_controlled ? p.current_stock : '-'}</strong>
+                          <strong className="mt-0.5 block text-xs text-foreground">{p.stock_controlled ? formatPhysicalQuantity(p.current_stock) : '-'}</strong>
                         </div>
                         <div className="rounded-lg border border-border/70 bg-card/80 p-2">
                           <span className="block font-bold uppercase text-muted-foreground">Custo base</span>
@@ -325,7 +325,7 @@ export default function StockPage() {
 
                       <div className="mt-3 flex items-center justify-between rounded-lg bg-card/70 px-2.5 py-2 text-[10px]">
                         <span className="font-bold uppercase text-muted-foreground">Estoque mínimo</span>
-                        <span className="font-black text-foreground">{p.stock_controlled ? p.min_stock : 'Não controlado'}</span>
+                        <span className="font-black text-foreground">{p.stock_controlled ? formatPhysicalQuantity(p.min_stock) : 'Não controlado'}</span>
                       </div>
 
                       <div className="mt-auto grid grid-cols-2 gap-2 pt-3">
@@ -398,7 +398,7 @@ export default function StockPage() {
                         </td>
                         <td className="px-5 py-3.5 font-semibold text-foreground">{move.product_name}</td>
                         <td className={`px-5 py-3.5 text-center font-bold ${isInput ? 'text-emerald-500' : 'text-foreground'}`}>
-                          {isInput ? '+' : '-'}{move.quantity}
+                          {isInput ? '+' : '-'}{formatPhysicalQuantity(move.quantity)}
                         </td>
                         <td className="px-5 py-3.5 text-right font-semibold text-muted-foreground">
                           {formatCurrency(move.unit_cost)}

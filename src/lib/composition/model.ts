@@ -6,6 +6,7 @@ export const PHYSICAL_BASES={unit:'Por unidade do produto/kit',area:'Por m² rea
 export const OUTSOURCING_STATUS={draft:'Rascunho',issued:'Emitida',confirmed:'Confirmada',sent:'Enviada',in_progress:'Em execução',partial:'Recebida parcialmente',received:'Recebida',cancelled:'Cancelada'} as const;
 export const INVENTORY_UNITS:Record<string,string>={unidade:'un.',m2:'m²',linear:'m',kg:'kg',l:'L',pacote:'pacote',kit:'kit'};
 export const inventoryUnit=(p:{inventory_unit?:string|null;pricing_type:string})=>p.inventory_unit||p.pricing_type;
+export const formatPhysicalQuantity=(value:number|string)=>Number(value).toLocaleString('pt-BR',{maximumFractionDigits:6});
 export const outsourcingNumber=(n:number)=>`OT-${String(n).padStart(4,'0')}`;
 export type Component={id:string;company_id?:string;product_id:string;component_product_id:string;component_type:keyof typeof COMPONENT_TYPES;quantity:number;unit:string;basis:keyof typeof PHYSICAL_BASES;waste_percent:number;is_optional:boolean;is_outsourced:boolean;preferred_supplier_id:string|null;lead_days:number;notes:string;sort_order:number};
 export type Requirement={id:string;product_id:string;name:string;kind:string;quantity:number;unit:string;basis:string;waste_percent:number;is_optional:boolean;is_outsourced:boolean;stock_controlled:boolean;unit_cost:number;preferred_supplier_id:string|null;lead_days:number;notes:string;required:number;available:number;shortage:number};
