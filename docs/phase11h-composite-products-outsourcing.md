@@ -60,4 +60,4 @@ Os dois avisos de RPC SECURITY DEFINER autenticada da 11H são intencionais: com
 
 V1: BOM plana, kit virtual fixo, sem reservas, conversões genéricas, estoque de terceiros ou margem paralela. Agenda mantém a fonte existente; não foi criada agenda paralela. Prazos e atrasos da OT ficam no módulo e na Produção.
 
-Este registro cobre a validação anterior ao merge. SHA de main, resultado da publicação e smoke somente leitura de Production constam no relatório final de 88 pontos. A Fase 11I não foi iniciada.
+Este registro cobre a validação anterior ao merge. Após o merge e o smoke somente leitura de Production, o relatório final de 88 pontos registrará o SHA de main e os resultados da publicação. A Fase 11I não foi iniciada.
