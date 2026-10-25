@@ -1,7 +1,7 @@
 // Project operational timezone, shared with commercial reporting. Civil dates never pass through UTC midnight.
 export const AGENDA_TIMEZONE = 'America/Bahia';
 export const AGENDA_TYPES = { compromisso: 'Compromisso', reuniao: 'Reunião', visita: 'Visita técnica', instalacao: 'Instalação', retirada: 'Retirada', entrega: 'Entrega', outro: 'Outro' };
-export const AGENDA_SOURCES = { manual: 'Compromissos', orders: 'Pedidos', quotes: 'Orçamentos', production: 'Produção', shipping: 'Expedição', financial: 'Financeiro' };
+export const AGENDA_SOURCES = { manual: 'Compromissos', orders: 'Pedidos', quotes: 'Orçamentos', production: 'Produção', shipping: 'Expedição', financial: 'Financeiro',field_services:'Serviços externos' };
 export type AgendaSource = keyof typeof AGENDA_SOURCES;
 export type AgendaStatus = 'agendado' | 'concluido' | 'cancelado';
 export type ManualEvent = {
@@ -14,7 +14,7 @@ export type AgendaEvent = {
   id: string; source_type: AgendaSource; source_id: string; url: string; title: string; start_at: string; end_at: string | null;
   date: string; all_day: boolean; status: AgendaStatus; source_status: string; event_type: string;
   customer_id: string | null; responsible_profile_id: string | null; responsible_name?: string; manual?: ManualEvent;
-  conflict?: boolean;
+  conflict?: boolean; participant_profile_ids?:string[];
 };
 const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: AGENDA_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit' });
 export const agendaDate = (value: string | Date) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : dayFormatter.format(new Date(value));
@@ -64,7 +64,7 @@ export function expandManual(rows: ManualEvent[], from: string, to: string): Age
 }
 export function markConflicts(events: AgendaEvent[]) {
   const groups=new Map<string,AgendaEvent[]>();
-  for (const e of events) if(e.source_type==='manual'&&e.status==='agendado'&&e.end_at&&e.responsible_profile_id) { const group=groups.get(e.responsible_profile_id)||[]; group.push(e);groups.set(e.responsible_profile_id,group); }
+  for (const e of events) if(['manual','field_services'].includes(e.source_type)&&e.status==='agendado'&&e.end_at) for(const id of new Set([e.responsible_profile_id,...(e.participant_profile_ids||[])].filter((id):id is string=>!!id))) { const group=groups.get(id)||[]; group.push(e);groups.set(id,group); }
   for(const group of groups.values()) { group.sort((a,b)=>Date.parse(a.start_at)-Date.parse(b.start_at)); let longest:AgendaEvent|undefined;
     for(const e of group) { if(longest && Date.parse(e.start_at)<Date.parse(longest.end_at!)) {e.conflict=true;longest.conflict=true;} if(!longest || Date.parse(e.end_at!)>Date.parse(longest.end_at!)) longest=e; }
   } return events;
@@ -73,7 +73,7 @@ export function agendaSummary(events:AgendaEvent[], now=new Date(), from?:string
   const today=agendaDate(now), active=events.filter(e=>e.status==='agendado');
   return {total:events.length,pending:active.length,completed:events.filter(e=>e.status==='concluido').length,cancelled:events.filter(e=>e.status==='cancelado').length,
     overdue:active.filter(e=>e.date<today).length,today:active.filter(e=>e.date===today).length,conflicts:events.filter(e=>e.conflict).length,
-    plannedHours:Math.round(active.filter(e=>e.source_type==='manual'&&e.end_at).reduce((sum,e)=>sum+Math.max(0,Math.min(Date.parse(e.end_at!),to?Date.parse(localInstant(shiftDate(to,1))):Infinity)-Math.max(Date.parse(e.start_at),from?Date.parse(localInstant(from)):-Infinity))/3600000,0)*100)/100,
-    busyPeople:new Set(active.filter(e=>e.source_type==='manual'&&e.end_at).map(e=>e.responsible_profile_id)).size};
+    plannedHours:Math.round(active.filter(e=>['manual','field_services'].includes(e.source_type)&&e.end_at).reduce((sum,e)=>sum+Math.max(0,Math.min(Date.parse(e.end_at!),to?Date.parse(localInstant(shiftDate(to,1))):Infinity)-Math.max(Date.parse(e.start_at),from?Date.parse(localInstant(from)):-Infinity))/3600000,0)*100)/100,
+    busyPeople:new Set(active.filter(e=>['manual','field_services'].includes(e.source_type)&&e.end_at).flatMap(e=>[e.responsible_profile_id,...(e.participant_profile_ids||[])].filter(Boolean))).size};
 }
 export function dueReminders(events:AgendaEvent[], now=new Date()) { return events.filter(e=>e.manual?.reminder_minutes!==null && e.manual?.reminder_minutes!==undefined && e.status==='agendado' && now.getTime()>=Date.parse(e.start_at)-e.manual.reminder_minutes*60000 && now.getTime()<=Date.parse(e.end_at||e.start_at)+3600000); }

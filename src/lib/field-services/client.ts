@@ -1,0 +1,3 @@
+'use client';
+import {supabase} from '@/lib/supabaseClient';
+export async function fieldRequest<T>(path='',init:RequestInit={}){const {data:{session}}=await supabase.auth.getSession();if(!session)throw new Error('Entre novamente para continuar.');const response=await fetch(`/api/field-services${path}`,{...init,headers:{Authorization:`Bearer ${session.access_token}`,...(init.body instanceof FormData?{}:{'Content-Type':'application/json'}),...init.headers},cache:'no-store'});const value=await response.json();if(!response.ok)throw new Error(value.error||'Não foi possível concluir a operação.');return value as T;}

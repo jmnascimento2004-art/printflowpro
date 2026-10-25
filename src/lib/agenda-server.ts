@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { agendaDate, expandManual, localInstant, markConflicts, shiftDate, type AgendaEvent, type ManualEvent } from './agenda';
+import {SERVICE_TYPES,serviceNumber,type Service} from './field-services/model';
 type Row = Record<string, string | null>;
 type Allowed = (path:string)=>boolean;
 // All sources are bounded by a period, paged on the server, and projected without commercial amounts.
@@ -16,14 +17,15 @@ async function readRows(client:SupabaseClient, table:string, select:string, comp
   throw Object.assign(new Error('Período muito movimentado. Selecione uma janela menor.'),{status:400});
 }
 export async function loadAgenda(client:SupabaseClient, company:string, allowed:Allowed, from:string,to:string,finance:boolean) {
-  const [manual,orders,quotes,production,shipped,delivered,financial]=await Promise.all([
+  const [manual,orders,quotes,production,shipped,delivered,financial,fieldServices]=await Promise.all([
     readRows(client,'agenda_events','*',company,'start_at',from,to,true),
     allowed('/orders')?readRows(client,'orders','id,number,deadline,status,customer_id,delivery_type',company,'deadline',from,to):[],
     allowed('/quotes')?readRows(client,'quotes','id,number,valid_until,status,customer_id',company,'valid_until',from,to):[],
     allowed('/production')?readRows(client,'production_queue','id,order_number,product_name,deadline,status,responsible_name,orders(status)',company,'deadline',from,to):[],
     allowed('/shipment')?readRows(client,'shipments','id,order_number,shipped_at,status',company,'shipped_at',from,to):[],
     allowed('/shipment')?readRows(client,'shipments','id,order_number,delivered_at,status',company,'delivered_at',from,to):[],
-    finance&&allowed('/financial')?readRows(client,'financial_transactions','id,type,description,due_date,status,orders(status),cancelled_at,payable_id,reversal_of,economic_kind',company,'due_date',from,to):[]
+    finance&&allowed('/financial')?readRows(client,'financial_transactions','id,type,description,due_date,status,orders(status),cancelled_at,payable_id,reversal_of,economic_kind',company,'due_date',from,to):[],
+    allowed('/field-services')?readRows(client,'field_services','id,number,title,service_type,status,scheduled_start,scheduled_end,customer_id,assigned_profile_id,team',company,'scheduled_start',shiftDate(from,-7),to):[]
   ]);
   const events=expandManual(manual as unknown as ManualEvent[],from,to);
   function add(rows:Row[], source:AgendaEvent['source_type'], path:string,dateKey:string,title:(r:Row)=>string,done:string[],allDay=false,eventType='prazo') {
@@ -41,5 +43,7 @@ export async function loadAgenda(client:SupabaseClient, company:string, allowed:
   add(shipped,'shipping','/shipment','shipped_at',r=>`${r.order_number} · Envio realizado`,['enviado','em_rota','entregue'],false,'envio');
   add(delivered,'shipping','/shipment','delivered_at',r=>`${r.order_number} · Entrega realizada`,['entregue'],false,'entrega');
   add(financial.filter(r=>!r.cancelled_at&&!r.payable_id&&!r.reversal_of&&(!r.economic_kind||r.economic_kind==='operating')),'financial','/financial','due_date',r=>`${r.type==='despesa'?'A pagar':'A receber'} · ${r.description||'Vencimento'}`,['pago'],true);
+  events.push(...fieldAgendaEvents(fieldServices as unknown as Service[],from));
   return markConflicts(events).sort((a,b)=>a.start_at.localeCompare(b.start_at)||a.id.localeCompare(b.id));
 }
+export function fieldAgendaEvents(rows:Service[],from:string):AgendaEvent[]{return rows.filter(s=>s.status!=='cancelled'&&s.scheduled_start&&s.scheduled_end&&Date.parse(s.scheduled_end)>Date.parse(localInstant(from))).map(s=>({id:`field_services:${s.id}`,source_type:'field_services',source_id:s.id,url:`/field-services?id=${encodeURIComponent(s.id)}`,title:`${serviceNumber(s.number)} · ${SERVICE_TYPES[s.service_type]} · ${s.title}`,start_at:s.scheduled_start!,end_at:s.scheduled_end,date:agendaDate(s.scheduled_start!),all_day:false,status:s.status==='completed'?'concluido':'agendado',source_status:s.status,event_type:s.service_type==='installation'?'instalacao':s.service_type==='technical_delivery'?'entrega':'visita',customer_id:s.customer_id,responsible_profile_id:s.assigned_profile_id,participant_profile_ids:s.team}));}

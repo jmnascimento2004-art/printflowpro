@@ -1,0 +1,4 @@
+import sharp from 'sharp';
+export async function normalizeFieldImage(input:Buffer,signature=false){
+ try{if(!input.length||input.length>5242880)throw new Error();const image=sharp(input,{limitInputPixels:20000000,animated:false}),meta=await image.metadata();if(!['jpeg','png','webp'].includes(meta.format||'')||!meta.width||!meta.height||meta.pages&&meta.pages>1)throw new Error();if(signature){if(meta.width*meta.height>2000000)throw new Error();return {bytes:await image.rotate().resize({width:1200,height:600,fit:'inside',withoutEnlargement:true}).png().toBuffer(),mime:'image/png'};}return {bytes:await image.rotate().resize({width:2048,height:2048,fit:'inside',withoutEnlargement:true}).jpeg({quality:82,mozjpeg:true}).toBuffer(),mime:'image/jpeg'};}catch{throw {code:'22023',message:'Serviço: Imagem inválida, animada ou acima dos limites (5 MB, 20 megapixels; assinatura: 2 megapixels).'};}
+}

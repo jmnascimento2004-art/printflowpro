@@ -1,5 +1,6 @@
 'use client';
 import { FiscalEntitySection } from '@/components/fiscal/fiscal-center';
+import {FieldCustomerHistory} from '@/components/field-services/entry-links';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { useFeedback } from '@/context/database-context';
 
@@ -1042,6 +1043,7 @@ export default function CustomersPage() {
                   orders={getCustomerOrders(selectedCustomer)}
                   formatCurrency={formatCurrency}
                 />
+                <FieldCustomerHistory key={selectedCustomer.id} customerId={selectedCustomer.id}/>
                 </div>
               </div>
 
@@ -1176,6 +1178,7 @@ export default function CustomersPage() {
                   </div>
 
                   <LinkedHistory quotes={detailQuotes} orders={detailOrders} formatCurrency={formatCurrency} />
+                  <FieldCustomerHistory key={detailsCustomer.id} customerId={detailsCustomer.id}/>
                 </div>
               </div>
             </div>

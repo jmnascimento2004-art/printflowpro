@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import ts from 'typescript';
+import {loadTypescript} from './helpers/load-typescript.mjs';
 
 async function compile(path, requireMap = {}) {
   const source = (await readFile(new URL(path, import.meta.url), 'utf8')).replace("import 'server-only';", '');
@@ -91,6 +92,7 @@ const storeResolver = {
 };
 
 const resolver = await compile('../src/lib/whatsapp/system-message-resolver.server.ts', {
+  '@/lib/field-services/whatsapp-message':loadTypescript('src/lib/field-services/whatsapp-message.ts'),
   '@/lib/finance-rules': finance,
   '@/lib/order-number': orderNumber,
   '@/lib/pricing': { formatCurrency: (value) => `R$ ${Number(value).toFixed(2).replace('.', ',')}` },
