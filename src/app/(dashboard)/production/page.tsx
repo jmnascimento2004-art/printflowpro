@@ -1,5 +1,7 @@
 'use client';
 import { useActionDialog } from '@/components/action-dialog-provider';
+import {ProductionCompositionLinks} from '@/components/composition/entry-links';
+import Link from 'next/link';
 import { useFeedback } from '@/context/database-context';
 import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
 
@@ -196,6 +198,7 @@ export default function ProductionPage() {
   return (
     <div className="space-y-6">
       {agendaFocus.banner}
+      <ProductionCompositionLinks/>
       {/* 1. Header Filter Controls */}
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between no-print">
         <div className="relative w-full sm:max-w-md">
@@ -279,6 +282,7 @@ export default function ProductionPage() {
                         {/* Product and details */}
                         <div>
                           <span className="font-semibold text-xs text-foreground block leading-tight">{item.product_name}</span>
+                          <Link href={`/production/components?item=${encodeURIComponent(item.order_item_id)}`} className="mt-1 inline-block text-xs text-primary underline">Componentes / terceirização</Link>
                           <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{orders.find(order => order.id === item.order_id)?.items.find(row => row.id === item.order_item_id)?.details?.configuration_summary}</p>
                           <span className="text-[10px] text-muted-foreground mt-1 block">
                             Qtd: <span className="font-bold text-foreground">{item.quantity}</span>

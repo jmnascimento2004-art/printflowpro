@@ -41,6 +41,7 @@ const NAV_ITEMS = [
   { name: 'Estoque', path: '/stock', icon: Layers },
   { name: 'Fornecedores', path: '/suppliers', icon: Users },
   { name: 'Compras', path: '/purchases', icon: ShoppingBag },
+  { name: 'Terceirizações', path: '/outsourcing', icon: Wrench },
   { name: 'Expedição', path: '/shipment', icon: Truck },
   { name: 'Revenda', path: '/resale', icon: ExternalLink },
   { name: 'Ajustes', path: '/settings', icon: Settings }

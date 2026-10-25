@@ -1,11 +1,11 @@
 import {commercialDate} from '@/lib/commercial-intelligence';
 export const PURCHASE_STATUS={draft:'Rascunho',issued:'Emitido',confirmed:'Confirmado',partially_received:'Recebido parcialmente',received:'Recebido',cancelled:'Cancelado'} as const;
 export const REQUEST_STATUS={draft:'Rascunho',requested:'Solicitado',approved:'Aprovado',rejected:'Rejeitado',converted:'Convertido'} as const;
-export const PURCHASE_UNITS:Record<string,string>={unidade:'un.',m2:'m²',linear:'m',pacote:'pacote',kit:'kit',servico:'serviço',custom:'personalizado'};
+export const PURCHASE_UNITS:Record<string,string>={kg:'kg',l:'L',unidade:'un.',m2:'m²',linear:'m',pacote:'pacote',kit:'kit',servico:'serviço',custom:'personalizado'};
 export const purchaseNumber=(n:number)=>`PC-${String(n).padStart(4,'0')}`;
 export const purchaseMoney=(value:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
 export type Supplier={id:string;company_id:string;name:string;person_type:'PF'|'PJ';document:string;contact_name:string;phone:string;whatsapp:string;email:string;website:string;notes:string;state_registration:string;municipal_registration:string;address:Record<string,string>;contacts:{name:string;phone:string;email:string}[];active:boolean;created_at:string;updated_at:string};
-export type PurchaseProduct={id:string;name:string;pricing_type:string;active:boolean;stock_controlled:boolean;current_stock:number;min_stock:number};
+export type PurchaseProduct={id:string;name:string;pricing_type:string;inventory_unit?:string|null;active:boolean;stock_controlled:boolean;current_stock:number;min_stock:number};
 export type SupplierProduct={id:string;supplier_id:string;product_id:string;vendor_sku:string;description:string;unit:string;reference_price:number;minimum_quantity:number;lead_days:number;preferred:boolean};
 export type PurchaseOrder={id:string;number:number;supplier_id:string;supplier_snapshot:{name:string;person_type:string;document:string;phone:string;whatsapp:string;email:string;address:Record<string,string>;contact_name:string};request_id:string|null;status:keyof typeof PURCHASE_STATUS;ordered_date:string;expected_date:string|null;payment_terms:string;notes:string;subtotal:number;discount:number;freight:number;expenses:number;total:number;invoice_number:string;invoice_series:string;invoice_date:string|null;invoice_key:string;updated_at:string;created_at:string};
 export type PurchaseItem={id:string;order_id:string;position:number;product_id:string|null;description:string;unit:string;quantity:number;unit_price:number;line_total:number;acquisition_total:number;stock_controlled:boolean};

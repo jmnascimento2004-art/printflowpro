@@ -1,4 +1,5 @@
 'use client';
+import {INVENTORY_UNITS,inventoryUnit} from '@/lib/composition/model';
 
 import React, { useState } from 'react';
 import { 
@@ -183,7 +184,7 @@ export default function StockPage() {
                   <option value="">Selecione o produto...</option>
                   {products.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} (Estoque atual: {p.current_stock} {p.pricing_type === 'm2' ? 'm²' : 'un'})
+                      {p.name} (Estoque atual: {p.current_stock} {INVENTORY_UNITS[inventoryUnit(p)]||inventoryUnit(p)})
                     </option>
                   ))}
                 </select>
@@ -207,7 +208,7 @@ export default function StockPage() {
                 <label className="text-xs font-semibold text-muted-foreground">Quantidade</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.000001"
                   required
                   min="0.01"
                   value={quantity}
@@ -306,7 +307,7 @@ export default function StockPage() {
                       <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
                         <div className="rounded-lg border border-border/70 bg-card/80 p-2">
                           <span className="block font-bold uppercase text-muted-foreground">Cálculo</span>
-                          <strong className="mt-0.5 block text-xs text-foreground">{pricingTypeLabels[p.pricing_type] || 'Outro'}</strong>
+                          <strong className="mt-0.5 block text-xs text-foreground">{INVENTORY_UNITS[inventoryUnit(p)] || pricingTypeLabels[p.pricing_type] || 'Outro'}</strong>
                         </div>
                         <div className="rounded-lg border border-border/70 bg-card/80 p-2 text-right">
                           <span className="block font-bold uppercase text-muted-foreground">Qtd. atual</span>

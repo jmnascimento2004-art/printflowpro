@@ -1,4 +1,5 @@
 export const AUDIT_MODULE_LABELS: Record<string, string> = {
+  outsourcing: 'Terceirizações',
   purchases: 'Compras',
   catalog: 'Catálogo',
   categories: 'Categorias',
@@ -17,6 +18,25 @@ export const AUDIT_MODULE_LABELS: Record<string, string> = {
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  'product_component.added': 'Componente adicionado',
+  'product_component.updated': 'Componente atualizado',
+  'product_component.removed': 'Componente removido',
+  'product_composition.saved': 'Composição do produto salva',
+  'component.optional_selected': 'Componentes opcionais escolhidos',
+  'component.consumed': 'Consumo de componentes registrado',
+  'component.consumption_reversed': 'Consumo de componentes revertido',
+  'outsourcing_order.created': 'OT criada',
+  'outsourcing_order.updated': 'OT atualizada',
+  'outsourcing_order.issued': 'OT emitida',
+  'outsourcing_order.confirmed': 'OT confirmada',
+  'outsourcing_order.in_progress': 'Execução da OT iniciada',
+  'outsourcing_order.cancelled': 'OT cancelada',
+  'outsourcing_order.sent': 'Envio da OT registrado',
+  'outsourcing_order.received': 'Recebimento da OT registrado',
+  'outsourcing_order.receipt_reversed': 'Recebimento da OT revertido',
+  'outsourcing_order.materials_returned': 'Retorno dos materiais da OT registrado',
+  'outsourcing_order.cost_updated': 'Custo efetivo da OT conferido',
+  'outsourcing_order.purchase_linked': 'Compra de serviço vinculada à OT',
   'supplier.disabled': 'Fornecedor inativado',
   'supplier.product_linked': 'Produto vinculado ao fornecedor',
   'purchase_request.created': 'Solicitação de compra criada',

@@ -58,6 +58,24 @@ export async function resolvePurchaseWhatsAppMessage(trustedCompanyId:string,ord
  return {href,content,recipient,confirmBeforeOpen:renderSettings.confirm_before_open};
 }
 
+/** Technical outsourcing document; the authenticated caller must authorize OT and procurement first. */
+export async function resolveOutsourcingWhatsAppMessage(trustedCompanyId:string,orderId:string){
+ if(!trustedCompanyId||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId))throw controlledError('CONTEXT_INVALID');
+ const client=getSupabaseAdminClient();
+ const [{data:order,error},company,settings]=await Promise.all([
+  client.from('outsourcing_orders').select('id,number,status,due_date,title,quantity,unit,supplier_id,supplier_snapshot').eq('company_id',trustedCompanyId).eq('id',orderId).maybeSingle(),
+  resolveWhatsAppCompanyVariables({companyId:trustedCompanyId,trustedCompanyId,eventKey:'quote_proposal'},createSupabaseWhatsAppVariableDataSource(client)),
+  createSupabaseWhatsAppSystemMessageDataSource(client).getWhatsAppSettings(trustedCompanyId)
+ ]);
+ if(error||!order||['draft','cancelled'].includes(order.status))throw controlledError('CONTEXT_INVALID');
+ const supplier=await client.from('suppliers').select('phone,whatsapp').eq('company_id',trustedCompanyId).eq('id',order.supplier_id).maybeSingle();if(supplier.error)throw controlledError('CONTEXT_INVALID');
+ const recipient=supplier.data?.whatsapp||supplier.data?.phone;if(!recipient)throw controlledError('RECIPIENT_MISSING');
+ const renderSettings=normalizeRenderSettings(trustedCompanyId,settings),name=(order.supplier_snapshot as {name?:string}).name||'fornecedor';
+ const content=`Olá, ${name}! Segue a ordem de terceirização OT-${String(order.number).padStart(4,'0')} da ${company.variables['empresa.nome']||'empresa'}.\nServiço: ${order.title}.\nQuantidade: ${order.quantity} ${order.unit}.\nPrazo: ${String(order.due_date).split('-').reverse().join('/')}.\nConfira o PDF com as especificações e confirme recebimento e prazo. O arquivo deve ser anexado manualmente; esta mensagem não registra pagamento.`;
+ const href=buildWhatsAppUrl(recipient,content,renderSettings);if(!href)throw controlledError('RECIPIENT_MISSING');
+ return {href,content,recipient,confirmBeforeOpen:renderSettings.confirm_before_open};
+}
+
 /** Additional Store entry point into the same company resolver, settings and URL runtime.
  * Caller must first authorize the conversation. No transcript or customer contact is loaded.
  */

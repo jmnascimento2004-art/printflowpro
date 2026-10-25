@@ -1316,7 +1316,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       for (const row of incoming) {
         if (row.company_id !== currentCompanyId) continue;
         const previous = rows.get(row.id);
-        if (!previous || (Date.parse(row.updated_at || '') || 0) > (Date.parse(previous.updated_at || '') || 0) || (!row.updated_at && !previous.updated_at)) rows.set(row.id,row);
+        if (!previous || (Date.parse(row.updated_at || '') || 0) > (Date.parse(previous.updated_at || '') || 0) || (!row.updated_at && !previous.updated_at)) rows.set(row.id,{...previous,...row});
       }
       return [...rows.values()];
     };
@@ -1424,7 +1424,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
     const generation = loadGenerationRef.current;
     if (previous && previous.company_id !== currentCompanyId) throw new Error('Produto de outra empresa.');
     if (previous && !previous.updated_at) throw new Error('Recarregue o produto antes de editar.');
-    const keys = ['category_id', 'name', 'description', 'sku', 'pricing_type', 'base_cost', 'sales_price', 'stock_controlled', 'min_stock', 'active', 'catalog_active', 'image_url', 'volume_pricing', 'variant_options', 'color_options', 'is_promo', 'is_highlight', 'pricing_details', 'slug'] as const;
+    const keys = ['category_id', 'name', 'description', 'sku', 'pricing_type', 'base_cost', 'sales_price', 'stock_controlled', 'min_stock', 'active', 'catalog_active', 'image_url', 'volume_pricing', 'variant_options', 'color_options', 'is_promo', 'is_highlight', 'pricing_details', 'slug', 'inventory_unit'] as const;
     const patch: Record<string, unknown> = {};
     for (const key of keys) if (!previous || JSON.stringify(previous[key]) !== JSON.stringify(prod[key])) patch[key] = prod[key] ?? null;
     if (previous && !Object.keys(patch).length) return previous;
@@ -1739,6 +1739,18 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
   const applyProductionQueueInsertions = (order: Order, queueItems: ProductionItem[]) => {
     applyProductionQueueState(queueItems);
+    // Kit consumption is server-side. Refresh canonical balances after the sale,
+    // including retries where no new production row was inserted.
+    if (order.items.some(item => item.structure_type && item.structure_type !== 'simple')) {
+      const generation=loadGenerationRef.current,companyId=currentCompanyId,scope=sessionScopeKey;
+      void Promise.all([
+        supabase.from('products').select('*').eq('company_id',companyId),
+        supabase.from('stock_movements').select('*').eq('company_id',companyId).order('created_at',{ascending:false}).limit(1000)
+      ]).then(([stockProducts,movements])=>{
+        if(generation!==loadGenerationRef.current||loadedSessionScopeKeyRef.current!==scope)return;
+        if(!stockProducts.error)applyPurchasingResult({company_id:companyId,products:(stockProducts.data||[]) as Product[],movements:movements.error?[]:(movements.data||[]) as StockMovement[]});
+      }).catch(error=>warnCaught('Não foi possível atualizar o estoque após a venda do kit:',error));
+    }
     if (queueItems.length === 0) return;
 
     // Stock is deducted only for rows actually inserted by the idempotent server command.
@@ -1746,7 +1758,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       const item = order.items.find((orderItem) => orderItem.id === queueItem.order_item_id);
       if (!item) return;
       const product = products.find((candidate) => candidate.id === item.product_id);
-      if (product?.stock_controlled) {
+      if (product?.stock_controlled && (!item.structure_type || item.structure_type === 'simple')) {
         adjustStock(
           item.product_id,
           item.quantity,

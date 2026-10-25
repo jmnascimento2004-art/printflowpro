@@ -57,6 +57,9 @@ type SettingsTab = 'empresa' | 'financas' | 'fiscal' | 'coleta' | 'funcionarios'
 const SYSTEM_MODULES = [
   { path: '/suppliers', label: 'Fornecedores', desc: 'Cadastro canônico, contatos, anexos e produtos de fornecedores.' },
   { path: '/purchases', label: 'Compras', desc: 'Solicitações e pedidos de compra, prazos e relatórios.' },
+  { path: '/outsourcing', label: 'Terceirizações', desc: 'Ordens técnicas por fornecedor, documentos e integração com Compras.' },
+  { path: '/outsourcing/approve', label: 'Terceirização — aprovação', desc: 'Confirmar, enviar, cancelar e registrar custo efetivo; exige Terceirizações.' },
+  { path: '/outsourcing/receive', label: 'Terceirização — recebimento', desc: 'Conferir e reverter recebimentos de serviços terceirizados.' },
   { path: '/purchases/approve', label: 'Compras — aprovação', desc: 'Aprovar solicitações, confirmar e cancelar compras; exige acesso a Compras.' },
   { path: '/purchases/receive', label: 'Compras — recebimento', desc: 'Receber e reverter recebimentos; exige acesso a Compras e Estoque.' },
   { path: '/attendance', label: 'Atendimento', desc: 'Conversas da Store, atribuição e respostas da equipe.' },
