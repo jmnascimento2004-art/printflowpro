@@ -20,6 +20,14 @@ function ensureLink(rel: string) {
   return link;
 }
 
+function syncIconLinks(rel: string, href: string) {
+  ensureLink(rel);
+  document.querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`).forEach((link) => {
+    const absoluteHref = new URL(href, window.location.origin).href;
+    if (link.href !== absoluteHref) link.href = absoluteHref;
+  });
+}
+
 function getPublicBrandIconUrl(size: number, version: string) {
   return `/api/public/branding/icon?size=${size}&v=${encodeURIComponent(version)}`;
 }
@@ -70,9 +78,12 @@ export function BrandingHeadSync() {
 
     ensureLink('manifest').href = manifestUrl;
 
-    ensureLink('icon').href = iconUrl || publicIconUrl;
-    ensureLink('shortcut icon').href = iconUrl || publicIconUrl;
-    ensureLink('apple-touch-icon').href = isLogin ? loginIcon : publicIconUrl;
+    const syncIcons = () => {
+      syncIconLinks('icon', iconUrl || publicIconUrl);
+      syncIconLinks('shortcut icon', iconUrl || publicIconUrl);
+      syncIconLinks('apple-touch-icon', isLogin ? loginIcon : publicIconUrl);
+    };
+    syncIcons();
 
     ensureMeta('meta[name="theme-color"]', { name: 'theme-color' }).content = branding.themeColor;
     ensureMeta('meta[name="application-name"]', { name: 'application-name' }).content = appTitle;
@@ -84,6 +95,13 @@ export function BrandingHeadSync() {
       ensureMeta('meta[property="og:image"]', { property: 'og:image' }).content = new URL(getPublicBrandIconUrl(512, branding.brandingVersion), window.location.origin).href;
     }
     ensureMeta('meta[property="og:site_name"]', { property: 'og:site_name' }).content = appTitle;
+
+    // Next may stream additional metadata links after the login has mounted.
+    if (isLogin) {
+      const observer = new MutationObserver(syncIcons);
+      observer.observe(document.head, { childList: true, subtree: true });
+      return () => observer.disconnect();
+    }
   }, [company, settings, pathname, isAuthenticated]);
 
   return null;
