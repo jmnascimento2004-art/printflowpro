@@ -1,13 +1,16 @@
 import React from 'react';
-import {Document,Page,Text,View,Image as PdfImage,renderToBuffer} from '@react-pdf/renderer';
+import {Document,Page,Text as PdfText,View,Image as PdfImage,renderToBuffer} from '@react-pdf/renderer';
 import {documentStyles as s} from '@/lib/pdf/document-primitives';
 import {formatPdfCurrency,getPdfLogoUrl} from '@/lib/pdf/pdf-formatters';
 import {sanitizePdfLogos} from '@/lib/pdf/pdf-logo';
 import {dateLabel} from '@/lib/purchasing/model';
+import {formatMeters} from '@/lib/metric.mjs';
 import {INVENTORY_UNITS,OUTSOURCING_STATUS,outsourcingNumber,type CompositeSource} from './model';
+// Local to this document: long supplier names/references must wrap, not overflow.
+function Text(props:React.ComponentProps<typeof PdfText>){return <PdfText hyphenationCallback={word=>word.length>24?Array.from(word).reduce<string[]>((parts,char,index)=>{const chunk=Math.floor(index/24);parts[chunk]=(parts[chunk]||'')+char;return parts;},[]):[word]} {...props}/>;}
 export function OutsourcingPdf({source,id,logos={}}:{source:CompositeSource;id:string;logos?:Parameters<typeof sanitizePdfLogos>[0]}){
  const t=source.orders.find(o=>o.id===id);if(!t)throw new Error('Ordem de terceirização indisponível.');
- const c=source.company,logo=getPdfLogoUrl({...c,...sanitizePdfLogos(logos)} as Parameters<typeof getPdfLogoUrl>[0]),details=t.technical_snapshot.details||{},measurements=[details.width?`Largura ${details.width} m`:'',details.height?`Altura ${details.height} m`:'',details.length?`Comprimento ${details.length} m`:''].filter(Boolean).join(' · ');
+ const c=source.company,logo=getPdfLogoUrl({...c,...sanitizePdfLogos(logos)} as Parameters<typeof getPdfLogoUrl>[0]),details=t.technical_snapshot.details||{},measurements=[details.width?`Largura ${formatMeters(details.width)}`:'',details.height?`Altura ${formatMeters(details.height)}`:'',details.length?`Comprimento ${formatMeters(details.length)}`:''].filter(Boolean).join(' · ');
  return <Document title={`Ordem de terceirização ${outsourcingNumber(t.number)}`} author={c.name}><Page size="A4" style={{paddingTop:36,paddingHorizontal:36,paddingBottom:50,fontFamily:'Helvetica',fontSize:9,color:'#0f172a'}}>
  <View style={{flexDirection:'row',justifyContent:'space-between',borderBottomWidth:1,borderBottomColor:'#cbd5e1',paddingBottom:14}} wrap={false}><View style={{width:'68%'}}>{logo&&<PdfImage src={logo} style={{width:145,height:52,objectFit:'contain',objectPosition:'left',marginBottom:9}}/>}<Text style={{fontSize:15,fontWeight:700,lineHeight:1.4,marginBottom:4}}>{c.name}</Text><Text style={{lineHeight:1.5}}>{[c.document,c.phone,c.email].filter(Boolean).join(' · ')}</Text><Text style={{lineHeight:1.5}}>{[c.street,c.number,c.neighborhood,c.city,c.state,c.cep].filter(Boolean).join(' · ')}</Text></View><View style={{width:'30%',alignItems:'flex-end'}}><Text style={{fontSize:15,fontWeight:700,marginBottom:7}}>{outsourcingNumber(t.number)}</Text><Text>{OUTSOURCING_STATUS[t.status]}</Text><Text style={{marginTop:5}}>Emissão {dateLabel(t.ordered_date)}</Text><Text style={{marginTop:5}}>Prazo {dateLabel(t.due_date)}</Text></View></View>
  <Text style={{fontSize:17,fontWeight:700,marginTop:18,marginBottom:12}}>Ordem de Terceirização</Text>
