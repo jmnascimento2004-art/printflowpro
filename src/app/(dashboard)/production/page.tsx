@@ -2,6 +2,7 @@
 import { useActionDialog } from '@/components/action-dialog-provider';
 import {ProductionCompositionLinks} from '@/components/composition/entry-links';
 import {ProductionFieldServices,ProductionServiceLink} from '@/components/field-services/entry-links';
+import {ProductionQualityProvider,ProductionQualityBadge} from '@/components/quality/entry-links';
 import Link from 'next/link';
 import { useFeedback } from '@/context/database-context';
 import { useAgendaSourceFocus } from '@/components/agenda/source-focus';
@@ -197,6 +198,7 @@ export default function ProductionPage() {
   };
 
   return (
+    <ProductionQualityProvider items={activeProductionQueue}>
     <div className="space-y-6">
       {agendaFocus.banner}
       <ProductionCompositionLinks/>
@@ -286,6 +288,7 @@ export default function ProductionPage() {
                           <span className="font-semibold text-xs text-foreground block leading-tight">{item.product_name}</span>
                           <Link href={`/production/components?item=${encodeURIComponent(item.order_item_id)}`} className="mt-1 inline-block text-xs text-primary underline">Componentes / terceirização</Link>
                           <ProductionServiceLink orderId={item.order_id} itemId={item.order_item_id} productionId={item.id}/>
+                          <ProductionQualityBadge id={item.id}/>
                           <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{orders.find(order => order.id === item.order_id)?.items.find(row => row.id === item.order_item_id)?.details?.configuration_summary}</p>
                           <span className="text-[10px] text-muted-foreground mt-1 block">
                             Qtd: <span className="font-bold text-foreground">{item.quantity}</span>
@@ -366,5 +369,6 @@ export default function ProductionPage() {
         })}
       </div>
     </div>
+    </ProductionQualityProvider>
   );
 }

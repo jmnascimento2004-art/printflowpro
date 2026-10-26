@@ -1,0 +1,44 @@
+import React from 'react';
+import {Document,Page,Text as PdfText,View,Image as PdfImage,renderToBuffer} from '@react-pdf/renderer';
+import {documentStyles} from '@/lib/pdf/document-primitives';
+import {getPdfLogoUrl} from '@/lib/pdf/pdf-formatters';
+import {sanitizePdfLogos} from '@/lib/pdf/pdf-logo';
+import {ACTIONS,ACTION_STATUS,CATEGORIES,EXECUTIONS,NC_STATUS,ORIGINS,SEVERITIES,ncNumber,type CorrectiveAction,type CostSummary,type Evidence,type Material,type Nonconformity,type QualityCost,type Reinspection} from './model';
+import {dateLabel,purchaseMoney} from '@/lib/purchasing/model';
+export type QualityPdfCompany={name:string;document?:string;phone?:string;email?:string;city?:string;state?:string};
+export type QualityPdfData={company:QualityPdfCompany;nc:Nonconformity;cycle:number;historical:boolean;team:{id:string;name:string}[];actions:CorrectiveAction[];reinspections:Reinspection[];materials:Material[];costs?:QualityCost[];summary?:CostSummary;evidence:(Evidence&{image?:Buffer})[];closedBy:string};
+function Text(props:React.ComponentProps<typeof PdfText>) {return <PdfText hyphenationCallback={word=>word.length>24?word.match(/.{1,24}/gu)||[word]:[word]} {...props}/>;}
+const quantity=(value:number)=>Number(value).toLocaleString('pt-BR',{maximumFractionDigits:6});
+const money=(value:number|null|undefined)=>value===null||value===undefined?'Não informado':purchaseMoney(value);
+function Paragraph({title,children}:{title:string;children:React.ReactNode}) {
+ const length=React.Children.toArray(children).reduce<number>((sum,child)=>sum+String(child).length,0);
+ return <View wrap={length>500} style={{marginTop:10}}><Text minPresenceAhead={36} style={documentStyles.heading}>{title}</Text><Text style={{lineHeight:1.5}}>{children}</Text></View>;
+}
+
+export function QualityPdf({data,logos={}}:{data:QualityPdfData;logos?:Parameters<typeof sanitizePdfLogos>[0]}) {
+ const n=data.nc,c=data.company,logo=getPdfLogoUrl({...c,...sanitizePdfLogos(logos)} as Parameters<typeof getPdfLogoUrl>[0]);
+ const measures=[n.source_snapshot.details?.width,n.source_snapshot.details?.height,n.source_snapshot.details?.length].filter((value):value is number=>value!==undefined&&value!==null&&Number(value)>0);
+ return <Document title={`Relatório interno ${ncNumber(n.number)}`} author={c.name}>
+  <Page size="A4" style={documentStyles.page}>
+   <View fixed style={documentStyles.header}><View style={documentStyles.identity}>{logo&&<PdfImage src={logo} style={documentStyles.logo}/>}<Text style={{fontWeight:700,fontSize:10}}>{c.name}</Text><Text style={documentStyles.muted}>{[c.document,c.phone,c.email].filter(Boolean).join(' · ')}</Text><Text style={documentStyles.muted}>{[c.city,c.state].filter(Boolean).join(' / ')}</Text></View><View style={{width:'41%',alignItems:'flex-end'}}><Text style={{fontSize:12,fontWeight:700}}>RELATÓRIO DE QUALIDADE</Text><Text style={{fontSize:17,fontWeight:700,marginTop:5}}>{ncNumber(n.number)}</Text><Text style={documentStyles.muted}>Ciclo {data.cycle} · {data.historical?'Encerramento preservado':'Acompanhamento atual'}</Text></View></View>
+   <View style={documentStyles.box}><Text style={{fontWeight:700}}>{NC_STATUS[n.status]} · {SEVERITIES[n.severity]} · {CATEGORIES[n.category]}</Text><Text style={{lineHeight:1.5,marginTop:5}}>Origem: {n.source_snapshot.label}</Text>{n.source_snapshot.customer_name&&<Text style={{lineHeight:1.5}}>Cliente: {n.source_snapshot.customer_name}</Text>}{n.source_snapshot.supplier_name&&<Text style={{lineHeight:1.5}}>Fornecedor: {n.source_snapshot.supplier_name}</Text>}{n.source_snapshot.item_name&&<Text style={{lineHeight:1.5}}>Item: {n.source_snapshot.item_name}</Text>}<Text style={{lineHeight:1.5}}>Quantidade afetada: {quantity(n.affected_quantity)} · Abertura: {dateLabel(n.opened_at)}</Text>{!!measures.length&&<Text style={{lineHeight:1.5}}>Medidas de referência: {measures.map(quantity).join(' x ')} m</Text>}</View>
+   <Paragraph title="Descrição do problema">{n.description}</Paragraph>
+   <Paragraph title="Responsabilidade e prazo">{ORIGINS[n.problem_origin]} · Responsáveis registrados: {data.team.map(p=>p.name).join(', ')||'A definir'} · Impacto declarado no prazo: {n.deadline_impact_days} dia(s), sem alteração automática do Pedido.</Paragraph>
+   <Paragraph title="Análise e causa raiz">{n.analysis||'Análise ainda não registrada.'}{'\n'}Causa: {n.root_cause||'Ainda não definida.'}</Paragraph>
+   <Text style={documentStyles.heading}>Ações corretivas e retrabalho</Text>
+   {data.actions.map(a=><View key={a.id} style={{marginTop:8,padding:8,borderWidth:0.5,borderColor:'#e2e8f0'}}><Text style={{fontWeight:700}}>Ação {a.version} · {ACTIONS[a.kind]} · {ACTION_STATUS[a.state]}</Text><Text style={{lineHeight:1.5,marginTop:4}}>{EXECUTIONS[a.execution_mode]} · Quantidade {quantity(a.quantity)}{a.due_date?` · Prazo ${dateLabel(a.due_date)}`:''}{a.production_run?` · Produção, execução ${a.production_run}`:''}{a.return_run?` · Retorno, execução ${a.return_run}`:''}</Text><Text style={{lineHeight:1.5,marginTop:4}}>{a.notes}</Text>{a.result&&<Text style={{lineHeight:1.5,marginTop:4}}>Resultado: {a.result}</Text>}{a.invalidation_reason&&<Text style={{lineHeight:1.5,marginTop:4}}>Invalidação: {a.invalidation_reason}</Text>}{a.acceptance&&<Text style={{lineHeight:1.5,marginTop:4}}>Condições de aceite: {a.acceptance}</Text>}</View>)}
+   {!data.actions.length&&<Text>Ação ainda não definida.</Text>}
+   {!!data.materials.length&&<><Text style={documentStyles.heading}>Materiais adicionais</Text>{data.materials.map(m=><Text key={m.id} style={{lineHeight:1.5}}>{m.description} · {quantity(m.quantity)} {m.unit}{m.reversed_at?' · movimento revertido':''}</Text>)}<Text style={{...documentStyles.muted,marginTop:4}}>Consumo original da composição preservado. Somente materiais adicionais confirmados geram novos movimentos.</Text></>}
+   <Text style={documentStyles.heading}>Reinspeções</Text>
+   {data.reinspections.map(r=><View key={r.id} style={{marginTop:6}}><Text style={{fontWeight:700}}>{r.result==='approved'?'Aprovada':'Reprovada'} · {r.actor_name} · {dateLabel(r.created_at)}</Text><Text style={{lineHeight:1.5,marginTop:3}}>{r.notes}</Text></View>)}
+   {!data.reinspections.length&&<Text>Não registrada neste ciclo. A exigência depende da ação.</Text>}
+   {data.summary&&<><Paragraph title={data.historical?'Custos preservados no encerramento':'Custos adicionais informados'}>Previsto: {money(data.summary.planned)} · Efetivo: {money(data.summary.actual)}{data.summary.partial||data.summary.required&&!data.summary.recorded?' · apuração pendente':''}</Paragraph>{data.costs?.map(cost=><Text key={cost.id} style={{lineHeight:1.5}}>{cost.description} · previsto {money(cost.planned)} · efetivo {money(cost.effective_actual)}</Text>)}<Text style={{...documentStyles.muted,marginTop:4}}>Materiais são apurados pela referência do Estoque; OT e retorno preservam suas origens financeiras. Estes valores não comprovam pagamento e não alteram preço ou margem fiscal.</Text></>}
+   {!!data.evidence.length&&<Text minPresenceAhead={230} style={documentStyles.heading}>Evidências selecionadas</Text>}
+   {data.evidence.map(e=><View key={e.id} wrap={false} style={{marginTop:9,padding:8,borderWidth:0.5,borderColor:'#cbd5e1'}}><Text style={{fontWeight:700,marginBottom:5}}>{e.caption||'Evidência'} · {dateLabel(e.created_at)} · {e.actor_name}</Text>{e.state==='removed'?<Text>Arquivo removido com registro histórico preservado.</Text>:e.image?<PdfImage src={{data:e.image,format:e.mime==='image/png'?'png':'jpg'}} style={{width:'100%',height:175,objectFit:'contain'}}/>:<Text>Imagem não incorporada.</Text>}</View>)}
+   <Paragraph title="Encerramento">{n.status==='cancelled'?`Cancelada em ${dateLabel(n.closed_at)}. O cancelamento preserva o histórico e não representa encerramento aprovado.`:n.closed_at?`${dateLabel(n.closed_at)} · ${data.closedBy} · causa, ação e resultado preservados neste ciclo.`:'NC ainda não encerrada. Este documento não representa aprovação final.'}</Paragraph>
+   <View wrap={false} style={{marginTop:16}}><Text style={{fontSize:8,lineHeight:1.5}}>Documento interno, com evidências selecionadas. Não envia informação ao cliente, não substitui documento fiscal nem comprova pagamento. Pedido, Produção, Compras, OT e Serviços Externos mantêm seus fluxos canônicos.</Text></View>
+   <View fixed style={documentStyles.footer}><Text>{c.name} · {ncNumber(n.number)} · ciclo {data.cycle} · uso interno</Text></View><Text fixed style={{position:'absolute',bottom:20,right:36,width:90,height:14,fontSize:7,textAlign:'right',color:'#64748b'}} render={({pageNumber,totalPages})=>`Página ${pageNumber} de ${totalPages}`}/>
+  </Page>
+ </Document>;
+}
+export async function renderQualityPdf(data:QualityPdfData,logos:Parameters<typeof sanitizePdfLogos>[0]={}) {return renderToBuffer(<QualityPdf data={data} logos={logos}/>);}

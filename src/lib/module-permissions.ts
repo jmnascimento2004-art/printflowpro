@@ -1,4 +1,10 @@
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  '/quality':['admin','gerente','financeiro','vendas','producao','arte_finalista','estoque'],
+  '/quality/open':['admin','gerente','producao','arte_finalista','estoque'],
+  '/quality/manage':['admin','gerente'],
+  '/quality/execute':['admin','gerente','producao','arte_finalista','estoque'],
+  '/quality/close':['admin','gerente'],
+  '/quality/reopen':['admin','gerente'],
   '/field-services':['admin','gerente','financeiro','vendas','producao','estoque'],
   '/field-services/manage':['admin','gerente'],
   '/field-services/execute':['admin','gerente','producao','estoque'],
