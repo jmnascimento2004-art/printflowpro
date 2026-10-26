@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
-  Home, CalendarDays,
+  Home, CalendarDays, ShieldCheck,
   Users, 
   FileText, 
   Calculator, 
@@ -72,6 +72,7 @@ export default function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsO
     { name: 'Fila Produção', path: '/production', icon: Wrench },
     { name: 'Agenda', path: '/agenda', icon: CalendarDays },
     {name:'Serviços externos',path:'/field-services',icon:Wrench},
+    {name:'Qualidade',path:'/quality',icon:ShieldCheck},
     { name: 'Financeiro', path: '/financial', icon: DollarSign },
     { name: 'Relatórios', path: '/reports', icon: FileText },
     { name: 'Estoque / Insumos', path: '/stock', icon: Layers },

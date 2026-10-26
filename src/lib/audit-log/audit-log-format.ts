@@ -1,4 +1,5 @@
 export const AUDIT_MODULE_LABELS: Record<string, string> = {
+  quality:'Qualidade',
   'field-services':'Serviços externos',
   outsourcing: 'Terceirizações',
   purchases: 'Compras',
@@ -19,6 +20,27 @@ export const AUDIT_MODULE_LABELS: Record<string, string> = {
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  'quality.nc_created':'NC registrada',
+  'quality.nc_updated':'Dados da NC atualizados',
+  'quality.analysis_recorded':'Análise e causa registradas',
+  'quality.action_defined':'Ação corretiva definida',
+  'quality.rework_started':'Execução corretiva iniciada',
+  'quality.action_completed':'Resultado físico registrado',
+  'quality.action_cancelled':'Ação corretiva cancelada',
+  'quality.action_invalidated':'Comprovação da ação invalidada',
+  'quality.field_return_linked':'Retorno técnico vinculado à NC',
+  'quality.material_consumed':'Material adicional de retrabalho consumido',
+  'quality.material_reversed':'Material adicional revertido',
+  'quality.cost_recorded':'Custo de Qualidade registrado',
+  'quality.payable_created':'Conta a pagar da NC criada',
+  'quality.payable_cancelled':'Obrigação da NC cancelada',
+  'quality.reinspection_completed':'Reinspeção registrada',
+  'quality.nc_closed':'NC encerrada',
+  'quality.nc_reopened':'NC reaberta',
+  'quality.nc_cancelled':'NC cancelada',
+  'quality.upload_reserved':'Upload da NC reservado',
+  'quality.evidence_added':'Evidência da NC registrada',
+  'quality.evidence_removed':'Evidência da NC removida',
   'field_service.created':'Serviço externo criado',
   'field_service.updated':'Planejamento de campo atualizado',
   'field_service.assigned':'Equipe de campo atualizada',

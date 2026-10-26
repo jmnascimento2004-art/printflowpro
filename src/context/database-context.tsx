@@ -1780,7 +1780,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
 
     if (error) {
       warnCaught(`Erro ao salvar pedido ${errorContext} no Supabase:`, error);
-      const compositionMessage = error.code === '22023' && /^(Registre o consumo|Terceirização pendente|Etapa depende|Reverta os consumos|Item possui histórico operacional|Item possui histórico de consumo|Controle ou unidade)/.test(error.message || '') ? error.message : null;
+      const compositionMessage = error.code === '22023' && /^(Qualidade:|Registre o consumo|Terceirização pendente|Etapa depende|Reverta os consumos|Item possui histórico operacional|Item possui histórico de consumo|Controle ou unidade)/.test(error.message || '') ? error.message : null;
       throw new PersistenceMutationError('PERSISTENCE_ERROR', compositionMessage || 'Não foi possível salvar o pedido. Verifique os dados e tente novamente.');
     }
 

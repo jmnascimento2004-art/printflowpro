@@ -9,6 +9,7 @@ import { createPOSCartItem } from '@/lib/pos-cart';
 import { OrderDocumentDialog } from '@/components/pdf/order-document-dialog';
 import { OrderProductionSummary, OrderAnalysis } from '@/components/commercial/order-insights';
 import {FieldServiceOrderSection} from '@/components/field-services/entry-links';
+import {QualityReferences} from '@/components/quality/entry-links';
 import { canAccessModule } from '@/lib/module-permissions';
 import { commercialSummary, documentDate, documentItem, ORDER_STATUS_LABELS } from '@/lib/order-document-model';
 import { MetricInput } from '@/components/MetricInput';
@@ -2185,6 +2186,7 @@ export default function OrdersPage() {
           <nav aria-label="Abas do pedido" className="flex gap-1 overflow-x-auto border-b border-border pb-2">
             {[['items', 'Itens do Pedido'], ...(allowed('/financial') ? [['finance', 'Financeiro'], ['fiscal', 'Fiscal']] : []), ['production', 'Produção'], ['analysis', 'Análise']].map(([key, label]) => <button key={key} type="button" aria-pressed={detailTab === key} onClick={() => setDetailTab(key)} className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold ${detailTab === key ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'}`}>{label}</button>)}
           </nav>
+          <QualityReferences kind="order" id={selectedOrder.id} revision={selectedOrder.updated_at||''}/>
           {detailTab === 'production' && <><OrderProductionSummary order={selectedOrder} production={production} shipments={shipments} canProduction={allowed('/production')} canShipment={allowed('/shipment')} /><FieldServiceOrderSection key={selectedOrder.id} orderId={selectedOrder.id}/></>}
           {detailTab === 'analysis' && <OrderAnalysis order={selectedOrder} paid={selectedOrderPaidAmount} />}
           {detailTab === 'fiscal' && allowed('/financial') && <FiscalCenter key={selectedOrder.id} orderId={selectedOrder.id} />}

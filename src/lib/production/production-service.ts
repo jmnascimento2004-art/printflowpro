@@ -137,7 +137,7 @@ function atomicResultToItem(result: AtomicStageResult): ProductionItem | undefin
 }
 
 function mapPersistenceError(error: { code?: string;message?:string } | null | undefined) {
-  if(error?.code==='22023'&&/^(Registre o consumo|Terceirização pendente|Etapa depende|Reverta os consumos)/.test(error.message||''))return new ProductionMutationError('PERSISTENCE_ERROR',error.message!);
+  if(error?.code==='22023'&&/^(Qualidade:|Registre o consumo|Terceirização pendente|Etapa depende|Reverta os consumos)/.test(error.message||''))return new ProductionMutationError('PERSISTENCE_ERROR',error.message!);
   if (error?.code === '42501') {
     return new ProductionMutationError('NOT_AUTHORIZED', 'Você não tem permissão para alterar a fila de produção.');
   }
