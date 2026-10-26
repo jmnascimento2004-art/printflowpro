@@ -35,6 +35,14 @@ select throws_like($$select public.quality_file_access(current_setting('qf.file'
 select isnt(pg_temp.qf('file_reserve',jsonb_build_object('sha256',repeat('a',64),'bytes',100,'mime','image/png','caption','Foto sintética QA'))#>>'{file,id}',current_setting('qf.file'),'new upload never resurrects removed evidence');
 select set_config('qf.pending',(select id::text from public.quality_evidence where nc_id=current_setting('qf.id')::uuid and state='pending'),true);
 select pg_temp.qf('file_remove',jsonb_build_object('evidence_id',current_setting('qf.pending'),'reason','Encerrar reserva sintética QA'));
+select throws_like($$select pg_temp.qf('file_reserve',jsonb_build_object('sha256',repeat('b',64),'bytes',100,'mime','image/svg+xml'))$$,'%Metadados de imagem inválidos%','active image formats exclude executable SVG');
+select throws_like($$select pg_temp.qf('file_reserve',jsonb_build_object('sha256',repeat('b',64),'bytes',5242881,'mime','image/png'))$$,'%Metadados de imagem inválidos%','reserve rejects bytes above the 5 MiB limit');
+select throws_like($$select pg_temp.qf('file_reserve',jsonb_build_object('sha256',repeat('z',64),'bytes',100,'mime','image/png'))$$,'%Metadados de imagem inválidos%','invalid digest cannot create reservation');
+do $$begin for i in 1..25 loop perform pg_temp.qf('file_reserve',jsonb_build_object('sha256',md5(i::text)||md5(i::text),'bytes',100,'mime','image/png','caption','Reserva de capacidade QA '||i));end loop;end$$;
+select is((select count(*) from public.quality_evidence where nc_id=current_setting('qf.id')::uuid and state='pending'),25::bigint,'capacity counts only active reservations in current cycle');
+select lives_ok($$select pg_temp.qf('file_reserve',jsonb_build_object('sha256',md5('1')||md5('1'),'bytes',100,'mime','image/png','caption','Reserva de capacidade QA 1'))$$,'retry of identical reservation still succeeds at capacity');
+select throws_like($$select pg_temp.qf('file_reserve',jsonb_build_object('sha256',md5('26')||md5('26'),'bytes',100,'mime','image/png','caption','Reserva extra QA'))$$,'%Limite de 25%','twenty-sixth active evidence is rejected without duplication');
+do $$declare e record;begin for e in select id from public.quality_evidence where nc_id=current_setting('qf.id')::uuid and state='pending' loop perform pg_temp.qf('file_remove',jsonb_build_object('evidence_id',e.id,'reason','Encerramento de reserva local QA'));end loop;end$$;
 select pg_temp.qf('analyze','{"root_cause":"Origem sintética identificada","analysis":"Conferência de despesa sem impacto comercial"}');
 select pg_temp.qf('action_define',jsonb_build_object('kind','adjustment','execution_mode','none','quantity',1,'assigned_profile_id',current_setting('qf.manager'),'notes','Ajuste documental QA sem ação física','requires_reinspection',false));
 select set_config('qf.account',public.finance_command(gen_random_uuid(),'account_create','{"name":"Conta Quality QA","kind":"bank","amount":0}')#>>'{account,id}',true);
