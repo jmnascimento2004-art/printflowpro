@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {loadTypescript} from './helpers/load-typescript.mjs';
 import {source,nc,summary} from './fixtures/quality.mjs';
 const {qualityMetrics,qualityReportRows,blocksProduction}=loadTypescript('src/lib/quality/model.ts');
+const {qualityReportCell}=loadTypescript('src/lib/quality/report-format.ts');
 test('quality metrics use declared populations, exclude cancelled cases and block only unresolved rules',()=>{
  const input={...source,cases:[nc,{...nc,id:'closed',status:'closed'},{...nc,id:'cancelled',status:'cancelled'}],summaries:{'nc-a':summary,closed:{...summary,actual:0},cancelled:{...summary,actual:999}}};
  const m=qualityMetrics(input);assert.equal(m.total,2);assert.equal(m.pending,1);assert.equal(m.critical,1);assert.equal(m.actual,12);assert.equal(m.cancelled,1);assert.equal(m.cohort_rate,10);assert.equal(m.rework_rate,100);assert.equal(blocksProduction({...nc,status:'closed'}),false);assert.equal(blocksProduction({...nc,severity:'low',block_completion:false}),false);
@@ -18,4 +19,8 @@ test('supplier recurrence groups canonical identities rather than equal display 
 test('reports mask money without finance permission and do not infer margin across unrelated origins',()=>{
  const original=structuredClone(source);const masked={...source,permissions:{...source.permissions,finance:false}};for(const mode of ['cases','suppliers','products','categories','causes'])assert.ok(qualityReportRows(masked,mode).every(row=>!Object.keys(row).some(k=>/Custo|Apurações/.test(k))));
  assert.equal(qualityMetrics({...source,cases:[{...nc,order_id:null}]}).cost_impact,null);assert.deepEqual(source,original);
+});
+test('report display uses Bahia calendar and BRL while CSV facts retain timestamps and numeric amounts',()=>{
+ assert.equal(qualityReportCell('Abertura','2026-10-26T01:56:46Z'),'25/10/2026');assert.match(qualityReportCell('Custo efetivo informado',11.4),/11,40/);assert.equal(qualityReportCell('Quantidade afetada',4.2),'4,2');assert.equal(qualityReportCell('Custo efetivo informado',null),'Não informado');
+ const rows=qualityReportRows({...source,cases:[{...nc,opened_at:'2026-10-26T01:56:46Z'}]});assert.equal(rows[0].Abertura,'2026-10-26T01:56:46Z');assert.equal(typeof rows[0]['Custo efetivo informado'],'number');
 });

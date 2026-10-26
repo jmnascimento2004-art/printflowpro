@@ -2,6 +2,7 @@
 import {useState} from 'react';
 import {exportCsv} from '@/lib/reports/report-model';
 import {qualityMetrics,qualityReportRows,type QualitySource} from '@/lib/quality/model';
+import {qualityReportCell} from '@/lib/quality/report-format';
 import {purchaseMoney} from '@/lib/purchasing/model';
 import {Empty,Field,purchaseField as field} from '@/components/purchasing/shared';
 
@@ -22,7 +23,7 @@ export function QualityReports({source}:{source:QualitySource}) {
    <p>Recorrência mostra contagens pelos vínculos e pelas causas literalmente registradas. Não estima causalidade nem atribui uma nota ao fornecedor.</p>
    {source.permissions.finance&&<p>Custo informado: {metrics.actual===null?'não informado':purchaseMoney(metrics.actual)}{metrics.partial?' · apuração pendente':''}. Encerradas preservam o valor do fechamento atual; reabertura é explícita. Impacto comercial compara custo adicional informado ao valor atual dos Pedidos afetados, sem estimar margem líquida ou alterar a DRE.</p>}
   </div>
-  {!rows.length?<Empty>Nenhuma NC neste período.</Empty>:<div className="max-w-full overflow-x-auto rounded-xl border"><table className="w-full text-left text-xs"><thead className="bg-muted/50"><tr>{columns.map(c=><th key={c} className="whitespace-nowrap px-3 py-3">{c}</th>)}</tr></thead><tbody>{rows.slice(page*50,page*50+50).map((row,index)=><tr key={index} className="border-t">{columns.map(c=><td key={c} className="min-w-28 max-w-72 break-words px-3 py-3 align-top">{row[c]===null||row[c]===undefined?'Não informado':String(row[c])}</td>)}</tr>)}</tbody></table></div>}
+  {!rows.length?<Empty>Nenhuma NC neste período.</Empty>:<div className="max-w-full overflow-x-auto rounded-xl border"><table className="w-full text-left text-xs"><thead className="bg-muted/50"><tr>{columns.map(c=><th key={c} className="whitespace-nowrap px-3 py-3">{c}</th>)}</tr></thead><tbody>{rows.slice(page*50,page*50+50).map((row,index)=><tr key={index} className="border-t">{columns.map(c=><td key={c} className="min-w-28 max-w-72 break-words px-3 py-3 align-top">{qualityReportCell(c,row[c])}</td>)}</tr>)}</tbody></table></div>}
   <div className="flex flex-wrap items-center justify-between gap-3 text-sm"><span>{rows.length} linhas · Página {page+1}</span><div className="flex gap-2"><button className="pf-button-secondary" disabled={!page} onClick={()=>setPage(v=>v-1)}>Anterior</button><button className="pf-button-secondary" disabled={(page+1)*50>=rows.length} onClick={()=>setPage(v=>v+1)}>Próxima</button></div></div>
  </section>;
 }
