@@ -29,11 +29,11 @@ export function loadTypescript(relative) {
   const code = ts.transpileModule(readFileSync(path, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React, esModuleInterop: true } }).outputText;
   const module = { exports: {} };
   modules.set(path, module.exports);
-  new Function('exports', 'module', 'require', code)(module.exports, module, key => {
+  new Function('exports', 'module', 'require', 'React', code)(module.exports, module, key => {
     if (externals[key]) return externals[key];
     if (key.startsWith('@/')) return loadTypescript(`src/${key.slice(2)}`);
     if (key.startsWith('.')) return loadTypescript(resolve(dirname(path), key));
     return native(key);
-  });
+  }, React);
   return module.exports;
 }
