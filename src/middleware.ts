@@ -27,6 +27,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  // Public OAuth information pages must work on the store domain without a redirect.
+  if (pathname === '/pipeline' || pathname === '/pipeline/privacidade') {
+    return NextResponse.next();
+  }
+
   if (isInternalPath(pathname)) return NextResponse.next();
   if (pathname.startsWith('/pay/')) {
     const response=NextResponse.next();response.headers.set('Referrer-Policy','no-referrer');response.headers.set('X-Robots-Tag','noindex, nofollow');response.headers.set('Cache-Control','private, no-store');return response;
