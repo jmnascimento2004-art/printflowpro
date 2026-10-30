@@ -171,11 +171,12 @@ export default function OrdersPage() {
   const [editDiscountMode, setEditDiscountMode] = useState<'amount' | 'percentage'>('amount');
   const [editDiscountReason, setEditDiscountReason] = useState('');
   const [configuringOrderItem, setConfiguringOrderItem] = useState<{ itemId: string; productId: string } | null>(null);
-  const [newOrderItem, setNewOrderItem] = useState<Order['items'][number] | null>(null);
-  const [newItemError, setNewItemError] = useState('');
-  const newItemSubmitted = useRef(false);
-  const closeNewOrderItem = () => { setNewOrderItem(null); setNewItemError(''); };
-  useDialogFocus('#new-order-item-dialog', Boolean(newOrderItem && !configuringOrderItem), false, closeNewOrderItem);
+  const [itemDraft, setItemDraft] = useState<Order['items'][number] | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [itemError, setItemError] = useState('');
+  const itemSubmitted = useRef(false);
+  const closeItemDialog = () => { setItemDraft(null); setEditingItemId(null); setItemError(''); };
+  useDialogFocus('#new-order-item-dialog', Boolean(itemDraft && !configuringOrderItem), false, closeItemDialog);
   const [editItems, setEditItems] = useState<Order['items']>([]);
   const [editAdditionalServices, setEditAdditionalServices] = useState<AdditionalService[]>([]);
 
@@ -420,9 +421,9 @@ export default function OrdersPage() {
     updater: (item: Order['items'][number]) => Order['items'][number],
     changedField?: 'quantity' | 'unit_price' | 'total_price' | 'measure'
   ) => {
-    if (newOrderItem?.id === itemId) {
-      setNewOrderItem(current => current ? recalculateOrderItem(updater(current), changedField) : null);
-      setNewItemError('');
+    if (itemDraft?.id === itemId) {
+      setItemDraft(current => current ? recalculateOrderItem(updater(current), changedField) : null);
+      setItemError('');
       return;
     }
     setEditItems((current) =>
@@ -440,7 +441,15 @@ export default function OrdersPage() {
     }), 'unit_price');
   };
 
+  const handleOpenItemEditor = (item: Order['items'][number]) => {
+    itemSubmitted.current = false;
+    setItemError('');
+    setEditingItemId(item.id);
+    setItemDraft(structuredClone(item));
+  };
+
   const handleAddEditItem = () => {
+    setEditingItemId(null);
     const newItem: Order['items'][number] = {
       id: `oi-edit-${crypto.randomUUID()}`,
       product_id: '',
@@ -462,9 +471,9 @@ export default function OrdersPage() {
       }
     };
 
-    newItemSubmitted.current = false;
-    setNewItemError('');
-    setNewOrderItem(newItem);
+    itemSubmitted.current = false;
+    setItemError('');
+    setItemDraft(newItem);
   };
 
   const handleRemoveEditItem = (itemId: string) => {
@@ -486,7 +495,7 @@ export default function OrdersPage() {
 
   const handleOpenEditOrder = (order: Order) => {
     setSelectedOrder(null); // Close details panel if open
-    closeNewOrderItem();
+    closeItemDialog();
     setConfiguringOrderItem(null);
     setEditingOrder(order);
     setEditStatus(normalizeOrderOperationalStatus(order));
@@ -1210,7 +1219,7 @@ export default function OrdersPage() {
                             <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-8`}>Quantidade</label>
                             <input id={`order-item-${item.id}-field-8`}
                               type="number"
-                              min={newOrderItem?.id === item.id ? 1 : 0}
+                              min={itemDraft?.id === item.id ? 1 : 0}
                               required
                               step="1"
                               value={item.quantity}
@@ -1268,24 +1277,30 @@ export default function OrdersPage() {
                         </div>);
   };
 
-  const confirmNewOrderItem = (event: React.FormEvent<HTMLFormElement>) => {
+  const confirmItemDialog = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editingOrder || !newOrderItem || newItemSubmitted.current) return;
-    const details = newOrderItem.details || {};
-    const type = getManualPricingType(newOrderItem);
+    if (!editingOrder || !itemDraft || itemSubmitted.current) return;
+    const details = itemDraft.details || {};
+    const type = getManualPricingType(itemDraft);
     const usesArea = type === 'm2' || (type === 'linear' && (details.pricing_snapshot?.measure_basis === 'area' || Number(details.height) > 0));
-    if (!newOrderItem.product_name.trim() || !(newOrderItem.quantity > 0)) {
-      setNewItemError('Informe a descrição e uma quantidade maior que zero.');
+    if (!itemDraft.product_name.trim() || !(itemDraft.quantity > 0)) {
+      setItemError('Informe a descrição e uma quantidade maior que zero.');
       return;
     }
-    if (usesArea ? !(Number(details.width) > 0 && Number(details.height) > 0) : type === 'linear' && !(Number(details.length ?? details.width) > 0)) {
-      setNewItemError('Informe medidas em metros maiores que zero.');
+    const original = editingItemId ? editItems.find(item => item.id === editingItemId) : undefined;
+    const measureChanged = !original || getManualPricingType(original) !== type || ['width', 'height', 'length'].some(key =>
+      details[key as 'width' | 'height' | 'length'] !== original.details?.[key as 'width' | 'height' | 'length']);
+    if (measureChanged && (usesArea ? !(Number(details.width) > 0 && Number(details.height) > 0) : type === 'linear' && !(Number(details.length ?? details.width) > 0))) {
+      setItemError('Informe medidas em metros maiores que zero.');
       return;
     }
-    newItemSubmitted.current = true;
-    setEditItems(items => [...items, { ...newOrderItem, product_name: newOrderItem.product_name.trim() }]);
-    closeNewOrderItem();
-    showToast('Item incluído. Salve o Pedido para confirmar as alterações.', 'success');
+    itemSubmitted.current = true;
+    const confirmedItem = { ...itemDraft, product_name: itemDraft.product_name.trim() };
+    setEditItems(items => editingItemId
+      ? items.map(item => item.id === editingItemId ? confirmedItem : item)
+      : [...items, confirmedItem]);
+    closeItemDialog();
+    showToast(editingItemId ? 'Item atualizado. Salve o Pedido para confirmar as alterações.' : 'Item incluído. Salve o Pedido para confirmar as alterações.', 'success');
   };
 
   const documentTarget = documentOrder || selectedOrder;
@@ -1395,9 +1410,9 @@ export default function OrdersPage() {
                   <button
                     type="button"
                     onClick={handleAddEditItem}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-[11px] font-black text-primary hover:bg-primary/15"
+                    className="pf-button-primary w-full shrink-0 font-bold sm:w-auto"
                   >
-                    <Plus className="h-3.5 w-3.5" /> Adicionar Item
+                    <Plus className="h-5 w-5" /> Adicionar Item
                   </button>
                 </div>
 
@@ -1406,25 +1421,28 @@ export default function OrdersPage() {
                     const itemSize = getOrderItemSizeLabel(item);
 
                     return (
-                      <div key={item.id} className="rounded-lg border border-border bg-card p-3">
-                        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-xs font-black text-foreground">{item.product_name || 'Item sem descrição'}</p>
-                            <p className="text-[10px] font-semibold uppercase text-muted-foreground">
-                              Origem: {getOrderItemOriginLabel(item)} | Tamanho: {itemSize || '-'}
-                            </p>
+                      <article key={item.id} aria-label={item.product_name || 'Item sem descrição'} className="rounded-xl border border-border bg-card p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <h5 className="break-words text-sm font-bold text-foreground">{item.product_name || 'Item sem descrição'}</h5>
+                            <p className="mt-1 break-words text-xs text-muted-foreground">{getOrderItemOriginLabel(item)} · {itemSize || 'Sem medida informada'}</p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveEditItem(item.id)}
-                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/20 px-2.5 py-1.5 text-[10px] font-bold text-rose-500 hover:bg-rose-500/10"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Remover
-                          </button>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            <button type="button" onClick={() => handleOpenItemEditor(item)} className="pf-button-secondary" aria-label={'Editar item ' + item.product_name}>
+                              <Edit3 className="h-4 w-4" /> Editar
+                            </button>
+                            <button type="button" onClick={() => handleRemoveEditItem(item.id)} className="pf-button-danger" aria-label={'Remover item ' + item.product_name}>
+                              <Trash2 className="h-4 w-4" /> Remover
+                            </button>
+                          </div>
                         </div>
-
-                        {renderOrderItemFields(item)}
-                      </div>
+                        <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
+                          <div><dt className="text-xs text-muted-foreground">Quantidade</dt><dd className="font-semibold">{item.quantity}</dd></div>
+                          <div><dt className="text-xs text-muted-foreground">Valor unitário</dt><dd className="font-semibold">{formatCurrency(item.unit_price)}</dd></div>
+                          <div><dt className="text-xs text-muted-foreground">Total do item</dt><dd className="font-bold text-primary">{formatCurrency(item.total_price)}</dd></div>
+                        </dl>
+                        {sanitizeDisplayText(item.details?.notes) && <p className="mt-3 whitespace-pre-wrap break-words text-xs text-muted-foreground">{sanitizeDisplayText(item.details?.notes)}</p>}
+                      </article>
                     );
                   })}
                 </div>
@@ -2591,26 +2609,26 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {editingOrder && newOrderItem && !configuringOrderItem && (
+      {editingOrder && itemDraft && !configuringOrderItem && (
         <div className="fixed inset-0 z-[100] !m-0 flex items-center justify-center bg-black/60 p-3 sm:p-6">
           <section id="new-order-item-dialog" role="dialog" aria-modal="true" aria-labelledby="new-order-item-title" aria-describedby="new-order-item-description" className="flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl">
             <header className="flex items-start justify-between gap-3 border-b border-border p-4 sm:p-6">
               <div>
-                <h2 id="new-order-item-title" className="text-lg font-bold">Adicionar item ao Pedido</h2>
-                <p id="new-order-item-description" className="mt-1 text-sm text-muted-foreground">Escolha um produto ou preencha um item personalizado. Confira os dados antes de adicionar.</p>
+                <h2 id="new-order-item-title" className="text-lg font-bold">{editingItemId ? 'Editar item do Pedido' : 'Adicionar item ao Pedido'}</h2>
+                <p id="new-order-item-description" className="mt-1 text-sm text-muted-foreground">{editingItemId ? 'Ajuste os campos e confirme para atualizar o item na lista do Pedido.' : 'Escolha um produto ou preencha um item personalizado. Confira os dados antes de adicionar.'}</p>
               </div>
-              <button type="button" aria-label="Fechar inclusão de item" onClick={closeNewOrderItem} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-secondary"><X className="h-5 w-5" /></button>
+              <button type="button" aria-label="Fechar edição do item" onClick={closeItemDialog} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-secondary"><X className="h-5 w-5" /></button>
             </header>
-            <form onSubmit={confirmNewOrderItem} className="flex min-h-0 flex-col">
+            <form onSubmit={confirmItemDialog} className="flex min-h-0 flex-col">
               <div className="overflow-y-auto p-4 sm:p-6 [&_label]:text-xs [&_input]:min-h-11 [&_input]:text-sm [&_select]:min-h-11 [&_select]:text-sm">
-                {renderOrderItemFields(newOrderItem)}
-                {newItemError && <p role="alert" className="mt-4 text-sm text-destructive">{newItemError}</p>}
+                {renderOrderItemFields(itemDraft)}
+                {itemError && <p role="alert" className="mt-4 text-sm text-destructive">{itemError}</p>}
               </div>
               <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border p-4 sm:px-6">
-                <div className="text-sm"><span className="text-muted-foreground">Total do item</span><p className="text-lg font-bold text-primary">{formatCurrency(newOrderItem.total_price)}</p></div>
+                <div className="text-sm"><span className="text-muted-foreground">Total do item</span><p className="text-lg font-bold text-primary">{formatCurrency(itemDraft.total_price)}</p></div>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={closeNewOrderItem} className="pf-button-secondary min-h-11">Cancelar</button>
-                  <button type="submit" className="pf-button-primary min-h-11">Adicionar ao Pedido</button>
+                  <button type="button" onClick={closeItemDialog} className="pf-button-secondary min-h-11">Cancelar</button>
+                  <button type="submit" className="pf-button-primary min-h-11">{editingItemId ? 'Aplicar alterações' : 'Adicionar ao Pedido'}</button>
                 </div>
               </footer>
             </form>
@@ -2619,7 +2637,7 @@ export default function OrdersPage() {
       )}
 
       {configuringOrderItem && products.find(product => product.id === configuringOrderItem.productId) && <ProductConfiguratorModal
-        product={products.find(product => product.id === configuringOrderItem.productId)!} isOpen compact confirmLabel={newOrderItem?.id === configuringOrderItem.itemId ? 'Aplicar ao item' : 'Aplicar ao pedido'}
+        product={products.find(product => product.id === configuringOrderItem.productId)!} isOpen compact confirmLabel={itemDraft?.id === configuringOrderItem.itemId ? 'Aplicar ao item' : 'Aplicar ao pedido'}
         isFavorite={false} isFavoritePending={false} onToggleFavorite={() => {}} onClose={() => setConfiguringOrderItem(null)}
         onAddToCart={payload => { const configured = createPOSCartItem(payload.product, payload.pricing_config, { ...payload.dimensions, configuration_summary: payload.configuration_summary, configuration_snapshot: payload.configuration_snapshot, pricing_snapshot: payload.pricing_snapshot, notes: payload.notes });
           updateEditItem(configuringOrderItem.itemId, item => ({ ...item, product_id: configured.product_id, product_name: configured.product_name, quantity: configured.quantity, unit_price: configured.unit_price, total_price: configured.total_price, details: configured.details })); setConfiguringOrderItem(null); }} />}
