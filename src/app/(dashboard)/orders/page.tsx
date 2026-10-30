@@ -2592,7 +2592,7 @@ export default function OrdersPage() {
       )}
 
       {editingOrder && newOrderItem && !configuringOrderItem && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-3 sm:p-6">
+        <div className="fixed inset-0 z-[100] !m-0 flex items-center justify-center bg-black/60 p-3 sm:p-6">
           <section id="new-order-item-dialog" role="dialog" aria-modal="true" aria-labelledby="new-order-item-title" aria-describedby="new-order-item-description" className="flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl">
             <header className="flex items-start justify-between gap-3 border-b border-border p-4 sm:p-6">
               <div>
@@ -2602,7 +2602,7 @@ export default function OrdersPage() {
               <button type="button" aria-label="Fechar inclusão de item" onClick={closeNewOrderItem} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-secondary"><X className="h-5 w-5" /></button>
             </header>
             <form onSubmit={confirmNewOrderItem} className="flex min-h-0 flex-col">
-              <div className="overflow-y-auto p-4 sm:p-6">
+              <div className="overflow-y-auto p-4 sm:p-6 [&_label]:text-xs [&_input]:min-h-11 [&_input]:text-sm [&_select]:min-h-11 [&_select]:text-sm">
                 {renderOrderItemFields(newOrderItem)}
                 {newItemError && <p role="alert" className="mt-4 text-sm text-destructive">{newItemError}</p>}
               </div>
