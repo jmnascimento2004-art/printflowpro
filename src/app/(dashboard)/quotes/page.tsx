@@ -1,4 +1,5 @@
 'use client';
+import { useDialogFocus } from '@/components/use-dialog-focus';
 import {chatFetch} from '@/lib/chat/client';
 import { useActionDialog } from '@/components/action-dialog-provider';
 import { useFeedback } from '@/context/database-context';
@@ -23,7 +24,6 @@ import {
   Printer, 
   Download,
   X, 
-  PlusCircle,
   Edit2,
   MessageCircle,
   Truck,
@@ -613,6 +613,64 @@ export default function QuotesPage() {
   const [selectedMatrixColors, setSelectedMatrixColors] = useState('');
   const [selectedFinishing, setSelectedFinishing] = useState('');
 
+  const [itemDialogOpen, setItemDialogOpen] = useState(false);
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [itemNotes, setItemNotes] = useState('');
+  const itemOriginal = useRef<DraftQuoteItem | null>(null);
+  const itemBaseline = useRef('');
+  const itemSubmitted = useRef(false);
+  const closeQuoteItemDialog = () => { setItemDialogOpen(false); setEditingItemIndex(null); };
+  useDialogFocus('#quote-item-dialog', itemDialogOpen, false, closeQuoteItemDialog);
+  const quoteItemEditorState = { product: selectedProductId, quantity: itemQty, width: itemWidth, height: itemHeight,
+    description: manualItemDescription, pricingType: manualPricingType, unitPrice: manualUnitPrice,
+    material: selectedMaterial, size: selectedMatrixSize, colors: selectedMatrixColors, finishing: selectedFinishing, fields: productFieldValues };
+  const quoteItemUnchanged = Boolean(itemOriginal.current && itemBaseline.current === JSON.stringify(quoteItemEditorState));
+
+  const openQuoteItemDialog = (index: number | null = null) => {
+    const item = index === null ? null : structuredClone(items[index]);
+    const details = item?.details;
+    const snapshot = details?.configuration_snapshot;
+    const fields: ProductFieldValues = {};
+    const customFields = details?.pricing_snapshot?.custom_fields;
+    if (Array.isArray(customFields)) {
+      for (const field of customFields) {
+        if (field && typeof field.id === 'string' && ['string', 'number', 'boolean'].includes(typeof field.value)) fields[field.id] = field.value;
+      }
+    }
+    const values = { product: item?.product_id || MANUAL_QUOTE_ITEM_ID, quantity: item?.quantity ?? 1,
+      width: details?.length ?? details?.width ?? 1, height: details?.height ?? 1,
+      description: item?.product_name || '', pricingType: details?.manual_pricing_type || 'unidade' as ManualQuotePricingType,
+      unitPrice: item?.unit_price ?? 0, material: snapshot?.material || '', size: snapshot?.size || '',
+      colors: snapshot?.colors || '', finishing: snapshot?.finishing || '', fields };
+    setSelectedProductId(values.product); setItemQty(values.quantity); setItemWidth(values.width); setItemHeight(values.height);
+    setManualItemDescription(values.description); setManualPricingType(values.pricingType); setManualUnitPrice(values.unitPrice);
+    setSelectedMaterial(values.material); setSelectedMatrixSize(values.size); setSelectedMatrixColors(values.colors); setSelectedFinishing(values.finishing);
+    setProductFieldValues(values.fields); setItemNotes(details?.notes || '');
+    itemOriginal.current = item; itemBaseline.current = JSON.stringify(values); itemSubmitted.current = false;
+    setEditingItemIndex(index); setItemDialogOpen(true);
+  };
+
+  const commitQuoteItem = (item: DraftQuoteItem) => {
+    if (itemSubmitted.current) return;
+    itemSubmitted.current = true;
+    const original = itemOriginal.current;
+    const confirmed = original ? { ...original, ...item, id: original.id,
+      details: { ...(original.product_id === item.product_id ? original.details : {}), ...item.details, notes: itemNotes } }
+      : { ...item, details: { ...item.details, notes: itemNotes || item.details?.notes } };
+    setItems(current => editingItemIndex === null ? [...current, confirmed]
+      : current.map((entry, index) => index === editingItemIndex ? confirmed : entry));
+    closeQuoteItemDialog();
+  };
+
+  const confirmQuoteItemDialog = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!itemDialogOpen || quotePending || itemSubmitted.current) return;
+    if (quoteItemUnchanged && itemOriginal.current) { commitQuoteItem(itemOriginal.current); return; }
+    if (!selectedProductId) { showFeedback('Selecione um produto ou item manual.', 'warning'); return; }
+    if (!isManualQuoteItem && !selectedProduct) { showFeedback('Este produto não está disponível. Selecione outro produto ou o modo manual para alterar a configuração.', 'warning'); return; }
+    handleAddItem();
+  };
+
   const getProductVolumeTiers = (prodId: string) => {
     const prod = products.find(p => p.id === prodId);
     return getNormalizedVolumePricing(prod).sort((a, b) => a.min_qty - b.min_qty);
@@ -770,7 +828,7 @@ export default function QuotesPage() {
       }
 
       if (manualPricingType === 'linear' && manualItemLinearMeters <= 0) {
-        showFeedback('Informe o comprimento em centímetros para o item por metro linear.', 'warning');
+        showFeedback('Informe o comprimento em metros maior que zero para o item por metro linear.', 'warning');
         return;
       }
 
@@ -811,7 +869,7 @@ export default function QuotesPage() {
         }
       };
 
-      setItems(prev => [...prev, newItem]);
+      commitQuoteItem(newItem);
       setSelectedProductId(''); setProductFieldValues({});
       setManualItemDescription('');
       setManualPricingType('unidade');
@@ -907,6 +965,7 @@ export default function QuotesPage() {
       product_name: prod.name,
       quantity: normalizedQty,
       unit_price: price,
+      total_price: priceResolution.totalPrice,
       details: {
         width: prod.pricing_type === 'm2' || prod.pricing_type === 'linear' ? itemWidth : undefined,
         height: prod.pricing_type === 'm2' || priceResolution.breakdown.area > 0 ? itemHeight : undefined,
@@ -945,7 +1004,7 @@ export default function QuotesPage() {
       }
     };
 
-    setItems(prev => [...prev, newItem]);
+    commitQuoteItem(newItem);
     
     // Reset Row Inputs
     setSelectedProductId(''); setProductFieldValues({});
@@ -979,6 +1038,7 @@ export default function QuotesPage() {
     : '';
 
   const resetForm = () => {
+    closeQuoteItemDialog();
     setChatConversationId(undefined);setChatDraftContext(null);
     setEditingQuoteVersion(undefined);
     setIsCreating(false);
@@ -1753,345 +1813,33 @@ export default function QuotesPage() {
             </div>
           )}
 
-          {/* Item Adder Section */}
-          <div className="border border-border rounded-xl p-4 space-y-4 bg-secondary/15">
-            <h4 className="text-xs font-bold text-foreground flex items-center gap-1">
-              <PlusCircle className="h-3.5 w-3.5 text-primary" /> Adicionar Produtos ao Orçamento
-            </h4>
-            
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-              {/* Product select */}
-              <div className="md:col-span-4 space-y-1">
-                <label className="text-[10px] font-semibold text-muted-foreground">Produto / Serviço</label>
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => {
-                    const nextProductId = e.target.value;
-                    setSelectedProductId(nextProductId);
-                    initializeProductConfiguration(nextProductId);
-                  }}
-                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
-                >
-                  <option value="">Selecione...</option>
-                  <option value={MANUAL_QUOTE_ITEM_ID}>Produto avulso / Item manual</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.pricing_type} - {formatCurrency(p.sales_price)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {isManualQuoteItem && (
-                <>
-                  <div className="md:col-span-3 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Tipo de cálculo</label>
-                    <select
-                      value={manualPricingType}
-                      onChange={(e) => setManualPricingType(e.target.value as ManualQuotePricingType)}
-                      className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
-                    >
-                      {manualQuotePricingOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="md:col-span-5 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Descrição do item</label>
-                    <input
-                      type="text"
-                      value={manualItemDescription}
-                      onChange={(e) => setManualItemDescription(e.target.value)}
-                      placeholder="Ex: Produto avulso teste"
-                      className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
-                    />
-                  </div>
-
-                  {manualPricingType === 'm2' && (
-                    <>
-                      <div className="md:col-span-2 space-y-1">
-                        <label className="text-[10px] font-semibold text-muted-foreground">Largura (m)</label>
-                        <MetricInput aria-label="Largura (m)"
-                          value={itemWidth}
-                          onValueChange={setItemWidth}
-                          className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                        />
-                      </div>
-
-                      <div className="md:col-span-2 space-y-1">
-                        <label className="text-[10px] font-semibold text-muted-foreground">Altura (m)</label>
-                        <MetricInput aria-label="Altura (m)"
-                          value={itemHeight}
-                          onValueChange={setItemHeight}
-                          className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {manualPricingType === 'linear' && (
-                    <div className="md:col-span-3 space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Comprimento (m)</label>
-                      <MetricInput aria-label="Comprimento (m)"
-                        value={itemWidth}
-                        onValueChange={setItemWidth}
-                        className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                      />
-                    </div>
-                  )}
-
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={itemQty}
-                      onChange={(e) => setItemQty(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">{manualUnitPriceLabel}</label>
-                    <input
-                      type="text"
-                      value={formatCurrencyInput(manualUnitPrice)}
-                      onChange={(e) => setManualUnitPrice(parseCurrencyInputToNumber(e.target.value))}
-                      placeholder="R$ 0,00"
-                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-right font-bold text-foreground"
-                    />
-                  </div>
-
-                  <div className="md:col-span-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] font-bold text-primary">
-                    {manualPricingType === 'm2' && (
-                      <span className="block text-muted-foreground">Área total: {manualItemAreaTotal.toFixed(2)} m²</span>
-                    )}
-                    {manualPricingType === 'linear' && (
-                      <span className="block text-muted-foreground">Metragem total: {(manualItemLinearMeters * manualItemQuantity).toFixed(2)} m</span>
-                    )}
-                    <span className="block">Total: {formatCurrency(manualItemTotal)}</span>
-                  </div>
-                </>
-              )}
-
-              {/* Dynamic Dimension Inputs */}
-              {selectedProduct && !isManualQuoteItem && <ProductFieldInputs fields={selectedProduct.pricing_details?.configurator_options?.custom_fields || []} values={productFieldValues} onChange={setProductFieldValues}/>}
-              {selectedProductId && !isManualQuoteItem && ['m2', 'linear'].includes(getProductPriceInfo(selectedProductId).type) && (
-                <>
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="text-[10px] font-semibold text-muted-foreground">Largura / Compr. (m)</label>
-                    <MetricInput aria-label="Largura / Compr. (m)"
-                      value={itemWidth}
-                      onValueChange={setItemWidth}
-                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                    />
-                  </div>
-                  {getProductPriceInfo(selectedProductId).areaPricing && (
-                    <div className="md:col-span-2 space-y-1">
-                      <label className="text-[10px] font-semibold text-muted-foreground">Altura (m)</label>
-                      <MetricInput aria-label="Altura (m)"
-                        value={itemHeight}
-                        onValueChange={setItemHeight}
-                        className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Quantity */}
-              {!requiresTierSelection && !isManualQuoteItem && (
-                <div className="md:col-span-2 space-y-1">
-                  <label className="text-[10px] font-semibold text-muted-foreground">Quantidade</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={itemQty}
-                    onChange={(e) => {
-                      setItemQty(Math.max(1, parseInt(e.target.value) || 1));
-                    }}
-                    className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
-                  />
-                </div>
-              )}
-
-              {selectedProductId && !isManualQuoteItem && hasVariantPricingMatrix && (
-                <div className="md:col-span-12 rounded-xl border border-border bg-card px-4 py-3">
-                  <div className="flex flex-col gap-1">
-                    <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Configure o produto</h5>
-                    <p className="text-[11px] text-muted-foreground">
-                      Escolha a combinação cadastrada para liberar as tiragens e preços disponíveis.
-                    </p>
-                  </div>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                    {[
-                      { label: 'Material', field: 'material' as const, value: selectedMaterial, options: matrixMaterialOptions },
-                      { label: 'Tamanho', field: 'size' as const, value: selectedMatrixSize, options: matrixSizeOptions },
-                      { label: 'Cores', field: 'colors' as const, value: selectedMatrixColors, options: matrixColorOptions },
-                      { label: 'Acabamento', field: 'finishing' as const, value: selectedFinishing, options: matrixFinishingOptions }
-                    ].filter((group) => group.options.length > 0).map((group) => (
-                      <div key={group.label} className="rounded-lg border border-border bg-secondary/20 p-2.5">
-                        <span className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">{group.label}</span>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {group.options.map((option) => (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => handleMatrixOptionSelect(group.field, option)}
-                              className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition-all ${
-                                normalizeCombinationKey(group.value) === normalizeCombinationKey(option)
-                                  ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/10'
-                                  : 'border-border bg-card text-foreground hover:border-primary/50'
-                              }`}
-                            >
-                              {option}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {!isMatrixSelectionComplete && (
-                    <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] font-semibold text-primary">
-                      Complete {missingMatrixSelectionLabels.join(', ')} para liberar somente as tiragens da combinação escolhida.
-                    </div>
-                  )}
-                  {isMatrixSelectionComplete && !selectedMatrixRow && (
-                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
-                      Essa combinação não possui preço cadastrado. Escolha outra opção.
-                    </div>
-                  )}
-                  {isMatrixSelectionComplete && selectedMatrixRow && effectiveQuantityTiers.length === 0 && (
-                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
-                      Nenhuma tiragem/preço cadastrado para esta combinação.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {selectedProductId && !isManualQuoteItem && effectiveQuantityTiers.length > 0 && (
-                <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground space-y-2">
-                  <div>
-                    <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Faixas de quantidade</h5>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Clique na tiragem cadastrada. A quantidade, o unitário e o total serão aplicados ao item.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {effectiveQuantityTiers.map((tier) => (
-                      <button
-                        key={tier.min_qty}
-                        type="button"
-                        onClick={() => setItemQty(tier.min_qty)}
-                        className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${
-                          itemQty === tier.min_qty
-                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                            : 'bg-card text-foreground border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <span className="block">A partir de {tier.min_qty} un</span>
-                        <span className="block">{formatUnitCurrency(tier.price)} / un</span>
-                        <span className="block text-[9px] opacity-80">{formatCurrency(tier.total)} total</span>
-                      </button>
-                    ))}
-                  </div>
-                  {selectedQuantityTier && (
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="font-semibold">
-                        Faixa aplicada: a partir de {selectedQuantityTier.min_qty} un
-                      </span>
-                      <span className="font-bold text-primary">
-                        {formatUnitCurrency(selectedQuantityTier.price)} / un
-                        {' | '}
-                        {formatCurrency(selectedQuantityTier.total)} total
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="md:col-span-2">
-                <button
-                  type="button"
-                  onClick={handleAddItem}
-                  disabled={requiresTierSelection && !selectedQuantityTier}
-                  className="w-full py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Incluir Item
-                </button>
-              </div>
+          <section className="rounded-xl border border-border bg-secondary/15 p-4 space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div><h4 className="text-sm font-bold">Itens do Orçamento</h4><p className="mt-1 text-xs text-muted-foreground">Confira os itens e use Editar para ajustar seus dados.</p></div>
+              <button type="button" onClick={() => openQuoteItemDialog()} className="pf-button-primary w-full shrink-0 font-bold sm:w-auto"><Plus className="h-5 w-5" /> Adicionar Item</button>
             </div>
-
-            {/* Added Items table */}
-            <div className="border border-border rounded-lg overflow-hidden bg-card">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-secondary/40 font-bold border-b border-border text-foreground">
-                    <th className="px-4 py-2">Item</th>
-                    <th className="px-4 py-2 text-center">Quant.</th>
-                    <th className="px-4 py-2 text-right">Preço Unit.</th>
-                    <th className="px-4 py-2 text-right">Total</th>
-                    <th className="px-4 py-2 text-center">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {items.length > 0 ? (
-                    items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-2">
-                          <div className="font-semibold">{item.product_name}</div>
-                          {(() => {
-                            const configLines = getItemConfigurationSummaryLines({
-                              ...item,
-                              total_price: item.total_price ?? item.quantity * item.unit_price
-                            });
-                            if (!configLines) return null;
-                            return (
-                              <div className="mt-1 rounded-lg border border-primary/10 bg-primary/5 px-2 py-1 text-[9px] leading-relaxed text-muted-foreground">
-                                <span className="block font-bold text-foreground">Configuração: {configLines.options}</span>
-                                <span className="block">
-                                  Tiragem: {configLines.quantity} • Unitário: {configLines.unit} • Total: {configLines.total}
-                                </span>
-                              </div>
-                            );
-                          })()}
-                          {item.details && (item.details.width || item.details.height) && (
-                            <div className="text-[9px] text-muted-foreground">
-                              Medidas: {formatMeters(item.details.width || 0)} {item.details.height ? `x ${formatMeters(item.details.height)}` : 'linear'}
-                            </div>
-                          )}
-                          {item.details?.notes && (
-                            <div className="text-[9px] text-primary font-semibold">
-                              {item.details.notes}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-center font-semibold text-muted-foreground">{item.quantity}</td>
-                        <td className="px-4 py-2 text-right text-muted-foreground">{formatUnitCurrency(item.unit_price)}</td>
-                        <td className="px-4 py-2 text-right font-bold text-foreground">{formatCurrency(item.total_price ?? item.quantity * item.unit_price)}</td>
-                        <td className="px-4 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(idx)}
-                            className="p-1 rounded bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground italic">
-                        Nenhum item adicionado ainda. Preencha os campos acima para incluir itens.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+            {items.length ? items.map((item,index) => {
+              const summary = getItemConfigurationSummaryLines({...item,total_price:item.total_price ?? item.quantity * item.unit_price});
+              return <article key={item.id || index} aria-label={item.product_name} className="rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1"><h5 className="break-words text-sm font-bold">{item.product_name}</h5>
+                    {summary?.options && <p className="mt-1 break-words text-xs text-muted-foreground">{summary.options}</p>}
+                    {item.details && (item.details.width || item.details.height || item.details.length) && <p className="mt-1 text-xs text-muted-foreground">Medidas: {formatMeters(item.details.length || item.details.width || 0)} {item.details.height ? '× '+formatMeters(item.details.height) : ''}</p>}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <button type="button" aria-label={'Editar item '+item.product_name} onClick={() => openQuoteItemDialog(index)} className="pf-button-secondary"><Edit2 className="h-4 w-4" /> Editar</button>
+                    <button type="button" aria-label={'Remover item '+item.product_name} onClick={() => handleRemoveItem(index)} className="pf-button-danger"><Trash2 className="h-4 w-4" /> Remover</button>
+                  </div>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
+                  <div><dt className="text-xs text-muted-foreground">Quantidade</dt><dd className="font-semibold">{item.quantity}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">Valor unitário</dt><dd className="font-semibold">{formatUnitCurrency(item.unit_price)}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">Total do item</dt><dd className="font-bold text-primary">{formatCurrency(item.total_price ?? item.quantity * item.unit_price)}</dd></div>
+                </dl>
+                {item.details?.notes && <p className="mt-3 whitespace-pre-wrap break-words text-xs text-muted-foreground">{item.details.notes}</p>}
+              </article>;
+            }) : <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Nenhum item adicionado. Clique em Adicionar Item para começar.</p>}
+          </section>
 
           <AdditionalServicesSection
             services={additionalServices}
@@ -2406,6 +2154,279 @@ export default function QuotesPage() {
           </div>
         </fieldset>
       )}
+      {isCreating && itemDialogOpen && <div className="fixed inset-0 z-[100] !m-0 flex items-center justify-center bg-black/60 p-3 sm:p-6">
+        <section id="quote-item-dialog" role="dialog" aria-modal="true" aria-labelledby="quote-item-dialog-title" className="flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl">
+          <header className="flex items-start justify-between gap-3 border-b border-border p-4 sm:p-6"><div>
+            <h2 id="quote-item-dialog-title" className="text-lg font-bold">{editingItemIndex === null ? 'Adicionar item ao Orçamento' : 'Editar item do Orçamento'}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{editingItemIndex === null ? 'Escolha um produto ou preencha um item personalizado.' : 'Confira os dados e aplique as alterações para atualizar o item na lista.'}</p>
+          </div><button type="button" aria-label="Fechar edição do item" onClick={closeQuoteItemDialog} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-secondary"><X className="h-5 w-5" /></button></header>
+          <form onSubmit={confirmQuoteItemDialog} className="flex min-h-0 flex-col">
+            <div className="overflow-y-auto p-4 sm:p-6 [&_label]:text-xs [&_input]:min-h-11 [&_input]:text-sm [&_select]:min-h-11 [&_select]:text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+              {/* Product select */}
+              <div className="md:col-span-4 space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-1">Produto / Serviço</label>
+                <select id="quote-item-field-1"
+                  value={selectedProductId}
+                  onChange={(e) => {
+                    const nextProductId = e.target.value;
+                    setSelectedProductId(nextProductId);
+                    initializeProductConfiguration(nextProductId);
+                  }}
+                  className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
+                >
+                  <option value="">Selecione...</option>
+                  {selectedProductId && !isManualQuoteItem && !selectedProduct && <option value={selectedProductId}>{itemOriginal.current?.product_name} (histórico)</option>}
+                  <option value={MANUAL_QUOTE_ITEM_ID}>Produto avulso / Item manual</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.pricing_type} - {formatCurrency(p.sales_price)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {isManualQuoteItem && (
+                <>
+                  <div className="md:col-span-3 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-2">Tipo de cálculo</label>
+                    <select id="quote-item-field-2"
+                      value={manualPricingType}
+                      onChange={(e) => setManualPricingType(e.target.value as ManualQuotePricingType)}
+                      className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
+                    >
+                      {manualQuotePricingOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-5 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-3">Descrição do item</label>
+                    <input id="quote-item-field-3"
+                      type="text"
+                      value={manualItemDescription}
+                      onChange={(e) => setManualItemDescription(e.target.value)}
+                      placeholder="Ex: Produto avulso teste"
+                      className="w-full px-3 py-2 bg-card border border-border rounded-lg text-xs focus:outline-none text-foreground"
+                    />
+                  </div>
+
+                  {manualPricingType === 'm2' && (
+                    <>
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-4">Largura (m)</label>
+                        <MetricInput id="quote-item-field-4" aria-label="Largura (m)"
+                          value={itemWidth}
+                          onValueChange={setItemWidth}
+                          className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-5">Altura (m)</label>
+                        <MetricInput id="quote-item-field-5" aria-label="Altura (m)"
+                          value={itemHeight}
+                          onValueChange={setItemHeight}
+                          className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {manualPricingType === 'linear' && (
+                    <div className="md:col-span-3 space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-6">Comprimento (m)</label>
+                      <MetricInput id="quote-item-field-6" aria-label="Comprimento (m)"
+                        value={itemWidth}
+                        onValueChange={setItemWidth}
+                        className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-7">Quantidade</label>
+                    <input id="quote-item-field-7"
+                      type="number"
+                      min={1}
+                      value={itemQty}
+                      onChange={(e) => setItemQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-8">{manualUnitPriceLabel}</label>
+                    <input id="quote-item-field-8"
+                      type="text"
+                      value={formatCurrencyInput(manualUnitPrice)}
+                      onChange={(e) => setManualUnitPrice(parseCurrencyInputToNumber(e.target.value))}
+                      placeholder="R$ 0,00"
+                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-right font-bold text-foreground"
+                    />
+                  </div>
+
+                  <div className="md:col-span-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] font-bold text-primary">
+                    {manualPricingType === 'm2' && (
+                      <span className="block text-muted-foreground">Área total: {manualItemAreaTotal.toFixed(2)} m²</span>
+                    )}
+                    {manualPricingType === 'linear' && (
+                      <span className="block text-muted-foreground">Metragem total: {(manualItemLinearMeters * manualItemQuantity).toFixed(2)} m</span>
+                    )}
+                    <span className="block">Total: {formatCurrency(manualItemTotal)}</span>
+                  </div>
+                </>
+              )}
+
+              {/* Dynamic Dimension Inputs */}
+              {selectedProduct && !isManualQuoteItem && <ProductFieldInputs fields={selectedProduct.pricing_details?.configurator_options?.custom_fields || []} values={productFieldValues} onChange={setProductFieldValues}/>}
+              {selectedProductId && !isManualQuoteItem && ['m2', 'linear'].includes(getProductPriceInfo(selectedProductId).type) && (
+                <>
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-9">Largura / Compr. (m)</label>
+                    <MetricInput id="quote-item-field-9" aria-label="Largura / Compr. (m)"
+                      value={itemWidth}
+                      onValueChange={setItemWidth}
+                      className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                    />
+                  </div>
+                  {getProductPriceInfo(selectedProductId).areaPricing && (
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-10">Altura (m)</label>
+                      <MetricInput id="quote-item-field-10" aria-label="Altura (m)"
+                        value={itemHeight}
+                        onValueChange={setItemHeight}
+                        className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Quantity */}
+              {!requiresTierSelection && !isManualQuoteItem && (
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-[10px] font-semibold text-muted-foreground" htmlFor="quote-item-field-11">Quantidade</label>
+                  <input id="quote-item-field-11"
+                    type="number"
+                    min={1}
+                    value={itemQty}
+                    onChange={(e) => {
+                      setItemQty(Math.max(1, parseInt(e.target.value) || 1));
+                    }}
+                    className="w-full px-2 py-1.5 bg-card border border-border rounded-lg text-xs focus:outline-none text-center"
+                  />
+                </div>
+              )}
+
+              {selectedProductId && !isManualQuoteItem && hasVariantPricingMatrix && (
+                <div className="md:col-span-12 rounded-xl border border-border bg-card px-4 py-3">
+                  <div className="flex flex-col gap-1">
+                    <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Configure o produto</h5>
+                    <p className="text-[11px] text-muted-foreground">
+                      Escolha a combinação cadastrada para liberar as tiragens e preços disponíveis.
+                    </p>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      { label: 'Material', field: 'material' as const, value: selectedMaterial, options: matrixMaterialOptions },
+                      { label: 'Tamanho', field: 'size' as const, value: selectedMatrixSize, options: matrixSizeOptions },
+                      { label: 'Cores', field: 'colors' as const, value: selectedMatrixColors, options: matrixColorOptions },
+                      { label: 'Acabamento', field: 'finishing' as const, value: selectedFinishing, options: matrixFinishingOptions }
+                    ].filter((group) => group.options.length > 0).map((group) => (
+                      <div key={group.label} className="rounded-lg border border-border bg-secondary/20 p-2.5">
+                        <span className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">{group.label}</span>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {group.options.map((option) => (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => handleMatrixOptionSelect(group.field, option)}
+                              className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition-all ${
+                                normalizeCombinationKey(group.value) === normalizeCombinationKey(option)
+                                  ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/10'
+                                  : 'border-border bg-card text-foreground hover:border-primary/50'
+                              }`}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {!isMatrixSelectionComplete && (
+                    <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] font-semibold text-primary">
+                      Complete {missingMatrixSelectionLabels.join(', ')} para liberar somente as tiragens da combinação escolhida.
+                    </div>
+                  )}
+                  {isMatrixSelectionComplete && !selectedMatrixRow && (
+                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                      Essa combinação não possui preço cadastrado. Escolha outra opção.
+                    </div>
+                  )}
+                  {isMatrixSelectionComplete && selectedMatrixRow && effectiveQuantityTiers.length === 0 && (
+                    <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                      Nenhuma tiragem/preço cadastrado para esta combinação.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedProductId && !isManualQuoteItem && effectiveQuantityTiers.length > 0 && (
+                <div className="md:col-span-12 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-foreground space-y-2">
+                  <div>
+                    <h5 className="text-xs font-black uppercase tracking-wide text-foreground">Faixas de quantidade</h5>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Clique na tiragem cadastrada. A quantidade, o unitário e o total serão aplicados ao item.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {effectiveQuantityTiers.map((tier) => (
+                      <button
+                        key={tier.min_qty}
+                        type="button"
+                        onClick={() => setItemQty(tier.min_qty)}
+                        className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${
+                          itemQty === tier.min_qty
+                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                            : 'bg-card text-foreground border-border hover:border-primary/50'
+                        }`}
+                      >
+                        <span className="block">A partir de {tier.min_qty} un</span>
+                        <span className="block">{formatUnitCurrency(tier.price)} / un</span>
+                        <span className="block text-[9px] opacity-80">{formatCurrency(tier.total)} total</span>
+                      </button>
+                    ))}
+                  </div>
+                  {selectedQuantityTier && (
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-semibold">
+                        Faixa aplicada: a partir de {selectedQuantityTier.min_qty} un
+                      </span>
+                      <span className="font-bold text-primary">
+                        {formatUnitCurrency(selectedQuantityTier.price)} / un
+                        {' | '}
+                        {formatCurrency(selectedQuantityTier.total)} total
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
+
+              <label className="mt-4 block text-xs font-semibold" htmlFor="quote-item-notes">Observações do item</label>
+              <textarea id="quote-item-notes" className="pf-textarea mt-1" value={itemNotes} onChange={event=>setItemNotes(event.target.value)} rows={3} />
+            </div>
+            <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border p-4 sm:px-6">
+              <button type="button" onClick={closeQuoteItemDialog} className="pf-button-secondary">Cancelar</button>
+              <button type="submit" disabled={quotePending || (requiresTierSelection && !selectedQuantityTier && !quoteItemUnchanged)} className="pf-button-primary">{editingItemIndex === null ? 'Adicionar ao Orçamento' : 'Aplicar alterações'}</button>
+            </footer>
+          </form>
+        </section>
+      </div>}
     </div>
   );
 }
