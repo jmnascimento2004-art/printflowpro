@@ -3,6 +3,7 @@
 import { PaymentLinksCenter } from '@/components/payments/payment-links-center';
 import { FiscalCenter } from '@/components/fiscal/fiscal-center';
 import { useActionDialog } from '@/components/action-dialog-provider';
+import { useDialogFocus } from '@/components/use-dialog-focus';
 import { ProductConfiguratorModal } from '@/components/store/ProductConfiguratorModal';
 import { createPOSCartItem } from '@/lib/pos-cart';
 
@@ -170,6 +171,11 @@ export default function OrdersPage() {
   const [editDiscountMode, setEditDiscountMode] = useState<'amount' | 'percentage'>('amount');
   const [editDiscountReason, setEditDiscountReason] = useState('');
   const [configuringOrderItem, setConfiguringOrderItem] = useState<{ itemId: string; productId: string } | null>(null);
+  const [newOrderItem, setNewOrderItem] = useState<Order['items'][number] | null>(null);
+  const [newItemError, setNewItemError] = useState('');
+  const newItemSubmitted = useRef(false);
+  const closeNewOrderItem = () => { setNewOrderItem(null); setNewItemError(''); };
+  useDialogFocus('#new-order-item-dialog', Boolean(newOrderItem && !configuringOrderItem), false, closeNewOrderItem);
   const [editItems, setEditItems] = useState<Order['items']>([]);
   const [editAdditionalServices, setEditAdditionalServices] = useState<AdditionalService[]>([]);
 
@@ -414,6 +420,11 @@ export default function OrdersPage() {
     updater: (item: Order['items'][number]) => Order['items'][number],
     changedField?: 'quantity' | 'unit_price' | 'total_price' | 'measure'
   ) => {
+    if (newOrderItem?.id === itemId) {
+      setNewOrderItem(current => current ? recalculateOrderItem(updater(current), changedField) : null);
+      setNewItemError('');
+      return;
+    }
     setEditItems((current) =>
       current.map((item) => (item.id === itemId ? recalculateOrderItem(updater(item), changedField) : item))
     );
@@ -430,11 +441,10 @@ export default function OrdersPage() {
   };
 
   const handleAddEditItem = () => {
-    const now = Date.now();
     const newItem: Order['items'][number] = {
-      id: `oi-edit-${now}`,
+      id: `oi-edit-${crypto.randomUUID()}`,
       product_id: '',
-      product_name: 'Item manual / personalizado',
+      product_name: '',
       quantity: 1,
       unit_price: 0,
       total_price: 0,
@@ -452,7 +462,9 @@ export default function OrdersPage() {
       }
     };
 
-    setEditItems((current) => [...current, newItem]);
+    newItemSubmitted.current = false;
+    setNewItemError('');
+    setNewOrderItem(newItem);
   };
 
   const handleRemoveEditItem = (itemId: string) => {
@@ -474,6 +486,8 @@ export default function OrdersPage() {
 
   const handleOpenEditOrder = (order: Order) => {
     setSelectedOrder(null); // Close details panel if open
+    closeNewOrderItem();
+    setConfiguringOrderItem(null);
     setEditingOrder(order);
     setEditStatus(normalizeOrderOperationalStatus(order));
     setEditDeadline(order.deadline.split('T')[0]);
@@ -1059,6 +1073,221 @@ export default function OrdersPage() {
       })
     : [];
   
+  const renderOrderItemFields = (item: Order['items'][number]) => {
+    const pricingType = getManualPricingType(item);
+    const itemSize = getOrderItemSizeLabel(item);
+    const itemNotes = sanitizeDisplayText(item.details?.notes);
+    const selectedProductId = item.product_id && products.some(product => product.id === item.product_id) ? item.product_id : '';
+    return (<div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+                          <div className="space-y-1 lg:col-span-3">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-1`}>Produto / modo</label>
+                            <select id={`order-item-${item.id}-field-1`}
+                              value={selectedProductId}
+                              onChange={(event) => handleEditItemProductChange(item.id, event.target.value)}
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            >
+                              <option value="">Item manual / personalizado</option>
+                              {products.filter((product) => product.active !== false).map((product) => (
+                                <option key={product.id} value={product.id}>{product.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1 lg:col-span-4">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-2`}>Descrição do item *</label>
+                            <input id={`order-item-${item.id}-field-2`}
+                              type="text"
+                              required
+                              value={item.product_name}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                product_name: event.target.value,
+                                details: {
+                                  ...(current.details || {}),
+                                  configuration_snapshot: current.details?.configuration_snapshot
+                                    ? { ...current.details.configuration_snapshot, display_label: event.target.value }
+                                    : current.details?.configuration_snapshot
+                                }
+                              }))}
+                              placeholder="Descrição comercial do item"
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            />
+                          </div>
+
+                          <div className="space-y-1 lg:col-span-2">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-3`}>Tamanho / Medida</label>
+                            <input id={`order-item-${item.id}-field-3`}
+                              type="text"
+                              value={itemSize === '-' ? '' : itemSize}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                details: {
+                                  ...(current.details || {}),
+                                  configuration_snapshot: current.details?.configuration_snapshot
+                                    ? { ...current.details.configuration_snapshot, size: event.target.value }
+                                    : {
+                                        sale_mode: 'manual_quote_item',
+                                        size: event.target.value,
+                                        quantity_tier: current.quantity,
+                                        unit_price: current.unit_price,
+                                        total_price: current.total_price,
+                                        display_label: current.product_name
+                                      },
+                                  pricing_snapshot: {
+                                    ...((current.details?.pricing_snapshot as Record<string, unknown> | undefined) || {}),
+                                    size: event.target.value
+                                  }
+                                }
+                              }), 'measure')}
+                              placeholder="Ex: 10x15cm"
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            />
+                          </div>
+
+                          <div className="space-y-1 lg:col-span-3">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-4`}>Tipo de cálculo</label>
+                            <select id={`order-item-${item.id}-field-4`}
+                              value={pricingType}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                details: {
+                                  ...(current.details || {}),
+                                  manual_pricing_type: event.target.value as NonNullable<Order['items'][number]['details']>['manual_pricing_type']
+                                }
+                              }), 'measure')}
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            >
+                              <option value="unidade">Unidade</option>
+                              <option value="m2">Metro quadrado</option>
+                              <option value="linear">Metro linear</option>
+                              <option value="volume">Quantidade / lote</option>
+                              <option value="manual_value">Valor manual</option>
+                            </select>
+                          </div>
+
+                          {(pricingType === 'm2' || (pricingType === 'linear' && (item.details?.pricing_snapshot?.measure_basis === 'area' || Number(item.details?.height) > 0))) && (
+                            <>
+                              <div className="space-y-1 lg:col-span-2">
+                                <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-5`}>Largura (m)</label>
+                                <MetricInput id={`order-item-${item.id}-field-5`} aria-label="Largura (m)"
+                                  value={item.details?.width || 0}
+                                  onValueChange={(value) => updateEditItem(item.id, (current) => ({
+                                    ...current,
+                                    details: { ...(current.details || {}), width: value }
+                                  }), 'measure')}
+                                  className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                                />
+                              </div>
+                              <div className="space-y-1 lg:col-span-2">
+                                <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-6`}>Altura (m)</label>
+                                <MetricInput id={`order-item-${item.id}-field-6`} aria-label="Altura (m)"
+                                  value={item.details?.height || 0}
+                                  onValueChange={(value) => updateEditItem(item.id, (current) => ({
+                                    ...current,
+                                    details: { ...(current.details || {}), height: value }
+                                  }), 'measure')}
+                                  className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {pricingType === 'linear' && item.details?.pricing_snapshot?.measure_basis !== 'area' && !(Number(item.details?.height) > 0) && (
+                            <div className="space-y-1 lg:col-span-2">
+                              <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-7`}>Comprimento (m)</label>
+                              <MetricInput id={`order-item-${item.id}-field-7`} aria-label="Comprimento (m)"
+                                value={item.details?.length || 0}
+                                onValueChange={(value) => updateEditItem(item.id, (current) => ({
+                                  ...current,
+                                  details: { ...(current.details || {}), length: value }
+                                }), 'measure')}
+                                className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                              />
+                            </div>
+                          )}
+
+                          <div className="space-y-1 lg:col-span-2">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-8`}>Quantidade</label>
+                            <input id={`order-item-${item.id}-field-8`}
+                              type="number"
+                              min={newOrderItem?.id === item.id ? 1 : 0}
+                              required
+                              step="1"
+                              value={item.quantity}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                quantity: Number(event.target.value) || 0
+                              }), 'quantity')}
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
+                            />
+                          </div>
+
+                          {pricingType !== 'manual_value' && (
+                            <div className="space-y-1 lg:col-span-2">
+                              <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-9`}>Valor unitario</label>
+                              <input id={`order-item-${item.id}-field-9`}
+                                type="text"
+                                value={formatCurrencyInput(item.unit_price)}
+                                onChange={(event) => updateEditItem(item.id, (current) => ({
+                                  ...current,
+                                  unit_price: parseCurrencyInputToNumber(event.target.value)
+                                }), 'unit_price')}
+                                placeholder="R$ 0,00"
+                                className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-bold text-foreground"
+                              />
+                            </div>
+                          )}
+
+                          <div className="space-y-1 lg:col-span-2">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-10`}>Total</label>
+                            <input id={`order-item-${item.id}-field-10`}
+                              type="text"
+                              value={formatCurrencyInput(item.total_price)}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                total_price: parseCurrencyInputToNumber(event.target.value)
+                              }), 'total_price')}
+                              placeholder="R$ 0,00"
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-black text-primary"
+                            />
+                          </div>
+
+                          <div className="space-y-1 lg:col-span-4">
+                            <label className="text-[9px] font-bold uppercase text-muted-foreground" htmlFor={`order-item-${item.id}-field-11`}>Observacoes do item</label>
+                            <input id={`order-item-${item.id}-field-11`}
+                              type="text"
+                              value={itemNotes}
+                              onChange={(event) => updateEditItem(item.id, (current) => ({
+                                ...current,
+                                details: { ...(current.details || {}), notes: event.target.value }
+                              }))}
+                              placeholder="Acabamento, instrucoes ou ajuste comercial"
+                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs text-foreground"
+                            />
+                          </div>
+                        </div>);
+  };
+
+  const confirmNewOrderItem = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingOrder || !newOrderItem || newItemSubmitted.current) return;
+    const details = newOrderItem.details || {};
+    const type = getManualPricingType(newOrderItem);
+    const usesArea = type === 'm2' || (type === 'linear' && (details.pricing_snapshot?.measure_basis === 'area' || Number(details.height) > 0));
+    if (!newOrderItem.product_name.trim() || !(newOrderItem.quantity > 0)) {
+      setNewItemError('Informe a descrição e uma quantidade maior que zero.');
+      return;
+    }
+    if (usesArea ? !(Number(details.width) > 0 && Number(details.height) > 0) : type === 'linear' && !(Number(details.length ?? details.width) > 0)) {
+      setNewItemError('Informe medidas em metros maiores que zero.');
+      return;
+    }
+    newItemSubmitted.current = true;
+    setEditItems(items => [...items, { ...newOrderItem, product_name: newOrderItem.product_name.trim() }]);
+    closeNewOrderItem();
+    showToast('Item incluído. Salve o Pedido para confirmar as alterações.', 'success');
+  };
+
   const documentTarget = documentOrder || selectedOrder;
   return (
     <div className="space-y-6">
@@ -1084,11 +1313,11 @@ export default function OrdersPage() {
           <fieldset disabled={orderPending} aria-busy={orderPending} className="flex min-w-0 flex-col space-y-4">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <h3 className="font-bold text-foreground text-sm uppercase flex items-center gap-1.5">
-                <Edit3 className="h-4.5 w-4.5 text-primary" /> 
+                <Edit3 className="h-4.5 w-4.5 text-primary" />
                 Editar Pedido: {formatOrderDisplayNumber(editingOrder.number)}
               </h3>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setEditingOrder(null)}
                 className="p-1 rounded hover:bg-secondary text-muted-foreground"
               >
@@ -1174,12 +1403,7 @@ export default function OrdersPage() {
 
                 <div className="space-y-3">
                   {editItems.map((item) => {
-                    const pricingType = getManualPricingType(item);
                     const itemSize = getOrderItemSizeLabel(item);
-                    const itemNotes = sanitizeDisplayText(item.details?.notes);
-                    const selectedProductId = item.product_id && products.some((product) => product.id === item.product_id)
-                      ? item.product_id
-                      : '';
 
                     return (
                       <div key={item.id} className="rounded-lg border border-border bg-card p-3">
@@ -1199,193 +1423,7 @@ export default function OrdersPage() {
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-                          <div className="space-y-1 lg:col-span-3">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Produto / modo</label>
-                            <select
-                              value={selectedProductId}
-                              onChange={(event) => handleEditItemProductChange(item.id, event.target.value)}
-                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
-                            >
-                              <option value="">Item manual / personalizado</option>
-                              {products.filter((product) => product.active !== false).map((product) => (
-                                <option key={product.id} value={product.id}>{product.name}</option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1 lg:col-span-4">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Descrição do item *</label>
-                            <input
-                              type="text"
-                              required
-                              value={item.product_name}
-                              onChange={(event) => updateEditItem(item.id, (current) => ({
-                                ...current,
-                                product_name: event.target.value,
-                                details: {
-                                  ...(current.details || {}),
-                                  configuration_snapshot: current.details?.configuration_snapshot
-                                    ? { ...current.details.configuration_snapshot, display_label: event.target.value }
-                                    : current.details?.configuration_snapshot
-                                }
-                              }))}
-                              placeholder="Descrição comercial do item"
-                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
-                            />
-                          </div>
-
-                          <div className="space-y-1 lg:col-span-2">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Tamanho / Medida</label>
-                            <input
-                              type="text"
-                              value={itemSize === '-' ? '' : itemSize}
-                              onChange={(event) => updateEditItem(item.id, (current) => ({
-                                ...current,
-                                details: {
-                                  ...(current.details || {}),
-                                  configuration_snapshot: current.details?.configuration_snapshot
-                                    ? { ...current.details.configuration_snapshot, size: event.target.value }
-                                    : {
-                                        sale_mode: 'manual_quote_item',
-                                        size: event.target.value,
-                                        quantity_tier: current.quantity,
-                                        unit_price: current.unit_price,
-                                        total_price: current.total_price,
-                                        display_label: current.product_name
-                                      },
-                                  pricing_snapshot: {
-                                    ...((current.details?.pricing_snapshot as Record<string, unknown> | undefined) || {}),
-                                    size: event.target.value
-                                  }
-                                }
-                              }), 'measure')}
-                              placeholder="Ex: 10x15cm"
-                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
-                            />
-                          </div>
-
-                          <div className="space-y-1 lg:col-span-3">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Tipo de cálculo</label>
-                            <select
-                              value={pricingType}
-                              onChange={(event) => updateEditItem(item.id, (current) => ({
-                                ...current,
-                                details: {
-                                  ...(current.details || {}),
-                                  manual_pricing_type: event.target.value as NonNullable<Order['items'][number]['details']>['manual_pricing_type']
-                                }
-                              }), 'measure')}
-                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
-                            >
-                              <option value="unidade">Unidade</option>
-                              <option value="m2">Metro quadrado</option>
-                              <option value="linear">Metro linear</option>
-                              <option value="volume">Quantidade / lote</option>
-                              <option value="manual_value">Valor manual</option>
-                            </select>
-                          </div>
-
-                          {(pricingType === 'm2' || (pricingType === 'linear' && (item.details?.pricing_snapshot?.measure_basis === 'area' || Number(item.details?.height) > 0))) && (
-                            <>
-                              <div className="space-y-1 lg:col-span-2">
-                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Largura (m)</label>
-                                <MetricInput aria-label="Largura (m)"
-                                  value={item.details?.width || 0}
-                                  onValueChange={(value) => updateEditItem(item.id, (current) => ({
-                                    ...current,
-                                    details: { ...(current.details || {}), width: value }
-                                  }), 'measure')}
-                                  className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
-                                />
-                              </div>
-                              <div className="space-y-1 lg:col-span-2">
-                                <label className="text-[9px] font-bold uppercase text-muted-foreground">Altura (m)</label>
-                                <MetricInput aria-label="Altura (m)"
-                                  value={item.details?.height || 0}
-                                  onValueChange={(value) => updateEditItem(item.id, (current) => ({
-                                    ...current,
-                                    details: { ...(current.details || {}), height: value }
-                                  }), 'measure')}
-                                  className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
-                                />
-                              </div>
-                            </>
-                          )}
-
-                          {pricingType === 'linear' && item.details?.pricing_snapshot?.measure_basis !== 'area' && !(Number(item.details?.height) > 0) && (
-                            <div className="space-y-1 lg:col-span-2">
-                              <label className="text-[9px] font-bold uppercase text-muted-foreground">Comprimento (m)</label>
-                              <MetricInput aria-label="Comprimento (m)"
-                                value={item.details?.length || 0}
-                                onValueChange={(value) => updateEditItem(item.id, (current) => ({
-                                  ...current,
-                                  details: { ...(current.details || {}), length: value }
-                                }), 'measure')}
-                                className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
-                              />
-                            </div>
-                          )}
-
-                          <div className="space-y-1 lg:col-span-2">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Quantidade</label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={item.quantity}
-                              onChange={(event) => updateEditItem(item.id, (current) => ({
-                                ...current,
-                                quantity: Number(event.target.value) || 0
-                              }), 'quantity')}
-                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-semibold text-foreground"
-                            />
-                          </div>
-
-                          {pricingType !== 'manual_value' && (
-                            <div className="space-y-1 lg:col-span-2">
-                              <label className="text-[9px] font-bold uppercase text-muted-foreground">Valor unitario</label>
-                              <input
-                                type="text"
-                                value={formatCurrencyInput(item.unit_price)}
-                                onChange={(event) => updateEditItem(item.id, (current) => ({
-                                  ...current,
-                                  unit_price: parseCurrencyInputToNumber(event.target.value)
-                                }), 'unit_price')}
-                                placeholder="R$ 0,00"
-                                className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-bold text-foreground"
-                              />
-                            </div>
-                          )}
-
-                          <div className="space-y-1 lg:col-span-2">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Total</label>
-                            <input
-                              type="text"
-                              value={formatCurrencyInput(item.total_price)}
-                              onChange={(event) => updateEditItem(item.id, (current) => ({
-                                ...current,
-                                total_price: parseCurrencyInputToNumber(event.target.value)
-                              }), 'total_price')}
-                              placeholder="R$ 0,00"
-                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs font-black text-primary"
-                            />
-                          </div>
-
-                          <div className="space-y-1 lg:col-span-4">
-                            <label className="text-[9px] font-bold uppercase text-muted-foreground">Observacoes do item</label>
-                            <input
-                              type="text"
-                              value={itemNotes}
-                              onChange={(event) => updateEditItem(item.id, (current) => ({
-                                ...current,
-                                details: { ...(current.details || {}), notes: event.target.value }
-                              }))}
-                              placeholder="Acabamento, instrucoes ou ajuste comercial"
-                              className="w-full rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-xs text-foreground"
-                            />
-                          </div>
-                        </div>
+                        {renderOrderItemFields(item)}
                       </div>
                     );
                   })}
@@ -2553,11 +2591,38 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {editingOrder && newOrderItem && !configuringOrderItem && (
+        <div className="fixed inset-0 z-[100] !m-0 flex items-center justify-center bg-black/60 p-3 sm:p-6">
+          <section id="new-order-item-dialog" role="dialog" aria-modal="true" aria-labelledby="new-order-item-title" aria-describedby="new-order-item-description" className="flex max-h-[90dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl">
+            <header className="flex items-start justify-between gap-3 border-b border-border p-4 sm:p-6">
+              <div>
+                <h2 id="new-order-item-title" className="text-lg font-bold">Adicionar item ao Pedido</h2>
+                <p id="new-order-item-description" className="mt-1 text-sm text-muted-foreground">Escolha um produto ou preencha um item personalizado. Confira os dados antes de adicionar.</p>
+              </div>
+              <button type="button" aria-label="Fechar inclusão de item" onClick={closeNewOrderItem} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-secondary"><X className="h-5 w-5" /></button>
+            </header>
+            <form onSubmit={confirmNewOrderItem} className="flex min-h-0 flex-col">
+              <div className="overflow-y-auto p-4 sm:p-6 [&_label]:text-xs [&_input]:min-h-11 [&_input]:text-sm [&_select]:min-h-11 [&_select]:text-sm">
+                {renderOrderItemFields(newOrderItem)}
+                {newItemError && <p role="alert" className="mt-4 text-sm text-destructive">{newItemError}</p>}
+              </div>
+              <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border p-4 sm:px-6">
+                <div className="text-sm"><span className="text-muted-foreground">Total do item</span><p className="text-lg font-bold text-primary">{formatCurrency(newOrderItem.total_price)}</p></div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={closeNewOrderItem} className="pf-button-secondary min-h-11">Cancelar</button>
+                  <button type="submit" className="pf-button-primary min-h-11">Adicionar ao Pedido</button>
+                </div>
+              </footer>
+            </form>
+          </section>
+        </div>
+      )}
+
       {configuringOrderItem && products.find(product => product.id === configuringOrderItem.productId) && <ProductConfiguratorModal
-        product={products.find(product => product.id === configuringOrderItem.productId)!} isOpen compact confirmLabel="Aplicar ao pedido"
+        product={products.find(product => product.id === configuringOrderItem.productId)!} isOpen compact confirmLabel={newOrderItem?.id === configuringOrderItem.itemId ? 'Aplicar ao item' : 'Aplicar ao pedido'}
         isFavorite={false} isFavoritePending={false} onToggleFavorite={() => {}} onClose={() => setConfiguringOrderItem(null)}
         onAddToCart={payload => { const configured = createPOSCartItem(payload.product, payload.pricing_config, { ...payload.dimensions, configuration_summary: payload.configuration_summary, configuration_snapshot: payload.configuration_snapshot, pricing_snapshot: payload.pricing_snapshot, notes: payload.notes });
-          setEditItems(items => items.map(item => item.id === configuringOrderItem.itemId ? { ...item, product_id: configured.product_id, product_name: configured.product_name, quantity: configured.quantity, unit_price: configured.unit_price, total_price: configured.total_price, details: configured.details } : item)); setConfiguringOrderItem(null); }} />}
+          updateEditItem(configuringOrderItem.itemId, item => ({ ...item, product_id: configured.product_id, product_name: configured.product_name, quantity: configured.quantity, unit_price: configured.unit_price, total_price: configured.total_price, details: configured.details })); setConfiguringOrderItem(null); }} />}
     </div>
   );
 }
