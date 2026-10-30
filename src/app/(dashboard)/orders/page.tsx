@@ -2619,7 +2619,7 @@ export default function OrdersPage() {
       )}
 
       {configuringOrderItem && products.find(product => product.id === configuringOrderItem.productId) && <ProductConfiguratorModal
-        product={products.find(product => product.id === configuringOrderItem.productId)!} isOpen compact confirmLabel="Aplicar ao pedido"
+        product={products.find(product => product.id === configuringOrderItem.productId)!} isOpen compact confirmLabel={newOrderItem?.id === configuringOrderItem.itemId ? 'Aplicar ao item' : 'Aplicar ao pedido'}
         isFavorite={false} isFavoritePending={false} onToggleFavorite={() => {}} onClose={() => setConfiguringOrderItem(null)}
         onAddToCart={payload => { const configured = createPOSCartItem(payload.product, payload.pricing_config, { ...payload.dimensions, configuration_summary: payload.configuration_summary, configuration_snapshot: payload.configuration_snapshot, pricing_snapshot: payload.pricing_snapshot, notes: payload.notes });
           updateEditItem(configuringOrderItem.itemId, item => ({ ...item, product_id: configured.product_id, product_name: configured.product_name, quantity: configured.quantity, unit_price: configured.unit_price, total_price: configured.total_price, details: configured.details })); setConfiguringOrderItem(null); }} />}
