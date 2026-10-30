@@ -1,4 +1,5 @@
 'use client';
+import { ItemSummaryRow } from '@/components/item-summary-row';
 
 import { PaymentLinksCenter } from '@/components/payments/payment-links-center';
 import { FiscalCenter } from '@/components/fiscal/fiscal-center';
@@ -600,7 +601,7 @@ export default function OrdersPage() {
       await updateOrder({
         ...editingOrder,
         status: editStatus,
-        deadline: new Date(editDeadline).toISOString(),
+        deadline: new Date(`${editDeadline}T12:00:00.000Z`).toISOString(),
         notes: buildOrderNotesWithDiscount(sanitizeDisplayText(editNotes), safeDiscount, editDiscountReason),
         total_amount: nextTotal,
         shipping_cost: editShipping,
@@ -1376,15 +1377,18 @@ export default function OrdersPage() {
 
               {/* Deadline */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Prazo de Entrega *</label>
+                <label htmlFor="order-delivery-date" className="text-xs font-semibold text-muted-foreground">Data de entrega *</label>
                 <input
                   type="date"
                   required
+                  id="order-delivery-date"
+                  aria-describedby="order-delivery-date-help"
                   value={editDeadline}
                   onChange={(e) => setEditDeadline(e.target.value)}
                   placeholder="dd/mm/aaaa"
                   className="w-full px-3 py-1.5 bg-secondary/50 border border-border rounded-lg text-xs text-foreground focus:outline-none"
                 />
+                <p id="order-delivery-date-help" className="text-xs text-muted-foreground">Esta data será exibida no PDF do Pedido após salvar.</p>
               </div>
 
               {/* Paid Amount */}
@@ -1421,28 +1425,10 @@ export default function OrdersPage() {
                     const itemSize = getOrderItemSizeLabel(item);
 
                     return (
-                      <article key={item.id} aria-label={item.product_name || 'Item sem descrição'} className="rounded-xl border border-border bg-card p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0 flex-1">
-                            <h5 className="break-words text-sm font-bold text-foreground">{item.product_name || 'Item sem descrição'}</h5>
-                            <p className="mt-1 break-words text-xs text-muted-foreground">{getOrderItemOriginLabel(item)} · {itemSize || 'Sem medida informada'}</p>
-                          </div>
-                          <div className="flex shrink-0 flex-wrap gap-2">
-                            <button type="button" onClick={() => handleOpenItemEditor(item)} className="pf-button-secondary" aria-label={'Editar item ' + item.product_name}>
-                              <Edit3 className="h-4 w-4" /> Editar
-                            </button>
-                            <button type="button" onClick={() => handleRemoveEditItem(item.id)} className="pf-button-danger" aria-label={'Remover item ' + item.product_name}>
-                              <Trash2 className="h-4 w-4" /> Remover
-                            </button>
-                          </div>
-                        </div>
-                        <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
-                          <div><dt className="text-xs text-muted-foreground">Quantidade</dt><dd className="font-semibold">{item.quantity}</dd></div>
-                          <div><dt className="text-xs text-muted-foreground">Valor unitário</dt><dd className="font-semibold">{formatCurrency(item.unit_price)}</dd></div>
-                          <div><dt className="text-xs text-muted-foreground">Total do item</dt><dd className="font-bold text-primary">{formatCurrency(item.total_price)}</dd></div>
-                        </dl>
-                        {sanitizeDisplayText(item.details?.notes) && <p className="mt-3 whitespace-pre-wrap break-words text-xs text-muted-foreground">{sanitizeDisplayText(item.details?.notes)}</p>}
-                      </article>
+                      <ItemSummaryRow key={item.id} name={item.product_name || 'Item sem descrição'}
+                        description={[itemSize, sanitizeDisplayText(item.details?.notes)].filter(Boolean).join(' · ')}
+                        quantity={item.quantity} unit={formatCurrency(item.unit_price)} total={formatCurrency(item.total_price)}
+                        onEdit={() => handleOpenItemEditor(item)} onRemove={() => handleRemoveEditItem(item.id)} />
                     );
                   })}
                 </div>

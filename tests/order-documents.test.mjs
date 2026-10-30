@@ -32,6 +32,19 @@ test('persisted totals reconcile discounts/freight/services without repricing', 
   data.order.total_amount = 160; assert.equal(commercialSummary(data.order).adjustment, 10);
 });
 test('document dates preserve date-only and Bahia midnight', () => { assert.equal(documentDate('2026-11-01'), '01/11/2026'); assert.equal(documentDate('2026-10-22T02:00:00Z'), '21/10/2026'); assert.equal(documentDate('invalid'), ''); });
+
+test('delivery date matches the calendar field even for legacy midnight timestamps', async () => {
+  for (const deadline of ['2026-10-31', '2026-10-31T00:00:00.000Z', '2026-10-31T12:00:00.000Z', '']) {
+    const data = fixture(1); data.order.deadline = deadline;
+    const bytes = await renderToBuffer(React.createElement(OrderPdfDocument, { data }));
+    const task = getDocument({ data: new Uint8Array(bytes), useSystemFonts: true });
+    const pdf = await task.promise;
+    const text = (await (await pdf.getPage(1)).getTextContent()).items.map(item => item.str).join(' ');
+    assert.ok(text.replace(/\s+/g, ' ').includes(`Data de entrega: ${deadline ? '31/10/2026' : '____/____/________'}`), text);
+    assert.doesNotMatch(text, /30\/10\/2026/);
+    await task.destroy();
+  }
+});
 test('simple selected options keep names and exclude price deltas from document configuration', () => {
   const row = item(); row.details = { selected_options: [{ group_name: 'Acabamento', option_name: 'Laminação fosca', price_delta: 99 }] };
   const view = documentItem(row); assert.match(view.configuration, /Acabamento: Laminação fosca/); assert.doesNotMatch(view.configuration, /99|price_delta/);

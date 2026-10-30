@@ -16,7 +16,7 @@ export function OrderPdfDocument({ data, signature = false }: { data: OrderPdfDa
   if (totals.freight) lines.push(['Frete', totals.freight]);
   if (totals.adjustment) lines.push(['Ajuste comercial registrado', totals.adjustment]);
   return <Document title={`Pedido ${data.order.number}`} author={data.company.name}><Page size="A4" style={s.page}>
-    <DocumentHeader data={data} title="PEDIDO" /><CustomerBlock data={data} /><DocumentItemsTable data={data} commercial />
+    <DocumentHeader data={data} title="PEDIDO" /><CustomerBlock data={data} /><View style={{ ...s.box, paddingVertical: 8 }} wrap={false}><Text style={{ fontWeight: 700 }}>Data de entrega: {documentDate(data.order.deadline?.slice(0, 10)) || '____/____/________'}</Text></View><DocumentItemsTable data={data} commercial />
     {(data.order.additional_services || []).length > 0 && <View><Text style={s.heading}>Serviços adicionais</Text>{data.order.additional_services!.map(service => <View key={service.id} style={s.row} wrap={false}><Text style={{ flex: 1 }}>{service.name} · {service.quantity.toLocaleString('pt-BR')} un.</Text><Text>{formatPdfCurrency(service.total_price)}</Text></View>)}</View>}
     <View style={{ marginLeft: 'auto', width: 245, marginTop: 16 }} wrap={false}>
       {lines.map(([label, value]) => <View key={label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}><Text style={s.muted}>{label}</Text><Text>{formatPdfCurrency(value)}</Text></View>)}
@@ -24,7 +24,6 @@ export function OrderPdfDocument({ data, signature = false }: { data: OrderPdfDa
       {paid > 0 && <><View style={s.row}><Text style={{ flex: 1 }}>Total pago</Text><Text>{formatPdfCurrency(paid)}</Text></View><View style={s.row}><Text style={{ flex: 1 }}>Saldo</Text><Text>{formatPdfCurrency(Math.max(0, totals.total - paid))}</Text></View></>}
     </View>
     <View wrap={false}><View style={{ marginTop: 16 }} wrap={false}><Text style={s.heading}>Entrega e pagamento</Text>
-      {data.order.deadline && <Text>Prazo: {documentDate(data.order.deadline)}</Text>}
       {deliveryTime.isComplete && <Text>Prazo de entrega: {deliveryTime.label}</Text>}
       {data.order.delivery_type && <Text>{data.order.delivery_type === 'retirada' ? 'Retirada na empresa' : `Entrega: ${data.order.delivery_type}`}</Text>}
       {data.order.delivery_type !== 'retirada' && data.order.delivery_address && <Text>{data.order.delivery_address}</Text>}
