@@ -16,7 +16,7 @@ export function OrderOperationalDocument({ data, kind, copies = 1 }: { data: Ord
       {data.customer?.phone && <Text>{data.customer.phone}</Text>}
       {data.order.delivery_type && <Text style={{ marginTop: 4 }}>{data.order.delivery_type === 'retirada' ? 'Retirada na empresa' : data.order.delivery_type.toUpperCase()}</Text>}
       {data.order.delivery_type !== 'retirada' && data.order.delivery_address && <Text style={{ fontSize: 7, maxLines: 3, textOverflow: 'ellipsis' }}>{data.order.delivery_address}</Text>}
-      {data.order.deadline && <Text style={{ fontSize: 8, marginTop: 4 }}>Prazo: {documentDate(data.order.deadline)}</Text>}
+      {data.order.deadline && <Text style={{ fontSize: 8, marginTop: 4 }}>Data de entrega: {documentDate(data.order.deadline.slice(0, 10))}</Text>}
     </Page>
   </Document>;
 
@@ -25,7 +25,7 @@ export function OrderOperationalDocument({ data, kind, copies = 1 }: { data: Ord
       <DocumentHeader data={data} title={kind === 'production' ? 'ORDEM DE PRODUÇÃO' : 'PROTOCOLO DE ENTREGA'} />
       {kind === 'protocol' && <Text style={{ ...s.muted, marginBottom: 8 }}>{copies === 2 ? index === 0 ? 'VIA EMPRESA' : 'VIA CLIENTE' : 'VIA ÚNICA'}</Text>}
       <CustomerBlock data={data} />
-      {data.order.deadline && <Text style={{ marginBottom: 10 }}>Prazo: {documentDate(data.order.deadline)}</Text>}
+      {data.order.deadline && <Text style={{ marginBottom: 10 }}>Data de entrega: {documentDate(data.order.deadline.slice(0, 10))}</Text>}
       <DocumentItemsTable data={data} internal={kind === 'production'} />
       {kind === 'production' && <View>
         <Text style={s.heading}>Operação registrada</Text>

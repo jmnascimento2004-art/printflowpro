@@ -162,5 +162,5 @@ test('renders the contracted delivery time in a local PDF', async () => {
   await task.destroy();
 
   assert.match(text, /Prazo de entrega:\s+5 dias úteis/);
-  assert.match(text, /Prazo:\s+16\/08\/2026/); // Recorded deadline and contracted item estimate are distinct facts.
+  assert.match(text, /Data de entrega:\s+16\/08\/2026/); // Recorded deadline and contracted item estimate are distinct facts.
 });

@@ -1,4 +1,5 @@
 'use client';
+import { ItemSummaryRow } from '@/components/item-summary-row';
 import { useDialogFocus } from '@/components/use-dialog-focus';
 import {chatFetch} from '@/lib/chat/client';
 import { useActionDialog } from '@/components/action-dialog-provider';
@@ -1820,24 +1821,12 @@ export default function QuotesPage() {
             </div>
             {items.length ? items.map((item,index) => {
               const summary = getItemConfigurationSummaryLines({...item,total_price:item.total_price ?? item.quantity * item.unit_price});
-              return <article key={item.id || index} aria-label={item.product_name} className="rounded-xl border border-border bg-card p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 flex-1"><h5 className="break-words text-sm font-bold">{item.product_name}</h5>
-                    {summary?.options && <p className="mt-1 break-words text-xs text-muted-foreground">{summary.options}</p>}
-                    {item.details && (item.details.width || item.details.height || item.details.length) && <p className="mt-1 text-xs text-muted-foreground">Medidas: {formatMeters(item.details.length || item.details.width || 0)} {item.details.height ? '× '+formatMeters(item.details.height) : ''}</p>}
-                  </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <button type="button" aria-label={'Editar item '+item.product_name} onClick={() => openQuoteItemDialog(index)} className="pf-button-secondary"><Edit2 className="h-4 w-4" /> Editar</button>
-                    <button type="button" aria-label={'Remover item '+item.product_name} onClick={() => handleRemoveItem(index)} className="pf-button-danger"><Trash2 className="h-4 w-4" /> Remover</button>
-                  </div>
-                </div>
-                <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm sm:grid-cols-3">
-                  <div><dt className="text-xs text-muted-foreground">Quantidade</dt><dd className="font-semibold">{item.quantity}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Valor unitário</dt><dd className="font-semibold">{formatUnitCurrency(item.unit_price)}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">Total do item</dt><dd className="font-bold text-primary">{formatCurrency(item.total_price ?? item.quantity * item.unit_price)}</dd></div>
-                </dl>
-                {item.details?.notes && <p className="mt-3 whitespace-pre-wrap break-words text-xs text-muted-foreground">{item.details.notes}</p>}
-              </article>;
+              const measures = item.details && (item.details.width || item.details.height || item.details.length)
+                ? formatMeters(item.details.length || item.details.width || 0) + (item.details.height ? ' × ' + formatMeters(item.details.height) : '') : '';
+              return <ItemSummaryRow key={item.id || index} name={item.product_name}
+                description={[measures, summary?.options, item.details?.notes].filter(Boolean).join(' · ')}
+                quantity={item.quantity} unit={formatUnitCurrency(item.unit_price)} total={formatCurrency(item.total_price ?? item.quantity * item.unit_price)}
+                onEdit={() => openQuoteItemDialog(index)} onRemove={() => handleRemoveItem(index)} />;
             }) : <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Nenhum item adicionado. Clique em Adicionar Item para começar.</p>}
           </section>
 
